@@ -1113,7 +1113,7 @@ class TrainingOrchestrator:
     # ----------------------------
     # Internals
     # ----------------------------
-    def _process_batch(self, doc_id: str, batch: List[str], offset: int, model_id: Optional[str]) -> None:
+    def _process_batch(self, doc_id: str, batch: List[Any], offset: int, model_id: Optional[str]) -> None:
         """
         Processes a batch of text segments:
         - Chained tokenization with hybrid cache
@@ -1122,7 +1122,15 @@ class TrainingOrchestrator:
         """
         # Step 1: tokenize with caching (async if available)
         tokenized_list: List[Dict[str, Any]] = []
-        for idx, text in enumerate(batch):
+        for idx, segment in enumerate(batch):
+            # Извлекаем текст из сегмента
+            if isinstance(segment, dict):
+                text = segment.get('text', str(segment))
+            elif isinstance(segment, str):
+                text = segment
+            else:
+                text = str(segment)
+            
             cache_key = self._cache_key(doc_id, offset + idx, text, model_id)
             cached = self._cache_get(cache_key)
             if cached is not None:
