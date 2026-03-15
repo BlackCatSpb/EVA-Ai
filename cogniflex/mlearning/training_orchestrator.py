@@ -727,9 +727,12 @@ class TrainingOrchestrator:
         # Step 1: Initialize progress tracking
         progress_path = self._progress_path(doc_id)
         progress = TrainingProgress.load(progress_path)
+        
+        # Получаем сегменты документа
+        segments = list(imported_doc.iter_segments())
+        
         if progress is None or progress.pipeline_version != self.pipeline_version:
             # New document or pipeline version changed
-            segments = list(imported_doc.iter_segments())
             total_chunks = len(segments)
             progress = TrainingProgress(
                 document_id=doc_id,
@@ -747,6 +750,10 @@ class TrainingOrchestrator:
                 "model_id": model_id,
                 "use_fractal": use_fractal,
             })
+        else:
+            # Resume existing progress
+            total_chunks = len(segments)
+            logger.info(f"Resuming training for document '{doc_id}' from chunk {progress.last_batch_end}")
 
         # Step 2: Check if we should use fractal training
         if use_fractal:
