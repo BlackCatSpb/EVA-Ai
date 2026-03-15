@@ -132,16 +132,20 @@ class Localrugpt3largeLoader:
             # Дополнительные проверки для фрактального хранилища
             if "rugpt3_large_fractal" in tokenizer_path or "rugpt3large_fractal" in tokenizer_path:
                 # Если это путь к токенизатору ruGPT-3 Large, используем абсолютные пути
-                base_fractal_path = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"
                 current_dir = os.getcwd()
-                absolute_base_path = os.path.join(current_dir, base_fractal_path)
                 
-                possible_vocab_paths.extend([
-                    os.path.join(absolute_base_path, "vocab.json"),
-                    os.path.join(absolute_base_path, "tokenizer", "vocab.json"),
-                    os.path.join(current_dir, base_fractal_path, "vocab.json"),
-                    os.path.join(current_dir, base_fractal_path, "tokenizer", "vocab.json"),
-                ])
+                # Пробуем разные варианты базовых путей
+                base_paths = [
+                    os.path.join(current_dir, "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"),
+                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
+                    os.path.join(current_dir, "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"),
+                ]
+                
+                for base_path in base_paths:
+                    possible_vocab_paths.extend([
+                        os.path.join(base_path, "vocab.json"),
+                        os.path.join(base_path, "tokenizer", "vocab.json"),
+                    ])
             
             vocab_path = None
             for i, path in enumerate(possible_vocab_paths):

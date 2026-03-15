@@ -116,16 +116,26 @@ class EnhancedSelfLearningSystem:
     def _initialize_system_integration(self):
         """Инициализация интеграции с модулями системы"""
         try:
-            # Получаем доступ к ключевым модулям через brain
-            self.knowledge_graph = getattr(self.brain, 'knowledge_graph', None)
-            self.memory_manager = getattr(self.brain, 'memory_manager', None)
-            self.chat_history = getattr(self.brain, 'chat_history', [])
-            self.processed_queries = getattr(self.brain, 'processed_queries', set())
+            # Получаем доступ к ключевым модулям через brain или brain.components
+            components = getattr(self.brain, 'components', {})
+            
+            self.knowledge_graph = getattr(self.brain, 'knowledge_graph', None) or components.get('knowledge_graph')
+            self.memory_manager = getattr(self.brain, 'memory_manager', None) or components.get('memory_manager')
+            self.chat_history = getattr(self.brain, 'chat_history', []) or getattr(self.brain, 'chat_history', [])
+            self.processed_queries = getattr(self.brain, 'processed_queries', set()) or getattr(self.brain, 'processed_queries', set())
             
             # Доступ к ML компонентам
-            self.ml_unit = getattr(self.brain, 'ml_unit', None)
-            self.text_processor = getattr(self.brain, 'text_processor', None)
-            self.response_generator = getattr(self.brain, 'response_generator', None)
+            self.ml_unit = getattr(self.brain, 'ml_unit', None) or components.get('ml_unit')
+            self.text_processor = getattr(self.brain, 'text_processor', None) or components.get('text_processor')
+            self.response_generator = getattr(self.brain, 'response_generator', None) or components.get('response_generator')
+            
+            # Дополнительные попытки найти модули
+            if not self.knowledge_graph and hasattr(self.brain, '_knowledge_graph'):
+                self.knowledge_graph = self.brain._knowledge_graph
+            if not self.memory_manager and hasattr(self.brain, '_memory_manager'):
+                self.memory_manager = self.brain._memory_manager
+            if not self.ml_unit and hasattr(self.brain, '_ml_unit'):
+                self.ml_unit = self.brain._ml_unit
             
             logger.info("Интеграция с модулями системы инициализирована:")
             logger.info(f"  Граф знаний: {'✅' if self.knowledge_graph else '❌'}")
@@ -133,6 +143,10 @@ class EnhancedSelfLearningSystem:
             logger.info(f"  История чата: {'✅' if self.chat_history else '❌'}")
             logger.info(f"  ML Unit: {'✅' if self.ml_unit else '❌'}")
             logger.info(f"  Text Processor: {'✅' if self.text_processor else '❌'}")
+            
+            # Логируем доступные компоненты для отладки
+            if components:
+                logger.info(f"  Доступные компоненты: {list(components.keys())}")
             
         except Exception as e:
             logger.error(f"Ошибка инициализации интеграции: {e}")
