@@ -1,0 +1,22 @@
+{
+  "results": {
+    "gui_mock_setup": true,
+    "gui_initialization": true,
+    "brain_integration": true,
+    "gui_components": true,
+    "user_interactions": true,
+    "start_time": "2025-08-16T17:12:18.181433",
+    "end_time": "2025-08-16T17:12:22.010170",
+    "duration": 3.8287301063537598,
+    "success_rate": 1.0
+  },
+  "error_summary": {
+    "total_errors": 0,
+    "total_warnings": 0,
+    "total_info": 28,
+    "errors_by_component": {},
+    "warnings_by_component": {},
+    "recent_errors": [],
+    "recent_warnings": []
+  }
+}

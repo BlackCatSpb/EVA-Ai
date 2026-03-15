@@ -1,0 +1,41 @@
+2025-08-17 12:34:03,904 [INFO] BackgroundCoordinator started
+2025-08-17 12:34:03,997 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:34:19,003 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:34:34,203 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:34:48,975 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:35:04,045 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:35:19,070 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:35:34,051 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:35:49,081 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:36:04,094 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:36:19,088 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:36:34,076 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:36:49,095 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:37:04,139 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:37:13,070 [INFO] BackgroundCoordinator stopped
+2025-08-17 12:38:02,264 [INFO] BackgroundCoordinator started
+2025-08-17 12:38:02,356 [INFO] TrainingJob: обучение запущено
+2025-08-17 12:58:16,346 [INFO] TrainingJob: обучение запущено
+2025-08-17 13:17:41,192 [INFO] BackgroundCoordinator stopped
+2025-08-17 13:23:37,611 [INFO] BackgroundCoordinator started
+2025-08-17 13:23:37,725 [INFO] TrainingJob: обучение запущено
+2025-08-17 13:42:20,970 [INFO] BackgroundCoordinator stopped
+2025-08-17 13:43:07,605 [INFO] BackgroundCoordinator started
+2025-08-17 13:52:32,117 [INFO] BackgroundCoordinator started
+2025-08-17 13:57:20,410 [INFO] BackgroundCoordinator stopped
+2025-08-17 14:03:20,025 [INFO] BackgroundCoordinator started
+2025-08-17 14:10:10,878 [INFO] BackgroundCoordinator started
+2025-08-17 14:13:15,557 [INFO] BackgroundCoordinator stopped
+2025-08-17 14:13:34,992 [INFO] BackgroundCoordinator stopped
+2025-08-17 21:03:20,616 [INFO] BackgroundCoordinator started
+2025-08-17 21:03:20,679 [INFO] TrainingJob: обучение запущено
+2025-08-17 21:23:22,650 [INFO] TrainingJob: обучение запущено
+2025-08-17 21:34:50,105 [INFO] BackgroundCoordinator stopped
+2025-08-17 21:35:23,296 [INFO] BackgroundCoordinator started
+2025-08-17 21:45:17,546 [INFO] TrainingJob: обучение запущено
+2025-08-17 22:05:20,490 [INFO] TrainingJob: обучение запущено
+2025-08-17 22:07:44,634 [INFO] BackgroundCoordinator stopped
+2025-08-17 22:37:28,744 [INFO] BackgroundCoordinator started
+2025-08-17 22:48:44,234 [INFO] BackgroundCoordinator stopped
+2025-08-17 22:56:13,219 [INFO] BackgroundCoordinator started
+2025-08-17 23:06:09,555 [INFO] TrainingJob: обучение запущено

@@ -1,0 +1,61 @@
+{
+  "version": "2.0",
+  "principles": {
+    "Autonomy": {
+      "name": "Autonomy",
+      "description": "Уважение к автономии и свободе выбора пользователя",
+      "weight": 1.0,
+      "threshold": 0.7,
+      "category": "autonomy",
+      "priority": 8
+    },
+    "Beneficence": {
+      "name": "Beneficence",
+      "description": "Стремление к благу и пользе для пользователя",
+      "weight": 1.2,
+      "threshold": 0.75,
+      "category": "beneficence",
+      "priority": 9
+    },
+    "Non-maleficence": {
+      "name": "Non-maleficence",
+      "description": "Отсутствие вреда пользователю и обществу",
+      "weight": 1.5,
+      "threshold": 0.6,
+      "category": "safety",
+      "priority": 10
+    },
+    "Justice": {
+      "name": "Justice",
+      "description": "Справедливое и беспристрастное отношение",
+      "weight": 0.9,
+      "threshold": 0.65,
+      "category": "fairness",
+      "priority": 7
+    },
+    "Privacy": {
+      "name": "Privacy",
+      "description": "Защита личной информации и конфиденциальности",
+      "weight": 1.3,
+      "threshold": 0.6,
+      "category": "privacy",
+      "priority": 9
+    },
+    "Transparency": {
+      "name": "Transparency",
+      "description": "Ясность и открытость в работе системы",
+      "weight": 0.8,
+      "threshold": 0.7,
+      "category": "transparency",
+      "priority": 6
+    },
+    "Accountability": {
+      "name": "Accountability",
+      "description": "Ответственность за действия и решения",
+      "weight": 1.1,
+      "threshold": 0.7,
+      "category": "accountability",
+      "priority": 8
+    }
+  }
+}

@@ -1,0 +1,152 @@
+2025-08-16 16:47:42,188 - GUI_Simulator - INFO - [Main] Full Simulation: Запуск полной симуляции GUI
+2025-08-16 16:47:42,189 - GUI_Simulator - INFO - [Setup] GUI Mock: Настройка мок-объекта GUI
+2025-08-16 16:47:42,457 - matplotlib - DEBUG - matplotlib data path: C:\Users\black\AppData\Roaming\Python\Python313\site-packages\matplotlib\mpl-data
+2025-08-16 16:47:42,468 - matplotlib - DEBUG - CONFIGDIR=C:\Users\black\.matplotlib
+2025-08-16 16:47:42,469 - matplotlib - DEBUG - interactive is False
+2025-08-16 16:47:42,470 - matplotlib - DEBUG - platform is win32
+2025-08-16 16:47:42,488 - GUI_Simulator - INFO - [Setup] GUI Mock: Мок GUI успешно настроен
+2025-08-16 16:47:42,488 - GUI_Simulator - INFO - [Test] GUI Init: Начало теста инициализации GUI
+2025-08-16 16:47:42,488 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 16:47:42,489 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 16:47:42,489 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 16:47:42,490 - GUI_Simulator - INFO - [Test] GUI Init: GUI успешно инициализирован
+2025-08-16 16:47:42,490 - GUI_Simulator - INFO - [Test] Brain Integration: Начало теста интеграции с brain
+2025-08-16 16:47:42,591 - GUI_Simulator - INFO - [Test] Brain Integration: Интеграция с brain работает корректно
+2025-08-16 16:47:42,591 - GUI_Simulator - INFO - [Test] GUI Components: Начало теста компонентов GUI
+2025-08-16 16:47:42,592 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 16:47:42,592 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 16:47:42,593 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 16:47:42,593 - GUI_Simulator - ERROR - [GUI Components] Method Check: Отсутствуют методы: ['update_status', 'show_error', 'show_message', 'create_main_window']
+2025-08-16 16:47:42,593 - GUI_Simulator - INFO - [Simulation] User Interactions: Начало симуляции пользовательских действий
+2025-08-16 16:47:42,593 - GUI_Simulator - INFO - [Simulation] startup: Выполнение симуляции: startup
+2025-08-16 16:47:42,594 - GUI_Simulator - INFO - [Simulation] startup: Симуляция startup успешна
+2025-08-16 16:47:43,094 - GUI_Simulator - INFO - [Simulation] query_processing: Выполнение симуляции: query_processing
+2025-08-16 16:47:43,698 - GUI_Simulator - INFO - [Simulation] query_processing: Симуляция query_processing успешна
+2025-08-16 16:47:44,199 - GUI_Simulator - INFO - [Simulation] status_updates: Выполнение симуляции: status_updates
+2025-08-16 16:47:44,200 - GUI_Simulator - INFO - [Status] Components: Состояние компонентов: {'ml_unit': 'active', 'knowledge_graph': 'active', 'memory_manager': 'active'}
+2025-08-16 16:47:44,201 - GUI_Simulator - INFO - [Status] Resources: Ресурсы системы: {'cpu_usage': 45.2, 'memory_usage': 67.8, 'disk_usage': 23.1}
+2025-08-16 16:47:44,201 - GUI_Simulator - INFO - [Status] Metrics: Метрики производительности: {'queries_processed': 150, 'avg_response_time': 0.85, 'cache_hit_rate': 0.73}
+2025-08-16 16:47:44,201 - GUI_Simulator - INFO - [Simulation] status_updates: Симуляция status_updates успешна
+2025-08-16 16:47:44,702 - GUI_Simulator - INFO - [Simulation] error_handling: Выполнение симуляции: error_handling
+2025-08-16 16:47:44,804 - GUI_Simulator - INFO - [Error Handling] invalid_query: Сценарий invalid_query обработан
+2025-08-16 16:47:44,906 - GUI_Simulator - INFO - [Error Handling] null_query: Сценарий null_query обработан
+2025-08-16 16:47:45,007 - GUI_Simulator - INFO - [Error Handling] long_query: Сценарий long_query обработан
+2025-08-16 16:47:45,007 - GUI_Simulator - INFO - [Simulation] error_handling: Симуляция error_handling успешна
+2025-08-16 16:47:45,508 - GUI_Simulator - INFO - [Simulation] shutdown: Выполнение симуляции: shutdown
+2025-08-16 16:47:45,509 - GUI_Simulator - INFO - [Simulation] shutdown: Симуляция shutdown успешна
+2025-08-16 16:47:46,011 - GUI_Simulator - INFO - [Simulation] Summary: Успешно выполнено 5/5 симуляций (100.0%)
+2025-08-16 16:47:46,013 - GUI_Simulator - INFO - [Main] Full Simulation: Симуляция завершена. Успешность: 80.0%
+2025-08-16 16:47:51,609 - GUI_Simulator - INFO - [Main] Full Simulation: Запуск полной симуляции GUI
+2025-08-16 16:47:51,610 - GUI_Simulator - INFO - [Setup] GUI Mock: Настройка мок-объекта GUI
+2025-08-16 16:47:51,798 - matplotlib - DEBUG - matplotlib data path: C:\Users\black\AppData\Roaming\Python\Python313\site-packages\matplotlib\mpl-data
+2025-08-16 16:47:51,807 - matplotlib - DEBUG - CONFIGDIR=C:\Users\black\.matplotlib
+2025-08-16 16:47:51,808 - matplotlib - DEBUG - interactive is False
+2025-08-16 16:47:51,808 - matplotlib - DEBUG - platform is win32
+2025-08-16 16:47:51,822 - GUI_Simulator - INFO - [Setup] GUI Mock: Мок GUI успешно настроен
+2025-08-16 16:47:51,822 - GUI_Simulator - INFO - [Test] GUI Init: Начало теста инициализации GUI
+2025-08-16 16:47:51,822 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 16:47:51,823 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 16:47:51,824 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 16:47:51,824 - GUI_Simulator - INFO - [Test] GUI Init: GUI успешно инициализирован
+2025-08-16 16:47:51,824 - GUI_Simulator - INFO - [Test] Brain Integration: Начало теста интеграции с brain
+2025-08-16 16:47:51,925 - GUI_Simulator - INFO - [Test] Brain Integration: Интеграция с brain работает корректно
+2025-08-16 16:47:51,925 - GUI_Simulator - INFO - [Test] GUI Components: Начало теста компонентов GUI
+2025-08-16 16:47:51,925 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 16:47:51,926 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 16:47:51,926 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 16:47:51,926 - GUI_Simulator - ERROR - [GUI Components] Method Check: Отсутствуют методы: ['update_status', 'show_error', 'show_message', 'create_main_window']
+2025-08-16 16:47:51,927 - GUI_Simulator - INFO - [Simulation] User Interactions: Начало симуляции пользовательских действий
+2025-08-16 16:47:51,927 - GUI_Simulator - INFO - [Simulation] startup: Выполнение симуляции: startup
+2025-08-16 16:47:51,927 - GUI_Simulator - INFO - [Simulation] startup: Симуляция startup успешна
+2025-08-16 16:47:52,428 - GUI_Simulator - INFO - [Simulation] query_processing: Выполнение симуляции: query_processing
+2025-08-16 16:47:53,031 - GUI_Simulator - INFO - [Simulation] query_processing: Симуляция query_processing успешна
+2025-08-16 16:47:53,532 - GUI_Simulator - INFO - [Simulation] status_updates: Выполнение симуляции: status_updates
+2025-08-16 16:47:53,533 - GUI_Simulator - INFO - [Status] Components: Состояние компонентов: {'ml_unit': 'active', 'knowledge_graph': 'active', 'memory_manager': 'active'}
+2025-08-16 16:47:53,533 - GUI_Simulator - INFO - [Status] Resources: Ресурсы системы: {'cpu_usage': 45.2, 'memory_usage': 67.8, 'disk_usage': 23.1}
+2025-08-16 16:47:53,533 - GUI_Simulator - INFO - [Status] Metrics: Метрики производительности: {'queries_processed': 150, 'avg_response_time': 0.85, 'cache_hit_rate': 0.73}
+2025-08-16 16:47:53,534 - GUI_Simulator - INFO - [Simulation] status_updates: Симуляция status_updates успешна
+2025-08-16 16:47:54,035 - GUI_Simulator - INFO - [Simulation] error_handling: Выполнение симуляции: error_handling
+2025-08-16 16:47:54,136 - GUI_Simulator - INFO - [Error Handling] invalid_query: Сценарий invalid_query обработан
+2025-08-16 16:47:54,237 - GUI_Simulator - INFO - [Error Handling] null_query: Сценарий null_query обработан
+2025-08-16 16:47:54,338 - GUI_Simulator - INFO - [Error Handling] long_query: Сценарий long_query обработан
+2025-08-16 16:47:54,338 - GUI_Simulator - INFO - [Simulation] error_handling: Симуляция error_handling успешна
+2025-08-16 16:47:54,839 - GUI_Simulator - INFO - [Simulation] shutdown: Выполнение симуляции: shutdown
+2025-08-16 16:47:54,839 - GUI_Simulator - INFO - [Simulation] shutdown: Симуляция shutdown успешна
+2025-08-16 16:47:55,340 - GUI_Simulator - INFO - [Simulation] Summary: Успешно выполнено 5/5 симуляций (100.0%)
+2025-08-16 16:47:55,341 - GUI_Simulator - INFO - [Main] Full Simulation: Симуляция завершена. Успешность: 80.0%
+2025-08-16 17:07:22,795 - GUI_Simulator - INFO - [Main] Full Simulation: Запуск полной симуляции GUI
+2025-08-16 17:07:22,796 - GUI_Simulator - INFO - [Setup] GUI Mock: Настройка мок-объекта GUI
+2025-08-16 17:07:23,039 - matplotlib - DEBUG - matplotlib data path: C:\Users\black\AppData\Roaming\Python\Python313\site-packages\matplotlib\mpl-data
+2025-08-16 17:07:23,048 - matplotlib - DEBUG - CONFIGDIR=C:\Users\black\.matplotlib
+2025-08-16 17:07:23,049 - matplotlib - DEBUG - interactive is False
+2025-08-16 17:07:23,049 - matplotlib - DEBUG - platform is win32
+2025-08-16 17:07:23,062 - GUI_Simulator - INFO - [Setup] GUI Mock: Мок GUI успешно настроен
+2025-08-16 17:07:23,063 - GUI_Simulator - INFO - [Test] GUI Init: Начало теста инициализации GUI
+2025-08-16 17:07:23,063 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 17:07:23,064 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 17:07:23,064 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 17:07:23,064 - GUI_Simulator - INFO - [Test] GUI Init: GUI успешно инициализирован
+2025-08-16 17:07:23,064 - GUI_Simulator - INFO - [Test] Brain Integration: Начало теста интеграции с brain
+2025-08-16 17:07:23,165 - GUI_Simulator - INFO - [Test] Brain Integration: Интеграция с brain работает корректно
+2025-08-16 17:07:23,165 - GUI_Simulator - INFO - [Test] GUI Components: Начало теста компонентов GUI
+2025-08-16 17:07:23,165 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 17:07:23,166 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 17:07:23,166 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 17:07:23,167 - GUI_Simulator - INFO - [Test] GUI Components: Компоненты GUI проверены
+2025-08-16 17:07:23,167 - GUI_Simulator - INFO - [Simulation] User Interactions: Начало симуляции пользовательских действий
+2025-08-16 17:07:23,168 - GUI_Simulator - INFO - [Simulation] startup: Выполнение симуляции: startup
+2025-08-16 17:07:23,168 - GUI_Simulator - INFO - [Simulation] startup: Симуляция startup успешна
+2025-08-16 17:07:23,668 - GUI_Simulator - INFO - [Simulation] query_processing: Выполнение симуляции: query_processing
+2025-08-16 17:07:24,271 - GUI_Simulator - INFO - [Simulation] query_processing: Симуляция query_processing успешна
+2025-08-16 17:07:24,771 - GUI_Simulator - INFO - [Simulation] status_updates: Выполнение симуляции: status_updates
+2025-08-16 17:07:24,772 - GUI_Simulator - INFO - [Status] Components: Состояние компонентов: {'ml_unit': 'active', 'knowledge_graph': 'active', 'memory_manager': 'active'}
+2025-08-16 17:07:24,772 - GUI_Simulator - INFO - [Status] Resources: Ресурсы системы: {'cpu_usage': 45.2, 'memory_usage': 67.8, 'disk_usage': 23.1}
+2025-08-16 17:07:24,772 - GUI_Simulator - INFO - [Status] Metrics: Метрики производительности: {'queries_processed': 150, 'avg_response_time': 0.85, 'cache_hit_rate': 0.73}
+2025-08-16 17:07:24,772 - GUI_Simulator - INFO - [Simulation] status_updates: Симуляция status_updates успешна
+2025-08-16 17:07:25,273 - GUI_Simulator - INFO - [Simulation] error_handling: Выполнение симуляции: error_handling
+2025-08-16 17:07:25,374 - GUI_Simulator - INFO - [Error Handling] invalid_query: Сценарий invalid_query обработан
+2025-08-16 17:07:25,475 - GUI_Simulator - INFO - [Error Handling] null_query: Сценарий null_query обработан
+2025-08-16 17:07:25,575 - GUI_Simulator - INFO - [Error Handling] long_query: Сценарий long_query обработан
+2025-08-16 17:07:25,576 - GUI_Simulator - INFO - [Simulation] error_handling: Симуляция error_handling успешна
+2025-08-16 17:07:26,076 - GUI_Simulator - INFO - [Simulation] shutdown: Выполнение симуляции: shutdown
+2025-08-16 17:07:26,077 - GUI_Simulator - INFO - [Simulation] shutdown: Симуляция shutdown успешна
+2025-08-16 17:07:26,578 - GUI_Simulator - INFO - [Simulation] Summary: Успешно выполнено 5/5 симуляций (100.0%)
+2025-08-16 17:07:26,579 - GUI_Simulator - INFO - [Main] Full Simulation: Симуляция завершена. Успешность: 100.0%
+2025-08-16 17:12:18,181 - GUI_Simulator - INFO - [Main] Full Simulation: Запуск полной симуляции GUI
+2025-08-16 17:12:18,181 - GUI_Simulator - INFO - [Setup] GUI Mock: Настройка мок-объекта GUI
+2025-08-16 17:12:18,460 - matplotlib - DEBUG - matplotlib data path: C:\Users\black\AppData\Roaming\Python\Python313\site-packages\matplotlib\mpl-data
+2025-08-16 17:12:18,472 - matplotlib - DEBUG - CONFIGDIR=C:\Users\black\.matplotlib
+2025-08-16 17:12:18,474 - matplotlib - DEBUG - interactive is False
+2025-08-16 17:12:18,474 - matplotlib - DEBUG - platform is win32
+2025-08-16 17:12:18,492 - GUI_Simulator - INFO - [Setup] GUI Mock: Мок GUI успешно настроен
+2025-08-16 17:12:18,492 - GUI_Simulator - INFO - [Test] GUI Init: Начало теста инициализации GUI
+2025-08-16 17:12:18,492 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 17:12:18,493 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 17:12:18,493 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 17:12:18,493 - GUI_Simulator - INFO - [Test] GUI Init: GUI успешно инициализирован
+2025-08-16 17:12:18,494 - GUI_Simulator - INFO - [Test] Brain Integration: Начало теста интеграции с brain
+2025-08-16 17:12:18,594 - GUI_Simulator - INFO - [Test] Brain Integration: Интеграция с brain работает корректно
+2025-08-16 17:12:18,595 - GUI_Simulator - INFO - [Test] GUI Components: Начало теста компонентов GUI
+2025-08-16 17:12:18,595 - cogniflex.gui.core - DEBUG - Инициализация графического интерфейса...
+2025-08-16 17:12:18,596 - cogniflex.gui.chat - INFO - Инициализирован чат-логгер
+2025-08-16 17:12:18,596 - cogniflex.gui.core - INFO - GUI инициализирован
+2025-08-16 17:12:18,596 - GUI_Simulator - INFO - [Test] GUI Components: Компоненты GUI проверены
+2025-08-16 17:12:18,596 - GUI_Simulator - INFO - [Simulation] User Interactions: Начало симуляции пользовательских действий
+2025-08-16 17:12:18,597 - GUI_Simulator - INFO - [Simulation] startup: Выполнение симуляции: startup
+2025-08-16 17:12:18,597 - GUI_Simulator - INFO - [Simulation] startup: Симуляция startup успешна
+2025-08-16 17:12:19,098 - GUI_Simulator - INFO - [Simulation] query_processing: Выполнение симуляции: query_processing
+2025-08-16 17:12:19,701 - GUI_Simulator - INFO - [Simulation] query_processing: Симуляция query_processing успешна
+2025-08-16 17:12:20,201 - GUI_Simulator - INFO - [Simulation] status_updates: Выполнение симуляции: status_updates
+2025-08-16 17:12:20,202 - GUI_Simulator - INFO - [Status] Components: Состояние компонентов: {'ml_unit': 'active', 'knowledge_graph': 'active', 'memory_manager': 'active'}
+2025-08-16 17:12:20,202 - GUI_Simulator - INFO - [Status] Resources: Ресурсы системы: {'cpu_usage': 45.2, 'memory_usage': 67.8, 'disk_usage': 23.1}
+2025-08-16 17:12:20,203 - GUI_Simulator - INFO - [Status] Metrics: Метрики производительности: {'queries_processed': 150, 'avg_response_time': 0.85, 'cache_hit_rate': 0.73}
+2025-08-16 17:12:20,203 - GUI_Simulator - INFO - [Simulation] status_updates: Симуляция status_updates успешна
+2025-08-16 17:12:20,704 - GUI_Simulator - INFO - [Simulation] error_handling: Выполнение симуляции: error_handling
+2025-08-16 17:12:20,805 - GUI_Simulator - INFO - [Error Handling] invalid_query: Сценарий invalid_query обработан
+2025-08-16 17:12:20,906 - GUI_Simulator - INFO - [Error Handling] null_query: Сценарий null_query обработан
+2025-08-16 17:12:21,006 - GUI_Simulator - INFO - [Error Handling] long_query: Сценарий long_query обработан
+2025-08-16 17:12:21,007 - GUI_Simulator - INFO - [Simulation] error_handling: Симуляция error_handling успешна
+2025-08-16 17:12:21,507 - GUI_Simulator - INFO - [Simulation] shutdown: Выполнение симуляции: shutdown
+2025-08-16 17:12:21,508 - GUI_Simulator - INFO - [Simulation] shutdown: Симуляция shutdown успешна
+2025-08-16 17:12:22,009 - GUI_Simulator - INFO - [Simulation] Summary: Успешно выполнено 5/5 симуляций (100.0%)
+2025-08-16 17:12:22,010 - GUI_Simulator - INFO - [Main] Full Simulation: Симуляция завершена. Успешность: 100.0%

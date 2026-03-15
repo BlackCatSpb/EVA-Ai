@@ -1,0 +1,9 @@
+{
+  "document_id": "doc::hello.txt::90205aa4",
+  "total_chunks": 1,
+  "processed_chunks": 1,
+  "last_batch_end": 1,
+  "last_success_ts": 1755450702.9330447,
+  "model_id": null,
+  "pipeline_version": "v1"
+}

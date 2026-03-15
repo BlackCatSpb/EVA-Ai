@@ -1,0 +1,199 @@
+{
+  "timestamp": 1755351793.4433622,
+  "results": {
+    "baseline_simple": {
+      "scenario": "baseline_simple",
+      "avg_processing_time": 0.6491206487019857,
+      "median_processing_time": 0.03615093231201172,
+      "total_tokens": 17,
+      "tokens_per_second": 8.723642038256303,
+      "cache_hit_rate": 0,
+      "context_depth_score": 0.9666666666666667,
+      "context_width_score": 0.7467320261437909,
+      "semantic_coherence_score": 0.78,
+      "memory_efficiency": 0.10240963855421686,
+      "concurrent_capacity": 1
+    },
+    "optimized_simple": {
+      "scenario": "optimized_simple",
+      "avg_processing_time": 0.01876680056254069,
+      "median_processing_time": 0.014206171035766602,
+      "total_tokens": 17,
+      "tokens_per_second": 296.00501484110674,
+      "cache_hit_rate": 0.0,
+      "context_depth_score": 0.9666666666666667,
+      "context_width_score": 0.7467320261437909,
+      "semantic_coherence_score": 0.78,
+      "memory_efficiency": 0.10240963855421686,
+      "concurrent_capacity": 2
+    },
+    "baseline_medium": {
+      "scenario": "baseline_medium",
+      "avg_processing_time": 0.04389500617980957,
+      "median_processing_time": 0.03455543518066406,
+      "total_tokens": 30,
+      "tokens_per_second": 225.06460613865636,
+      "cache_hit_rate": 0,
+      "context_depth_score": 0.7767156862745098,
+      "context_width_score": 0.6254034780727131,
+      "semantic_coherence_score": 0.6903703703703703,
+      "memory_efficiency": 0.06607929515418502,
+      "concurrent_capacity": 1
+    },
+    "optimized_medium": {
+      "scenario": "optimized_medium",
+      "avg_processing_time": 0.02725394566853841,
+      "median_processing_time": 0.024435997009277344,
+      "total_tokens": 30,
+      "tokens_per_second": 358.61012311901504,
+      "cache_hit_rate": 0.0,
+      "context_depth_score": 0.7767156862745098,
+      "context_width_score": 0.6254034780727131,
+      "semantic_coherence_score": 0.6903703703703703,
+      "memory_efficiency": 0.06607929515418502,
+      "concurrent_capacity": 3
+    },
+    "baseline_complex": {
+      "scenario": "baseline_complex",
+      "avg_processing_time": 0.04579758644104004,
+      "median_processing_time": 0.037194252014160156,
+      "total_tokens": 30,
+      "tokens_per_second": 215.76377790733565,
+      "cache_hit_rate": 0,
+      "context_depth_score": 0.5592569786535303,
+      "context_width_score": 0.458880111941866,
+      "semantic_coherence_score": 0.6140277777777778,
+      "memory_efficiency": 0.03444316877152698,
+      "concurrent_capacity": 1
+    },
+    "optimized_complex": {
+      "scenario": "optimized_complex",
+      "avg_processing_time": 0.04737647374471029,
+      "median_processing_time": 0.040930747985839844,
+      "total_tokens": 30,
+      "tokens_per_second": 207.84837517695235,
+      "cache_hit_rate": 0.0,
+      "context_depth_score": 0.5592569786535303,
+      "context_width_score": 0.458880111941866,
+      "semantic_coherence_score": 0.6140277777777778,
+      "memory_efficiency": 0.03444316877152698,
+      "concurrent_capacity": 4
+    },
+    "baseline_large": {
+      "scenario": "baseline_large",
+      "avg_processing_time": 0.05373573303222656,
+      "median_processing_time": 0.05373573303222656,
+      "total_tokens": 10,
+      "tokens_per_second": 182.256444127718,
+      "cache_hit_rate": 0,
+      "context_depth_score": 0.36095842142353773,
+      "context_width_score": 0.3107935289980178,
+      "semantic_coherence_score": 0.3122846889952153,
+      "memory_efficiency": 0.00831255195344971,
+      "concurrent_capacity": 1
+    },
+    "optimized_large": {
+      "scenario": "optimized_large",
+      "avg_processing_time": 0.05475115776062012,
+      "median_processing_time": 0.05475115776062012,
+      "total_tokens": 10,
+      "tokens_per_second": 180.73443357607619,
+      "cache_hit_rate": 0.0,
+      "context_depth_score": 0.36095842142353773,
+      "context_width_score": 0.3107935289980178,
+      "semantic_coherence_score": 0.3122846889952153,
+      "memory_efficiency": 0.00831255195344971,
+      "concurrent_capacity": 6
+    }
+  },
+  "analysis": {
+    "simple": {
+      "speed_improvement": 34.58877535032036,
+      "throughput_improvement": 33.93135728667207,
+      "depth_improvement": 0.0,
+      "width_improvement": 0.0,
+      "coherence_improvement": 0.0,
+      "cache_hit_rate": 0.0,
+      "baseline_performance": {
+        "time": 0.6491206487019857,
+        "throughput": 8.723642038256303,
+        "depth": 0.9666666666666667,
+        "width": 0.7467320261437909,
+        "coherence": 0.78
+      },
+      "optimized_performance": {
+        "time": 0.01876680056254069,
+        "throughput": 296.00501484110674,
+        "depth": 0.9666666666666667,
+        "width": 0.7467320261437909,
+        "coherence": 0.78
+      }
+    },
+    "medium": {
+      "speed_improvement": 1.6105927088011105,
+      "throughput_improvement": 1.5933652530779754,
+      "depth_improvement": 0.0,
+      "width_improvement": 0.0,
+      "coherence_improvement": 0.0,
+      "cache_hit_rate": 0.0,
+      "baseline_performance": {
+        "time": 0.04389500617980957,
+        "throughput": 225.06460613865636,
+        "depth": 0.7767156862745098,
+        "width": 0.6254034780727131,
+        "coherence": 0.6903703703703703
+      },
+      "optimized_performance": {
+        "time": 0.02725394566853841,
+        "throughput": 358.61012311901504,
+        "depth": 0.7767156862745098,
+        "width": 0.6254034780727131,
+        "coherence": 0.6903703703703703
+      }
+    },
+    "complex": {
+      "speed_improvement": 0.9666736002308205,
+      "throughput_improvement": 0.963314496959806,
+      "depth_improvement": 0.0,
+      "width_improvement": 0.0,
+      "coherence_improvement": 0.0,
+      "cache_hit_rate": 0.0,
+      "baseline_performance": {
+        "time": 0.04579758644104004,
+        "throughput": 215.76377790733565,
+        "depth": 0.5592569786535303,
+        "width": 0.458880111941866,
+        "coherence": 0.6140277777777778
+      },
+      "optimized_performance": {
+        "time": 0.04737647374471029,
+        "throughput": 207.84837517695235,
+        "depth": 0.5592569786535303,
+        "width": 0.458880111941866,
+        "coherence": 0.6140277777777778
+      }
+    },
+    "large": {
+      "speed_improvement": 0.9814538218016661,
+      "throughput_improvement": 0.9916490714008704,
+      "depth_improvement": 0.0,
+      "width_improvement": 0.0,
+      "coherence_improvement": 0.0,
+      "cache_hit_rate": 0.0,
+      "baseline_performance": {
+        "time": 0.05373573303222656,
+        "throughput": 182.256444127718,
+        "depth": 0.36095842142353773,
+        "width": 0.3107935289980178,
+        "coherence": 0.3122846889952153
+      },
+      "optimized_performance": {
+        "time": 0.05475115776062012,
+        "throughput": 180.73443357607619,
+        "depth": 0.36095842142353773,
+        "width": 0.3107935289980178,
+        "coherence": 0.3122846889952153
+      }
+    }
+  }
+}

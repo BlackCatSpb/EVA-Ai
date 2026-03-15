@@ -1,0 +1,937 @@
+{
+  "5797a339206d7d7d5aeb2903d7114867": {
+    "timestamp": 1755442881.9924002,
+    "results": [
+      {
+        "title": "Search result 1 for 'Привет!'",
+        "url": "https://example.com/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "This is a sample search result 1 for the query 'Привет!'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755442881.985396,
+        "query": "Привет!"
+      },
+      {
+        "title": "Результат поиска 1 для 'Привет!'",
+        "url": "https://example.ru/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "Это пример результата поиска 1 по запросу 'Привет!' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755442881.9867454,
+        "query": "Привет!"
+      },
+      {
+        "title": "Search result 2 for 'Привет!'",
+        "url": "https://example.com/result2?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "This is a sample search result 2 for the query 'Привет!'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755442881.9854453,
+        "query": "Привет!"
+      }
+    ]
+  },
+  "4143322e873f3dd7cfdc6eb4ed556d9e": {
+    "timestamp": 1755023878.0110016,
+    "results": [
+      {
+        "title": "Результат Google 1 для Расскажи что нибудь",
+        "url": "https://example.com/google-result1?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D1%87%D1%82%D0%BE%20%D0%BD%D0%B8%D0%B1%D1%83%D0%B4%D1%8C",
+        "snippet": "Это пример результата поиска Google 1 по запросу 'Расскажи что нибудь'.",
+        "source": "google",
+        "relevance_score": 0.9,
+        "content": null,
+        "timestamp": 1755023878.0110016,
+        "query": "Расскажи что нибудь"
+      },
+      {
+        "title": "Результат Yandex 1 для Расскажи что нибудь",
+        "url": "https://example.com/yandex-result1?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D1%87%D1%82%D0%BE%20%D0%BD%D0%B8%D0%B1%D1%83%D0%B4%D1%8C",
+        "snippet": "Это пример результата поиска Yandex 1 по запросу 'Расскажи что нибудь'.",
+        "source": "yandex",
+        "relevance_score": 0.85,
+        "content": null,
+        "timestamp": 1755023878.0110016,
+        "query": "Расскажи что нибудь"
+      },
+      {
+        "title": "Результат Google 2 для Расскажи что нибудь",
+        "url": "https://example.com/google-result2?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D1%87%D1%82%D0%BE%20%D0%BD%D0%B8%D0%B1%D1%83%D0%B4%D1%8C",
+        "snippet": "Это пример результата поиска Google 2 по запросу 'Расскажи что нибудь'.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755023878.0110016,
+        "query": "Расскажи что нибудь"
+      }
+    ]
+  },
+  "904d3ce9de18f6e27099d4201cdd3490": {
+    "timestamp": 1755152453.3833876,
+    "results": [
+      {
+        "title": "Результат Google 1 для тест запрос",
+        "url": "https://example.com/google-result1?q=%D1%82%D0%B5%D1%81%D1%82%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81",
+        "snippet": "Это пример результата поиска Google 1 по запросу 'тест запрос'.",
+        "source": "google",
+        "relevance_score": 0.9,
+        "content": null,
+        "timestamp": 1755152453.3822644,
+        "query": "тест запрос"
+      },
+      {
+        "title": "Результат Yandex 1 для тест запрос",
+        "url": "https://example.com/yandex-result1?q=%D1%82%D0%B5%D1%81%D1%82%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81",
+        "snippet": "Это пример результата поиска Yandex 1 по запросу 'тест запрос'.",
+        "source": "yandex",
+        "relevance_score": 0.85,
+        "content": null,
+        "timestamp": 1755152453.3827796,
+        "query": "тест запрос"
+      },
+      {
+        "title": "Результат Google 2 для тест запрос",
+        "url": "https://example.com/google-result2?q=%D1%82%D0%B5%D1%81%D1%82%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81",
+        "snippet": "Это пример результата поиска Google 2 по запросу 'тест запрос'.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755152453.38228,
+        "query": "тест запрос"
+      }
+    ]
+  },
+  "b527503c726f067f9a0d203147cb5f20": {
+    "timestamp": 1755153210.8057606,
+    "results": [
+      {
+        "title": "Результат Google 1 для Python программирование",
+        "url": "https://example.com/google-result1?q=Python%20%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+        "snippet": "Это пример результата поиска Google 1 по запросу 'Python программирование'.",
+        "source": "google",
+        "relevance_score": 0.9,
+        "content": null,
+        "timestamp": 1755153210.8036213,
+        "query": "Python программирование"
+      },
+      {
+        "title": "Результат Yandex 1 для Python программирование",
+        "url": "https://example.com/yandex-result1?q=Python%20%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+        "snippet": "Это пример результата поиска Yandex 1 по запросу 'Python программирование'.",
+        "source": "yandex",
+        "relevance_score": 0.85,
+        "content": null,
+        "timestamp": 1755153210.8043933,
+        "query": "Python программирование"
+      },
+      {
+        "title": "Результат Google 2 для Python программирование",
+        "url": "https://example.com/google-result2?q=Python%20%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+        "snippet": "Это пример результата поиска Google 2 по запросу 'Python программирование'.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755153210.8036313,
+        "query": "Python программирование"
+      },
+      {
+        "title": "Результат Yandex 2 для Python программирование",
+        "url": "https://example.com/yandex-result2?q=Python%20%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+        "snippet": "Это пример результата поиска Yandex 2 по запросу 'Python программирование'.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755153210.8043997,
+        "query": "Python программирование"
+      },
+      {
+        "title": "Результат Google 3 для Python программирование",
+        "url": "https://example.com/google-result3?q=Python%20%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5",
+        "snippet": "Это пример результата поиска Google 3 по запросу 'Python программирование'.",
+        "source": "google",
+        "relevance_score": 0.7,
+        "content": null,
+        "timestamp": 1755153210.8036363,
+        "query": "Python программирование"
+      }
+    ]
+  },
+  "7903f3164ef15b29a34393cfbd34a279": {
+    "timestamp": 1755153521.324753,
+    "results": [
+      {
+        "title": "Python.org - Official Python Website",
+        "url": "https://www.python.org/",
+        "snippet": "The official home of the Python Programming Language. Python is a programming language that lets you work quickly and integrate systems more effectively.",
+        "source": "google",
+        "relevance_score": 0.95,
+        "content": null,
+        "timestamp": 1755153521.3241189,
+        "query": "Python programming tutorial"
+      },
+      {
+        "title": "Программирование на Python - Основы",
+        "url": "https://pythonworld.ru/",
+        "snippet": "Полный курс по программированию на Python. От основ до продвинутых тем.",
+        "source": "yandex",
+        "relevance_score": 0.93,
+        "content": null,
+        "timestamp": 1755153521.324263,
+        "query": "Python programming tutorial"
+      },
+      {
+        "title": "Python Tutorial - W3Schools",
+        "url": "https://www.w3schools.com/python/",
+        "snippet": "Well organized and easy to understand Web building tutorials with lots of examples of how to use HTML, CSS, JavaScript, SQL, Python, PHP, Bootstrap, Java, XML and more.",
+        "source": "google",
+        "relevance_score": 0.9,
+        "content": null,
+        "timestamp": 1755153521.3241208,
+        "query": "Python programming tutorial"
+      }
+    ]
+  },
+  "6dc54c18e866a0f70dff5af73d4819c6": {
+    "timestamp": 1755153523.3357003,
+    "results": [
+      {
+        "title": "Машинное обучение - Википедия",
+        "url": "https://ru.wikipedia.org/wiki/Машинное_обучение",
+        "snippet": "Маши́нное обуче́ние — обширный подкласс методов искусственного интеллекта, характерной чертой которых является не прямое решение задачи.",
+        "source": "google",
+        "relevance_score": 0.92,
+        "content": null,
+        "timestamp": 1755153523.3341627,
+        "query": "машинное обучение"
+      },
+      {
+        "title": "Машинное обучение - Курс от Яндекса",
+        "url": "https://practicum.yandex.ru/data-scientist/",
+        "snippet": "Профессия специалист по данным. Освойте машинное обучение с нуля до уровня мидл.",
+        "source": "yandex",
+        "relevance_score": 0.91,
+        "content": null,
+        "timestamp": 1755153523.334531,
+        "query": "машинное обучение"
+      },
+      {
+        "title": "Scikit-learn: Machine Learning in Python",
+        "url": "https://scikit-learn.org/",
+        "snippet": "Simple and efficient tools for predictive data analysis. Accessible to everybody, and reusable in various contexts. Built on NumPy, SciPy, and matplotlib.",
+        "source": "google",
+        "relevance_score": 0.88,
+        "content": null,
+        "timestamp": 1755153523.3341675,
+        "query": "машинное обучение"
+      }
+    ]
+  },
+  "2dd0692ccbadb1132a63c285eaf76547": {
+    "timestamp": 1755153625.1932218,
+    "results": [
+      {
+        "title": "Artificial Intelligence - Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        "snippet": "Artificial intelligence (AI) is intelligence demonstrated by machines, in contrast to the natural intelligence displayed by humans and animals.",
+        "source": "google",
+        "relevance_score": 0.94,
+        "content": null,
+        "timestamp": 1755153625.1913953,
+        "query": "artificial intelligence"
+      },
+      {
+        "title": "OpenAI",
+        "url": "https://openai.com/",
+        "snippet": "OpenAI is an AI research and deployment company. Our mission is to ensure that artificial general intelligence benefits all of humanity.",
+        "source": "google",
+        "relevance_score": 0.91,
+        "content": null,
+        "timestamp": 1755153625.191399,
+        "query": "artificial intelligence"
+      },
+      {
+        "title": "Результат поиска 1 для 'artificial intelligence'",
+        "url": "https://example.ru/result1?q=artificial%20intelligence",
+        "snippet": "Это пример результата поиска 1 по запросу 'artificial intelligence' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755153625.1918635,
+        "query": "artificial intelligence"
+      }
+    ]
+  },
+  "8da686ee8ddc09c04c7db13c91ab6248": {
+    "timestamp": 1755423244.0044436,
+    "results": [
+      {
+        "title": "Artificial Intelligence - Wikipedia",
+        "url": "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        "snippet": "Artificial intelligence (AI) is intelligence demonstrated by machines, in contrast to the natural intelligence displayed by humans and animals.",
+        "source": "google",
+        "relevance_score": 0.94,
+        "content": null,
+        "timestamp": 1755423244.0012655,
+        "query": "AI news today"
+      },
+      {
+        "title": "OpenAI",
+        "url": "https://openai.com/",
+        "snippet": "OpenAI is an AI research and deployment company. Our mission is to ensure that artificial general intelligence benefits all of humanity.",
+        "source": "google",
+        "relevance_score": 0.91,
+        "content": null,
+        "timestamp": 1755423244.0012681,
+        "query": "AI news today"
+      },
+      {
+        "title": "Результат поиска 1 для 'AI news today'",
+        "url": "https://example.ru/result1?q=AI%20news%20today",
+        "snippet": "Это пример результата поиска 1 по запросу 'AI news today' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755423244.0017717,
+        "query": "AI news today"
+      },
+      {
+        "title": "Результат поиска 2 для 'AI news today'",
+        "url": "https://example.ru/result2?q=AI%20news%20today",
+        "snippet": "Это пример результата поиска 2 по запросу 'AI news today' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.65,
+        "content": null,
+        "timestamp": 1755423244.0017786,
+        "query": "AI news today"
+      }
+    ]
+  },
+  "2f9e973490b5ff1edefe1927eea93074": {
+    "timestamp": 1755423244.0396917,
+    "results": [
+      {
+        "title": "Машинное обучение - Википедия",
+        "url": "https://ru.wikipedia.org/wiki/Машинное_обучение",
+        "snippet": "Машинное обучение - обширный подкласс методов искусственного интеллекта, характерной чертой которых является не прямое решение задачи.",
+        "source": "google",
+        "relevance_score": 0.92,
+        "content": null,
+        "timestamp": 1755423244.0385983,
+        "query": "machine learning recent papers"
+      },
+      {
+        "title": "Scikit-learn: Machine Learning in Python",
+        "url": "https://scikit-learn.org/",
+        "snippet": "Simple and efficient tools for predictive data analysis. Accessible to everybody, and reusable in various contexts. Built on NumPy, SciPy, and matplotlib.",
+        "source": "google",
+        "relevance_score": 0.88,
+        "content": null,
+        "timestamp": 1755423244.0386,
+        "query": "machine learning recent papers"
+      },
+      {
+        "title": "Результат поиска 1 для 'machine learning recent papers'",
+        "url": "https://example.ru/result1?q=machine%20learning%20recent%20papers",
+        "snippet": "Это пример результата поиска 1 по запросу 'machine learning recent papers' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755423244.038743,
+        "query": "machine learning recent papers"
+      },
+      {
+        "title": "Результат поиска 2 для 'machine learning recent papers'",
+        "url": "https://example.ru/result2?q=machine%20learning%20recent%20papers",
+        "snippet": "Это пример результата поиска 2 по запросу 'machine learning recent papers' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.65,
+        "content": null,
+        "timestamp": 1755423244.0387468,
+        "query": "machine learning recent papers"
+      }
+    ]
+  },
+  "6da4c6ba2592cfbd96a8061af62edcf8": {
+    "timestamp": 1755423244.0525026,
+    "results": [
+      {
+        "title": "Search result 1 for 'knowledge graph basics'",
+        "url": "https://example.com/result1?q=knowledge%20graph%20basics",
+        "snippet": "This is a sample search result 1 for the query 'knowledge graph basics'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755423244.0515974,
+        "query": "knowledge graph basics"
+      },
+      {
+        "title": "Результат поиска 1 для 'knowledge graph basics'",
+        "url": "https://example.ru/result1?q=knowledge%20graph%20basics",
+        "snippet": "Это пример результата поиска 1 по запросу 'knowledge graph basics' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755423244.0517027,
+        "query": "knowledge graph basics"
+      },
+      {
+        "title": "Search result 2 for 'knowledge graph basics'",
+        "url": "https://example.com/result2?q=knowledge%20graph%20basics",
+        "snippet": "This is a sample search result 2 for the query 'knowledge graph basics'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755423244.0516028,
+        "query": "knowledge graph basics"
+      },
+      {
+        "title": "Результат поиска 2 для 'knowledge graph basics'",
+        "url": "https://example.ru/result2?q=knowledge%20graph%20basics",
+        "snippet": "Это пример результата поиска 2 по запросу 'knowledge graph basics' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.65,
+        "content": null,
+        "timestamp": 1755423244.0517068,
+        "query": "knowledge graph basics"
+      },
+      {
+        "title": "Search result 3 for 'knowledge graph basics'",
+        "url": "https://example.com/result3?q=knowledge%20graph%20basics",
+        "snippet": "This is a sample search result 3 for the query 'knowledge graph basics'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.6000000000000001,
+        "content": null,
+        "timestamp": 1755423244.051606,
+        "query": "knowledge graph basics"
+      }
+    ]
+  },
+  "5d8fb2891cc7f37fb6b88fe7ea2665b8": {
+    "timestamp": 1755426798.8923147,
+    "results": [
+      {
+        "title": "Search result 1 for 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
+        "url": "https://example.com/result1?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "This is a sample search result 1 for the query 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426798.8846908,
+        "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
+        "url": "https://example.ru/result1?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426798.8863337,
+        "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
+      },
+      {
+        "title": "Search result 2 for 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
+        "url": "https://example.com/result2?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "This is a sample search result 2 for the query 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426798.885036,
+        "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
+      }
+    ]
+  },
+  "174867f80a58ee83ac6a42dc68102d54": {
+    "timestamp": 1755426800.282187,
+    "results": [
+      {
+        "title": "Search result 1 for 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.com/result1?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "This is a sample search result 1 for the query 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426800.2804134,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса."
+      },
+      {
+        "title": "Результат поиска 1 для 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.ru/result1?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426800.2815158,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса."
+      },
+      {
+        "title": "Search result 2 for 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.com/result2?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "This is a sample search result 2 for the query 'Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426800.281086,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text Извините произошла ошибка при обработке вашего запроса."
+      }
+    ]
+  },
+  "f138378b33add9d52414063d62a6574a": {
+    "timestamp": 1755426801.5032704,
+    "results": [
+      {
+        "title": "Search result 1 for 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result1?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 1 for the query 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426801.5008595,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.ru/result1?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426801.5010357,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Search result 2 for 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result2?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 2 for the query 'Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426801.5008867,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text Извините произошла ошибка при обработке вашего запроса?"
+      }
+    ]
+  },
+  "f0f18418aa72daf0b1ab33331a15094e": {
+    "timestamp": 1755426802.6847045,
+    "results": [
+      {
+        "title": "Search result 1 for 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 1 for the query 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426802.6833687,
+        "query": "Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.ru/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426802.6834648,
+        "query": "Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Search result 2 for 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result2?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 2 for the query 'Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426802.6833782,
+        "query": "Какие метрики качества важнее всего для text Извините произошла ошибка при обработке вашего запроса?"
+      }
+    ]
+  },
+  "d8c4e3fc2d3638b6d0745a90331dfb49": {
+    "timestamp": 1755426805.0440843,
+    "results": [
+      {
+        "title": "Search result 1 for 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.com/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "This is a sample search result 1 for the query 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426805.0432718,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса."
+      },
+      {
+        "title": "Результат поиска 1 для 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.ru/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426805.043375,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса."
+      },
+      {
+        "title": "Search result 2 for 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.'",
+        "url": "https://example.com/result2?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0.",
+        "snippet": "This is a sample search result 2 for the query 'Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426805.0432837,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Извините произошла ошибка при обработке вашего запроса."
+      }
+    ]
+  },
+  "080e57c27eac70ef1e449794f5471b82": {
+    "timestamp": 1755426811.9659576,
+    "results": [
+      {
+        "title": "Search result 1 for 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result1?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 1 for the query 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755426811.9619625,
+        "query": "В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Результат поиска 1 для 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.ru/result1?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755426811.9630444,
+        "query": "В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?"
+      },
+      {
+        "title": "Search result 2 for 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?'",
+        "url": "https://example.com/result2?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%B7%D0%B2%D0%B8%D0%BD%D0%B8%D1%82%D0%B5%20%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%BE%D1%88%D0%BB%D0%B0%20%D0%BE%D1%88%D0%B8%D0%B1%D0%BA%D0%B0%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D0%BA%D0%B5%20%D0%B2%D0%B0%D1%88%D0%B5%D0%B3%D0%BE%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%D0%B0%3F",
+        "snippet": "This is a sample search result 2 for the query 'В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755426811.9627328,
+        "query": "В чём основные компромиссы для text Извините произошла ошибка при обработке вашего запроса?"
+      }
+    ]
+  },
+  "f8511f783ea4b8f7f41c4cbf364f5d57": {
+    "timestamp": 1755427412.9767408,
+    "results": [
+      {
+        "title": "Search result 1 for 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.'",
+        "url": "https://example.com/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%94%D0%B0%D0%B2%D0%B0%D0%B9%20%D0%BE%D0%B1%D1%81%D1%83%D0%B4%D0%B8%D0%BC%20%D0%BF%D1%80%D0%B5%D0%B8%D0%BC%D1%83%D1%89%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B8%20%D0%BD%D0%B5%D0%B4%D0%BE%D1%81%D1%82%D0%B0%D1%82%D0%BA%D0%B8%20%D1%80%D0%B0%D0%B7%D0%BB%D0%B8%D1%87%D0%BD%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D1%8F%D0%B7%D1%8B%D0%BA%D0%BE%D0%B2%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9.",
+        "snippet": "This is a sample search result 1 for the query 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427412.9755015,
+        "query": "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей."
+      },
+      {
+        "title": "Результат поиска 1 для 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.'",
+        "url": "https://example.ru/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%94%D0%B0%D0%B2%D0%B0%D0%B9%20%D0%BE%D0%B1%D1%81%D1%83%D0%B4%D0%B8%D0%BC%20%D0%BF%D1%80%D0%B5%D0%B8%D0%BC%D1%83%D1%89%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B8%20%D0%BD%D0%B5%D0%B4%D0%BE%D1%81%D1%82%D0%B0%D1%82%D0%BA%D0%B8%20%D1%80%D0%B0%D0%B7%D0%BB%D0%B8%D1%87%D0%BD%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D1%8F%D0%B7%D1%8B%D0%BA%D0%BE%D0%B2%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427412.9759111,
+        "query": "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей."
+      },
+      {
+        "title": "Search result 2 for 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.'",
+        "url": "https://example.com/result2?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%94%D0%B0%D0%B2%D0%B0%D0%B9%20%D0%BE%D0%B1%D1%81%D1%83%D0%B4%D0%B8%D0%BC%20%D0%BF%D1%80%D0%B5%D0%B8%D0%BC%D1%83%D1%89%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B8%20%D0%BD%D0%B5%D0%B4%D0%BE%D1%81%D1%82%D0%B0%D1%82%D0%BA%D0%B8%20%D1%80%D0%B0%D0%B7%D0%BB%D0%B8%D1%87%D0%BD%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D1%8F%D0%B7%D1%8B%D0%BA%D0%BE%D0%B2%D1%8B%D1%85%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9.",
+        "snippet": "This is a sample search result 2 for the query 'Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427412.9755137,
+        "query": "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей."
+      }
+    ]
+  },
+  "ea0e239abbde5591a912ba6e3615a6cc": {
+    "timestamp": 1755427415.926486,
+    "results": [
+      {
+        "title": "Search result 1 for 'Можешь кратко перечислить плюсы и минусы по теме: text?'",
+        "url": "https://example.com/result1?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%3F",
+        "snippet": "This is a sample search result 1 for the query 'Можешь кратко перечислить плюсы и минусы по теме: text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427415.9233687,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Можешь кратко перечислить плюсы и минусы по теме: text?'",
+        "url": "https://example.ru/result1?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Можешь кратко перечислить плюсы и минусы по теме: text?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427415.9237976,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text?"
+      },
+      {
+        "title": "Search result 2 for 'Можешь кратко перечислить плюсы и минусы по теме: text?'",
+        "url": "https://example.com/result2?q=%D0%9C%D0%BE%D0%B6%D0%B5%D1%88%D1%8C%20%D0%BA%D1%80%D0%B0%D1%82%D0%BA%D0%BE%20%D0%BF%D0%B5%D1%80%D0%B5%D1%87%D0%B8%D1%81%D0%BB%D0%B8%D1%82%D1%8C%20%D0%BF%D0%BB%D1%8E%D1%81%D1%8B%20%D0%B8%20%D0%BC%D0%B8%D0%BD%D1%83%D1%81%D1%8B%20%D0%BF%D0%BE%20%D1%82%D0%B5%D0%BC%D0%B5%3A%20text%3F",
+        "snippet": "This is a sample search result 2 for the query 'Можешь кратко перечислить плюсы и минусы по теме: text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427415.9233792,
+        "query": "Можешь кратко перечислить плюсы и минусы по теме: text?"
+      }
+    ]
+  },
+  "a1a8c8e6e95740086648efe6b59929b2": {
+    "timestamp": 1755427418.3854115,
+    "results": [
+      {
+        "title": "Search result 1 for 'Какие метрики качества важнее всего для text?'",
+        "url": "https://example.com/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "This is a sample search result 1 for the query 'Какие метрики качества важнее всего для text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427418.3840983,
+        "query": "Какие метрики качества важнее всего для text?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Какие метрики качества важнее всего для text?'",
+        "url": "https://example.ru/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Какие метрики качества важнее всего для text?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427418.3842418,
+        "query": "Какие метрики качества важнее всего для text?"
+      },
+      {
+        "title": "Search result 2 for 'Какие метрики качества важнее всего для text?'",
+        "url": "https://example.com/result2?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "This is a sample search result 2 for the query 'Какие метрики качества важнее всего для text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427418.3841052,
+        "query": "Какие метрики качества важнее всего для text?"
+      }
+    ]
+  },
+  "afde50ca44826a67d77fd644380f159e": {
+    "timestamp": 1755427430.5005774,
+    "results": [
+      {
+        "title": "Search result 1 for 'В чём основные компромиссы для text?'",
+        "url": "https://example.com/result1?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "This is a sample search result 1 for the query 'В чём основные компромиссы для text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427430.4996197,
+        "query": "В чём основные компромиссы для text?"
+      },
+      {
+        "title": "Результат поиска 1 для 'В чём основные компромиссы для text?'",
+        "url": "https://example.ru/result1?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'В чём основные компромиссы для text?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427430.4997358,
+        "query": "В чём основные компромиссы для text?"
+      },
+      {
+        "title": "Search result 2 for 'В чём основные компромиссы для text?'",
+        "url": "https://example.com/result2?q=%D0%92%20%D1%87%D1%91%D0%BC%20%D0%BE%D1%81%D0%BD%D0%BE%D0%B2%D0%BD%D1%8B%D0%B5%20%D0%BA%D0%BE%D0%BC%D0%BF%D1%80%D0%BE%D0%BC%D0%B8%D1%81%D1%81%D1%8B%20%D0%B4%D0%BB%D1%8F%20text%3F",
+        "snippet": "This is a sample search result 2 for the query 'В чём основные компромиссы для text?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427430.4996262,
+        "query": "В чём основные компромиссы для text?"
+      }
+    ]
+  },
+  "f3e3684e9b4ffca7ab2f98a3d85fe58d": {
+    "timestamp": 1755427977.2949493,
+    "results": [
+      {
+        "title": "Search result 1 for 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?'",
+        "url": "https://example.com/result1?q=%D0%9F%D1%80%D0%B5%D0%B4%D0%BB%D0%B0%D0%B3%D0%B0%D1%8E%20%D1%82%D0%B5%D0%BC%D1%83%3A%20%D0%BA%D0%B0%D0%BA%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B8%D1%82%D1%8C%20%D1%83%D1%81%D1%82%D0%BE%D0%B9%D1%87%D0%B8%D0%B2%D0%BE%D1%81%D1%82%D1%8C%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D0%BA%20%D0%BD%D0%B5%D0%BA%D0%BE%D1%80%D1%80%D0%B5%D0%BA%D1%82%D0%BD%D1%8B%D0%BC%20%D0%B2%D1%85%D0%BE%D0%B4%D0%BD%D1%8B%D0%BC%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D0%BC%3F",
+        "snippet": "This is a sample search result 1 for the query 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427977.292468,
+        "query": "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?'",
+        "url": "https://example.ru/result1?q=%D0%9F%D1%80%D0%B5%D0%B4%D0%BB%D0%B0%D0%B3%D0%B0%D1%8E%20%D1%82%D0%B5%D0%BC%D1%83%3A%20%D0%BA%D0%B0%D0%BA%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B8%D1%82%D1%8C%20%D1%83%D1%81%D1%82%D0%BE%D0%B9%D1%87%D0%B8%D0%B2%D0%BE%D1%81%D1%82%D1%8C%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D0%BA%20%D0%BD%D0%B5%D0%BA%D0%BE%D1%80%D1%80%D0%B5%D0%BA%D1%82%D0%BD%D1%8B%D0%BC%20%D0%B2%D1%85%D0%BE%D0%B4%D0%BD%D1%8B%D0%BC%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D0%BC%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427977.293185,
+        "query": "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?"
+      },
+      {
+        "title": "Search result 2 for 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?'",
+        "url": "https://example.com/result2?q=%D0%9F%D1%80%D0%B5%D0%B4%D0%BB%D0%B0%D0%B3%D0%B0%D1%8E%20%D1%82%D0%B5%D0%BC%D1%83%3A%20%D0%BA%D0%B0%D0%BA%20%D1%83%D0%BB%D1%83%D1%87%D1%88%D0%B8%D1%82%D1%8C%20%D1%83%D1%81%D1%82%D0%BE%D0%B9%D1%87%D0%B8%D0%B2%D0%BE%D1%81%D1%82%D1%8C%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%20%D0%BA%20%D0%BD%D0%B5%D0%BA%D0%BE%D1%80%D1%80%D0%B5%D0%BA%D1%82%D0%BD%D1%8B%D0%BC%20%D0%B2%D1%85%D0%BE%D0%B4%D0%BD%D1%8B%D0%BC%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D0%BC%3F",
+        "snippet": "This is a sample search result 2 for the query 'Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427977.292495,
+        "query": "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?"
+      }
+    ]
+  },
+  "c2acd8e0c2d57cd87ee600a0d75a02e1": {
+    "timestamp": 1755427985.458876,
+    "results": [
+      {
+        "title": "Search result 1 for 'Назови 2-3 ключевых риска и способ их снижения для text.'",
+        "url": "https://example.com/result1?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "This is a sample search result 1 for the query 'Назови 2-3 ключевых риска и способ их снижения для text.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427985.4427423,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text."
+      },
+      {
+        "title": "Результат поиска 1 для 'Назови 2-3 ключевых риска и способ их снижения для text.'",
+        "url": "https://example.ru/result1?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Назови 2-3 ключевых риска и способ их снижения для text.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427985.4428642,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text."
+      },
+      {
+        "title": "Search result 2 for 'Назови 2-3 ключевых риска и способ их снижения для text.'",
+        "url": "https://example.com/result2?q=%D0%9D%D0%B0%D0%B7%D0%BE%D0%B2%D0%B8%202-3%20%D0%BA%D0%BB%D1%8E%D1%87%D0%B5%D0%B2%D1%8B%D1%85%20%D1%80%D0%B8%D1%81%D0%BA%D0%B0%20%D0%B8%20%D1%81%D0%BF%D0%BE%D1%81%D0%BE%D0%B1%20%D0%B8%D1%85%20%D1%81%D0%BD%D0%B8%D0%B6%D0%B5%D0%BD%D0%B8%D1%8F%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "This is a sample search result 2 for the query 'Назови 2-3 ключевых риска и способ их снижения для text.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427985.4427505,
+        "query": "Назови 2-3 ключевых риска и способ их снижения для text."
+      }
+    ]
+  },
+  "e13f736a3aa8a5992d55450526b1778a": {
+    "timestamp": 1755427991.3252754,
+    "results": [
+      {
+        "title": "Search result 1 for 'Сформулируй критерии выбора и порекомендуй подход для text.'",
+        "url": "https://example.com/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "This is a sample search result 1 for the query 'Сформулируй критерии выбора и порекомендуй подход для text.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755427991.3243587,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text."
+      },
+      {
+        "title": "Результат поиска 1 для 'Сформулируй критерии выбора и порекомендуй подход для text.'",
+        "url": "https://example.ru/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Сформулируй критерии выбора и порекомендуй подход для text.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755427991.3244464,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text."
+      },
+      {
+        "title": "Search result 2 for 'Сформулируй критерии выбора и порекомендуй подход для text.'",
+        "url": "https://example.com/result2?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text.",
+        "snippet": "This is a sample search result 2 for the query 'Сформулируй критерии выбора и порекомендуй подход для text.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755427991.3243678,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text."
+      }
+    ]
+  },
+  "48fb3da04c4f2ae6fdb6cbecc2e5534d": {
+    "timestamp": 1755461503.7184396,
+    "results": [
+      {
+        "title": "Search result 1 for 'Какие метрики качества важнее всего для text Понял ваш запрос?'",
+        "url": "https://example.com/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%9F%D0%BE%D0%BD%D1%8F%D0%BB%20%D0%B2%D0%B0%D1%88%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%3F",
+        "snippet": "This is a sample search result 1 for the query 'Какие метрики качества важнее всего для text Понял ваш запрос?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755461503.6288142,
+        "query": "Какие метрики качества важнее всего для text Понял ваш запрос?"
+      },
+      {
+        "title": "Результат поиска 1 для 'Какие метрики качества важнее всего для text Понял ваш запрос?'",
+        "url": "https://example.ru/result1?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%9F%D0%BE%D0%BD%D1%8F%D0%BB%20%D0%B2%D0%B0%D1%88%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%3F",
+        "snippet": "Это пример результата поиска 1 по запросу 'Какие метрики качества важнее всего для text Понял ваш запрос?' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755461503.6275885,
+        "query": "Какие метрики качества важнее всего для text Понял ваш запрос?"
+      },
+      {
+        "title": "Search result 2 for 'Какие метрики качества важнее всего для text Понял ваш запрос?'",
+        "url": "https://example.com/result2?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%BA%D0%B8%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%B5%D0%B5%20%D0%B2%D1%81%D0%B5%D0%B3%D0%BE%20%D0%B4%D0%BB%D1%8F%20text%20%D0%9F%D0%BE%D0%BD%D1%8F%D0%BB%20%D0%B2%D0%B0%D1%88%20%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81%3F",
+        "snippet": "This is a sample search result 2 for the query 'Какие метрики качества важнее всего для text Понял ваш запрос?'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755461503.6288428,
+        "query": "Какие метрики качества важнее всего для text Понял ваш запрос?"
+      }
+    ]
+  },
+  "261543a535bd0507c5ca1388842aaf48": {
+    "timestamp": 1755462043.2668352,
+    "results": [
+      {
+        "title": "Search result 1 for 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.'",
+        "url": "https://example.com/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%B5%D1%81%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.",
+        "snippet": "This is a sample search result 1 for the query 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.8,
+        "content": null,
+        "timestamp": 1755461958.2573128,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос."
+      },
+      {
+        "title": "Результат поиска 1 для 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.'",
+        "url": "https://example.ru/result1?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%B5%D1%81%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.",
+        "snippet": "Это пример результата поиска 1 по запросу 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.' от Yandex.",
+        "source": "yandex",
+        "relevance_score": 0.75,
+        "content": null,
+        "timestamp": 1755461958.3006175,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос."
+      },
+      {
+        "title": "Search result 2 for 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.'",
+        "url": "https://example.com/result2?q=%D0%A1%D1%84%D0%BE%D1%80%D0%BC%D1%83%D0%BB%D0%B8%D1%80%D1%83%D0%B9%20%D0%BA%D1%80%D0%B8%D1%82%D0%B5%D1%80%D0%B8%D0%B8%20%D0%B2%D1%8B%D0%B1%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%BF%D0%BE%D1%80%D0%B5%D0%BA%D0%BE%D0%BC%D0%B5%D0%BD%D0%B4%D1%83%D0%B9%20%D0%BF%D0%BE%D0%B4%D1%85%D0%BE%D0%B4%20%D0%B4%D0%BB%D1%8F%20text%20%D0%98%D0%BD%D1%82%D0%B5%D1%80%D0%B5%D1%81%D0%BD%D1%8B%D0%B9%20%D0%B2%D0%BE%D0%BF%D1%80%D0%BE%D1%81.",
+        "snippet": "This is a sample search result 2 for the query 'Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.'. Real web search implementation would fetch actual results from search engines.",
+        "source": "google",
+        "relevance_score": 0.7000000000000001,
+        "content": null,
+        "timestamp": 1755461958.2574694,
+        "query": "Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос."
+      }
+    ]
+  }
+}

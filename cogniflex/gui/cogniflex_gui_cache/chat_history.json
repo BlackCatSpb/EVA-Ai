@@ -1,0 +1,62 @@
+[
+  {
+    "sender": "CogniFlex",
+    "message": "Чат очищен.\n\nЯ - когнитивная система с поддержкой:\n• Этического анализа\n• Адаптации под пользователя\n• Распределенных вычислений\n• Управления знаниями\n\nЗадайте ваш первый вопрос или нажмите F1 для просмотра справки.",
+    "type": "system",
+    "timestamp": 1755454293.1123831
+  },
+  {
+    "sender": "CogniFlex",
+    "message": "Автодиалог запущен.",
+    "type": "system",
+    "timestamp": 1755460006.8647053
+  },
+  {
+    "sender": "Вы",
+    "message": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
+    "type": "user",
+    "timestamp": 1755460007.0881152
+  },
+  {
+    "sender": "CogniFlex",
+    "message": "Автодиалог остановлен.",
+    "type": "system",
+    "timestamp": 1755460073.88348
+  },
+  {
+    "sender": "CogniFlex",
+    "message": "Автодиалог запущен.",
+    "type": "system",
+    "timestamp": 1755461456.1774228
+  },
+  {
+    "sender": "Вы",
+    "message": "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?",
+    "type": "user",
+    "timestamp": 1755461456.291104
+  },
+  {
+    "sender": "CogniFlex",
+    "message": "{'text': 'Понял ваш запрос. Обрабатываю информацию и готовлю ответ.', 'tokens': ['Понял', 'ваш', 'запрос.', 'Обрабатываю', 'информацию', 'и', 'готовлю', 'ответ.'], 'metadata': {'model': 'fallback', 'task': 'error_handling', 'length': 57, 'from_cache': False, 'error': 'Модель недоступна', 'generation_time': 0.0, 'token_count': 8}, 'reasoning': 'Fallback ответ из-за ошибки: Модель недоступна', 'contradiction_detected': False, 'contradictions': [], 'sentiment': None}\n\nВремя обработки: 34.04 сек",
+    "type": "system",
+    "timestamp": 1755461491.045301
+  },
+  {
+    "sender": "Вы",
+    "message": "Какие метрики качества важнее всего для text Понял ваш запрос?",
+    "type": "user",
+    "timestamp": 1755461492.5065114
+  },
+  {
+    "sender": "CogniFlex",
+    "message": "{'text': 'Интересный вопрос! Позвольте мне подумать над этим.', 'tokens': ['Интересный', 'вопрос!', 'Позвольте', 'мне', 'подумать', 'над', 'этим.'], 'metadata': {'model': 'fallback', 'task': 'error_handling', 'length': 51, 'from_cache': False, 'error': 'Модель недоступна', 'generation_time': 0.0, 'token_count': 7}, 'reasoning': 'Fallback ответ из-за ошибки: Модель недоступна', 'contradiction_detected': False, 'contradictions': [], 'sentiment': None}\n\nВремя обработки: 73.08 сек",
+    "type": "system",
+    "timestamp": 1755461577.1302536
+  },
+  {
+    "sender": "Вы",
+    "message": "Сформулируй критерии выбора и порекомендуй подход для text Интересный вопрос.",
+    "type": "user",
+    "timestamp": 1755461592.6686444
+  }
+]

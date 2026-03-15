@@ -1,0 +1,17 @@
+"""
+Модуль управления знаниями CogniFlex
+"""
+
+from .knowledge_core import KnowledgeGraph, KnowledgeNode, KnowledgeEdge
+from .knowledge_manager import KnowledgeManager
+from .knowledge_analyzer import KnowledgeAnalyzer
+from .knowledge_integrator import KnowledgeIntegrator
+
+__all__ = [
+    'KnowledgeGraph',
+    'KnowledgeNode', 
+    'KnowledgeEdge',
+    'KnowledgeManager',
+    'KnowledgeAnalyzer',
+    'KnowledgeIntegrator'
+]

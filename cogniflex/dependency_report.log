@@ -1,0 +1,11 @@
+Dependency Analysis Report
+Timestamp: 2025-08-16T20:54:34.066314
+Root: C:\Users\black\OneDrive\Desktop\CogniFlex\cogniflex
+Total modules: 0
+Total edges: 0
+
+Missing internal targets: 0
+Cycles detected: 0
+Top modules by in-degree (most depended-on):
+
+Note: CoreBrain expected as orchestrator: cogniflex.core.core_brain
