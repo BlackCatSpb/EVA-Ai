@@ -62,14 +62,32 @@ class UnifiedFractalStore:
         self.optimizer = None
         self.current_model = None
         
+    def _vectorize_text(self, text: str) -> np.ndarray:
+        """Векторизация текста с использованием TF-IDF или случайных векторов"""
+        try:
+            # Пробуем использовать TF-IDF
+            if hasattr(self, 'tfidf_vectorizer') and self.tfidf_vectorizer:
+                vector = self.tfidf_vectorizer.transform([text]).toarray()[0]
+                # Дополняем до нужного размера
+                if len(vector) < self.config.block_size:
+                    vector = np.pad(vector, (0, self.config.block_size - len(vector)))
+                return vector
+        except Exception:
+            pass
+        
+        # Fallback: хеширование текста + случайный шум
+        hash_val = int(hashlib.md5(text.encode()).hexdigest(), 16)
+        np.random.seed(hash_val % (2**32))
+        vector = np.random.randn(self.config.block_size) * 0.1
+        return vector
+    
     def store_knowledge(self, content: Union[str, Dict], 
                        node_type: str = "concept",
                        metadata: Optional[Dict] = None) -> str:
         """Store knowledge in the graph with fractal encoding"""
         # Convert content to vector representation
         if isinstance(content, str):
-            # TODO: Implement text vectorization
-            vector = np.random.randn(self.config.block_size)
+            vector = self._vectorize_text(content)
         else:
             vector = np.array(list(content.values()))
             
@@ -87,8 +105,7 @@ class UnifiedFractalStore:
                        limit: int = 10) -> List[Dict]:
         """Query knowledge using semantic similarity"""
         if isinstance(query, str):
-            # TODO: Implement text vectorization
-            vector = np.random.randn(self.config.block_size)
+            vector = self._vectorize_text(query)
         else:
             vector = np.array(list(query.values()))
             

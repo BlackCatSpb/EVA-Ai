@@ -358,7 +358,9 @@ class HybridModelManager:
             Dict[str, Any]: Структурированный ответ
         """
         try:
+            import time
             with self._lock:
+                start_time = time.time()
                 # Используем первую доступную модель
                 available_models = self.get_available_models()
                 if not available_models:
@@ -382,12 +384,14 @@ class HybridModelManager:
                     temperature=temperature
                 )
                 
+                generation_time = time.time() - start_time
+                
                 return {
                     "text": response_text,
                     "status": "ok",
                     "model_name": model_name,
                     "tokens_generated": len(response_text.split()),
-                    "generation_time": 0.0,  # TODO: добавить замер времени
+                    "generation_time": generation_time,
                     "metadata": {
                         "provider": "HybridModelManager",
                         "window_type": available_models[model_name].get('window_type', 'unknown'),
