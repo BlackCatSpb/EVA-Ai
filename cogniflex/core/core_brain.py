@@ -723,6 +723,28 @@ class CoreBrain:
             # Объединяем оба контекста, context имеет приоритет
             user_context = {**user_context, **context}
         
+        # Проверяем наличие reasoning_engine и используем его для генерации с рассуждением
+        if hasattr(self, 'reasoning_engine') and self.reasoning_engine:
+            try:
+                self.query_logger.info("Используем ReasoningEngine для генерации с рассуждением")
+                reasoning_result = self.reasoning_engine.reason(query, user_context)
+                
+                if reasoning_result.get('answer'):
+                    response_dict = {
+                        "response": reasoning_result.get('answer', ''),
+                        "text": reasoning_result.get('answer', ''),
+                        "status": "ok",
+                        "confidence": reasoning_result.get('confidence', 0.0),
+                        "reasoning": reasoning_result,
+                        "source": "reasoning_engine",
+                        "fallback_level": 0,
+                        "processing_time": time.time() - start_time
+                    }
+                    self.query_logger.info("Успешно использован reasoning_engine")
+                    return response_dict
+            except Exception as e:
+                self.query_logger.warning(f"Reasoning engine недоступен: {e}")
+        
         # Уровень 1: Generation Coordinator
         try:
             if self.generation_coordinator:
