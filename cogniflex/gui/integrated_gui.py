@@ -108,6 +108,20 @@ class IntegratedCogniFlexGUI:
             command=self.show_system_stats
         ).pack(side=tk.LEFT, padx=(0, 10))
 
+        # Выбор модели
+        ttk.Label(toolbar_frame, text="Модель:").pack(side=tk.LEFT, padx=(10, 5))
+        
+        self.model_var = tk.StringVar(value="RuGPT-3 Large")
+        self.model_combo = ttk.Combobox(
+            toolbar_frame,
+            textvariable=self.model_var,
+            values=["RuGPT-3 Large", "Qwen3.5-0.8B", "Qwen3.5-2B", "BitNet 2B"],
+            state="readonly",
+            width=18
+        )
+        self.model_combo.pack(side=tk.LEFT, padx=(0, 5))
+        self.model_combo.bind("<<ComboboxSelected>>", self._on_model_changed)
+
         ttk.Button(
             toolbar_frame,
             text="🛑 Остановить",
@@ -386,7 +400,8 @@ class IntegratedCogniFlexGUI:
         """Обновление статуса системы."""
         self.current_status = status
         if hasattr(self, 'status_label'):
-            self.status_label.config(text=f"Статус: {status}")
+            model = self.model_var.get() if hasattr(self, 'model_var') else "RuGPT"
+            self.status_label.config(text=f"Модель: {model} | Статус: {status}")
 
     def update_metrics(self):
         """Обновление метрик системы."""
@@ -445,6 +460,28 @@ class IntegratedCogniFlexGUI:
         except Exception as e:
             logger.error(f"Ошибка оптимизации системы: {e}")
             messagebox.showerror("Ошибка", f"Не удалось оптимизировать систему: {e}")
+
+    def _on_model_changed(self, event=None):
+        """Обработка смены модели."""
+        selected = self.model_var.get()
+        model_map = {
+            "RuGPT-3 Large": "rugpt3large",
+            "Qwen3.5-0.8B": "qwen3.5-0.8b",
+            "Qwen3.5-2B": "qwen3.5-2b",
+            "BitNet 2B": "bitnet-2b"
+        }
+        
+        model_id = model_map.get(selected, "rugpt3large")
+        self.add_to_log(f"Смена модели на: {selected}")
+        
+        try:
+            from cogniflex.mlearning.model_selector import MODEL_CONFIGS
+            if model_id in MODEL_CONFIGS:
+                MODEL_CONFIGS[model_id]["status"] = "ready"
+                messagebox.showinfo("Модель", f"Модель {selected} выбрана")
+        except Exception as e:
+            logger.error(f"Ошибка смены модели: {e}")
+            messagebox.showwarning("Модель", f"Модель {selected} недоступна: {e}")
 
     def show_system_stats(self):
         """Показать статистику системы."""
