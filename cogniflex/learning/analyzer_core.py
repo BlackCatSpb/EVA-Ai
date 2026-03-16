@@ -505,20 +505,73 @@ class AnalyzerCore:
     def _analyze_feedback_task(self):
         """Анализирует фидбэк."""
         logger.info("Анализ фидбэка...")
-        # TODO: Реализовать анализ фидбэка
-        pass
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT rating, COUNT(*) as count 
+                FROM feedback 
+                WHERE timestamp > datetime('now', '-7 days')
+                GROUP BY rating
+            """)
+            ratings = cursor.fetchall()
+            
+            total = sum(r[1] for r in ratings)
+            if total > 0:
+                positive = sum(r[1] for r in ratings if r[0] >= 4)
+                feedback_score = positive / total
+                self.stats['feedback_score'] = feedback_score
+                logger.info(f"Feedback score: {feedback_score:.2%}")
+            
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Анализ фидбэка: {e}")
     
     def _analyze_knowledge_task(self):
         """Анализирует знания."""
         logger.info("Анализ знаний...")
-        # TODO: Реализовать анализ знаний
-        pass
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT COUNT(*) FROM knowledge_nodes")
+            node_count = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM knowledge_edges")
+            edge_count = cursor.fetchone()[0]
+            
+            self.stats['knowledge_nodes'] = node_count
+            self.stats['knowledge_edges'] = edge_count
+            logger.info(f"Knowledge: {node_count} nodes, {edge_count} edges")
+            
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Анализ знаний: {e}")
     
     def _analyze_performance_task(self):
         """Анализирует производительность."""
         logger.info("Анализ производительности...")
-        # TODO: Реализовать анализ производительности
-        pass
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT AVG(response_time), COUNT(*) 
+                FROM queries 
+                WHERE timestamp > datetime('now', '-1 hour')
+            """)
+            result = cursor.fetchone()
+            if result and result[0]:
+                self.stats['avg_response_time'] = result[0]
+                logger.info(f"Avg response time: {result[0]:.3f}s")
+            
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Анализ производительности: {e}")
     
     def _update_stats(self):
         """Обновляет статистику модуля."""
