@@ -5,6 +5,7 @@
 системы через централизованную событийную шину.
 """
 
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
@@ -53,12 +54,39 @@ class IntegratedCogniFlexGUI:
         self.root.title("CogniFlex - Единая Фрактальная Архитектура")
         self.root.geometry("1200x800")
         self.root.minsize(800, 600)
+        
+        # Обработка закрытия окна
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
         # Создание интерфейса
         self.create_widgets()
         self.setup_event_handlers()
 
         logger.info("Интегрированный GUI инициализирован")
+    
+    def on_closing(self):
+        """Обработка закрытия окна."""
+        if messagebox.askokcancel("Выход", "Вы хотите выйти из CogniFlex?"):
+            self.running = False
+            try:
+                if hasattr(self, 'brain') and self.brain:
+                    logger.info("Остановка CoreBrain...")
+                    if hasattr(self.brain, 'shutdown'):
+                        self.brain.shutdown()
+                    elif hasattr(self.brain, 'stop'):
+                        self.brain.stop()
+            except Exception as e:
+                logger.error(f"Ошибка при остановке brain: {e}")
+            
+            try:
+                if self.root:
+                    self.root.quit()
+                    self.root.destroy()
+            except Exception:
+                pass
+            
+            logger.info("CogniFlex завершен")
+            os._exit(0)
 
     def create_widgets(self):
         """Создание виджетов интерфейса."""
