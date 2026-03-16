@@ -9,7 +9,8 @@ import threading
 import time
 import logging
 import os
-from typing import Dict, List, Optional, Type, Callable, Any
+from collections import deque
+from typing import Dict, List, Optional, Type, Callable, Any, Deque
 
 try:
     import psutil  # для оценки ресурсов при отсутствии ResourceManager
@@ -17,6 +18,7 @@ except Exception:  # noqa
     psutil = None  # type: ignore
 
 logger = logging.getLogger("cogniflex.core.autopilot")
+timeline_logger = logging.getLogger("cogniflex.core.autopilot.timeline")
 
 
 class Policies:
@@ -68,12 +70,15 @@ class BackgroundCoordinator:
         # попытка получить кэш автопилота у мозга (может быть установлен позже)
         self.cache = getattr(brain, 'autopilot_cache', None)
 
+        # Интеграция с системой событий
+        self._setup_event_integration()
+
         # Файловый лог автопилота
         try:
             # База логов: сначала brain.cache_dir, иначе корень проекта + cogniflex_cache
             cache_dir = getattr(brain, 'cache_dir', None)
             if not cache_dir:
-                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
                 cache_dir = os.path.join(project_root, 'cogniflex_cache')
             ap_dir = os.path.join(cache_dir, 'autopilot')
             os.makedirs(ap_dir, exist_ok=True)
@@ -97,6 +102,9 @@ class BackgroundCoordinator:
         self._paused = False
         self._thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
+        # Таймлайн планировщика: фиксируем последовательность событий для отладки
+        self._timeline: Deque[Dict[str, Any]] = deque(maxlen=2000)
+        self._seq: int = 0
 
         # учёт активных задач по ресурсным классам
         self._active_counts: Dict[str, int] = {k: 0 for k in self.policies.concurrency.keys()}
@@ -117,14 +125,32 @@ class BackgroundCoordinator:
         self._job_pending: Dict[str, bool] = {}
         # Дополнительно: запрет на планирование до определённого времени (после фейла)
         self._job_pending_until_ts: Dict[str, float] = {}
-        # Явный флаг бэкоффа, блокирующий планирование до истечения окна
+        # Явный флаг бэкоффа, блокирующий планирование до определённого времени (после фейла)
         self._job_backing_off: Dict[str, bool] = {}
+
+    def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Публикует событие в систему событий."""
+        try:
+            if hasattr(self.brain, 'event_bus') and self.brain.event_bus:
+                self.brain.event_bus.emit(event_type, data)
+                logger.debug(f"Событие опубликовано: {event_type}")
+        except Exception as e:
+            logger.error(f"Ошибка публикации события {event_type}: {e}")
 
     # ---- Публичный API ----
     def start(self) -> None:
         with self._lock:
             if self._running:
                 return
+            # Проверяем состояние инициализации системы
+            if hasattr(self, 'brain') and self.brain:
+                if not getattr(self.brain, 'initialized', False):
+                    logger.info("BackgroundCoordinator: система еще не инициализирована, ожидаю...")
+                    return
+                if not getattr(self.brain, 'running', False):
+                    logger.info("BackgroundCoordinator: система еще не запущена, ожидаю...")
+                    return
+            
             self._running = True
             self._paused = False
             self._thread = threading.Thread(target=self._run_loop, name="BackgroundCoordinator", daemon=True)
@@ -175,6 +201,19 @@ class BackgroundCoordinator:
             logger.debug("Tick skipped: background not allowed by policies/idle/resources")
             return
         context = self._build_context()
+        # Логируем тик в таймлайн
+        try:
+            with self._lock:
+                self._seq += 1
+                seq = self._seq
+            rec = {"type": "tick", "seq": seq, "ts": time.time()}
+            self._timeline.append(rec)
+            try:
+                timeline_logger.debug(rec)
+            except Exception:
+                pass
+        except Exception:
+            pass
         if self.cache:
             try:
                 self.cache.append_event("tick", {"idle_for": time.time() - self._last_user_activity_ts})
@@ -267,10 +306,52 @@ class BackgroundCoordinator:
             return
         job_cls = self._job_types[job_type_name]
         resource_class: str = getattr(job_cls, 'resource_class', 'CPU')
+        
+        # Публикуем событие планирования задачи
+        self._emit_event('job_scheduled', {
+            'job_type': job_type_name,
+            'request': req,
+            'source': req.get('source', 'unknown'),
+            'timestamp': time.time()
+        })
+        # Зафиксируем попытку планирования
+        try:
+            with self._lock:
+                self._seq += 1
+                seq = self._seq
+            rec = {
+                "type": "schedule_attempt",
+                "seq": seq,
+                "ts": time.time(),
+                "job": job_type_name,
+                "resource": resource_class,
+                "active": self._active_counts.get(resource_class, 0),
+                "limit": self.policies.concurrency.get(resource_class, 1),
+            }
+            self._timeline.append(rec)
+            try:
+                timeline_logger.debug(rec)
+            except Exception:
+                pass
+        except Exception:
+            pass
         # ограничение конкуренции (под защитой lock)
         with self._lock:
             if self._active_counts.get(resource_class, 0) >= self.policies.concurrency.get(resource_class, 1):
                 logger.debug(f"Concurrency limit reached for {resource_class}")
+                # Логируем отказ в планировании по лимиту
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_limit", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class,
+                           "active": self._active_counts.get(resource_class, 0),
+                           "limit": self.policies.concurrency.get(resource_class, 1)}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
             # ранняя проверка явного бэкофф-флага
             if self._job_backing_off.get(job_type_name, False):
@@ -282,6 +363,17 @@ class BackgroundCoordinator:
             sp = context.get("should_pause")
             if callable(sp) and sp():
                 logger.debug("Scheduling throttled by soft thresholds or user activity (should_pause=True)")
+                # Логируем отказ по паузе
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_pause", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
         except Exception:
             pass
@@ -296,6 +388,16 @@ class BackgroundCoordinator:
                 return
             if self._job_pending.get(job_type_name, False):
                 logger.debug(f"Job type {job_type_name} already pending; skip reschedule")
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_pending", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
             hold_until = float(self._job_pending_until_ts.get(job_type_name, 0.0))
             next_allowed = float(self._job_next_allowed_ts.get(job_type_name, 0.0))
@@ -304,15 +406,45 @@ class BackgroundCoordinator:
             if time.time() < hold_until:
                 remain = hold_until - time.time()
                 logger.debug(f"Job type {job_type_name} held until backoff expires: {remain:.1f}s remaining")
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_hold", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class, "remain_s": round(remain, 3)}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
             if now < next_allowed:
                 remain = next_allowed - now
                 logger.debug(f"Backoff active for {job_type_name}: {remain:.1f}s remaining")
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_backoff", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class, "remain_s": round(remain, 3)}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
             cooldown = float(self.job_cooldowns_s.get(job_type_name, 0))
             if cooldown > 0 and (now - last) < cooldown:
                 remain = cooldown - (now - last)
                 logger.debug(f"Cooldown active for {job_type_name}: {remain:.1f}s remaining")
+                try:
+                    with self._lock:
+                        self._seq += 1
+                        seq = self._seq
+                    rec = {"type": "schedule_reject_cooldown", "seq": seq, "ts": time.time(),
+                           "job": job_type_name, "resource": resource_class, "remain_s": round(remain, 3)}
+                    self._timeline.append(rec)
+                    timeline_logger.debug(rec)
+                except Exception:
+                    pass
                 return
             # Все проверки пройдены — помечаем pending атомарно с проверками
             self._job_pending[job_type_name] = True
@@ -324,6 +456,18 @@ class BackgroundCoordinator:
             job_type_name, resource_class, req.get('params', {}), req.get('source'),
             resource_class, self._active_counts.get(resource_class, 0)
         )
+        # Логируем успешное планирование
+        try:
+            with self._lock:
+                self._seq += 1
+                seq = self._seq
+            rec = {"type": "scheduled", "seq": seq, "ts": time.time(),
+                   "job": job_type_name, "resource": resource_class, "params": req.get('params', {}),
+                   "active": self._active_counts.get(resource_class, 0)}
+            self._timeline.append(rec)
+            timeline_logger.debug(rec)
+        except Exception:
+            pass
 
         def _on_start():
             with self._lock:
@@ -351,81 +495,265 @@ class BackgroundCoordinator:
                     # success or no backoff window -> clear pending immediately
                     self._job_pending[job_type_name] = False
 
-        def _runner():
-            failed = False
-            try:
-                _on_start()
-                # фиксируем время запуска для кулдауна
-                try:
-                    with self._lock:
-                        self._last_run_ts[job_type_name] = time.time()
-                except Exception:
-                    pass
-                if self.cache:
-                    try:
-                        self.cache.append_event("job_start", {"job": job_type_name, "resource": resource_class, "params": req.get('params', {})})
-                    except Exception:
-                        pass
-                job.run(context)
-            except Exception as e:
-                logger.error(f"Job {job_type_name} failed: {e}", exc_info=True)
-                failed = True
-                if self.mm and hasattr(self.mm, 'record_error'):
-                    try:
-                        self.mm.record_error(f"autopilot_job_failed_{job_type_name}")
-                    except Exception:
-                        pass
-                # crash-loop backoff: увеличиваем счётчик и задаём экспоненциальную задержку
-                try:
-                    with self._lock:
-                        fails = int(self._job_failures.get(job_type_name, 0)) + 1
-                        self._job_failures[job_type_name] = fails
-                        backoff = min(300.0, 1.0 * (2 ** max(0, fails - 1)))
-                        until = time.time() + backoff
-                        self._job_next_allowed_ts[job_type_name] = until
-                        # Удерживаем тип задачи в состоянии pending до истечения backoff
-                        self._job_pending_until_ts[job_type_name] = until
-                        # Включаем явный флаг бэкоффа и планируем его сброс
-                        self._job_backing_off[job_type_name] = True
-                    def _clear_backoff_later(delay: float, job=job_type_name):
-                        time.sleep(delay)
-                        with self._lock:
-                            # снимаем флаг только если окно действительно истекло
-                            if time.time() >= float(self._job_next_allowed_ts.get(job, 0.0)):
-                                self._job_backing_off[job] = False
-                    t_boff = threading.Thread(target=_clear_backoff_later, args=(backoff,), daemon=True)
-                    t_boff.start()
-                    logger.debug(f"Set backoff for {job_type_name}: {backoff:.1f}s after {fails} failures")
-                except Exception:
-                    pass
-            finally:
-                _on_done(failed)
-                if self.cache:
-                    try:
-                        self.cache.append_event("job_done", {"job": job_type_name, "resource": resource_class})
-                    except Exception:
-                        pass
-                # сбрасываем состояния при успешном завершении
-                try:
-                    if not failed:
-                        with self._lock:
-                            self._job_failures[job_type_name] = 0
-                            self._job_next_allowed_ts[job_type_name] = 0.0
-                            self._job_pending_until_ts[job_type_name] = 0.0
-                except Exception:
-                    pass
+        # Запускаем задачу в отдельном потоке
+        t = threading.Thread(target=self._run_job, args=(job, job_type_name, resource_class, req, _on_start, _on_done), daemon=True)
+        t.start()
 
-        # если есть deferred_system — используем его, иначе поток
+    def _run_job(self, job, job_type_name: str, resource_class: str, req: Dict[str, Any], _on_start, _on_done):
+        """Выполняет задачу с обработкой ошибок."""
+        failed = False
         try:
-            if self.deferred and hasattr(self.deferred, 'add_command'):
-                priority = getattr(job_cls, 'default_priority', None)
-                self.deferred.add_command(command=lambda: _runner(), args=(), kwargs={}, priority=priority)
-            else:
-                t = threading.Thread(target=_runner, daemon=True)
-                t.start()
+            _on_start()
+            # Зафиксировать старт
+            t_start = time.perf_counter()
+            try:
+                with self._lock:
+                    self._seq += 1
+                    seq = self._seq
+                rec = {"type": "job_start", "seq": seq, "ts": time.time(),
+                       "job": job_type_name, "resource": resource_class,
+                       "active_after_inc": self._active_counts.get(resource_class, 0)}
+                self._timeline.append(rec)
+                timeline_logger.debug(rec)
+            except Exception:
+                pass
+            
+            # Публикуем событие запуска задачи
+            self._emit_event('job_started', {
+                'job_type': job_type_name,
+                'resource_class': resource_class,
+                'request': req,
+                'active_count': self._active_counts.get(resource_class, 0),
+                'timestamp': time.time()
+            })
+            # фиксируем время запуска для кулдауна
+            try:
+                with self._lock:
+                    self._last_run_ts[job_type_name] = time.time()
+            except Exception:
+                pass
+            if self.cache:
+                try:
+                    self.cache.append_event("job_start", {"job": job_type_name, "resource": resource_class, "params": req.get('params', {})})
+                except Exception:
+                    pass
+            job.run(context)
         except Exception as e:
-            logger.error(f"Failed to dispatch job {job_type_name}: {e}", exc_info=True)
-            # откатываем pending, так как запуск не состоялся
-            with self._lock:
-                self._job_pending[job_type_name] = False
-            return
+            logger.error(f"Job {job_type_name} failed: {e}", exc_info=True)
+            failed = True
+        finally:
+            _on_done(failed)
+            # Зафиксировать завершение + длительность
+            try:
+                dur = time.perf_counter() - t_start
+            except Exception:
+                dur = 0.0
+            try:
+                with self._lock:
+                    self._seq += 1
+                    seq = self._seq
+                rec = {"type": "job_done", "seq": seq, "ts": time.time(),
+                       "job": job_type_name, "resource": resource_class,
+                       "failed": bool(failed), "duration_s": round(dur, 6),
+                       "active_after_dec": self._active_counts.get(resource_class, 0)}
+                self._timeline.append(rec)
+                timeline_logger.debug(rec)
+            except Exception:
+                pass
+            
+            # Публикуем событие завершения задачи
+            self._emit_event('job_completed', {
+                'job_type': job_type_name,
+                'resource_class': resource_class,
+                'failed': bool(failed),
+                'duration': round(dur, 6),
+                'request': req,
+                'timestamp': time.time()
+            })
+            if self.cache:
+                try:
+                    self.cache.append_event("job_done", {"job": job_type_name, "resource": resource_class})
+                except Exception:
+                    pass
+            # сбрасываем состояния при успешном завершении
+            try:
+                if not failed:
+                    with self._lock:
+                        self._job_failures[job_type_name] = 0
+                        self._job_next_allowed_ts[job_type_name] = 0.0
+                        self._job_backing_off[job_type_name] = False
+                else:
+                    # increment failure count
+                    with self._lock:
+                        self._job_failures[job_type_name] = self._job_failures.get(job_type_name, 0) + 1
+                        fails = self._job_failures[job_type_name]
+                        # exponential backoff: 2^fails * base, max 1h
+                        base = 30.0
+                        backoff = min(3600.0, base * (2 ** fails))
+                        hold_until = time.time() + backoff
+                        self._job_pending_until_ts[job_type_name] = hold_until
+                        self._job_backing_off[job_type_name] = True
+                        logger.debug(f"Set backoff for {job_type_name}: {backoff:.1f}s after {fails} failures")
+            except Exception:
+                pass
+
+    def _setup_event_integration(self) -> None:
+        try:
+            # Интеграция с системой событий
+            if hasattr(self.brain, 'events') and self.brain.events:
+                events = self.brain.events
+                
+                # Подписываемся на события системы
+                events.subscribe('system_ready', self._handle_system_ready, priority=5)
+                events.subscribe('system_shutdown', self._handle_system_shutdown, priority=5)
+                events.subscribe('user_activity', self._handle_user_activity, priority=8)
+                events.subscribe('component_health_change', self._handle_component_health_change, priority=7)
+                events.subscribe('training_completed', self._handle_training_completed, priority=6)
+                
+                logger.info("BackgroundCoordinator подписан на события системы")
+            
+            # Интеграция с отложенными командами
+            if self.deferred:
+                # Регистрируем команды автопилота
+                self.deferred.add_command('autopilot_start', self._deferred_start, priority=10)
+                self.deferred.add_command('autopilot_stop', self._deferred_stop, priority=10)
+                self.deferred.add_command('autopilot_pause', self._deferred_pause, priority=10)
+                self.deferred.add_command('autopilot_resume', self._deferred_resume, priority=10)
+                self.deferred.add_command('autopilot_status', self._deferred_status, priority=10)
+                
+                logger.info("BackgroundCoordinator зарегистрировал команды в DeferredCommandSystem")
+                
+        except Exception as e:
+            logger.error(f"Ошибка интеграции с системой событий: {e}")
+
+    def _handle_system_ready(self, data: Dict[str, Any]) -> None:
+        """Обработчик события готовности системы."""
+        try:
+            logger.info("Система готова - BackgroundCoordinator может начинать планирование")
+            # Система готова, можно запускать фоновые задачи
+            if hasattr(self, '_running') and not self._running:
+                self.start()
+        except Exception as e:
+            logger.error(f"Ошибка обработки system_ready: {e}")
+
+    def _handle_system_shutdown(self, data: Dict[str, Any]) -> None:
+        """Обработчик события выключения системы."""
+        try:
+            logger.info("Система выключается - BackgroundCoordinator останавливается")
+            self.stop()
+        except Exception as e:
+            logger.error(f"Ошибка обработки system_shutdown: {e}")
+
+    def _handle_user_activity(self, data: Dict[str, Any]) -> None:
+        """Обработчик события активности пользователя."""
+        try:
+            self.signal_user_activity()
+            logger.debug("Получен сигнал активности пользователя")
+        except Exception as e:
+            logger.error(f"Ошибка обработки user_activity: {e}")
+
+    def _handle_component_health_change(self, data: Dict[str, Any]) -> None:
+        """Обработчик события изменения здоровья компонента."""
+        try:
+            component_name = data.get('component', 'unknown')
+            health_status = data.get('health', 'unknown')
+            
+            logger.debug(f"Изменение здоровья компонента {component_name}: {health_status}")
+            
+            # Если критичный компонент стал нездоров, приостанавливаем фоновые задачи
+            if health_status in ['unhealthy', 'error', 'failed']:
+                critical_components = ['model_manager', 'ml_unit', 'memory_manager']
+                if component_name in critical_components:
+                    logger.warning(f"Критичный компонент {component_name} нездоров - приостанавливаем фоновые задачи")
+                    self.pause()
+        except Exception as e:
+            logger.error(f"Ошибка обработки component_health_change: {e}")
+
+    def _handle_training_completed(self, data: Dict[str, Any]) -> None:
+        """Обработчик события завершения обучения."""
+        try:
+            training_type = data.get('type', 'unknown')
+            success = data.get('success', False)
+            
+            logger.info(f"Обучение {training_type} завершено: {'успешно' if success else 'с ошибкой'}")
+            
+            # Сбрасываем кулдаун для обучения при успешном завершении
+            if success and training_type in self.job_cooldowns_s:
+                with self._lock:
+                    self._job_next_allowed_ts[training_type] = time.time()
+                    
+        except Exception as e:
+            logger.error(f"Ошибка обработки training_completed: {e}")
+
+    # ---- Отложенные команды ----
+    def _deferred_start(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда запуска автопилота."""
+        try:
+            if not self._running:
+                self.start()
+                return {"status": "success", "message": "Autopilot started"}
+            else:
+                return {"status": "info", "message": "Autopilot already running"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _deferred_stop(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда остановки автопилота."""
+        try:
+            if self._running:
+                self.stop()
+                return {"status": "success", "message": "Autopilot stopped"}
+            else:
+                return {"status": "info", "message": "Autopilot already stopped"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _deferred_pause(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда паузы автопилота."""
+        try:
+            self.pause()
+            return {"status": "success", "message": "Autopilot paused"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _deferred_resume(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда возобновления автопилота."""
+        try:
+            self.resume()
+            return {"status": "success", "message": "Autopilot resumed"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _deferred_status(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда получения статуса автопилота."""
+        try:
+            return {
+                "status": "success",
+                "data": {
+                    "running": self._running,
+                    "paused": self._paused,
+                    "detectors": len(self._detectors),
+                    "active_jobs": dict(self._active_counts),
+                    "last_user_activity": self._last_user_activity_ts
+                }
+            }
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
+    def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Публикует событие в систему событий."""
+        try:
+            if hasattr(self.brain, 'events') and self.brain.events:
+                self.brain.events.trigger(event_type, data)
+                logger.debug(f"Событие опубликовано: {event_type}")
+        except Exception as e:
+            logger.error(f"Ошибка публикации события {event_type}: {e}")
+
+    # ---- Публичный доступ к таймлайну ----
+    def get_timeline(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        try:
+            if not limit or limit <= 0:
+                return list(self._timeline)
+            return list(self._timeline)[-int(limit):]
+        except Exception:
+            return []

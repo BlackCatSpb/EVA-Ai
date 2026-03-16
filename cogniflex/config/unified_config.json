@@ -1,0 +1,24 @@
+{
+  "manager_selection": {
+    "use_optimized": true,
+    "force_optimized": false,
+    "fallback_to_standard": true
+  },
+  "optimizations": {
+    "cache_tokenization": true,
+    "parallel_tokenization": true,
+    "tokenization_workers": 4,
+    "memory_optimization": true,
+    "max_cache_size": 1000
+  },
+  "performance": {
+    "monitor_performance": true,
+    "log_performance_stats": true,
+    "performance_update_interval": 30
+  },
+  "gui_integration": {
+    "show_performance_stats": true,
+    "enable_optimization_controls": true,
+    "auto_refresh_stats": true
+  }
+}

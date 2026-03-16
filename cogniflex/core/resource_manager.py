@@ -188,6 +188,22 @@ class ResourceManager:
         """
         with self.resource_lock:
             return self.current_metrics.copy()
+
+    def get_cpu_usage(self) -> float:
+        """Возвращает загрузку CPU как долю от 0.0 до 1.0."""
+        with self.resource_lock:
+            try:
+                return float(self.current_metrics.get("cpu_percent", 0.0)) / 100.0
+            except Exception:
+                return 0.0
+
+    def get_memory_usage(self) -> float:
+        """Возвращает загрузку RAM как долю от 0.0 до 1.0."""
+        with self.resource_lock:
+            try:
+                return float(self.current_metrics.get("memory_percent", 0.0)) / 100.0
+            except Exception:
+                return 0.0
     
     def get_resource_summary(self) -> Dict[str, Any]:
         """Возвращает сводку по ресурсам.

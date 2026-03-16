@@ -26,7 +26,25 @@ class SelfAnalyzer:
         self.brain = brain
         self.cache_dir = cache_dir
         
+        self.is_initialized = False
+        self.init_error = None
+        
         try:
+            # Проверяем состояние моделей
+            if brain and hasattr(brain, 'model_manager') and hasattr(brain.model_manager, 'model_states'):
+                # Проверяем, загружены ли все необходимые модели
+                required_models = ['analyzer', 'ethics', 'knowledge']
+                for model_id in required_models:
+                    state = brain.model_manager.model_states.get(model_id)
+                    if state == "loading":
+                        logger.warning(f"Модель {model_id} ещё загружается, часть функциональности может быть недоступна")
+                        continue
+                    elif state == "error":
+                        error = getattr(brain.model_manager, 'loading_errors', {}).get(model_id, "неизвестная ошибка")
+                        logger.warning(f"Ошибка загрузки модели {model_id}: {error}")
+                    elif not state:
+                        logger.warning(f"Модель {model_id} не загружена, часть функциональности будет недоступна")
+                        
             # Создаем компоненты
             self.analyzer_core = AnalyzerCore(brain, cache_dir)
             self.health_monitor = HealthMonitor(brain, self.analyzer_core)
@@ -45,9 +63,12 @@ class SelfAnalyzer:
                 brain.performance_analyzer = self.performance_analyzer
                 brain.memory_graph_trainer = self.memory_graph_trainer
             
+            self.is_initialized = True
             logger.info("SelfAnalyzer полностью инициализирован с тренером графа памяти")
             
         except Exception as e:
+            self.init_error = str(e)
+            logger.warning(f"Самоанализ отложен: {e}")
             logger.error(f"Ошибка инициализации SelfAnalyzer: {e}")
             # Создаем заглушки для отсутствующих компонентов
             self.analyzer_core = None
@@ -56,9 +77,31 @@ class SelfAnalyzer:
             self.performance_analyzer = None
             self.memory_graph_trainer = None
     
+    def _check_ready(self) -> bool:
+        """Проверяет готовность модуля к работе"""
+        if not self.is_initialized:
+            if self.init_error:
+                logger.warning(f"Самоанализ недоступен: {self.init_error}")
+            else:
+                logger.warning("Самоанализ ещё не инициализирован")
+            return False
+        return True
+
     def start(self):
         """Запускает фоновые процессы модуля самоанализа."""
+        if not self._check_ready():
+            return False
+            
         try:
+            # Не запускать, пока модели не готовы
+            if not self._models_ready():
+                logger.warning("Самоанализ отложен: модели ещё не загружены")
+                try:
+                    if hasattr(self.brain, 'status_queue') and self.brain.status_queue:
+                        self.brain.status_queue.put(("self_learning", 0, "Ожидание загрузки моделей"))
+                except Exception:
+                    pass
+                return False
             if not getattr(self.analyzer_core, 'running', False):
                 self.analyzer_core.start_background_analysis()
                 logger.info("Фоновые процессы модуля самоанализа запущены")
@@ -84,6 +127,13 @@ class SelfAnalyzer:
     
     def analyze_system(self) -> Dict[str, Any]:
         """Анализирует состояние всей системы."""
+        if not self._check_ready():
+            return {
+                "error": "Самоанализ недоступен",
+                "state": "error",
+                "timestamp": time.time()
+            }
+            
         try:
             # Анализируем здоровье
             health_report = self.health_monitor.analyze_system_health()
@@ -98,6 +148,7 @@ class SelfAnalyzer:
                 "health_report": health_report,
                 "performance_report": performance_report,
                 "evolution_report": evolution_report,
+                "state": "ready",
                 "timestamp": time.time()
             }
         except Exception as e:
@@ -125,12 +176,66 @@ class SelfAnalyzer:
         Returns:
             List: Список возможностей для обучения
         """
+        if not self._check_ready():
+            return [{
+                "id": "system_not_ready",
+                "concept": "system_state",
+                "type": "error",
+                "priority": 1.0,
+                "domain": "system",
+                "status": "pending",
+                "message": f"Самоанализ недоступен: {self.init_error if self.init_error else 'не инициализирован'}",
+                "timestamp": time.time()
+            }]
+            
         try:
-            return self.analyzer_core.get_learning_opportunities(
+            opportunities = self.analyzer_core.get_learning_opportunities(
                 min_priority, executed, limit, domain, resolved)
+            if not opportunities:
+                # Если нет возможностей, добавляем системное состояние
+                opportunities.append({
+                    "id": "system_ready",
+                    "concept": "system_state",
+                    "type": "info",
+                    "priority": 0.0,
+                    "domain": "system",
+                    "status": "ready",
+                    "message": "Система готова к работе",
+                    "timestamp": time.time()
+                })
+            return opportunities
         except Exception as e:
             logger.error(f"Ошибка получения возможностей обучения: {e}")
-            return []
+            return [{
+                "id": "system_error",
+                "concept": "system_state",
+                "type": "error",
+                "priority": 1.0,
+                "domain": "system",
+                "status": "error",
+                "message": f"Ошибка: {str(e)}",
+                "timestamp": time.time()
+            }]
+
+    def clear_learning_opportunities(self) -> Dict[str, Any]:
+        """Очищает все возможности для обучения через AnalyzerCore.
+
+        Возвращает отчёт: { ok: bool, deleted: int, error?: str }
+        """
+        if not self._check_ready():
+            return {
+                "ok": False, 
+                "deleted": 0, 
+                "error": f"Самоанализ недоступен: {self.init_error if self.init_error else 'не инициализирован'}"
+            }
+            
+        try:
+            if not self.analyzer_core or not hasattr(self.analyzer_core, 'clear_learning_opportunities'):
+                return {"ok": False, "deleted": 0, "error": "analyzer_core недоступен"}
+            return self.analyzer_core.clear_learning_opportunities()
+        except Exception as e:
+            logger.error(f"Ошибка очистки возможностей для обучения: {e}", exc_info=True)
+            return {"ok": False, "deleted": 0, "error": str(e)}
     
     def add_learning_opportunity(self, concept: str, opportunity_type: str, 
                                priority: float, domain: str, 
@@ -200,11 +305,34 @@ class SelfAnalyzer:
     
     def analyze_user_feedback(self) -> Dict[str, Any]:
         """Анализирует пользовательский фидбэк для выявления проблем."""
+        if not self._check_ready():
+            return {
+                "error": "Самоанализ недоступен",
+                "state": "error",
+                "message": self.init_error if self.init_error else "не инициализирован",
+                "timestamp": time.time()
+            }
+            
         try:
-            return self.performance_analyzer.analyze_user_feedback()
+            if not self._models_ready():
+                return {
+                    "error": "Модели не готовы",
+                    "state": "loading",
+                    "message": "Ожидание загрузки моделей",
+                    "timestamp": time.time()
+                }
+                
+            result = self.performance_analyzer.analyze_user_feedback()
+            result["state"] = "ready"
+            return result
         except Exception as e:
             logger.error(f"Ошибка анализа пользовательского фидбэка: {e}")
-            return {"error": str(e), "timestamp": time.time()}
+            return {
+                "error": str(e), 
+                "state": "error",
+                "message": "Ошибка анализа фидбэка",
+                "timestamp": time.time()
+            }
     
     def analyze_knowledge_gaps(self) -> Dict[str, Any]:
         """Анализирует пробелы в знаниях для выявления возможностей."""
@@ -245,9 +373,42 @@ class SelfAnalyzer:
         
         logger.info("Модуль самоанализа закрыт")
     
+    def _models_ready(self) -> bool:
+        """Проверяет готовность всех необходимых моделей"""
+        if not self.brain or not hasattr(self.brain, 'model_manager'):
+            logger.warning("ModelManager недоступен")
+            return False
+            
+        required_models = ['analyzer', 'ethics', 'knowledge']
+        for model_id in required_models:
+            state = self.brain.model_manager.model_states.get(model_id)
+            if state == "loading":
+                logger.warning(f"Модель {model_id} ещё загружается")
+                return False
+            elif state == "error":
+                error = self.brain.model_manager.loading_errors.get(model_id, "недоступно")
+                logger.warning(f"Ошибка загрузки модели {model_id}: {error}")
+                return False
+            elif not state:
+                logger.warning(f"Модель {model_id} не загружена")
+                return False
+        return True
+        
     def start_learning_process(self):
         """Запускает процесс обучения."""
+        if not self._check_ready():
+            return False
+            
         try:
+            # Не начинать обучение до готовности моделей
+            if not self._models_ready():
+                logger.warning("Обучение отложено: модели ещё не загружены")
+                try:
+                    if hasattr(self.brain, 'status_queue') and self.brain.status_queue:
+                        self.brain.status_queue.put(("self_learning", 0, "Ожидание загрузки моделей"))
+                except Exception:
+                    pass
+                return False
             # Пытаемся запустить обучение графа памяти
             if self.memory_graph_trainer:
                 return self.memory_graph_trainer.start_learning_process()
@@ -273,4 +434,25 @@ class SelfAnalyzer:
                 return False
         except Exception as e:
             logger.error(f"Ошибка приостановки процесса обучения: {e}")
+            return False
+
+    # ----------------------------
+    # Readiness helpers
+    # ----------------------------
+    def _models_ready(self) -> bool:
+        """Проверяет, загружена ли хотя бы одна ML-модель или фрактальное хранилище."""
+        try:
+            if not self.brain:
+                return False
+            # Проверяем fractal_ready - если активно, считаем что модели готовы
+            if bool(getattr(self.brain, 'fractal_ready', False)):
+                return True
+            if bool(getattr(self.brain, 'models_ready', False)):
+                return True
+            # Попробовать спросить у model_manager
+            mm = getattr(self.brain, 'model_manager', None)
+            if mm and hasattr(mm, 'models') and isinstance(mm.models, dict) and len(mm.models) > 0:
+                return True
+            return False
+        except Exception:
             return False

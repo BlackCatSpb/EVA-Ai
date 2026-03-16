@@ -1,4 +1,4 @@
-"""Модуль нейроморфного симулятора для CogniFlex"""
+"""Модуль нейроморфного симулятора для CogniFlex с интеграцией фрактального хранилища."""
 import os
 import logging
 import time
@@ -7,11 +7,8 @@ import queue
 import json
 import numpy as np
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
-import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
-from io import BytesIO
-import base64
 from dataclasses import dataclass, field
+
 logger = logging.getLogger("cogniflex.neuromorphic")
 
 # Проверка наличия NEST
@@ -165,443 +162,474 @@ class FallbackNeuralNetwork:
             "activity_history_length": len(self.activity_history)
         }
 
-class NESTNeuralNetwork:
-    """Реализация нейронной сети с использованием NEST."""
-    def __init__(self, num_neurons: int, memory_type: str):
-        """
-        Инициализирует нейронную сеть NEST.
-        Args:
-            num_neurons: Количество нейронов
-            memory_type: Тип памяти
-        """
-        self.num_neurons = num_neurons
-        self.memory_type = memory_type
-        self.neuron_population = None
-        self.spike_generator = None
-        self.spike_detector = None
-        self.simulation_steps = 0
-        # Инициализируем NEST
-        self._initialize_nest()
-
-    def _initialize_nest(self):
-        """Инициализирует ядро NEST."""
-        try:
-            nest.ResetKernel()
-            # Создаем популяцию нейронов (например, модель integrate-and-fire)
-            self.neuron_population = nest.Create("iaf_psc_alpha", self.num_neurons)
-            # Создаем генератор спайков для входных сигналов
-            self.spike_generator = nest.Create("spike_generator")
-            # Создаем детектор спайков для записи активности
-            self.spike_detector = nest.Create("spike_detector")
-            # Соединяем генератор с популяцией
-            nest.Connect(self.spike_generator, self.neuron_population)
-            # Соединяем популяцию с детектором
-            nest.Connect(self.neuron_population, self.spike_detector)
-            logger.info(f"Нейроморфный симулятор NEST инициализирован для {self.memory_type} памяти с {self.num_neurons} нейронами")
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка инициализации нейроморфного симулятора NEST: {e}")
-            self.neuron_population = None
-            self.spike_generator = None
-            self.spike_detector = None
-            return False
-
-    def simulate_step(self, input_stimulus: Optional[np.ndarray] = None) -> np.ndarray:
-        """
-        Выполняет один шаг симуляции.
-        Args:
-            input_stimulus: Входной стимул (опционально)
-        Returns:
-            np.ndarray: Новое состояние активности (простая эмуляция)
-        """
-        if self.neuron_population is None:
-            return np.zeros(self.num_neurons)
-        try:
-            # Применяем входной стимул
-            if input_stimulus is not None and len(input_stimulus) == self.num_neurons:
-                # Преобразуем активность в спайки
-                spike_times = []
-                spike_senders = []
-                for i, activity in enumerate(input_stimulus):
-                    if activity > 0.5:  # Порог активации
-                        spike_times.append(self.simulation_steps * 10 + 1)  # Время спайка
-                        spike_senders.append(i + 1)  # ID нейрона (1-based)
-                if spike_times:
-                    nest.SetStatus(self.spike_generator, {"spike_times": spike_times, "spike_senders": spike_senders})
-            # Выполняем шаг симуляции
-            nest.Simulate(10.0)  # 10 ms
-            self.simulation_steps += 1
-            # Получаем активность (простая эмуляция)
-            activity = np.random.rand(self.num_neurons)  # Заглушка
-            return activity
-        except Exception as e:
-            logger.error(f"Ошибка симуляции NEST: {e}")
-            return np.zeros(self.num_neurons)
-
-    def get_activity_pattern(self) -> List[float]:
-        """
-        Возвращает текущий паттерн активности.
-        Returns:
-            List[float]: Паттерн активности
-        """
-        # В реальной системе здесь будет получение данных из spike_detector
-        return np.random.rand(self.num_neurons).tolist()  # Заглушка
-
-    def connect_neurons(self, source: int, target: int, weight: float = 0.5, delay: float = 1.0):
-        """
-        Соединяет два нейрона с использованием NEST.
-        Args:
-            source: Источник (индекс нейрона)
-            target: Цель (индекс нейрона)
-            weight: Вес связи
-            delay: Задержка (мс)
-        """
-        if self.neuron_population is None:
-            return
-        try:
-            if 0 <= source < self.num_neurons and 0 <= target < self.num_neurons:
-                # ID нейронов в NEST (1-based)
-                source_id = self.neuron_population[source]
-                target_id = self.neuron_population[target]
-                nest.Connect([source_id], [target_id], syn_spec={"weight": weight, "delay": delay})
-            else:
-                logger.warning(f"Неверные индексы нейронов для соединения NEST: {source} -> {target}")
-        except Exception as e:
-            logger.error(f"Ошибка соединения нейронов NEST: {e}")
-
-    def get_network_info(self) -> Dict[str, Any]:
-        """
-        Возвращает информацию о сети.
-        Returns:
-            Dict: Информация о сети
-        """
-        return {
-            "num_neurons": self.num_neurons,
-            "memory_type": self.memory_type,
-            "simulation_steps": self.simulation_steps,
-            "nest_available": self.neuron_population is not None
-        }
-
 class NeuromorphicSimulator:
-    """Симулятор нейроморфных сетей для CogniFlex с поддержкой NEST и альтернативных методов."""
-    def __init__(self, cache_dir: Optional[str] = None, brain=None):
+    """Симулятор нейроморфных сетей для CogniFlex с интеграцией фрактального хранилища."""
+
+    def __init__(self, cache_dir: Optional[str] = None, brain=None, fractal_store=None):
         """
-        Инициализирует нейроморфный симулятор.
+        Инициализирует нейроморфный симулятор с интеграцией фрактального хранилища.
+
         Args:
             cache_dir: Путь к директории кэша
-            brain: Ссылка на ядро CogniFlex (опционально)
+            brain: Ссылка на ядро CogniFlex
+            fractal_store: Экземпляр фрактального хранилища
         """
         self.brain = brain
+        self.fractal_store = fractal_store
         self.cache_dir = cache_dir or "cogniflex_neuromorphic_cache"
-        self.initialized = False
-        self.running = False
-        self.stop_event = threading.Event()
+
         # Создаем директорию кэша
         os.makedirs(self.cache_dir, exist_ok=True)
+
         # Пути к файлам
         self.activity_cache_file = os.path.join(self.cache_dir, "neural_activity.json")
         self.network_cache_file = os.path.join(self.cache_dir, "neural_networks.json")
+
         # Параметры симуляции
         self.simulation_interval = 1.0  # Интервал симуляции (секунды)
         self.consolidation_interval = 300.0  # Интервал консолидации (секунды)
-        self.use_nest = NEST_AVAILABLE  # Использовать ли NEST
+
         # Нейронные сети для разных типов памяти
-        self.neural_networks: Dict[str, Union[FallbackNeuralNetwork, NESTNeuralNetwork]] = {}
-        # История активности
+        self.neural_networks: Dict[str, FallbackNeuralNetwork] = {}
         self.activity_history: List[NeuralActivity] = []
+
+        # Параметры консолидации
+        self.consolidation_cycles = 0
+        self.last_consolidation = time.time()
+        self.activation_threshold = 0.7
+        self.consolidation_strength = 0.3
+
         # Потоки
         self.simulation_thread: Optional[threading.Thread] = None
         self.consolidation_thread: Optional[threading.Thread] = None
+        self.stop_event = threading.Event()
+
+        # Флаги состояния
+        self.initialized = False
+        self.running = False
+
         # Инициализируем
         self.initialize()
-        logger.info(f"Нейроморфный симулятор инициализирован. Использование NEST: {self.use_nest}")
+        logger.info("Нейроморфный симулятор инициализирован")
 
     def initialize(self):
         """Инициализирует нейроморфный симулятор."""
         logger.info("Инициализация нейроморфного симулятора...")
+
         # Загружаем сохраненные данные
         self._load_activity_cache()
-        self._load_network_cache()
-        # Инициализируем нейронные сети для разных типов памяти
+
+        # Инициализируем нейронные сети
         self._init_neural_networks()
+
+        # Регистрируем обработчики событий фрактального хранилища
+        if self.fractal_store:
+            self._register_fractal_store_handlers()
+
         self.initialized = True
-        logger.info("Нейроморфный симулятор успешно инициализирован")
+        return True
+
+    def _register_fractal_store_handlers(self):
+        """Регистрирует обработчики событий фрактального хранилища."""
+        try:
+            if hasattr(self.fractal_store, 'register_event_handler'):
+                self.fractal_store.register_event_handler("container_accessed", self._on_container_accessed)
+                self.fractal_store.register_event_handler("hot_window_updated", self._on_hot_window_updated)
+                logger.debug("Обработчики событий фрактального хранилища зарегистрированы")
+        except Exception as e:
+            logger.error(f"Ошибка регистрации обработчиков фрактального хранилища: {e}")
+
+    def _on_container_accessed(self, container_id: str):
+        """Обработчик события доступа к контейнеру."""
+        try:
+            if self.fractal_store and container_id in self.fractal_store.containers:
+                container = self.fractal_store.containers[container_id]
+                activity = NeuralActivity(
+                    activity_pattern=[container.metadata.get("strength", 0.5)] * 10,
+                    memory_type="working",
+                    strength=container.metadata.get("strength", 0.5),
+                    importance=0.7,
+                    context={"container_id": container_id, "event": "container_accessed"},
+                    metadata={"level": container.level, "domain": container.metadata.get("domain", "general")}
+                )
+                self.activity_history.append(activity)
+                logger.debug(f"Зарегистрирована активность для контейнера {container_id}")
+        except Exception as e:
+            logger.error(f"Ошибка обработки доступа к контейнеру {container_id}: {e}")
+
+    def _on_hot_window_updated(self, updated_containers: Dict[str, float]):
+        """Обработчик события обновления горячего окна."""
+        try:
+            if "working" in self.neural_networks:
+                network = self.neural_networks["working"]
+                input_stimulus = np.zeros(network.num_neurons)
+                for i, (container_id, priority) in enumerate(list(updated_containers.items())[:network.num_neurons]):
+                    input_stimulus[i] = priority
+                network.simulate_step(input_stimulus)
+                logger.debug("Нейронная сеть обновлена на основе горячего окна")
+        except Exception as e:
+            logger.error(f"Ошибка обработки обновления горячего окна: {e}")
 
     def _init_neural_networks(self):
         """Инициализирует нейронные сети для различных типов памяти."""
         memory_types = {
-            "working": 100,    # Рабочая память
-            "semantic": 500,   # Семантическая память
-            "episodic": 300    # Эпизодическая память
+            "working": 100,
+            "semantic": 500,
+            "episodic": 300
         }
+
         for memory_type, num_neurons in memory_types.items():
             try:
-                if self.use_nest:
-                    try:
-                        network = NESTNeuralNetwork(num_neurons, memory_type)
-                        if network.neuron_population is not None:
-                            self.neural_networks[memory_type] = network
-                            logger.info(f"Создана NEST-сеть для {memory_type} памяти с {num_neurons} нейронами")
-                        else:
-                            # Если NEST не работает, используем альтернативу
-                            logger.warning(f"Ошибка создания NEST-сети для {memory_type} памяти: {e}. Используется альтернатива.")
-                            self.neural_networks[memory_type] = FallbackNeuralNetwork(num_neurons, memory_type)
-                            self.use_nest = False
-                    except Exception as e:
-                        logger.warning(f"Ошибка создания NEST-сети для {memory_type} памяти: {e}. Используется альтернатива.")
-                        self.neural_networks[memory_type] = FallbackNeuralNetwork(num_neurons, memory_type)
-                        self.use_nest = False
-                else:
-                    self.neural_networks[memory_type] = FallbackNeuralNetwork(num_neurons, memory_type)
-                    logger.info(f"Создана альтернативная сеть для {memory_type} памяти с {num_neurons} нейронами")
+                self.neural_networks[memory_type] = FallbackNeuralNetwork(num_neurons, memory_type)
+                logger.info(f"Создана сеть для {memory_type} памяти с {num_neurons} нейронами")
             except Exception as e:
-                logger.error(f"Ошибка инициализации нейронной сети для {memory_type} памяти: {e}")
-
-    def _load_activity_cache(self):
-        """Загружает кэш активности из файла."""
-        try:
-            if os.path.exists(self.activity_cache_file):
-                with open(self.activity_cache_file, 'r', encoding='utf-8') as f:
-                    cache_data = json.load(f)
-                # Восстанавливаем историю активности
-                for activity_data in cache_data.get("activity_history", []):
-                    self.activity_history.append(NeuralActivity.from_dict(activity_data))
-                logger.info(f"Загружено {len(self.activity_history)} записей активности из кэша")
-        except Exception as e:
-            logger.error(f"Ошибка загрузки кэша активности: {e}")
-
-    def _save_activity_cache(self):
-        """Сохраняет кэш активности в файл."""
-        try:
-            cache_data = {
-                "activity_history": [act.to_dict() for act in self.activity_history[-1000:]]  # Ограничиваем 1000 записями
-            }
-            with open(self.activity_cache_file, 'w', encoding='utf-8') as f:
-                json.dump(cache_data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"Ошибка сохранения кэша активности: {e}")
-
-    def _load_network_cache(self):
-        """Загружает кэш сетей из файла."""
-        # В реальной системе здесь будет загрузка параметров сетей
-        pass
-
-    def _save_network_cache(self):
-        """Сохраняет кэш сетей в файл."""
-        # В реальной системе здесь будет сохранение параметров сетей
-        pass
-
-    def start(self):
-        """Запускает нейроморфный симулятор."""
-        if not self.initialized:
-            logger.warning("Попытка запуска неинициализированного нейроморфного симулятора")
-            return
-        if self.running:
-            logger.warning("Нейроморфный симулятор уже запущен")
-            return
-        self.running = True
-        self.stop_event.clear()
-        # Запускаем поток симуляции
-        self.simulation_thread = threading.Thread(
-            target=self._simulation_worker,
-            daemon=True,
-            name="NeuromorphicSimulationThread"
-        )
-        self.simulation_thread.start()
-        # Запускаем поток консолидации
-        self.consolidation_thread = threading.Thread(
-            target=self._consolidation_worker,
-            daemon=True,
-            name="NeuromorphicConsolidationThread"
-        )
-        self.consolidation_thread.start()
-        logger.info("Нейроморфный симулятор запущен")
-
-    def stop(self):
-        """Останавливает нейроморфный симулятор."""
-        self.running = False
-        self.stop_event.set()
-        if self.simulation_thread:
-            self.simulation_thread.join(timeout=5.0)
-        if self.consolidation_thread:
-            self.consolidation_thread.join(timeout=5.0)
-        # Сохраняем данные перед остановкой
-        self._save_activity_cache()
-        self._save_network_cache()
-        logger.info("Нейроморфный симулятор остановлен")
-
-    def _simulation_worker(self):
-        """Рабочий поток для симуляции нейронной активности."""
-        last_consolidation = time.time()
-        while self.running and not self.stop_event.is_set():
-            try:
-                # Выполняем симуляцию
-                self._simulate_step()
-                # Проверяем, пора ли консолидировать
-                current_time = time.time()
-                if current_time - last_consolidation > self.consolidation_interval:
-                    self.consolidate_activity()
-                    last_consolidation = current_time
-                # Ждем до следующего шага
-                if self.stop_event.wait(self.simulation_interval):
-                    break
-            except Exception as e:
-                logger.error(f"Ошибка в рабочем потоке симуляции: {e}")
-                time.sleep(10)
-
-    def _consolidation_worker(self):
-        """Рабочий поток для консолидации активности."""
-        while self.running and not self.stop_event.is_set():
-            try:
-                # Ждем до следующей консолидации
-                if self.stop_event.wait(self.consolidation_interval):
-                    break
-                # Выполняем консолидацию
-                if self.running:
-                    self.consolidate_activity()
-            except Exception as e:
-                logger.error(f"Ошибка в рабочем потоке консолидации: {e}")
-                time.sleep(60)
-
-    def _simulate_step(self):
-        """Выполняет один шаг симуляции для всех сетей."""
-        for memory_type, network in self.neural_networks.items():
-            try:
-                # Генерируем входной стимул (простая эмуляция)
-                input_stimulus = np.random.rand(network.num_neurons) * 0.1  # Небольшой стимул
-                # Выполняем симуляцию
-                activity_pattern = network.simulate_step(input_stimulus)
-                # Создаем запись активности
-                activity = NeuralActivity(
-                    activity_pattern=activity_pattern.tolist(),
-                    memory_type=memory_type,
-                    strength=np.mean(activity_pattern),
-                    importance=np.std(activity_pattern)
-                )
-                # Добавляем в историю
-                self.activity_history.append(activity)
-                # Ограничиваем историю
-                if len(self.activity_history) > 5000:
-                    self.activity_history = self.activity_history[-5000:]
-            except Exception as e:
-                logger.error(f"Ошибка симуляции для сети {memory_type}: {e}")
+                logger.error(f"Ошибка инициализации сети для {memory_type} памяти: {e}")
 
     def simulate_activity(self, duration: float = 10.0, memory_type: str = "working") -> NeuralActivity:
         """
         Симулирует нейронную активность.
+
         Args:
             duration: Длительность симуляции (секунды)
             memory_type: Тип памяти
+
         Returns:
             NeuralActivity: Данные о симуляции
         """
         if not self.running:
             logger.warning("Симулятор не запущен. Запускаем...")
             self.start()
-        # Определяем количество шагов
+
         steps = int(duration / self.simulation_interval)
         if steps <= 0:
             steps = 1
-        # Получаем сеть
+
         network = self.neural_networks.get(memory_type)
         if not network:
             logger.error(f"Сеть для типа памяти {memory_type} не найдена")
-            return NeuralActivity(memory_type=memory_type, simulation_duration=duration)
-        # Выполняем симуляцию
+            return NeuralActivity(memory_type=memory_type)
+
         patterns = []
         for _ in range(steps):
-            # Генерируем входной стимул
-            input_stimulus = np.random.rand(network.num_neurons) * 0.2
-            # Выполняем шаг
+            input_stimulus = self._generate_input_stimulus(memory_type, network.num_neurons)
             pattern = network.simulate_step(input_stimulus)
             patterns.append(pattern)
-        # Формируем результат
+
         if patterns:
-            # Объединяем паттерны
             combined_pattern = np.mean(patterns, axis=0)
             activity = NeuralActivity(
                 activity_pattern=combined_pattern.tolist(),
                 memory_type=memory_type,
                 strength=np.mean(combined_pattern),
-                importance=np.std(combined_pattern),
-                metadata={
-                    "duration": duration,
-                    "steps": steps,
-                    "network_info": network.get_network_info()
-                }
+                importance=np.std(combined_pattern)
             )
         else:
-            activity = NeuralActivity(
-                memory_type=memory_type,
-                metadata={"duration": duration, "steps": steps, "error": "No patterns generated"}
-            )
-        # Добавляем в историю
+            activity = NeuralActivity(memory_type=memory_type)
+
         self.activity_history.append(activity)
-        # Ограничиваем историю
         if len(self.activity_history) > 5000:
             self.activity_history = self.activity_history[-5000:]
-        # Сохраняем кэш
+
         if len(self.activity_history) % 100 == 0:
             self._save_activity_cache()
+
         return activity
+
+    def _generate_input_stimulus(self, memory_type: str, num_neurons: int) -> np.ndarray:
+        """
+        Генерирует входной стимул на основе фрактального хранилища.
+
+        Args:
+            memory_type: Тип памяти
+            num_neurons: Количество нейронов
+
+        Returns:
+            np.ndarray: Входной стимул
+        """
+        try:
+            if not self.fractal_store:
+                return np.random.rand(num_neurons) * 0.2
+
+            hot_window = getattr(self.fractal_store, 'hot_window', {})
+            if not hot_window:
+                return np.random.rand(num_neurons) * 0.2
+
+            stimulus = np.zeros(num_neurons)
+            sorted_containers = sorted(hot_window.items(), key=lambda x: x[1], reverse=True)
+
+            for i, (container_id, priority) in enumerate(sorted_containers[:num_neurons]):
+                stimulus[i] = priority * 0.8
+
+            return stimulus
+        except Exception:
+            return np.random.rand(num_neurons) * 0.2
 
     def consolidate_activity(self) -> bool:
         """
-        Консолидирует нейронную активность в долгосрочную память.
+        Консолидирует нейронную активность в долгосрочную память через фрактальное хранилище.
+
         Returns:
             bool: Успешно ли выполнена консолидация
         """
-        logger.info("Консолидация нейронной активности...")
+        logger.info("Консолидация нейронной активности через фрактальное хранилище...")
+
         try:
-            # Анализируем активность
-            analysis = self.analyze_neural_activity()
-            # Обновляем память на основе анализа
-            if self.brain and hasattr(self.brain, "memory_manager"):
-                # Получаем наиболее значимые паттерны
-                significant_patterns = [
-                    act for act in self.activity_history
-                    if act.strength * act.importance > 0.5
-                ]
-                # Переносим значимые паттерны в долгосрочную память
-                for pattern in significant_patterns:
-                    # Формируем содержимое для памяти
-                    content = f"Нейронный паттерн ({pattern.memory_type}): {pattern.activity_pattern[:5]}..."
-                    # Определяем важность
-                    importance_value = pattern.strength * 0.7 + pattern.importance * 0.3
-                    # Записываем в память
-                    self.brain.memory_manager.record_interaction(
-                        user_id="neuromorphic_system",
-                        query=content,
-                        response="Консолидировано через нейроморфный симулятор",
-                        importance=importance_value
-                    )
-                logger.info(f"Консолидировано {len(significant_patterns)} нейронных паттернов")
-                # Очищаем историю активности (сохраняем только последние 5 минут)
-                current_time = time.time()
-                self.activity_history = [
-                    act for act in self.activity_history
-                    if current_time - act.timestamp < 300  # Сохраняем только последние 5 минут
-                ]
-                return True
-            else:
-                logger.warning("Невозможно консолидировать активность: менеджер памяти недоступен")
+            current_time = time.time()
+            if current_time - self.last_consolidation < self.consolidation_interval:
                 return False
+
+            self.last_consolidation = current_time
+            self.consolidation_cycles += 1
+
+            activation_patterns = self._analyze_activation_patterns()
+            if activation_patterns["stable_patterns"] or activation_patterns["new_patterns"]:
+                self._update_fractal_structure(activation_patterns)
+
+            logger.info(f"Консолидация памяти завершена (цикл {self.consolidation_cycles})")
+            return True
         except Exception as e:
-            logger.error(f"Ошибка консолидации нейронной активности: {e}")
+            logger.error(f"Ошибка консолидации: {e}")
             return False
+
+    def _analyze_activation_patterns(self) -> Dict:
+        """
+        Анализирует паттерны нейронной активности.
+
+        Returns:
+            Dict: Результаты анализа
+        """
+        if len(self.activity_history) < 2:
+            return {"stable_patterns": [], "new_patterns": [], "weak_zones": []}
+
+        current_activation = self.activity_history[-1]
+        previous_activation = self.activity_history[-2]
+
+        stable_patterns = []
+        for node_id, current_val in getattr(current_activation, 'activation_map', {}).items():
+            if current_val > 0.7 and node_id in getattr(previous_activation, 'activation_map', {}):
+                prev_val = previous_activation.activation_map[node_id]
+                if prev_val > 0.5:
+                    stability = min(current_val, prev_val)
+                    stable_patterns.append((node_id, stability))
+
+        new_patterns = []
+        for node_id, current_val in getattr(current_activation, 'activation_map', {}).items():
+            if current_val > 0.7:
+                prev_val = getattr(previous_activation, 'activation_map', {}).get(node_id, 0.0)
+                if current_val - prev_val > 0.4:
+                    novelty = current_val - prev_val
+                    new_patterns.append((node_id, novelty))
+
+        return {
+            "stable_patterns": stable_patterns,
+            "new_patterns": new_patterns,
+            "weak_zones": getattr(current_activation, 'weak_zones', [])
+        }
+
+    def _update_fractal_structure(self, activation_patterns: Dict):
+        """
+        Обновляет фрактальную структуру на основе паттернов активации.
+
+        Args:
+            activation_patterns: Результаты анализа
+        """
+        if not self.fractal_store:
+            return
+
+        for container_id, stability in activation_patterns["stable_patterns"]:
+            self._strengthen_container_connections(container_id, stability)
+
+        for container_id, novelty in activation_patterns["new_patterns"]:
+            self._integrate_new_pattern(container_id, novelty)
+
+        for weak_zone in activation_patterns["weak_zones"]:
+            self._reinforce_weak_zone(weak_zone)
+
+    def _strengthen_container_connections(self, container_id: str, strength: float):
+        """
+        Укрепляет связи контейнера.
+
+        Args:
+            container_id: ID контейнера
+            strength: Сила укрепления
+        """
+        if not self.fractal_store or container_id not in self.fractal_store.containers:
+            return
+
+        container = self.fractal_store.containers[container_id]
+        if "strength" in container.metadata:
+            container.metadata["strength"] = min(1.0, container.metadata["strength"] + strength * 0.2)
+
+    def _integrate_new_pattern(self, container_id: str, novelty: float):
+        """
+        Интегрирует новый паттерн.
+
+        Args:
+            container_id: ID контейнера
+            novelty: Новизна паттерна
+        """
+        if not self.fractal_store or container_id not in self.fractal_store.containers:
+            return
+
+        container = self.fractal_store.containers[container_id]
+        container.metadata["strength"] = min(1.0, container.metadata.get("strength", 0.3) + novelty * 0.4)
+
+        if container.metadata["strength"] > 0.7:
+            if hasattr(self.fractal_store, '_add_to_hot_window'):
+                self.fractal_store._add_to_hot_window([(container_id, container.metadata["strength"], "neural_activation")])
+
+    def _reinforce_weak_zone(self, weak_zone: Dict):
+        """
+        Укрепляет слабую зону.
+
+        Args:
+            weak_zone: Слабая зона
+        """
+        if not self.fractal_store:
+            return
+
+        container_id = weak_zone.get("container_id")
+        if not container_id or container_id not in self.fractal_store.containers:
+            return
+
+        container = self.fractal_store.containers[container_id]
+        current_strength = container.metadata.get("strength", 0.3)
+        container.metadata["strength"] = min(1.0, current_strength + 0.2)
+
+    def start(self):
+        """
+        Запускает нейроморфный симулятор.
+        """
+        if not self.initialized:
+            logger.warning("Попытка запуска неинициализированного симулятора")
+            return
+
+        if self.running:
+            logger.warning("Нейроморфный симулятор уже запущен")
+            return
+
+        self.running = True
+        self.stop_event.clear()
+
+        self.simulation_thread = threading.Thread(
+            target=self._simulation_worker,
+            daemon=True,
+            name="NeuromorphicSimulationThread"
+        )
+        self.simulation_thread.start()
+
+        self.consolidation_thread = threading.Thread(
+            target=self._consolidation_worker,
+            daemon=True,
+            name="NeuromorphicConsolidationThread"
+        )
+        self.consolidation_thread.start()
+
+        logger.info("Нейроморфный симулятор запущен")
+
+    def stop(self):
+        """
+        Останавливает нейроморфный симулятор.
+        """
+        self.running = False
+        self.stop_event.set()
+
+        if self.simulation_thread:
+            self.simulation_thread.join(timeout=5.0)
+
+        if self.consolidation_thread:
+            self.consolidation_thread.join(timeout=5.0)
+
+        self._save_activity_cache()
+        logger.info("Нейроморфный симулятор остановлен")
+
+    def _simulation_worker(self):
+        """
+        Рабочий поток симуляции.
+        """
+        while self.running and not self.stop_event.is_set():
+            try:
+                self._simulate_step()
+                if self.stop_event.wait(self.simulation_interval):
+                    break
+            except Exception as e:
+                logger.error(f"Ошибка в потоке симуляции: {e}")
+                time.sleep(10)
+
+    def _consolidation_worker(self):
+        """
+        Рабочий поток консолидации.
+        """
+        while self.running and not self.stop_event.is_set():
+            try:
+                if self.stop_event.wait(self.consolidation_interval):
+                    break
+                if self.running:
+                    self.consolidate_activity()
+            except Exception as e:
+                logger.error(f"Ошибка в потоке консолидации: {e}")
+                time.sleep(60)
+
+    def _simulate_step(self):
+        """
+        Выполняет шаг симуляции.
+        """
+        for memory_type, network in self.neural_networks.items():
+            try:
+                input_stimulus = self._generate_input_stimulus(memory_type, network.num_neurons)
+                activity_pattern = network.simulate_step(input_stimulus)
+                activity = NeuralActivity(
+                    activity_pattern=activity_pattern.tolist(),
+                    memory_type=memory_type,
+                    strength=np.mean(activity_pattern),
+                    importance=np.std(activity_pattern)
+                )
+                self.activity_history.append(activity)
+                if len(self.activity_history) > 5000:
+                    self.activity_history = self.activity_history[-5000:]
+            except Exception as e:
+                logger.error(f"Ошибка симуляции для сети {memory_type}: {e}")
+
+    def _load_activity_cache(self):
+        """
+        Загружает кэш активности.
+        """
+        try:
+            if os.path.exists(self.activity_cache_file):
+                with open(self.activity_cache_file, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                for activity_data in cache_data.get("activity_history", []):
+                    self.activity_history.append(NeuralActivity.from_dict(activity_data))
+                logger.info(f"Загружено {len(self.activity_history)} записей активности")
+        except Exception as e:
+            logger.error(f"Ошибка загрузки кэша активности: {e}")
+
+    def _save_activity_cache(self):
+        """
+        Сохраняет кэш активности.
+        """
+        try:
+            cache_data = {
+                "activity_history": [act.to_dict() for act in self.activity_history[-1000:]]
+            }
+            with open(self.activity_cache_file, 'w', encoding='utf-8') as f:
+                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения кэша активности: {e}")
 
     def analyze_neural_activity(self) -> Dict[str, Any]:
         """
         Анализирует нейронную активность.
+
         Returns:
             Dict: Результаты анализа
         """
         if not self.activity_history:
             return {"status": "no_data"}
-        # Получаем последние 100 записей
+
         recent_activity = self.activity_history[-100:]
-        # Анализируем по типам памяти
         memory_analysis = {}
+
         for activity in recent_activity:
             mem_type = activity.memory_type
             if mem_type not in memory_analysis:
@@ -613,54 +641,51 @@ class NeuromorphicSimulator:
             memory_analysis[mem_type]["activities"].append(activity)
             memory_analysis[mem_type]["total_strength"] += activity.strength
             memory_analysis[mem_type]["total_importance"] += activity.importance
-        # Рассчитываем статистику для каждого типа
+
         for mem_type, data in memory_analysis.items():
             count = len(data["activities"])
             if count > 0:
                 data["average_activity"] = np.mean([np.mean(a.activity_pattern) for a in data["activities"]])
                 data["average_strength"] = data["total_strength"] / count
                 data["average_importance"] = data["total_importance"] / count
-                # Анализируем когерентность последней активности
                 if data["activities"]:
                     last_activity = data["activities"][-1]
                     coherence_data = last_activity.get_analysis()
                     data["latest_coherence"] = coherence_data.get("coherence", 0.5)
-                else:
-                    data["latest_coherence"] = 0.5
             else:
                 data["average_activity"] = 0.0
                 data["average_strength"] = 0.0
                 data["average_importance"] = 0.0
                 data["latest_coherence"] = 0.5
-        # Анализируем взаимодействие между типами памяти
+
         interaction_strength = 0.0
         mem_types = list(memory_analysis.keys())
         if len(mem_types) > 1:
-            # Простая метрика: средняя корреляция между активностями разных типов
             correlations = []
             for i in range(len(mem_types)):
                 for j in range(i + 1, len(mem_types)):
                     type1 = mem_types[i]
                     type2 = mem_types[j]
-                    # Получаем активности для сравнения
-                    acts1 = [a.strength for a in memory_analysis[type1]["activities"][-10:]]  # Последние 10
-                    acts2 = [a.strength for a in memory_analysis[type2]["activities"][-10:]]  # Последние 10
-                    # Выравниваем длины
+                    acts1 = [a.strength for a in memory_analysis[type1]["activities"][-10:]]
+                    acts2 = [a.strength for a in memory_analysis[type2]["activities"][-10:]]
                     min_len = min(len(acts1), len(acts2))
                     if min_len > 1:
-                        corr = np.corrcoef(acts1[:min_len], acts2[:min_len])[0, 1]
+                        a1 = np.asarray(acts1[:min_len], dtype=float)
+                        a2 = np.asarray(acts2[:min_len], dtype=float)
+                        corr = np.corrcoef(a1, a2)[0, 1]
                         correlations.append(abs(corr) if not np.isnan(corr) else 0.0)
             if correlations:
                 interaction_strength = np.mean(correlations)
-        # Анализируем последнюю активность
+
         latest_activity = recent_activity[-1] if recent_activity else None
         latest_analysis = latest_activity.get_analysis() if latest_activity else {}
+
         return {
             "memory_types": memory_analysis,
             "interaction_strength": interaction_strength,
             "latest_activity": latest_analysis,
             "total_activities": len(self.activity_history),
-            "analysis_time": time.time()
+            "analyzed_activities": len(recent_activity)
         }
 
     def _visualize_activity(self, memory_type: str) -> str:
@@ -671,27 +696,188 @@ class NeuromorphicSimulator:
         Returns:
             str: Изображение в формате base64
         """
-        # Получаем историю активности для типа памяти
-        type_activities = [act for act in self.activity_history if act.memory_type == memory_type][-50:]  # Последние 50
-        if not type_activities:
+        try:
+            # Получаем данные активности для типа памяти
+            activities = [
+                act for act in self.activity_history[-50:]  # Последние 50 записей
+                if act.memory_type == memory_type
+            ]
+
+            if not activities:
+                return ""
+
+            # Создаем простую визуализацию
+            fig, ax = plt.subplots(figsize=(10, 6))
+            timestamps = [act.timestamp for act in activities]
+            strengths = [act.strength for act in activities]
+
+            ax.plot(timestamps, strengths, 'b-', linewidth=2, label='Сила активности')
+            ax.set_xlabel('Время')
+            ax.set_ylabel('Сила')
+            ax.set_title(f'Нейронная активность: {memory_type}')
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+
+            # Сохраняем в base64
+            buffer = BytesIO()
+            plt.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+            buffer.seek(0)
+            image_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            plt.close(fig)
+
+            return f"data:image/png;base64,{image_base64}"
+
+        except Exception as e:
+            logger.error(f"Ошибка создания визуализации для {memory_type}: {e}")
             return ""
-        # Создаем матрицу активности
-        activity_matrix = np.array([act.activity_pattern for act in type_activities])
-        # Создаем график
-        fig = plt.figure(figsize=(10, 6))
-        plt.imshow(activity_matrix, aspect='auto', cmap='hot', interpolation='nearest')
-        plt.colorbar(label='Активность')
-        plt.title(f"Нейронная активность: {memory_type}")
-        plt.xlabel('Время (шаги)')
-        plt.ylabel('Нейроны')
-        # Сохраняем в буфер
-        buf = BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight')
-        plt.close(fig)
-        buf.seek(0)
-        # Конвертируем в base64
-        image_base64 = base64.b64encode(buf.read()).decode('utf-8')
-        return f"data:image/png;base64,{image_base64}"
+
+    def get_recent_weak_zones(self, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Возвращает недавние слабые зоны в знаниях.
+        Args:
+            limit: Максимальное количество зон
+        Returns:
+            List[Dict]: Список слабых зон
+        """
+        try:
+            weak_zones = []
+
+            # Анализируем недавнюю активность
+            recent_activities = self.activity_history[-100:]  # Последние 100 записей
+
+            # Группируем по контейнерам (если есть ссылки)
+            container_activities = {}
+            for activity in recent_activities:
+                container_id = activity.context.get("container_id")
+                if container_id:
+                    if container_id not in container_activities:
+                        container_activities[container_id] = []
+                    container_activities[container_id].append(activity)
+
+            # Находим слабые зоны
+            for container_id, activities in container_activities.items():
+                if len(activities) >= 3:  # Минимум 3 измерения
+                    strengths = [act.strength for act in activities[-10:]]  # Последние 10
+                    avg_strength = np.mean(strengths)
+                    min_strength = np.min(strengths)
+
+                    # Если средняя сила ниже порога
+                    if avg_strength < 0.4:
+                        domain = activities[0].context.get("domain", "general")
+                        weak_zones.append({
+                            "container_id": container_id,
+                            "domain": domain,
+                            "activation": avg_strength,
+                            "min_activation": min_strength,
+                            "measurements": len(strengths),
+                            "last_updated": activities[-1].timestamp
+                        })
+
+            # Сортируем по силе активации (наименее активные первыми)
+            weak_zones.sort(key=lambda x: x["activation"])
+            return weak_zones[:limit]
+
+        except Exception as e:
+            logger.error(f"Ошибка получения слабых зон: {e}")
+            return []
+
+    def get_network_stats(self) -> Dict[str, Any]:
+        """
+        Возвращает статистику нейронных сетей.
+        Returns:
+            Dict: Статистика сетей
+        """
+        try:
+            stats = {
+                "networks": {},
+                "total_neurons": 0,
+                "active_networks": len(self.neural_networks),
+                "simulation_cycles": sum(
+                    getattr(network, 'simulation_steps', 0)
+                    for network in self.neural_networks.values()
+                )
+            }
+
+            for memory_type, network in self.neural_networks.items():
+                network_info = network.get_network_info()
+                stats["networks"][memory_type] = network_info
+                stats["total_neurons"] += network_info.get("num_neurons", 0)
+
+            return stats
+
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики сетей: {e}")
+            return {"error": str(e)}
+
+    def reset_simulation(self):
+        """Сбрасывает симуляцию к начальному состоянию."""
+        try:
+            logger.info("Сброс нейроморфной симуляции...")
+
+            # Останавливаем текущую симуляцию
+            if self.running:
+                self.stop()
+
+            # Очищаем историю
+            self.activity_history.clear()
+
+            # Сбрасываем сети
+            for network in self.neural_networks.values():
+                # Сбрасываем состояние сети
+                if hasattr(network, 'neuron_states'):
+                    network.neuron_states = np.random.rand(network.num_neurons) * 0.1
+                if hasattr(network, 'simulation_steps'):
+                    network.simulation_steps = 0
+
+            # Сбрасываем счетчики
+            self.consolidation_cycles = 0
+            self.last_consolidation = time.time()
+
+            logger.info("Нейроморфная симуляция сброшена")
+
+        except Exception as e:
+            logger.error(f"Ошибка сброса симуляции: {e}")
+
+    def export_data(self, output_path: str) -> bool:
+        """
+        Экспортирует данные симуляции в файл.
+        Args:
+            output_path: Путь для экспорта
+        Returns:
+            bool: Успех операции
+        """
+        try:
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            export_data = {
+                "metadata": {
+                    "export_time": time.time(),
+                    "total_activities": len(self.activity_history),
+                    "networks": self.get_network_stats(),
+                    "simulation_config": {
+                        "use_nest": self.use_nest,
+                        "simulation_interval": self.simulation_interval,
+                        "consolidation_interval": self.consolidation_interval
+                    }
+                },
+                "activity_history": [
+                    act.to_dict() for act in self.activity_history[-1000:]  # Последние 1000 записей
+                ],
+                "neural_networks": {
+                    mem_type: network.get_network_info()
+                    for mem_type, network in self.neural_networks.items()
+                }
+            }
+
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(export_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"Данные симуляции экспортированы в {output_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка экспорта данных: {e}")
+            return False
 
     def get_system_health(self) -> Dict[str, Any]:
         """
@@ -700,6 +886,7 @@ class NeuromorphicSimulator:
             Dict: Информация о здоровье
         """
         analysis = self.analyze_neural_activity()
+        
         # Рассчитываем оценку здоровья
         health_score = 100
         # Учитываем активность по типам памяти
@@ -810,6 +997,7 @@ class NeuromorphicSimulator:
         health = self.get_system_health()
         analysis = health["analysis"]
         fixes = []
+        
         # Добавляем исправления для перегруженной памяти
         for memory_type, data in analysis["memory_types"].items():
             if data["average_activity"] > 0.8:
@@ -867,22 +1055,27 @@ class NeuromorphicSimulator:
             memory_type: Тип памяти
             delta: Изменение активности
         """
-        # В реальной системе здесь будет сложная логика
-        # Для упрощения просто увеличиваем коэффициенты
-        logger.info(f"Корректировка активности {memory_type} памяти на {delta}")
-        # Пример: изменяем параметры симуляции
-        # В реальной системе здесь будет модификация параметров сети
-        pass
+        if memory_type in self.neural_networks:
+            network = self.neural_networks[memory_type]
+            # Применяем изменение к состояниям нейронов
+            for i in range(len(network.neuron_states)):
+                network.neuron_states[i] = max(0.0, min(1.0, network.neuron_states[i] + delta))
+            logger.info(f"Скорректирована активность {memory_type} памяти на {delta}")
+        else:
+            logger.warning(f"Неизвестный тип памяти для корректировки: {memory_type}")
 
     def _improve_memory_interaction(self):
         """Улучшает взаимодействие между типами памяти."""
-        # В реальной системе здесь будет сложная логика
-        # Для упрощения просто увеличиваем коэффициенты
-        logger.info("Улучшение взаимодействия между типами памяти")
-        # Пример: увеличиваем веса связей между сетями
-        if "working" in self.neural_networks and "semantic" in self.neural_networks:
-            # В реальной системе здесь будет модификация связей
-            pass
+        # Увеличиваем силу связей между сетями
+        for src_net in self.neural_networks.values():
+            for tgt_net in self.neural_networks.values():
+                if src_net != tgt_net:
+                    # Увеличиваем случайные связи между сетями
+                    for _ in range(5):  # Увеличиваем 5 случайных связей
+                        i = random.randint(0, src_net.num_neurons - 1)
+                        j = random.randint(0, tgt_net.num_neurons - 1)
+                        src_net.connections[i, j] = min(1.0, src_net.connections[i, j] * 1.1)
+        logger.info("Улучшено взаимодействие между типами памяти")
 
     def _improve_coherence(self):
         """Улучшает когерентность нейронной активности."""

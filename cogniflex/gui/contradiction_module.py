@@ -448,6 +448,20 @@ class ContradictionModule:
         if self._is_active():
             self.refresh_contradictions()
     
+    def cleanup(self):
+        """Очищает все запланированные задачи."""
+        try:
+            if hasattr(self, '_after_jobs') and hasattr(self.gui, 'root') and self.gui.root:
+                for job_id in self._after_jobs:
+                    try:
+                        self.gui.root.after_cancel(job_id)
+                    except:
+                        pass
+                self._after_jobs.clear()
+                logger.debug("Очищены все after задачи в contradiction_module")
+        except Exception as e:
+            logger.error(f"Ошибка очистки contradiction_module: {e}")
+    
     def analyze_contradictions(self):
         """Запускает анализ противоречий."""
         if not self.gui.brain:

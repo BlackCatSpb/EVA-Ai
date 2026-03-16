@@ -6,27 +6,39 @@ import os
 import time
 import logging
 import multiprocessing
+import threading
 import numpy as np
-import nltk
 import re
 import hashlib
 import json
+import nltk
 from collections import defaultdict, Counter, OrderedDict
-from typing import Dict, List, Any, Optional, Tuple, Callable, Union
+from typing import Dict, List, Any, Optional, Tuple, Callable, Union, Type, TypeVar
 from dataclasses import dataclass, field
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 import psutil
 import spacy
 import torch
-import nltk
-from nltk.tokenize import word_tokenize
-from nltk.stem import SnowballStemmer, WordNetLemmatizer
-from nltk.corpus import stopwords
-from sentence_transformers import SentenceTransformer
-from transformers import pipeline
+from nltk.stem import WordNetLemmatizer
 
-logger = logging.getLogger("cogniflex.unified_text_processor")
+# Импортируем базовый класс компонента
+try:
+    from cogniflex.core.base_component import BaseComponent
+except ImportError:
+    # Для обратной совместимости
+    BaseComponent = object
+    logger = logging.getLogger("cogniflex.unified_text_processor")
+else:
+    logger = logging.getLogger("cogniflex.unified_text_processor")
+
+try:
+    # Optional dependency; allow absence in test environments
+    from sentence_transformers import SentenceTransformer  # type: ignore
+except Exception:  # pragma: no cover - optional dependency may be absent
+    SentenceTransformer = None  # type: ignore
+
+from transformers import pipeline
 
 # Попытка загрузить необходимые ресурсы NLTK
 try:
@@ -42,132 +54,141 @@ try:
 except LookupError:
     nltk.download('wordnet')
 
-try:
-    # Пытаемся загрузить русскую модель spaCy
-    nlp = spacy.load("ru_core_news_sm")
-except OSError:
-    try:
-        # Если не получается, загружаем английскую модель
-        nlp = spacy.load("en_core_web_sm")
-    except OSError:
-        # Если и это не получается, загружаем базовую модель
-        nlp = spacy.blank("ru")
-        logger.warning("Не удалось загрузить языковые модели spaCy, используем базовую модель")
-
-class UnifiedTextProcessor:
-    """Объединенный текстовый процессор с асинхронной токенизацией для CogniFlex
-    Обновленная версия с интеграцией гибридного кэша и ResponseGenerator"""
+class UnifiedTextProcessor(BaseComponent):
+    """
+    Объединенный текстовый процессор с асинхронной токенизацией для CogniFlex
     
-    def __init__(self, brain=None, cache_dir: Optional[str] = None, 
-                 use_gpu: bool = False, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
-                 max_workers: Optional[int] = None, use_async: bool = True,
-                 hybrid_cache: Optional[Any] = None):
+    Этот компонент предоставляет единый интерфейс для обработки текста, включая токенизацию,
+    лемматизацию, извлечение эмбеддингов и другие операции над текстом.
+    """
+    
+    def __init__(self, brain: Any = None, config: Optional[Dict[str, Any]] = None):
         """Инициализирует объединенный текстовый процессор.
-        
-        Args:
-            brain: Ссылка на ядро CogniFlex
-            cache_dir: Путь к директории кэша
-            use_gpu: Использовать GPU если доступен
-            model_name: Название модели эмбеддингов
-            max_workers: Максимальное количество рабочих потоков
-            use_async: Использовать асинхронную обработку
-            hybrid_cache: Экземпляр гибридного кэша (должен быть предоставлен извне)
-        """
-        self.brain = brain
-        self.cache_dir = cache_dir or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cogniflex_cache", "text_processing")
-        os.makedirs(self.cache_dir, exist_ok=True)
-        
 
+        Args:
+            brain: Ссылка на ядро CogniFlex, которое предоставляет зависимости.
+            config: Конфигурация процессора. Может включать:
+                - use_gpu (bool): Использовать GPU если доступен.
+                - model_name (str): Название модели эмбеддингов.
+                - use_async (bool): Использовать асинхронную обработку.
+                - max_workers (int): Максимальное количество рабочих потоков.
+        """
         
-        # Определяем количество ядер
-        self.physical_cores = psutil.cpu_count(logical=False)
-        self.logical_cores = psutil.cpu_count(logical=True)
+        # Вызываем родительский конструктор
+        super().__init__(name="unified_text_processor", brain=brain)
         
-        # Устанавливаем количество рабочих потоков
-        self.max_workers = max_workers or min(4, max(1, self.logical_cores - 1))
+        # Устанавливаем конфигурацию по умолчанию
+        self.config = config or {}
+        self.use_gpu = self.config.get('use_gpu', True)
+        self.model_name = self.config.get('model_name', 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+        self.use_async = self.config.get('use_async', True)
+        self.max_workers = self.config.get('max_workers', 4)
         
-        # Параметры
-        self.use_gpu = use_gpu and torch.cuda.is_available()
-        self.model_name = model_name
-        self.use_async = use_async
+        # Пути для моделей
+        self.models_base_path = self.config.get('models_base_path', './models/embeddings')
         
-        # Компоненты
-        self.hybrid_cache = hybrid_cache
+        # Инициализируем кэш
+        self.token_cache = {}
+        self.cache_lock = threading.RLock()
         
-        # Инициализация NLP компонентов
+        # Инициализируем токенизатор по умолчанию
+        self.tokenizer = None
+        
+        # Инициализируем анализаторы
+        self.sentiment_analyzer = None
+        
+        # Инициализируем модели эмбеддингов
+        self.embedder = None
+        self.embedding_model = None
+        
+        # Инициализируем модели NLP
         self._init_nlp_models()
         
-        # Инициализация компонентов интеграции
-        self._init_integration_components()
-        
-        # Устанавливаем обратную связь с brain через событийную систему
-        if brain:
-            self.brain = brain
-            # Уведомляем brain через событийную систему, что текстовый процессор готов
-            if hasattr(brain, 'events'):
-                brain.events.trigger('text_processor_ready', self)
-                logger.info("Уведомление о готовности text_processor отправлено через событийную систему")
-            # Поддерживаем старый механизм для обратной совместимости
-            elif hasattr(brain, 'on_text_processor_ready'):
-                callbacks = brain.on_text_processor_ready
-                brain.on_text_processor_ready = []
-                for callback in callbacks:
-                    try:
-                        callback(self)
-                    except Exception as e:
-                        logger.error(f"Ошибка в обратном вызове текстового процессора: {e}")
-        
-        logger.info(f"UnifiedTextProcessor инициализирован с {self.max_workers} воркерами")
-        logger.info(f"Физических ядер: {self.physical_cores}, логических: {self.logical_cores}")
+        logger.debug(f"UnifiedTextProcessor инициализирован с {self.max_workers} воркерами.")
     
-    def _init_integration_components(self):
-        """Инициализирует компоненты для интеграции с другими модулями."""
-        # Проверяем наличие brain
-        if not self.brain:
-            logger.warning("Brain не инициализирован. Некоторые функции могут быть недоступны.")
         
-        # Гибридный кэш
-        self.hybrid_cache = None
-        if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
-            self.hybrid_cache = self.brain.memory_manager.get_hybrid_cache()
-            if self.hybrid_cache:
-                logger.debug("Используем гибридный кэш из MemoryManager")
+    def _setup_component(self) -> None:
+        """Настраивает компонент после проверки зависимостей."""
+        # Получаем зависимости из CoreBrain
+        if hasattr(self.brain, 'components') and self.brain.components:
+            self.tokenizer = self.brain.components.get('tokenizer')
+            self.hybrid_cache = self.brain.components.get('hybrid_cache')
+        else:
+            # Fallback если components еще не инициализирован
+            self.tokenizer = getattr(self.brain, 'tokenizer', None)
+            self.hybrid_cache = getattr(self.brain, 'hybrid_cache', None)
         
-        # Если гибридный кэш не получен из MemoryManager, но HybridTokenCache доступен
-        if self.hybrid_cache is None:
-            try:
-                from cogniflex.memory.hybrid_token_cache import HybridTokenCache
-                logger.debug("HybridTokenCache импортирован успешно")
-                
-                # Убеждаемся, что у brain есть cache_dir перед созданием кэша
-                if not self.brain:
-                    # Создаем минимальный brain объект
-                    class MinimalBrain:
-                        def __init__(self, cache_dir):
-                            self.cache_dir = cache_dir
-                    self.brain = MinimalBrain(self.cache_dir)
-                elif not hasattr(self.brain, 'cache_dir'):
-                    self.brain.cache_dir = self.cache_dir
-                
-                # Инициализируем гибридный кэш
-                self.hybrid_cache = HybridTokenCache(
-                    brain=self.brain,
-                    max_memory_tokens=10000,
-                    disk_cache_dir="hybrid_cache"
-                )
-                logger.debug("Создан внутренний гибридный кэш")
-                
-                # Сохраняем кэш в memory_manager, если он существует
-                if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
-                    self.brain.memory_manager.hybrid_cache = self.hybrid_cache
-                    logger.debug("Гибридный кэш сохранен в MemoryManager")
-            except Exception as e:
-                logger.warning(f"Не удалось создать гибридный кэш: {e}")
+        # Инициализируем исполнитель для асинхронных операций
+        if self.use_async:
+            self._executor = ThreadPoolExecutor(max_workers=self.max_workers)
+            
+        # Отправляем уведомление о готовности
+        if hasattr(self.brain, 'events'):
+            self.brain.events.trigger('text_processor_ready', self)
+            logger.info("Уведомление о готовности text_processor отправлено.")
     
     def _init_nlp_models(self):
         """Инициализирует NLP модели и компоненты."""
         try:
-            # Загрузка основных моделей
+            # Инициализируем лемматизатор NLTK
+            self.lemmatizer = WordNetLemmatizer()
+            
+            # Создаем локальный токенизатор
+            try:
+                from cogniflex.nlp.text_processor import TextProcessor
+                self.tokenizer = TextProcessor(model_name="rugpt3large_fractal")
+                logger.info("Локальный токенизатор создан успешно")
+            except Exception as e:
+                logger.warning(f"Не удалось создать локальный токенизатор: {e}")
+                self.tokenizer = None
+            
+            # Пытаемся загрузить языковую модель spaCy
+            try:
+                # Сначала пробуем загрузить русскую модель
+                self.nlp = spacy.load("ru_core_news_sm")
+            except OSError:
+                try:
+                    # Если не получается, загружаем английскую модель
+                    self.nlp = spacy.load("en_core_web_sm")
+                except OSError:
+                    # Если и это не получается, загружаем базовую модель
+                    self.nlp = spacy.blank("ru")
+                    logger.warning("Не удалось загрузить языковые модели spaCy, используем базовую модель")
+            
+            # Загрузка моделей для эмбеддингов и семантического поиска
+            self._load_embedding_models()
+            
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации NLP моделей: {e}", exc_info=True)
+            raise
+            
+    def _load_embedding_models(self):
+        """Загружает модели для эмбеддингов и семантического поиска."""
+        try:
+            if SentenceTransformer is not None:
+                # Проверяем наличие локальных моделей
+                local_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--all-MiniLM-L6-v2')
+                if os.path.exists(local_model_path):
+                    logger.info("Загружаем локальную модель эмбеддингов...")
+                    try:
+                        self.embedding_model = SentenceTransformer(
+                            local_model_path,
+                            device='cpu',
+                            local_files_only=True  # Только локальные файлы
+                        )
+                        logger.info("Локальная модель эмбеддингов загружена успешно")
+                    except Exception as e:
+                        logger.warning(f"Ошибка загрузки локальной модели: {e}")
+                        self.embedding_model = None
+                else:
+                    logger.info("Локальная модель эмбеддингов не найдена, используем простые эмбеддинги")
+                    self.embedding_model = None
+            else:
+                logger.warning("SentenceTransformer не доступен. Функции эмбеддингов отключены.")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке модели эмбеддингов: {e}", exc_info=True)
+            self.embedding_model = None
             try:
                 self.nlp = spacy.load("ru_core_news_sm", disable=["parser", "ner", "textcat"])
                 logger.debug("Русская SpaCy модель загружена")
@@ -182,21 +203,52 @@ class UnifiedTextProcessor:
             # Загрузка модели эмбеддингов
             try:
                 device = "cuda" if self.use_gpu else "cpu"
-                self.embedder = SentenceTransformer(self.model_name, device=device)
-                logger.info(f"Модель эмбеддингов '{self.model_name}' загружена на {device}")
+                if SentenceTransformer is not None:
+                    # Преобразуем имя модели в путь к локальной директории
+                    if self.model_name == 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2':
+                        embedding_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2')
+                    else:
+                        embedding_model_path = os.path.join(self.models_base_path, self.model_name)
+                    
+                    if os.path.exists(embedding_model_path):
+                        self.embedder = SentenceTransformer(embedding_model_path, device=device)
+                        logger.info(f"Модель эмбеддингов '{self.model_name}' загружена локально с {device}")
+                    else:
+                        self.embedder = None
+                        logger.warning(f"Локальная модель эмбеддингов не найдена: {embedding_model_path}")
+                else:
+                    self.embedder = None
+                    logger.info("sentence_transformers не установлен; пропускаем загрузку embedder")
             except Exception as e:
                 logger.warning(f"Не удалось загрузить модель эмбеддингов: {e}")
                 self.embedder = None
             
+            # Определяем размерность эмбеддинга
+            try:
+                if self.embedder and hasattr(self.embedder, 'get_sentence_embedding_dimension'):
+                    self.embedding_dim = int(self.embedder.get_sentence_embedding_dimension())
+                else:
+                    # разумный дефолт для MiniLM/MPNet семейств
+                    self.embedding_dim = 384
+            except Exception:
+                self.embedding_dim = 384
+            
             # Инициализация анализаторов
             self.sentiment_analyzer = None
             try:
-                self.sentiment_analyzer = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
-                logger.debug("Sentiment analyzer инициализирован")
+                sentiment_model_path = os.path.join(self.models_base_path, 'bert-base-multilingual-uncased-sentiment')
+                if os.path.exists(sentiment_model_path):
+                    self.sentiment_analyzer = pipeline(
+                        "sentiment-analysis", 
+                        model=sentiment_model_path,
+                        local_files_only=True  # Только локальные файлы
+                    )
+                    logger.debug("Sentiment analyzer инициализирован локально")
+                else:
+                    logger.warning(f"Локальная модель sentiment analyzer не найдена: {sentiment_model_path}")
             except Exception as e:
                 logger.warning(f"Sentiment analyzer недоступен: {e}")
             
-            self.stemmer = SnowballStemmer('russian')
             self.lemmatizer = WordNetLemmatizer()
             
             # Инициализация пула процессов для асинхронной обработки
@@ -205,7 +257,7 @@ class UnifiedTextProcessor:
             else:
                 self.executor = None
             
-            logger.info("NLP-модели успешно инициализированы")
+            logger.info("NLP-модели инициализированы")
         except Exception as e:
             logger.error(f"Ошибка инициализации NLP моделей: {e}", exc_info=True)
     
@@ -235,8 +287,11 @@ class UnifiedTextProcessor:
         
         start_time = time.time()
         try:
+            # Предварительная обработка текста
+            processed_text = text.lower()
+
             # Токенизация
-            tokens = self.tokenize(text)
+            tokens = self.tokenize(processed_text)
             
             # Лемматизация
             lemmas = self.lemmatize(tokens)
@@ -332,60 +387,87 @@ class UnifiedTextProcessor:
                     "token_count": len(text.split())
                 }
             }
-    
-    def tokenize(self, text: str) -> List[str]:
-        """Токенизирует текст.
-        
+    def tokenize(self, text: str, **kwargs) -> List[str]:
+        """Токенизирует текст, используя центральный токенизатор из CoreBrain.
+
         Args:
             text: Текст для токенизации
-            
+            **kwargs: Дополнительные параметры токенизации
+
         Returns:
-            List[str]: Список токенов
+            Список токенов
         """
-        start_time = time.time()
-        # Удаляем пунктуацию и приводим к нижнему регистру
-        text = re.sub(r'[^\w\s]', '', text.lower())
-        
-        # Токенизируем
-        tokens = word_tokenize(text)
-        
-        # Удаляем стоп-слова
-        stop_words = set(stopwords.words('english') + stopwords.words('russian'))
-        tokens = [token for token in tokens if token not in stop_words and len(token) > 2]
-        
-        # Метрики токенизации (синхронный путь)
         try:
-            duration = max(0.0, time.time() - start_time)
-            self._emit_metrics([
-                {
-                    "name": "text_processor.tokenize_latency_seconds",
-                    "component": "text_processor",
-                    "type": "summary",
-                    "value": float(duration),
-                },
-                {
-                    "name": "text_processor.tokens_per_tokenize",
-                    "component": "text_processor",
-                    "type": "summary",
-                    "value": float(len(tokens)),
-                },
-            ])
-        except Exception:
-            pass
-        
-        return tokens
+            if self.tokenizer and hasattr(self.tokenizer, 'tokenize'):
+                return self.tokenizer.tokenize(text, **kwargs)
+            elif self.tokenizer and hasattr(self.tokenizer, 'encode'):
+                # Для transformers токенизаторов
+                tokens = self.tokenizer.encode(text, **kwargs)
+                if isinstance(tokens, list):
+                    return [str(t) for t in tokens]
+                return tokens
+            else:
+                # Fallback на простой split
+                return text.split()
+        except Exception as e:
+            logger.error(f"Ошибка токенизации: {e}")
+            return text.split()
     
+    def encode(self, text: str, **kwargs) -> Dict[str, Any]:
+        """Кодирует текст в формат, совместимый с ML моделями.
+        
+        Args:
+            text: Текст для кодирования
+            **kwargs: Дополнительные параметры
+
+        Returns:
+            Словарь с input_ids и другими полями
+        """
+        try:
+            if self.tokenizer and hasattr(self.tokenizer, 'encode'):
+                # Для transformers токенизаторов
+                encoded = self.tokenizer.encode(text, **kwargs)
+                
+                if hasattr(encoded, 'input_ids'):
+                    return {
+                        'input_ids': encoded.input_ids,
+                        'attention_mask': encoded.attention_mask if hasattr(encoded, 'attention_mask') else None
+                    }
+                elif isinstance(encoded, list):
+                    return {
+                        'input_ids': encoded,
+                        'attention_mask': [1] * len(encoded)
+                    }
+                else:
+                    return {
+                        'input_ids': encoded,
+                        'attention_mask': None
+                    }
+            else:
+                # Fallback - простая токенизация
+                tokens = self.tokenize(text)
+                return {
+                    'input_ids': tokens,
+                    'attention_mask': [1] * len(tokens)
+                }
+        except Exception as e:
+            logger.error(f"Ошибка кодирования текста: {e}")
+            return {
+                'input_ids': text.split(),
+                'attention_mask': [1] * len(text.split())
+            }
+
     def lemmatize(self, tokens: List[str]) -> List[str]:
         """Лемматизирует токены.
         
         Args:
             tokens: Список токенов
-            
+        
         Returns:
             List[str]: Список лемм
         """
         return [self.lemmatizer.lemmatize(token) for token in tokens]
-    
+
     def extract_keywords(self, text: str, tokens: List[str]) -> List[Tuple[str, float]]:
         """Извлекает ключевые слова из текста.
         
@@ -438,144 +520,88 @@ class UnifiedTextProcessor:
         
         # Резервная реализация
         return {"neg": 0.0, "neu": 1.0, "pos": 0.0, "compound": 0.0}
+
+    def classify_domain(self, concept: str, description: str = "") -> str:
+        """
+        Классифицирует домен концепта по простым эвристикам.
+        Возвращает строку домена, либо "general" при отсутствии уверенности.
+
+        Args:
+            concept: Название концепта
+            description: Описание/контекст (необязательно)
+        """
+        try:
+            text = f"{concept} {description}".lower()
+            # Простые эвристики по ключевым словам
+            domains = {
+                "science": ["физик", "хим", "биолог", "квант", "наук"],
+                "technology": ["алгоритм", "программ", "сеть", "данн", "машинн", "ml", "ai"],
+                "mathematics": ["теорем", "функц", "матриц", "вектор", "интеграл", "дифференци"],
+                "medicine": ["лечен", "болезн", "симптом", "диагноз", "терап"],
+                "economics": ["рынок", "капитал", "инфляц", "эконом", "инвест"],
+                "metaknowledge": ["определен", "контекст", "мета", "обобщен"],
+            }
+            best_domain = None
+            best_hits = 0
+            for dom, kws in domains.items():
+                hits = sum(1 for kw in kws if kw in text)
+                if hits > best_hits:
+                    best_hits = hits
+                    best_domain = dom
+            if best_domain and best_hits > 0:
+                return best_domain
+
+            # Если доступен embedder, можно реализовать продвинутую схему со словарем якорей
+            # Здесь оставим фолбэк
+            return "general"
+        except Exception:
+            return "general"
     
-    def get_embeddings(self, text: str) -> np.ndarray:
-        """Получает эмбеддинги для текста.
+    def get_embeddings(self, texts: Union[str, List[str]]) -> np.ndarray:
+        """Получает эмбеддинги для текста(ов).
         
         Args:
-            text: Текст для получения эмбеддингов
+            texts: Строка или список строк
             
         Returns:
-            np.ndarray: Вектор эмбеддингов
+            np.ndarray: Если на входе строка — массив формы (D,), если список — (N, D)
         """
-        if self.embedder:
+        # Нормализуем вход
+        if texts is None:
+            return np.zeros((0, getattr(self, 'embedding_dim', 384)), dtype=np.float32)
+        if isinstance(texts, str):
+            batch = [texts]
+            single_input = True
+        elif isinstance(texts, list):
+            batch = [t for t in texts if isinstance(t, str) and t.strip()]
+            single_input = False
+        else:
+            batch = [str(texts)]
+            single_input = True
+        
+        if len(batch) == 0:
+            return np.zeros((0, getattr(self, 'embedding_dim', 384)), dtype=np.float32) if not single_input else np.zeros(getattr(self, 'embedding_dim', 384), dtype=np.float32)
+        
+        # Основной путь через sentence-transformers
+        if self.embedding_model:  # Исправляем: embedding_model вместо embedder
             try:
-                return self.embedder.encode([text])[0]
+                embs = self.embedding_model.encode(batch)
+                embs = np.array(embs)
+                if single_input:
+                    # Возвращаем вектор (D,)
+                    return embs[0]
+                return embs
             except Exception as e:
                 logger.warning(f"Ошибка получения эмбеддингов: {e}")
+                # Падение в резервный путь ниже
         
-        # Возвращаем нулевой вектор как заглушку
-        return np.zeros(384)  # Стандартный размер для all-MiniLM-L6-v2
-    
-    def tokenize_async(self, text: str) -> Dict[str, Any]:
-        """Асинхронная токенизация текста.
-        
-        Args:
-            text: Текст для токенизации
-            
-        Returns:
-            Dict[str, Any]: Результат токенизации
-        """
-        if not text or not isinstance(text, str):
-            return {
-                "tokens": [],
-                "token_count": 0,
-                "original_text": "",
-                "error": "empty_input",
-                "metadata": {
-                    "processor": "unified_text_processor",
-                    "version": "2.1",
-                    "status": "empty_input"
-                }
-            }
-        
-        if self.use_async and self.executor:
-            # Выполняем токенизацию в фоновом потоке
-            future = self.executor.submit(self._tokenize_text, text)
-            try:
-                return future.result(timeout=5.0)
-            except Exception as e:
-                logger.warning(f"Таймаут асинхронной токенизации: {e}")
-                # Падаем обратно на синхронную обработку
-                return self._tokenize_text(text)
+        # Резервный путь: нулевые векторы нужной размерности
+        D = getattr(self, 'embedding_dim', 384)
+        if single_input:
+            return np.zeros(D, dtype=np.float32)
         else:
-            # Синхронная обработка
-            return self._tokenize_text(text)
+            return np.zeros((len(batch), D), dtype=np.float32)
     
-    def _tokenize_text(self, text: str) -> Dict[str, Any]:
-        """Внутренний метод токенизации текста.
-        
-        Args:
-            text: Текст для токенизации
-            
-        Returns:
-            Dict[str, Any]: Результат токенизации
-        """
-        start_time = time.time()
-        try:
-            tokens = self.tokenize(text)
-            result = {
-                "tokens": tokens,
-                "token_count": len(tokens),
-                "original_text": text[:100] + "..." if len(text) > 100 else text,
-                "processed_at": time.time(),
-                "metadata": {
-                    "processor": "unified_text_processor",
-                    "version": "2.1",
-                    "token_count": len(tokens)
-                }
-            }
-            # Метрики токенизации (асинхронный путь)
-            try:
-                duration = max(0.0, time.time() - start_time)
-                self._emit_metrics([
-                    {
-                        "name": "text_processor.tokenize_requests_total",
-                        "component": "text_processor",
-                        "type": "counter",
-                        "value": 1.0,
-                        "labels": {"result": "success"}
-                    },
-                    {
-                        "name": "text_processor.tokenize_latency_seconds",
-                        "component": "text_processor",
-                        "type": "summary",
-                        "value": float(duration),
-                    },
-                    {
-                        "name": "text_processor.tokens_per_tokenize",
-                        "component": "text_processor",
-                        "type": "summary",
-                        "value": float(len(tokens)),
-                    },
-                ])
-            except Exception:
-                pass
-            return result
-        except Exception as e:
-            logger.error(f"Ошибка токенизации: {e}")
-            try:
-                duration = max(0.0, time.time() - start_time)
-                self._emit_metrics([
-                    {
-                        "name": "text_processor.tokenize_requests_total",
-                        "component": "text_processor",
-                        "type": "counter",
-                        "value": 1.0,
-                        "labels": {"result": "error"}
-                    },
-                    {
-                        "name": "text_processor.tokenize_latency_seconds",
-                        "component": "text_processor",
-                        "type": "summary",
-                        "value": float(duration),
-                    },
-                ])
-            except Exception:
-                pass
-            return {
-                "tokens": [],
-                "token_count": 0,
-                "original_text": text[:100] + "..." if len(text) > 100 else text,
-                "processed_at": time.time(),
-                "error": str(e),
-                "metadata": {
-                    "processor": "unified_text_processor",
-                    "version": "2.1",
-                    "status": "error",
-                    "token_count": 0
-                }
-            }
     
     def is_ready(self) -> bool:
         """Проверяет готовность текстового процессора к работе."""
@@ -583,39 +609,74 @@ class UnifiedTextProcessor:
                 self.embedder is not None or 
                 self.sentiment_analyzer is not None)
     
-    def shutdown(self):
-        """Завершение работы процессора с сохранением кэша"""
-        if self.executor:
-            self.executor.shutdown(wait=True)
-        
+    def cleanup(self):
+        """Очищает ресурсы, используемые процессором."""
+        try:
+            if hasattr(self, '_executor') and self._executor:
+                self._executor.shutdown(wait=True)
+                
+            # Освобождаем ресурсы моделей
+            if hasattr(self, 'embedding_model'):
+                del self.embedding_model
+                
+            if hasattr(self, 'nlp'):
+                del self.nlp
+                
+            # Вызываем cleanup родительского класса
+            super().cleanup()
+            
+            logger.info("Ресурсы UnifiedTextProcessor успешно освобождены")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при очистке ресурсов: {e}", exc_info=True)
+            raise
+        except Exception:
+            pass
+
         # Сохраняем кэш
-        if self.hybrid_cache and hasattr(self.hybrid_cache, 'save'):
-            self.hybrid_cache.save()
-        
-        logger.info("UnifiedTextProcessor завершил работу")
+        try:
+            if self.hybrid_cache and hasattr(self.hybrid_cache, 'save'):
+                self.hybrid_cache.save()
+        except Exception:
+            pass
+
+        # Безопасное логирование (во время завершения интерпретатора globals могут быть None)
+        try:
+            _lg = logger if logger else logging.getLogger("cogniflex.unified_text_processor")
+            if _lg:
+                _lg.info("UnifiedTextProcessor завершил работу")
+        except Exception:
+            pass
     
     def _emit_metrics(self, metrics: List[Dict[str, Any]]):
-        """Безопасно отправляет метрики: через событийную систему ('metrics') и напрямую emit_metrics."""
+        """Безопасно отправляет метрики: предпочитает событийную систему; fallback на прямой вызов."""
         try:
-            if getattr(self, "brain", None):
-                # Сначала пробуем событийную шину для унифицированного транспорта
-                try:
-                    if hasattr(self.brain, "events") and self.brain.events:
-                        self.brain.events.trigger('metrics', metrics)
-                except Exception:
-                    pass
-                # Обратная совместимость: прямой вызов emit_metrics
-                try:
-                    if hasattr(self.brain, "emit_metrics"):
-                        self.brain.emit_metrics(metrics)
-                except Exception:
-                    pass
+            brain = getattr(self, "brain", None)
+            if not brain:
+                return
+            # Сначала пробуем событийную шину
+            try:
+                if hasattr(brain, "events") and brain.events:
+                    brain.events.trigger('metrics', metrics)
+                    return  # избегаем двойной эмиссии
+            except Exception:
+                pass
+            # Fallback: прямой вызов
+            try:
+                if hasattr(brain, "emit_metrics"):
+                    brain.emit_metrics(metrics)
+            except Exception:
+                pass
         except Exception:
             pass
     
     def __del__(self):
         """Деструктор для освобождения ресурсов"""
-        self.shutdown()
+        try:
+            self.shutdown()
+        except Exception:
+            # Нельзя бросать исключения из деструктора
+            pass
 
 # Алиас для обратной совместимости
 TextProcessor = UnifiedTextProcessor

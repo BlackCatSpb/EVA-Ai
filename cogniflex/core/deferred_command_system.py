@@ -85,6 +85,9 @@ class DeferredCommandSystem:
         }
         self.stats_lock = threading.RLock()
         
+        # Флаг корректного завершения для предотвращения планирования задач после shutdown
+        self._shutting_down = False
+        
         # Запускаем обработчик команд
         self.running = True
         self.processor_thread = threading.Thread(target=self._process_commands, daemon=True)
@@ -170,9 +173,23 @@ class DeferredCommandSystem:
                             if command_id in self.commands:
                                 cmd = self.commands[command_id]
                                 if cmd.status == CommandStatus.PENDING:
-                                    # Отправляем команду на выполнение
-                                    self.executor.submit(self._execute_command, cmd)
-                                    
+                                    # Отправляем команду на выполнение (с защитой от shutdown())
+                                    try:
+                                        if not self._shutting_down and self.running:
+                                            self.executor.submit(self._execute_command, cmd)
+                                        else:
+                                            # Система завершает работу — помечаем как неуспешную без запуска
+                                            cmd.status = CommandStatus.FAILED
+                                            cmd.last_error = "Executor is shutting down"
+                                    except RuntimeError as re:
+                                        # Пул уже закрыт: не планируем новую future, фиксируем состояние
+                                        if "cannot schedule new futures" in str(re):
+                                            with self.commands_lock:
+                                                cmd.status = CommandStatus.FAILED
+                                                cmd.last_error = str(re)
+                                        else:
+                                            raise
+                        
                     except queue.Empty:
                         continue
                         
@@ -196,9 +213,22 @@ class DeferredCommandSystem:
             
             # Выполняем команду с таймаутом если указан
             if cmd.timeout:
-                future = self.executor.submit(cmd.command, *cmd.args, **cmd.kwargs)
-                result = future.result(timeout=cmd.timeout)
+                try:
+                    future = self.executor.submit(cmd.command, *cmd.args, **cmd.kwargs)
+                    result = future.result(timeout=cmd.timeout)
+                except RuntimeError as re:
+                    if "cannot schedule new futures" in str(re) or self._shutting_down:
+                        # Executor закрыт — считаем команду неуспешной без повторов
+                        with self.commands_lock:
+                            cmd.status = CommandStatus.FAILED
+                            cmd.last_error = str(re)
+                        self._update_stats(time.time() - start_time, success=False)
+                        logger.debug(f"Команда {cmd.id} не запущена: executor shutdown")
+                        return
+                    else:
+                        raise
             else:
+                # Выполняем синхронно в текущем потоке
                 result = cmd.command(*cmd.args, **cmd.kwargs)
             
             # Команда выполнена успешно
@@ -219,7 +249,7 @@ class DeferredCommandSystem:
                 cmd.last_error = error_msg
                 
                 # Проверяем, нужно ли повторить команду
-                if cmd.attempts < cmd.max_retries:
+                if cmd.attempts < cmd.max_retries and not self._shutting_down:
                     cmd.status = CommandStatus.RETRYING
                     logger.warning(f"Команда {cmd.id} неудачна (попытка {cmd.attempts}/{cmd.max_retries}): {error_msg}")
                     
@@ -241,6 +271,13 @@ class DeferredCommandSystem:
     def _schedule_retry(self, cmd: DeferredCommand):
         """Планирует повторное выполнение команды."""
         time.sleep(cmd.retry_delay)
+        
+        # Во время завершения — больше не перекидываем задачи в очередь
+        if self._shutting_down or not self.running:
+            with self.commands_lock:
+                cmd.status = CommandStatus.FAILED
+                cmd.last_error = cmd.last_error or "Retry skipped due to shutdown"
+            return
         
         with self.commands_lock:
             if cmd.status == CommandStatus.RETRYING:
@@ -337,6 +374,8 @@ class DeferredCommandSystem:
         """Завершает работу системы отложенных команд."""
         logger.info("Завершение работы системы отложенных команд...")
         
+        # Сигнализируем всем потокам/планировщикам о завершении
+        self._shutting_down = True
         self.running = False
         self.monitoring_enabled = False
         self._ls_running = False

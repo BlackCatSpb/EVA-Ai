@@ -1,0 +1,25 @@
+{
+  "theme": "light",
+  "compact_mode": false,
+  "notification_throttle_seconds": 30,
+  "auto_refresh_interval": 5000,
+  "show_advanced_metrics": true,
+  "enable_gpu_monitoring": true,
+  "enabled_panels": [
+    "chat",
+    "analytics",
+    "knowledge",
+    "contradictions",
+    "memory",
+    "learning",
+    "neuromorphic",
+    "settings"
+  ],
+  "show_performance_metrics": true,
+  "show_memory_usage": true,
+  "show_cache_stats": true,
+  "show_quality_metrics": true,
+  "auto_save_state": true,
+  "auto_backup": true,
+  "auto_optimize": true
+}

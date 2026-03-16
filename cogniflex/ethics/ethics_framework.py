@@ -32,6 +32,8 @@ class EthicalPrinciple:
     threshold: float = 0.8  # Порог для нарушения принципа
     category: str = "general"  # Категория принципа (безопасность, приватность и т.д.)
     priority: int = 5  # Приоритет (1-10, где 10 - самый высокий)
+    last_updated: float = field(default_factory=time.time)  # Время последнего обновления
+    active: bool = True  # Активен ли принцип
 
 @dataclass
 class EthicalDecision:
@@ -69,6 +71,24 @@ class EthicalReview:
     reviewer: str
     decision: EthicalDecision
     timestamp: float = field(default_factory=time.time)
+
+@dataclass
+class EthicalIssue:
+    name: str
+    description: str
+    type: str
+    priority: float
+    evidence: List[str]
+    timestamp: float = field(default_factory=time.time)
+    resolved: bool = False
+    resolution: Optional[Dict[str, Any]] = None
+
+@dataclass
+class EthicsAnalysisResult:
+    overall_score: float
+    violations: List[Dict[str, Any]]
+    recommendations: List[str]
+    principle_scores: Dict[str, float]
 
 class EthicsFramework:
     """
@@ -265,206 +285,103 @@ class EthicsFramework:
         logger.info(f"Инициализировано {len(default_principles)} принципов по умолчанию")
     
     def _init_background_services(self):
-        """Инициализирует фоновые службы."""
-        pass  # Минимальная реализация
+        """Инициализирует фоновые службы для мониторинга этики."""
+        try:
+            import threading
+            
+            # Запускаем поток мониторинга нарушений
+            self._violation_monitor_thread = threading.Thread(
+                target=self._monitor_violations,
+                daemon=True,
+                name="EthicsViolationMonitor"
+            )
+            self._violation_monitor_thread.start()
+            
+            # Запускаем периодическую проверку принципов
+            self._principle_check_thread = threading.Thread(
+                target=self._periodic_principle_check,
+                daemon=True,
+                name="EthicsPrincipleCheck"
+            )
+            self._principle_check_thread.start()
+            
+            logger.debug("Фоновые службы этической рамки инициализированы")
+        except Exception as e:
+            logger.error(f"Ошибка инициализации фоновых служб: {e}")
+    
+    def _monitor_violations(self):
+        """Мониторит нарушения в фоне."""
+        while self.running:
+            try:
+                time.sleep(60)  # Проверка каждую минуту
+                if not self.running:
+                    break
+                    
+                # Проверяем старые нарушения на разрешение
+                self._check_resolved_violations()
+            except Exception as e:
+                logger.error(f"Ошибка мониторинга нарушений: {e}")
+    
+    def _check_resolved_violations(self):
+        """Проверяет разрешенные нарушения."""
+        try:
+            current_time = time.time()
+            for violation_id, violation in list(self.violations.items()):
+                # Автоматически разрешаем нарушения старше 7 дней
+                if current_time - violation.get('timestamp', 0) > 7 * 24 * 3600:
+                    if not violation.get('resolved', False):
+                        violation['resolved'] = True
+                        violation['resolution_timestamp'] = current_time
+                        logger.info(f"Автоматически разрешено старое нарушение: {violation_id}")
+        except Exception as e:
+            logger.error(f"Ошибка проверки разрешенных нарушений: {e}")
+    
+    def _periodic_principle_check(self):
+        """Периодически проверяет актуальность принципов."""
+        while self.running:
+            try:
+                time.sleep(3600)  # Проверка каждый час
+                if not self.running:
+                    break
+                    
+                # Обновляем статистику принципов
+                self._update_principle_stats()
+            except Exception as e:
+                logger.error(f"Ошибка периодической проверки принципов: {e}")
+    
+    def _update_principle_stats(self):
+        """Обновляет статистику использования принципов."""
+        try:
+            for principle_name, principle in self.principles.items():
+                # Обновляем время последнего использования
+                principle.last_updated = time.time()
+        except Exception as e:
+            logger.error(f"Ошибка обновления статистики принципов: {e}")
     
     def _load_violations_and_stats(self):
-        """Загружает нарушения и статистику."""
-        pass  # Минимальная реализацияку."""
-        # Загружаем нарушения
-        if os.path.exists(self.violations_file):
-            try:
-                with open(self.violations_file, 'r', encoding='utf-8') as f:
-                    violations_data = json.load(f)
-                
-                invalid_count = 0
-                for data in violations_data:
-                    if "violation_id" in data and is_valid_violation_id(data["violation_id"]):
-                        violation = EthicalDecision(
-                            approved=data["approved"],
-                            principle=data["principle"],
-                            severity=data["severity"],
-                            description=data["description"],
-                            context=data["context"],
-                            timestamp=data["timestamp"],
-                            resolved=data["resolved"],
-                            resolution=data.get("resolution"),
-                            resolution_timestamp=data.get("resolution_timestamp"),
-                            source=data.get("source", "system")
-                        )
-                        violation.violation_id = data["violation_id"]
-                        self.violations.append(violation)
-                    else:
-                        invalid_count += 1
-                
-                if invalid_count > 0:
-                    logger.warning(f"Пропущено {invalid_count} нарушений с недействительными ID")
-                
-                logger.info(f"Загружено {len(self.violations)} этических нарушений")
-            except Exception as e:
-                logger.error(f"Ошибка загрузки нарушений: {e}")
-        
-        # Загружаем статистику
-        if os.path.exists(self.stats_file):
-            try:
-                with open(self.stats_file, 'r', encoding='utf-8') as f:
-                    self.stats = json.load(f)
-                logger.info("Загружена статистика этической рамки")
-            except Exception as e:
-                logger.error(f"Ошибка загрузки статистики: {e}")
-    
-    def _init_default_configuration(self):
-        """Инициализирует конфигурацию по умолчанию."""
-        self._init_default_principles()
-        self._save_principles()
-        
-        # Создаем конфигурационный файл версии 2.0
-        config_data = {
-            "version": "2.0",
-            "principles": {
-                name: {
-                    "name": principle.name,
-                    "description": principle.description,
-                    "weight": principle.weight,
-                    "threshold": principle.threshold,
-                    "category": principle.category,
-                    "priority": principle.priority
-                } for name, principle in self.principles.items()
-            }
-        }
-        
+        """Загружает нарушения и статистику из хранилища."""
         try:
-            config_path = os.path.join(self.cache_dir, "ethics_config.json")
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            with open(config_path, 'w', encoding='utf-8') as f:
-                json.dump(config_data, f, ensure_ascii=False, indent=2)
-            logger.info(f"Создан конфигурационный файл: {config_path}")
-        except Exception as e:
-            logger.error(f"Ошибка создания конфигурационного файла: {e}")
-
-    def _init_default_principles(self):
-        """Инициализирует стандартные этические принципы."""
-        default_principles = [
-            EthicalPrinciple(
-                name="Autonomy",
-                description="Уважение к автономии и свободе выбора пользователя",
-                weight=1.0,
-                threshold=0.7,
-                category="autonomy",
-                priority=8
-            ),
-            EthicalPrinciple(
-                name="Beneficence",
-                description="Стремление к благу и пользе для пользователя",
-                weight=1.2,
-                threshold=0.75,
-                category="beneficence",
-                priority=9
-            ),
-            EthicalPrinciple(
-                name="Non-maleficence",
-                description="Отсутствие вреда пользователю и обществу",
-                weight=1.5,
-                threshold=0.6,
-                category="safety",
-                priority=10
-            ),
-            EthicalPrinciple(
-                name="Justice",
-                description="Справедливое и беспристрастное отношение",
-                weight=0.9,
-                threshold=0.65,
-                category="fairness",
-                priority=7
-            ),
-            EthicalPrinciple(
-                name="Privacy",
-                description="Защита личной информации и конфиденциальности",
-                weight=1.3,
-                threshold=0.6,
-                category="privacy",
-                priority=9
-            ),
-            EthicalPrinciple(
-                name="Transparency",
-                description="Ясность и открытость в работе системы",
-                weight=0.8,
-                threshold=0.7,
-                category="transparency",
-                priority=6
-            ),
-            EthicalPrinciple(
-                name="Accountability",
-                description="Ответственность за действия и решения",
-                weight=1.1,
-                threshold=0.7,
-                category="accountability",
-                priority=8
-            )
-        ]
-        
-        for principle in default_principles:
-            self.principles[principle.name] = principle
-
-    def _save_principles(self):
-        """Сохраняет принципы в файл."""
-        try:
-            os.makedirs(os.path.dirname(self.principles_file), exist_ok=True)
-            principles_data = {}
-            for name, principle in self.principles.items():
-                principles_data[name] = {
-                    "name": principle.name,
-                    "description": principle.description,
-                    "weight": principle.weight,
-                    "threshold": principle.threshold,
-                    "category": principle.category,
-                    "priority": principle.priority
-                }
+            cache_dir = os.path.join(os.path.dirname(__file__), '..', 'core', 'cogniflex_cache', 'ethics')
+            os.makedirs(cache_dir, exist_ok=True)
             
-            with open(self.principles_file, 'w', encoding='utf-8') as f:
-                json.dump(principles_data, f, ensure_ascii=False, indent=2)
+            # Загружаем нарушения
+            violations_file = os.path.join(cache_dir, 'violations.json')
+            if os.path.exists(violations_file):
+                with open(violations_file, 'r', encoding='utf-8') as f:
+                    loaded_violations = json.load(f)
+                    self.violations.update(loaded_violations)
+                    logger.debug(f"Загружено {len(loaded_violations)} нарушений")
+            
+            # Загружаем статистику
+            stats_file = os.path.join(cache_dir, 'ethics_stats.json')
+            if os.path.exists(stats_file):
+                with open(stats_file, 'r', encoding='utf-8') as f:
+                    self.ethics_stats = json.load(f)
+                    logger.debug("Статистика этики загружена")
+                    
         except Exception as e:
-            logger.error(f"Ошибка сохранения принципов: {e}", exc_info=True)
-
-    def _init_background_services(self):
-        """Инициализирует фоновые службы этической рамки."""
-        # Запускаем фоновый процесс для периодической проверки
-        self.background_thread = threading.Thread(
-            target=self._background_monitoring,
-            name="EthicsBackgroundMonitor",
-            daemon=True
-        )
-        self.background_thread.start()
-        logger.info("Фоновый мониторинг этической рамки запущен")
-
-    def _background_monitoring(self):
-        """Фоновый процесс для мониторинга этических показателей."""
-        while not self.stop_event.is_set():
-            try:
-                # Проверяем нарушения каждые 5 минут
-                self.stop_event.wait(300)
-                
-                # Анализируем статистику
-                with self.lock:
-                    if self.stats["high_severity_violations"] > 5:
-                        logger.warning("Обнаружено высокое количество серьезных этических нарушений")
-                        # Здесь можно добавить уведомление администратора
-                        
-                    # Сохраняем статистику
-                    self._save_stats()
-                
-            except Exception as e:
-                logger.error(f"Ошибка в фоновом мониторинге этической рамки: {e}", exc_info=True)
-                time.sleep(60)  # Пауза перед повторной попыткой
-
-    def _save_stats(self):
-        """Сохраняет статистику в файл."""
-        try:
-            with open(self.stats_file, 'w', encoding='utf-8') as f:
-                json.dump(self.stats, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"Ошибка сохранения статистики: {e}", exc_info=True)
-
+            logger.error(f"Ошибка загрузки нарушений и статистики: {e}")
+    
     def start(self):
         """Запускает фоновые процессы этической рамки."""
         if self.running:
@@ -481,6 +398,58 @@ class EthicsFramework:
         self.stop_event.set()
         self.running = False
         logger.info("Этическая рамка остановлена")
+
+    def analyze_content(self, content: str, context: Optional[Dict[str, Any]] = None) -> EthicsAnalysisResult:
+        result = self.analyze_request(content, context=context)
+        try:
+            principle_scores = result.get('principle_scores', {}) if isinstance(result, dict) else {}
+            violations = result.get('violations', []) if isinstance(result, dict) else []
+            recommendations = result.get('recommendations', []) if isinstance(result, dict) else []
+            max_score = 0.0
+            try:
+                max_score = float(max(principle_scores.values())) if principle_scores else 0.0
+            except Exception:
+                max_score = 0.0
+            overall_score = max(0.0, min(1.0, 1.0 - max_score))
+            return EthicsAnalysisResult(
+                overall_score=overall_score,
+                violations=violations,
+                recommendations=recommendations,
+                principle_scores=principle_scores
+            )
+        except Exception:
+            return EthicsAnalysisResult(
+                overall_score=1.0,
+                violations=[],
+                recommendations=[],
+                principle_scores={}
+            )
+
+    def analyze_response(self, query: str, response: str) -> Dict[str, Any]:
+        analysis = self.analyze_content(response, context={"query": query})
+        return {
+            "overall_score": analysis.overall_score,
+            "violations": analysis.violations,
+            "recommendations": analysis.recommendations,
+            "principle_scores": analysis.principle_scores
+        }
+
+    def get_system_health(self) -> Dict[str, Any]:
+        try:
+            score = 1.0 if self.is_ready() else 0.3
+        except Exception:
+            score = 0.0
+        return {
+            "health_score": score,
+            "status": "healthy" if score > 0.7 else "warning" if score > 0.3 else "critical",
+            "initialized": bool(getattr(self, 'initialized', False)),
+            "running": bool(getattr(self, 'running', False)),
+            "principles_count": len(getattr(self, 'principles', {}) or {}),
+            "timestamp": time.time()
+        }
+
+    def get_system_status(self) -> Dict[str, Any]:
+        return self.get_system_health()
 
     def analyze_request(self, request: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """

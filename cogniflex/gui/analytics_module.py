@@ -8,7 +8,8 @@ import numpy as np
 import time
 import json
 import os
-from datetime import datetime, timedelta
+import datetime
+from datetime import timedelta
 from typing import Dict, List, Tuple, Optional, Any
 import threading
 import queue
@@ -19,6 +20,46 @@ logger = logging.getLogger("cogniflex.gui.analytics")
 
 class AnalyticsModule:
     """Модуль аналитики для мониторинга состояния системы."""
+    
+    def _log_brain_access(self, method_name: str) -> bool:
+        """Логирует попытку доступа к brain
+        
+        Args:
+            method_name: Имя метода, который пытается получить доступ к brain
+            
+        Returns:
+            bool: True если доступ к brain возможен, иначе False
+        """
+        if hasattr(self, 'gui') and hasattr(self.gui, 'brain') and self.gui.brain:
+            logger.debug(f"[AnalyticsModule] Доступ к brain через {method_name}")
+            return True
+        logger.warning(f"[AnalyticsModule] Brain недоступен для {method_name}")
+        return False
+        
+    def _safe_brain_call(self, method_name: str, *args, **kwargs):
+        """Безопасный вызов метода brain
+        
+        Args:
+            method_name: Имя вызываемого метода
+            *args: Позиционные аргументы для метода
+            **kwargs: Именованные аргументы для метода
+            
+        Returns:
+            Результат вызова метода или None в случае ошибки
+        """
+        if not self._log_brain_access(method_name):
+            return None
+            
+        try:
+            method = getattr(self.gui.brain, method_name, None)
+            if method and callable(method):
+                result = method(*args, **kwargs)
+                logger.debug(f"[AnalyticsModule] Успешный вызов brain.{method_name}()")
+                return result
+            logger.warning(f"[AnalyticsModule] Метод brain.{method_name} не найден")
+        except Exception as e:
+            logger.error(f"[AnalyticsModule] Ошибка вызова brain.{method_name}: {e}", exc_info=True)
+        return None
     
     def __init__(self, gui):
         self.gui = gui
@@ -126,12 +167,12 @@ class AnalyticsModule:
         """Собирает системные данные для аналитики."""
         try:
             # Проверяем доступность ядра
-            if not self.gui.brain or not hasattr(self.gui.brain, 'get_system_metrics'):
+            if not self._log_brain_access('get_system_metrics'):
                 logger.warning("Ядро системы недоступно для сбора аналитики")
                 return
-                
-            # Получаем системные метрики
-            metrics = self.gui.brain.get_system_metrics()
+            else:
+                # Получаем системные метрики
+                metrics = self.gui.brain.get_system_metrics()
             
             # Получаем статистику по противоречиям
             contradiction_stats = {}

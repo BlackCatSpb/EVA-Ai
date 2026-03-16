@@ -10,7 +10,7 @@ from collections import defaultdict, Counter
 from sklearn.cluster import DBSCAN
 from sklearn.metrics.pairwise import cosine_similarity
 
-from .knowledge_core import KnowledgeGraph, KnowledgeNode, KnowledgeEdge
+from .knowledge_graph import KnowledgeGraph, KnowledgeNode, KnowledgeEdge
 from .knowledge_analyzer import KnowledgeAnalyzer
 
 logger = logging.getLogger("cogniflex.knowledge_integrator")
@@ -122,7 +122,11 @@ class KnowledgeIntegrator:
     def _load_history_for_dynamic_updates(self):
         """Загружает историю для динамического обновления надежности источников и доменов."""
         try:
-            history = self.knowledge_core.get_recent_changes(limit=100)
+            # Некоторые реализации графа знаний могут не иметь истории изменений
+            history = []
+            kg = getattr(self, "knowledge_graph", None)
+            if kg is not None and hasattr(kg, "get_recent_changes"):
+                history = kg.get_recent_changes(limit=100) or []
             
             # Анализируем историю для обновления надежности
             for event in history:
@@ -156,7 +160,7 @@ class KnowledgeIntegrator:
             # Заполняем пробелы
             filled_gaps = 0
             for gap in gaps:
-                if gap["gap_type"] == "incomplete":
+                if gap.get("gap_type") == "incomplete":
                     # Пытаемся найти дополнительные связи
                     if hasattr(self.brain, 'text_processor'):
                         related = self.brain.text_processor.analyze_connection_pattern(
@@ -167,19 +171,22 @@ class KnowledgeIntegrator:
                         
                         # Добавляем новые связи
                         if related["most_related"]:
-                            for concept in related["most_related"]:
+                            for concept_name in related["most_related"]:
                                 # Определяем тип связи
                                 relation_type = "related_to"  # Простое отношение
-                                
-                                self.knowledge_graph.add_connection(
-                                    gap["concept"],
-                                    concept,
-                                    relation_type,
-                                    strength=related["connection_strength"]
-                                )
+                                # Находим узлы по именам, чтобы получить их ID
+                                src_nodes = self.knowledge_graph.search_nodes(gap["concept"], limit=1)
+                                dst_nodes = self.knowledge_graph.search_nodes(concept_name, limit=1)
+                                if src_nodes and dst_nodes:
+                                    self.knowledge_graph.add_edge(
+                                        src_nodes[0].id,
+                                        dst_nodes[0].id,
+                                        relation_type,
+                                        strength=related.get("connection_strength", 0.5)
+                                    )
                             filled_gaps += 1
                 
-                elif gap["gap_type"] == "outdated":
+                elif gap.get("gap_type") == "outdated":
                     # Пытаемся обновить информацию
                     if hasattr(self.brain, 'web_search_engine'):
                         knowledge = self.brain.web_search_engine.web_search_and_learn(
@@ -189,11 +196,13 @@ class KnowledgeIntegrator:
                         
                         if knowledge:
                             # Обновляем информацию в KnowledgeGraph
-                            self.knowledge_graph.update_concept(
-                                gap["concept"],
-                                knowledge[0]["content"],
-                                source=knowledge[0]["source"]
-                            )
+                            nodes = self.knowledge_graph.search_nodes(gap["concept"], limit=1)
+                            if nodes:
+                                self.knowledge_graph.update_node(
+                                    nodes[0].id,
+                                    knowledge[0]["content"],
+                                    source=knowledge[0].get("source")
+                                )
                             filled_gaps += 1
             
             # Анализируем противоречия
@@ -364,7 +373,7 @@ class KnowledgeIntegrator:
         edge = None
         edges = self.knowledge_graph.get_edges(source_id)
         for e in edges:
-            if e.target == target_id and e.relation == relation:
+            if e.target_id == target_id and e.relation_type == relation:
                 edge = e
                 break
         
@@ -376,8 +385,19 @@ class KnowledgeIntegrator:
         
         # Учитываем надежность источника
         node = self.knowledge_graph.get_node(source_id)
-        if node and node.source:
-            source_reliability = self.get_source_reliability(node.source)
+        if node:
+            src_meta = getattr(node, "meta", {}) or {}
+            primary_source = None
+            if isinstance(src_meta, dict):
+                sources_list = src_meta.get("sources")
+                if isinstance(sources_list, list) and sources_list:
+                    primary_source = sources_list[0]
+                else:
+                    primary_source = src_meta.get("source")
+            if primary_source:
+                source_reliability = self.get_source_reliability(primary_source)
+            else:
+                source_reliability = 1.0
             strength *= source_reliability
         
         # Учитываем актуальность информации
@@ -470,7 +490,8 @@ class KnowledgeIntegrator:
             List[Tuple[KnowledgeNode, float]]: Список похожих узлов и их сходства
         """
         # Получаем все узлы
-        all_nodes = self.knowledge_graph.get_all_nodes(limit=1000)
+        all_nodes = self.knowledge_graph.get_all_nodes()
+        all_nodes = all_nodes[:1000]
         
         # Вычисляем сходство
         similarities = []
@@ -508,7 +529,7 @@ class KnowledgeIntegrator:
             int: Количество подтверждений
         """
         # Получаем описание узла
-        description = node.metadata.get("description", "")
+        description = getattr(node, "description", "") or ""
         if not description:
             return 0
         
@@ -529,7 +550,7 @@ class KnowledgeIntegrator:
         
         # Считаем совпадения в описании
         description_lower = description.lower()
-        target_content_lower = target_node.content.lower()
+        target_content_lower = (getattr(target_node, "description", "") or "").lower()
         
         confirmations = 0
         for keyword in relation_keywords:
@@ -553,24 +574,19 @@ class KnowledgeIntegrator:
             # Получаем текущую связь
             edges = self.knowledge_graph.get_edges(source_id)
             for edge in edges:
-                if edge.target == target_id and edge.relation == relation:
+                if edge.target_id == target_id and edge.relation_type == relation:
                     # Уменьшаем силу
                     new_strength = max(0.1, edge.strength - amount)
                     
-                    # Обновляем связь
-                    conn = self.knowledge_core._get_connection()
-                    cursor = conn.cursor()
-                    
-                    cursor.execute('''
-                    UPDATE edges 
-                    SET strength = ? 
-                    WHERE id = ?
-                    ''', (new_strength, edge.id))
-                    
-                    conn.commit()
-                    conn.close()
-                    
-                    logger.debug(f"Связь {source_id}-{relation}->{target_id} ослаблена: {edge.strength:.2f} -> {new_strength:.2f}")
+                    # Обновляем связь через KnowledgeGraph
+                    try:
+                        edge.strength = new_strength
+                        edge.last_updated = time.time()
+                        if hasattr(self.knowledge_graph, "_update_edge_in_db"):
+                            self.knowledge_graph._update_edge_in_db(edge)
+                        logger.debug(f"Связь {source_id}-{relation}->{target_id} ослаблена: {edge.strength:.2f} -> {new_strength:.2f}")
+                    except Exception as ex:
+                        logger.error(f"Ошибка обновления силы связи: {ex}")
                     return
                     
         except Exception as e:
@@ -583,8 +599,17 @@ class KnowledgeIntegrator:
         Args:
             node: Узел знаний
         """
-        if node.source:
-            self.update_source_reliability(node.source, 0.2)  # Увеличиваем надежность
+        if node:
+            src_meta = getattr(node, "meta", {}) or {}
+            primary_source = None
+            if isinstance(src_meta, dict):
+                sources_list = src_meta.get("sources")
+                if isinstance(sources_list, list) and sources_list:
+                    primary_source = sources_list[0]
+                else:
+                    primary_source = src_meta.get("source")
+            if primary_source:
+                self.update_source_reliability(primary_source, 0.2)  # Увеличиваем надежность
     
     def _create_hypothesis_for_opposite_relations(self, contradiction: Dict[str, Any]) -> bool:
         """
@@ -609,12 +634,13 @@ class KnowledgeIntegrator:
             )
             
             # Создаем узел для гипотезы
-            hypothesis_id = self.knowledge_graph.add_concept(
-                f"Hypothesis_{concept1}_{concept2}",
-                hypothesis,
+            hypothesis_id = self.knowledge_graph.add_node(
+                name=f"Hypothesis_{concept1}_{concept2}",
+                description=hypothesis,
+                node_type="hypothesis",
                 domain="metaknowledge",
                 strength=0.6,
-                source="system"
+                meta={"sources": ["system"]}
             )
             
             # Связываем гипотезу с концептами
@@ -623,21 +649,21 @@ class KnowledgeIntegrator:
             target_node = self.knowledge_graph.search_nodes(common_target, limit=1)
             
             if node1:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     hypothesis_id,
                     node1[0].id,
                     "explains",
                     strength=0.7
                 )
             if node2:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     hypothesis_id,
                     node2[0].id,
                     "explains",
                     strength=0.7
                 )
             if target_node:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     hypothesis_id,
                     target_node[0].id,
                     "applies_to",
@@ -1453,15 +1479,20 @@ class KnowledgeIntegrator:
                 reliability_change = 0.2 if resolved else -0.1
                 self.update_source_reliability(f"user_{user_id}", reliability_change)
             
-            # Добавляем в историю
+            # Добавляем в историю (если поддерживается)
             if resolved:
-                self.knowledge_core.record_history(
-                    f"contradiction_{concept}",
-                    "contradiction_resolved",
-                    None,
-                    {"concept": concept, "description": description},
-                    user_id
-                )
+                kg = getattr(self, "knowledge_graph", None)
+                if kg is not None and hasattr(kg, "record_history"):
+                    try:
+                        kg.record_history(
+                            f"contradiction_{concept}",
+                            "contradiction_resolved",
+                            None,
+                            {"concept": concept, "description": description},
+                            user_id
+                        )
+                    except Exception as ex:
+                        logger.debug(f"Не удалось записать историю в KnowledgeGraph: {ex}")
             
             logger.info(f"Сообщение о противоречии для концепта '{concept}' {'разрешено' if resolved else 'не разрешено'}")
             return resolved
@@ -1666,7 +1697,6 @@ class KnowledgeIntegrator:
                 # Получаем узлы в кластере
                 cluster_nodes = [nodes[i] for i, label in enumerate(clustering.labels_) if label == cluster_id]
                 
-                # Укрепляем связи внутри кластера
                 for i in range(len(cluster_nodes)):
                     for j in range(i + 1, len(cluster_nodes)):
                         node1, node2 = cluster_nodes[i], cluster_nodes[j]
@@ -1762,7 +1792,11 @@ class KnowledgeIntegrator:
             new_strength: Новая сила
         """
         try:
-            conn = self.knowledge_core._get_connection()
+            # Используем подключение БД KnowledgeGraph
+            conn = getattr(self, "knowledge_graph", None)
+            conn = getattr(conn, "db", None)
+            if conn is None:
+                raise RuntimeError("KnowledgeGraph.db is not initialized")
             cursor = conn.cursor()
             
             cursor.execute('''

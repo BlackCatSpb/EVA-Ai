@@ -4,12 +4,12 @@ import logging
 import time
 import re
 import json
+import sqlite3
 import numpy as np
 from typing import Dict, List, Any, Optional, Tuple
 from collections import defaultdict, Counter
 
-from .knowledge_core import KnowledgeCore, KnowledgeNode
-from .knowledge_graph import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph, KnowledgeNode
 from .knowledge_analyzer import KnowledgeAnalyzer
 
 logger = logging.getLogger("cogniflex.knowledge_expander")
@@ -17,21 +17,25 @@ logger = logging.getLogger("cogniflex.knowledge_expander")
 class KnowledgeExpander:
     """Модуль расширения знаний для CogniFlex - добавление новых знаний в систему."""
     
-    def __init__(self, brain=None, knowledge_core=None, knowledge_graph=None, knowledge_analyzer=None):
+    def __init__(self, brain=None, knowledge_graph=None, knowledge_analyzer=None):
         """
         Инициализирует расширитель знаний.
         
         Args:
             brain: Ссылка на ядро CogniFlex (опционально)
-            knowledge_core: Ссылка на ядро управления знаниями (опционально)
             knowledge_graph: Ссылка на граф знаний (опционально)
             knowledge_analyzer: Ссылка на анализатор знаний (опционально)
         """
         self.brain = brain
-        self.knowledge_core = knowledge_core or KnowledgeCore(brain)
-        self.knowledge_graph = knowledge_graph or KnowledgeGraph(brain, self.knowledge_core)
-        self.knowledge_analyzer = knowledge_analyzer or KnowledgeAnalyzer(
-            brain, self.knowledge_core, self.knowledge_graph)
+        # Создаем/принимаем KnowledgeGraph по актуальной сигнатуре
+        if knowledge_graph is not None:
+            self.knowledge_graph = knowledge_graph
+        else:
+            cache_dir = getattr(self.brain, "cache_dir", None)
+            self.knowledge_graph = KnowledgeGraph(brain=self.brain, cache_dir=cache_dir)
+        
+        # Анализатор знаний принимает (knowledge_graph, brain)
+        self.knowledge_analyzer = knowledge_analyzer or KnowledgeAnalyzer(self.knowledge_graph, brain=self.brain)
         
         # Инициализируем внутренние структуры
         self._init_domain_authority()
@@ -347,7 +351,7 @@ class KnowledgeExpander:
                 if updated:
                     updated_count += 1
             
-            logger.info(f"Обновление устаревших знаний завершено. Обновлено {updated_count} знаний")
+            logger.info(f"Обновление устаревших знаний завершено. Обновлено {updated_count} новых знаний")
             return updated_count
             
         except Exception as e:
@@ -373,7 +377,7 @@ class KnowledgeExpander:
                           max_age_days: int = 365) -> List[KnowledgeNode]:
         """Получает устаревшие узлы."""
         try:
-            conn = self.knowledge_core._get_connection()
+            conn = sqlite3.connect(self.knowledge_graph.db_path)
             cursor = conn.cursor()
             
             # Формируем запрос
@@ -387,29 +391,33 @@ class KnowledgeExpander:
             # Выполняем запрос
             cursor.execute(sql, params)
             rows = cursor.fetchall()
-            conn.close()
             
-            # Создаем объекты узлов
             nodes = []
             for row in rows:
                 node = KnowledgeNode(
                     id=row[0],
-                    content=row[1],
-                    domain=row[2],
-                    metadata=json.loads(row[3]),
-                    created_at=row[4],
-                    last_updated=row[5],
-                    strength=row[6],
-                    source=row[7],
-                    tags=json.loads(row[8])
+                    name=row[1],
+                    description=row[2],
+                    node_type=row[3],
+                    domain=row[4],
+                    strength=row[5],
+                    timestamp=row[6],
+                    meta=json.loads(row[7]) if row[7] else {},
+                    version=row[8] if len(row) > 8 else 1
                 )
                 nodes.append(node)
             
             return nodes
-            
+        
         except Exception as e:
             logger.error(f"Ошибка получения устаревших узлов: {e}")
             return []
+        finally:
+            try:
+                if 'conn' in locals():
+                    conn.close()
+            except Exception:
+                pass
     
     def _update_node_from_web(self, node: KnowledgeNode) -> bool:
         """Обновляет узел с помощью веб-поиска."""
@@ -420,7 +428,7 @@ class KnowledgeExpander:
             
             # Выполняем веб-поиск
             knowledge = self.brain.web_search_engine.web_search_and_learn(
-                node.content, 
+                node.name, 
                 num_results=1
             )
             

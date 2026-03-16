@@ -1,0 +1,119 @@
+{
+  "initialization": {
+    "core_brain_import": true,
+    "core_brain_created": true,
+    "core_brain_initialized": true,
+    "enhanced_learning": true,
+    "memory_graph_ml": true,
+    "reasoning_engine": true,
+    "fractal_model": true,
+    "knowledge_graph": true,
+    "errors": []
+  },
+  "generation": {
+    "tests_run": 3,
+    "tests_passed": 3,
+    "tests_failed": 0,
+    "responses": [
+      {
+        "query": "Привет, как дела?",
+        "response": "{'text': 'кобу technology делега читали руке поможет отодвинул обжириата почи выезде richardею канд утверждали сформулироватьопасность воп самоеинувва",
+        "time": 46.37587118148804
+      },
+      {
+        "query": "Что такое искусственный интеллект?",
+        "response": "{'text': 'What is искусственный интеллект? послать обжи обжи обжи voice автомат мень air обжигу settlement преступление монар начальством народамирелс",
+        "time": 48.468313455581665
+      },
+      {
+        "query": "Расскажи о машинном обучении",
+        "response": "{'text': 'Tell about машинном обученииинув испор опасности валентина richard послать теплая тет солне каждомуиск\\u2004\\u2004\\u2004\\u2004антами женщино",
+        "time": 56.138306617736816
+      }
+    ],
+    "errors": []
+  },
+  "self_learning": {
+    "system_available": true,
+    "data_added": true,
+    "training_triggered": true,
+    "epochs_completed": 2,
+    "final_metrics": {
+      "validation_accuracy": 0.8105,
+      "final_loss": 0.0,
+      "duration": 0.0
+    },
+    "errors": []
+  },
+  "reasoning": {
+    "engine_created": true,
+    "tests_run": 2,
+    "tests_passed": 0,
+    "reasoning_times": [
+      0.002239704132080078,
+      0.0008161067962646484
+    ],
+    "errors": []
+  },
+  "memory_graph": {
+    "knowledge_graph_available": true,
+    "memory_graph_ml_available": true,
+    "context_retrieved": true,
+    "fractal_context_retrieved": true,
+    "entities_added": 0,
+    "stats": {
+      "is_initialized": true,
+      "embeddings_count": 0,
+      "patterns_count": 0,
+      "training_samples": 0,
+      "embedding_dim": 64,
+      "fractal_levels": 3,
+      "last_update": 1773253968.184708,
+      "graph_coverage": 0.0
+    },
+    "errors": []
+  },
+  "integration": {
+    "brain_to_learning": true,
+    "brain_to_memory_graph": true,
+    "brain_to_reasoning": true,
+    "learning_to_memory": false,
+    "end_to_end": true,
+    "errors": []
+  },
+  "summary": {
+    "test_duration_seconds": 338.24,
+    "components_initialized": 5,
+    "total_tests": 22,
+    "passed_tests": 19,
+    "failed_tests": 3,
+    "success_rate": 86.4,
+    "errors_count": 0,
+    "breakdown": {
+      "initialization": {
+        "passed": 8,
+        "total": 8
+      },
+      "generation": {
+        "passed": 3,
+        "total": 3
+      },
+      "self_learning": {
+        "passed": 1,
+        "total": 1
+      },
+      "reasoning": {
+        "passed": 0,
+        "total": 2
+      },
+      "memory_graph": {
+        "passed": 3,
+        "total": 3
+      },
+      "integration": {
+        "passed": 4,
+        "total": 5
+      }
+    }
+  }
+}

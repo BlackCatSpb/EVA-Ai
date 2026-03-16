@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-03-11T20:46:43.002757",
+  "summary": {
+    "total_commands": 5,
+    "successful": 4,
+    "failed": 1,
+    "errors_count": 1,
+    "warnings_count": 0
+  },
+  "commands": [
+    {
+      "command": "import_corebrain",
+      "status": "success",
+      "elapsed": 3.675002098083496,
+      "result": "<class 'cogniflex.core.core_brain.CoreBrain'>"
+    },
+    {
+      "command": "create_brain",
+      "status": "success",
+      "elapsed": 29.122694969177246,
+      "result": "<cogniflex.core.core_brain.CoreBrain object at 0x0000013D830B8C20>"
+    },
+    {
+      "command": "initialize_brain",
+      "status": "success",
+      "elapsed": 93.40270447731018,
+      "result": "True"
+    },
+    {
+      "command": "import_integrator",
+      "status": "success",
+      "elapsed": 0.015631914138793945,
+      "result": "<class 'cogniflex.core.integration_layer.CogniFlexIntegrator'>"
+    },
+    {
+      "command": "create_integrator",
+      "status": "error",
+      "elapsed": 1.3589859008789062e-05,
+      "error": "CogniFlexIntegrator.__init__() got an unexpected keyword argument 'brain'"
+    }
+  ],
+  "errors": [
+    {
+      "timestamp": "2026-03-11T20:46:43.001729",
+      "command": "create_integrator",
+      "error": "CogniFlexIntegrator.__init__() got an unexpected keyword argument 'brain'",
+      "context": "Args: (), Kwargs: {}"
+    }
+  ],
+  "warnings": []
+}

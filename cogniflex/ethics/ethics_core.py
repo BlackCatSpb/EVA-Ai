@@ -28,6 +28,9 @@ class EthicsFramework:
         self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "cogniflex_ethics_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
         
+        # Блокировка ресурсов
+        self.lock = threading.Lock()
+        
         # Инициализируем компоненты
         self.principles_manager = PrinciplesManager(self, self.cache_dir)
         self.risk_assessor = RiskAssessor(self.principles_manager, self.brain)
@@ -45,9 +48,6 @@ class EthicsFramework:
             "auto_decisions": 0,
             "last_assessment": 0
         }
-        
-        # Блокировка ресурсов
-        self.lock = threading.Lock()
         
         # Флаг работы системы
         self.running = False

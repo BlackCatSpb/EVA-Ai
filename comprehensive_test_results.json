@@ -1,0 +1,38 @@
+{
+  "imports": {
+    "core_brain": true,
+    "component_initializer": true,
+    "response_generator": true,
+    "memory_manager": true,
+    "knowledge_graph": true,
+    "ml_unit": true,
+    "chat_module": true,
+    "core_gui": true,
+    "text_processor": true,
+    "contradiction_core": true,
+    "learning_manager": true,
+    "adaptation_manager": true,
+    "ethics_framework": true,
+    "neuromorphic_simulator": true,
+    "web_search_engine": true,
+    "distributed_system": true
+  },
+  "components": {
+    "Brain": true,
+    "Component Initializer": true,
+    "GUI": true,
+    "GUI Modules": 7
+  },
+  "connections": {
+    "brain_memory": false,
+    "brain_components": true,
+    "brain_query": false,
+    "gui_brain": true,
+    "gui_chat": true,
+    "chat_brain_via_gui": true
+  },
+  "functionality": {
+    "brain_status": "Статус: {'attention_focus': False, 'dialog_active': False, 'contradictions_count': 0, 'learning_opportunities': 0}"
+  },
+  "overall_success": false
+}

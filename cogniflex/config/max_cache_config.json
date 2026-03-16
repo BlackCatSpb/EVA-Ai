@@ -1,0 +1,46 @@
+{
+  "manager_selection": {
+    "use_optimized": true,
+    "force_optimized": false,
+    "fallback_to_standard": true
+  },
+  "max_cache_settings": {
+    "max_memory_tokens": 773461,
+    "target_memory_gb": 2.9505226135253904,
+    "disk_cache_gb": 100.0,
+    "dynamic_memory_limit": true,
+    "max_ram_usage_percent": 60.0,
+    "eviction_policy": "lru",
+    "cache_ttl": 86400,
+    "disk_cache_size": 7734610
+  },
+  "optimizations": {
+    "cache_tokenization": true,
+    "parallel_tokenization": true,
+    "tokenization_workers": 8,
+    "memory_optimization": true,
+    "max_cache_size": 7734610,
+    "use_uint16": true,
+    "tensor_pool_size": 2000
+  },
+  "performance": {
+    "monitor_performance": true,
+    "log_performance_stats": true,
+    "performance_update_interval": 15,
+    "enable_profiling": true
+  },
+  "gui_integration": {
+    "show_performance_stats": true,
+    "enable_optimization_controls": true,
+    "auto_refresh_stats": true,
+    "show_cache_metrics": true,
+    "cache_update_interval": 5
+  },
+  "system_info": {
+    "total_ram_gb": 15.714836120605469,
+    "available_ram_gb": 4.916526794433594,
+    "cpu_cores": 8,
+    "cpu_cores_logical": 12,
+    "disk_free_gb": 530.4608383178711
+  }
+}

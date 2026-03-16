@@ -1,6 +1,6 @@
 """Пакет адаптации для CogniFlex - управление профилями пользователей и адаптация системы"""
 
-from .adaptation_manager import AdaptationManager
+from .adaptation_core import AdaptationManager
 from .adaptation_profiles import UserFeedback, UserProfile
 
 __all__ = [

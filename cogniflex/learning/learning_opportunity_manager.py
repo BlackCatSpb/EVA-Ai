@@ -1,9 +1,10 @@
 """Модуль управления возможностями для обучения в CogniFlex"""
 import json
-import logging
+import os
 import sqlite3
+import logging
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Any, Tuple
 from cogniflex.learning.analyzer_core import AnalyzerCore
 from cogniflex.learning.learning_opportunity import LearningOpportunity
 
@@ -16,6 +17,64 @@ class LearningOpportunityManager:
         self.brain = brain
         self.analyzer_core = analyzer_core or AnalyzerCore(brain)
         logger.info("LearningOpportunityManager инициализирован")
+    
+    def get_learning_opportunities(self) -> List[Dict[str, Any]]:
+        """
+        Возвращает список возможностей для обучения.
+        
+        Returns:
+            List[Dict[str, Any]]: Список возможностей обучения
+        """
+        opportunities = []
+        
+        try:
+            conn = sqlite3.connect(self.analyzer_core.db_path)
+            cursor = conn.cursor()
+            
+            # Получаем возможности из базы данных
+            cursor.execute("""
+                SELECT opportunity_id, concept, opportunity_type, description, 
+                       priority, timestamp, status
+                FROM learning_opportunities 
+                WHERE status = 'pending'
+                ORDER BY priority DESC, timestamp DESC
+                LIMIT 10
+            """)
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            for row in rows:
+                opportunity = {
+                    "id": row[0],
+                    "concept": row[1],
+                    "type": row[2],
+                    "description": row[3],
+                    "priority": row[4],
+                    "timestamp": row[5],
+                    "status": row[6]
+                }
+                opportunities.append(opportunity)
+                
+        except Exception as e:
+            logger.error(f"Ошибка получения возможностей обучения: {e}")
+            # Возвращаем базовые возможности при ошибке
+            opportunities = [
+                {
+                    "type": "pattern_analysis",
+                    "description": "Анализ паттернов в запросах пользователей",
+                    "priority": "medium",
+                    "timestamp": time.time()
+                },
+                {
+                    "type": "knowledge_expansion",
+                    "description": "Расширение базы знаний",
+                    "priority": "low",
+                    "timestamp": time.time()
+                }
+            ]
+        
+        return opportunities
     
     def execute_learning_opportunity(self, opportunity_id: str) -> bool:
         try:

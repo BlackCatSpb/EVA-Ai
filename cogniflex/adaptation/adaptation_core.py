@@ -153,22 +153,16 @@ class AdaptationManager:
             logger.error(f"Ошибка инициализации базы данных адаптации: {e}")
     
     def _get_connection(self) -> sqlite3.Connection:
-        """Возвращает соединение с базой данных для текущего потока."""
-        if not hasattr(threading.current_thread(), "adaptation_connection"):
-            # Создаем новое соединение для этого потока
-            threading.current_thread().adaptation_connection = sqlite3.connect(
-                self.db_path,
-                check_same_thread=False  # Разрешаем использование в разных потоках
-            )
-        return threading.current_thread().adaptation_connection
+        """Возвращает новое соединение с базой данных."""
+        return sqlite3.connect(self.db_path, check_same_thread=False)
     
     def _load_profiles(self):
         """Загружает профили пользователей из базы данных."""
         if not self.db_path:
             return
             
+        conn = self._get_connection()
         try:
-            conn = self._get_connection()
             cursor = conn.cursor()
             
             cursor.execute("SELECT * FROM user_profiles")
@@ -190,10 +184,11 @@ class AdaptationManager:
             # Обновляем статистику
             self._update_user_statistics()
             
-            conn.close()
             logger.debug(f"Загружено {len(self.user_profiles)} профилей пользователей")
         except Exception as e:
             logger.error(f"Ошибка загрузки профилей пользователей: {e}")
+        finally:
+            conn.close()
     
     def _save_profiles(self):
         """Сохраняет профили пользователей в базу данных."""
@@ -237,8 +232,8 @@ class AdaptationManager:
         if not self.db_path:
             return
             
+        conn = self._get_connection()
         try:
-            conn = self._get_connection()
             cursor = conn.cursor()
             
             cursor.execute("SELECT * FROM feedback")
@@ -259,18 +254,19 @@ class AdaptationManager:
             # Обновляем статистику
             self._update_feedback_statistics()
             
-            conn.close()
             logger.debug(f"Загружено {len(self.feedback_history)} записей фидбэка")
         except Exception as e:
             logger.error(f"Ошибка загрузки фидбэка: {e}")
+        finally:
+            conn.close()
     
     def _save_feedback(self):
         """Сохраняет историю фидбэка в базу данных."""
         if not self.db_path:
             return
             
+        conn = self._get_connection()
         try:
-            conn = self._get_connection()
             cursor = conn.cursor()
             
             # Очищаем таблицу
@@ -296,9 +292,10 @@ class AdaptationManager:
                 ))
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Ошибка сохранения фидбэка: {e}")
+        finally:
+            conn.close()
     
     def _update_user_statistics(self):
         """Обновляет статистику по пользователям."""
@@ -350,8 +347,8 @@ class AdaptationManager:
         if not self.db_path:
             return
             
+        conn = self._get_connection()
         try:
-            conn = self._get_connection()
             cursor = conn.cursor()
             
             cursor.execute('''
@@ -370,9 +367,10 @@ class AdaptationManager:
             ))
             
             conn.commit()
-            conn.close()
         except Exception as e:
             logger.error(f"Ошибка сохранения снимка статистики адаптации: {e}")
+        finally:
+            conn.close()
     
     def _init_background_processes(self):
         """Инициализирует фоновые процессы менеджера адаптации."""
@@ -441,9 +439,10 @@ class AdaptationManager:
             logger.debug("Фоновый анализ адаптации уже запущен")
             return
             
+        interval = 3600  # Интервал анализа в секундах (по умолчанию 1 час)
+        
         def analysis_loop():
-            # Интервал анализа в секундах (по умолчанию 1 час)
-            interval = 3600
+            nonlocal interval  # Используем нелокальную переменную interval
             
             while not self.stop_event.is_set():
                 try:
@@ -483,12 +482,144 @@ class AdaptationManager:
         """Закрывает менеджер адаптации и освобождает ресурсы."""
         self.stop()
         
-        # Закрываем соединение с БД для текущего потока
-        if hasattr(threading.current_thread(), "adaptation_connection"):
-            try:
-                threading.current_thread().adaptation_connection.close()
-                delattr(threading.current_thread(), "adaptation_connection")
-            except Exception as e:
-                logger.error(f"Ошибка закрытия соединения с БД: {e}")
-        
         logger.info("AdaptationManager закрыт")
+
+def _extract_concept_from_query(self, query: str) -> Optional[str]:
+    """Извлекает концепт из запроса пользователя с использованием полноценной NLP обработки."""
+    # Проверяем кэш для этого запроса
+    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
+    if not hasattr(self, '_concept_cache'):
+        self._concept_cache = {}
+    if query_hash in self._concept_cache:
+        return self._concept_cache[query_hash]
+    
+    logger.debug(f"Анализ запроса для извлечения концептов: '{query}'")
+    
+    # 1. Проверяем доступность NLP-процессора
+    if self.brain and hasattr(self.brain, 'nlp_processor'):
+        try:
+            # Обрабатываем текст с помощью NLP-процессора
+            analysis = self.brain.nlp_processor.process_text(query)
+            
+            # 2. Извлекаем ключевые концепты из анализа
+            candidate_concepts = []
+            
+            # Добавляем именованные сущности
+            for entity in analysis.entities:
+                if entity["type"] in ["CONCEPT", "TERM", "ORG", "PRODUCT", "TECH", "SCI", "PHIL"]:
+                    candidate_concepts.append({
+                        "concept": entity["text"],
+                        "type": entity["type"],
+                        "score": entity["confidence"]
+                    })
+            
+            # Добавляем ключевые слова из анализа
+            for keyword in analysis.keywords:
+                if keyword["relevance"] > 0.6:
+                    candidate_concepts.append({
+                        "concept": keyword["text"],
+                        "type": "KEYWORD",
+                        "score": keyword["relevance"]
+                    })
+            
+            # 3. Проверяем концепты в графе знаний
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and candidate_concepts:
+                valid_concepts = []
+                
+                for concept_data in candidate_concepts:
+                    concept = concept_data["concept"]
+                    
+                    # Проверяем, существует ли концепт в графе знаний
+                    node = self.brain.knowledge_graph.get_node_by_name(concept)
+                    if node:
+                        valid_concepts.append({
+                            "concept": concept,
+                            "type": concept_data["type"],
+                            "score": concept_data["score"] * 1.2,  # Увеличиваем вес для концептов из графа
+                            "in_knowledge_graph": True
+                        })
+                    else:
+                        # Проверяем похожие концепты
+                        similar_nodes = self.brain.knowledge_graph.find_similar_nodes(concept, threshold=0.75)
+                        if similar_nodes:
+                            # Берем наиболее похожий узел
+                            most_similar = max(similar_nodes, key=lambda x: x[1])
+                            valid_concepts.append({
+                                "concept": most_similar[0],
+                                "type": concept_data["type"],
+                                "score": concept_data["score"] * 0.8,  # Снижаем вес для похожих концептов
+                                "in_knowledge_graph": True,
+                                "similar_to": concept
+                            })
+                        else:
+                            valid_concepts.append(concept_data)
+                
+                # 4. Сортируем концепты по релевантности
+                valid_concepts.sort(key=lambda x: x["score"], reverse=True)
+                
+                # 5. Возвращаем наиболее релевантный концепт
+                if valid_concepts:
+                    result = valid_concepts[0]["concept"].replace(" ", "_").lower()
+                    self._concept_cache[query_hash] = result
+                    return result
+            
+        except Exception as e:
+            logger.error(f"Ошибка при NLP-анализе запроса: {e}")
+    
+    # Резервные методы, если NLP-обработка недоступна
+    # Метод 1: Используем список известных концептов из системы
+    if self.brain and hasattr(self.brain, 'contradiction_manager'):
+        known_concepts = self.brain.contradiction_manager.get_known_concepts()
+        query_lower = query.lower()
+        
+        for concept in known_concepts:
+            normalized_concept = concept.replace("_", " ").lower()
+            if normalized_concept in query_lower:
+                result = concept
+                self._concept_cache[query_hash] = result
+                return result
+    
+    # Метод 2: Используем простой анализ через spaCy, если он доступен
+    try:
+        import spacy
+        if not hasattr(self, 'nlp_spacy'):
+            try:
+                self.nlp_spacy = spacy.load("ru_core_news_sm")
+            except (ImportError, OSError):
+                try:
+                    spacy.cli.download("ru_core_news_sm")
+                    self.nlp_spacy = spacy.load("ru_core_news_sm")
+                except:
+                    self.nlp_spacy = None
+        
+        if self.nlp_spacy:
+            doc = self.nlp_spacy(query)
+            # Ищем составные именные группы
+            noun_phrases = [chunk.text for chunk in doc.noun_chunks if len(chunk.text) > 3]
+            
+            # Проверяем наиболее вероятные кандидаты
+            if noun_phrases:
+                # Берем самую длинную фразу (вероятно, наиболее специфичный концепт)
+                candidate = max(noun_phrases, key=len)
+                result = candidate.replace(" ", "_").lower()
+                self._concept_cache[query_hash] = result
+                return result
+    except Exception as e:
+        logger.debug(f"Не удалось использовать spaCy для анализа: {e}")
+    
+    # Метод 3: Используем TF-IDF для выделения ключевых терминов
+    try:
+        if self.brain and hasattr(self.brain, 'nlp_processor'):
+            keywords = self.brain.nlp_processor.extract_keywords(query, top_n=3)
+            if keywords:
+                # Берем наиболее релевантное ключевое слово
+                result = keywords[0][0].replace(" ", "_").lower()
+                self._concept_cache[query_hash] = result
+                return result
+    except Exception as e:
+        logger.debug(f"Не удалось использовать TF-IDF анализ: {e}")
+    
+    # 4. Если все методы не сработали, возвращаем None
+    logger.debug(f"Не удалось определить концепт из запроса: '{query}'")
+    self._concept_cache[query_hash] = None
+    return None

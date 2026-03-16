@@ -1,8 +1,16 @@
 """Модуль обработки запросов для CogniFlex"""
 import time
 import logging
+import hashlib
 from typing import Dict, Any, Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+try:
+    import torch  # для демо-интеграции пула инференса
+    TORCH_AVAILABLE = True
+except (ImportError, ModuleNotFoundError, RuntimeError):
+    torch = None  # type: ignore
+    TORCH_AVAILABLE = False
 
 # Настройка логгера для этого модуля
 logger = logging.getLogger(__name__)
@@ -23,6 +31,30 @@ class QueryProcessor:
             brain: Ссылка на ядро системы
         """
         self.brain = brain
+        # Инициализируем ссылки на общий гибридный кэш и общий executor
+        self.hybrid_cache = None
+        self.executor: Optional[ThreadPoolExecutor] = None
+        self._own_executor = False
+
+        try:
+            # Получаем гибридный кэш из MemoryManager, затем из текстового процессора
+            if getattr(self.brain, "memory_manager", None) and hasattr(self.brain.memory_manager, "get_hybrid_cache"):
+                self.hybrid_cache = self.brain.memory_manager.get_hybrid_cache()
+            if not self.hybrid_cache and getattr(self.brain, "text_processor", None):
+                self.hybrid_cache = getattr(self.brain.text_processor, "hybrid_cache", None)
+        except (AttributeError, TypeError, RuntimeError) as e:
+            logger.debug(f"Ошибка инициализации hybrid_cache: {e}")
+
+        try:
+            # Переиспользуем executor из текстового процессора, если есть
+            if getattr(self.brain, "text_processor", None) and getattr(self.brain.text_processor, "executor", None):
+                self.executor = self.brain.text_processor.executor
+            # Иначе создаём собственный пул
+            if self.executor is None:
+                self.executor = ThreadPoolExecutor(max_workers=4)
+                self._own_executor = True
+        except (AttributeError, TypeError, RuntimeError, OSError) as e:
+            logger.debug(f"Ошибка инициализации executor: {e}")
 
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через конвейер обработки.
@@ -45,7 +77,7 @@ class QueryProcessor:
         }
 
         try:
-            # 1) NLP preprocessing
+            # 1) NLP preprocessing (с кэшированием)
             nlp_info = self._process_nlp(query)
 
             # 2) Извлечение концептов
@@ -63,13 +95,14 @@ class QueryProcessor:
                             evidence.append({**getattr(n, "__dict__", {}), "_repr": str(n)})
                         else:
                             evidence.append({"repr": str(n)})
-                except Exception:
-                    logger.exception("Ошибка подготовки доказательств из узлов KG")
+                except (AttributeError, TypeError, ValueError) as e:
+                    logger.debug(f"Ошибка подготовки доказательств из узлов KG: {e}")
 
                 # Опциональное дополнение веб-поиском при включённой конфигурации
                 try:
                     augment_web = bool(getattr(self.brain, "config", {}).get("augment_with_web_on_kg", True))
-                except Exception:
+                except (AttributeError, TypeError, ValueError) as e:
+                    logger.debug(f"Ошибка получения конфигурации веб-дополнения: {e}")
                     augment_web = True
 
                 if augment_web and self.brain.components.get("web_search_engine"):
@@ -100,12 +133,12 @@ class QueryProcessor:
                 try:
                     if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
                         self.brain.metrics_manager.update_request_metrics(time.time() - start_time, True)
-                except Exception:
-                    logger.exception("Ошибка обновления метрик после пути KG->генерация")
+                except (AttributeError, TypeError, ValueError) as e:
+                    logger.debug(f"Ошибка обновления метрик после пути KG->генерация: {e}")
 
                 return result
 
-            # 4) Параллельный поиск в памяти и вебе
+            # 4) Параллельный поиск в памяти и вебе (с кэшированием)
             evidence = self._parallel_search(query)
             result["evidence"] = evidence
 
@@ -127,16 +160,40 @@ class QueryProcessor:
 
             # 8) Обновление метрик
             processing_time = time.time() - start_time
+            # Собираем макроблок-метрики, если ядро их предоставляет
+            macroblocks_stats = {}
+            try:
+                if hasattr(self.brain, "get_macroblocks_stats"):
+                    logger.debug("[QueryProcessor] Collecting macroblocks stats from CoreBrain")
+                    mb = self.brain.get_macroblocks_stats()
+                    if isinstance(mb, dict):
+                        macroblocks_stats = mb
+                        try:
+                            logger.debug("[QueryProcessor] Macroblocks stats modules=%s", list(mb.keys()))
+                        except (AttributeError, TypeError) as e:
+                            logger.debug(f"Ошибка логирования macroblocks stats: {e}")
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка получения macroblocks stats: {e}")
+                macroblocks_stats = {}
+            
+            logger.debug("[QueryProcessor] Emitting metrics with macroblocks=%s", 
+                        list(macroblocks_stats.keys()) if isinstance(macroblocks_stats, dict) else type(macroblocks_stats))
             result["metrics"] = {
                 "time": processing_time,
-                "nlp_info": nlp_info
+                "nlp_info": nlp_info,
+                "macroblocks": macroblocks_stats,
             }
 
             try:
                 if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
                     self.brain.metrics_manager.update_request_metrics(processing_time, True)
-            except Exception:
-                logger.exception("Ошибка обновления метрик в конце process_query")
+                # Дополнительно эмитим нормализованные метрики
+                self._emit_metrics([
+                    {"name": "query_processor.requests_total", "component": "query_processor", "type": "counter", "value": 1.0, "labels": {"result": "success"}},
+                    {"name": "query_processor.process_time_seconds", "component": "query_processor", "type": "summary", "value": float(processing_time)},
+                ])
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка обновления метрик в конце process_query: {e}")
 
             return result
 
@@ -145,8 +202,11 @@ class QueryProcessor:
             try:
                 if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
                     self.brain.metrics_manager.update_request_metrics(time.time() - start_time, False)
-            except Exception:
-                logger.exception("Ошибка обновления метрик после исключения в process_query")
+                self._emit_metrics([
+                    {"name": "query_processor.requests_total", "component": "query_processor", "type": "counter", "value": 1.0, "labels": {"result": "error"}},
+                ])
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка обновления метрик после исключения в process_query: {e}")
             result["error"] = str(e)
             result["response"] = f"Произошла ошибка: {e}"
             return result
@@ -168,13 +228,64 @@ class QueryProcessor:
         }
 
         try:
+            cache_key = None
+            if self.hybrid_cache:
+                try:
+                    cache_key = f"nlp:{hashlib.md5(query.encode('utf-8')).hexdigest()}"
+                    cached = self.hybrid_cache.get(cache_key)
+                    if isinstance(cached, dict) and cached.get("metadata", {}).get("processor"):
+                        return cached
+                except (AttributeError, TypeError, ValueError) as e:
+                    logger.debug(f"Ошибка получения данных из кэша NLP: {e}")
+
             if self.brain.components.get("ml_unit"):
                 try:
                     nlp_info = self.brain.components["ml_unit"].process_text(query)
+                    # Сохраняем в кэш
+                    if self.hybrid_cache and cache_key:
+                        try:
+                            self.hybrid_cache.set(cache_key, nlp_info)
+                        except (AttributeError, TypeError, ValueError) as e:
+                            logger.debug(f"Ошибка сохранения в кэш NLP: {e}")
                 except Exception as e:
                     logger.warning(f"Ошибка NLP обработки: {e}")
-        except Exception:
-            logger.exception("Ошибка при попытке доступа к ml_unit в _process_nlp")
+
+            # Доп. демо-интеграция адаптера/пула инференса (опционально через конфиг)
+            try:
+                demo_enabled = bool(getattr(self.brain, "config", {}).get("nlp_demo_integration", False))
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка получения конфигурации nlp_demo_integration: {e}")
+                demo_enabled = False
+            
+            if demo_enabled and torch is not None:
+                try:
+                    # Простейший item: в качестве input_ids используем длину запроса как диапазон [0..len-1]
+                    length = max(1, len(query))
+                    ids = torch.arange(length, dtype=torch.long)
+                    item = {"input_ids": ids}
+                    # Кладём в модуль "default"
+                    if hasattr(self.brain, "nlp_enqueue"):
+                        self.brain.nlp_enqueue(item, module="default")
+                        # Форсируем выпуск оставшегося батча
+                        self.brain.nlp_flush(module="default")
+                        # Неблокирующий забор результатов (один раз для краткости)
+                        res = self.brain.nlp_try_get_result(module="default", timeout_s=0.0)
+                        if isinstance(res, dict):
+                            # Сохраняем компактный след в метаданные nlp_info
+                            try:
+                                val = res.get("logits")
+                                if hasattr(val, 'detach'):
+                                    val = val.detach().cpu().flatten().tolist()[:3]
+                                nlp_info.setdefault("pool_demo", {})["preview"] = val
+                            except (AttributeError, TypeError, ValueError) as e:
+                                logger.debug(f"Ошибка обработки результатов пула: {e}")
+                                nlp_info.setdefault("pool_demo", {})["preview"] = "ok"
+                except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+                    logger.debug(f"Ошибка в демо-интеграции пула инференса: {e}")
+                    # Демонстрационная часть не должна ломать основной путь
+                    pass
+        except (AttributeError, TypeError, RuntimeError) as e:
+            logger.debug(f"Ошибка при попытке доступа к ml_unit в _process_nlp: {e}")
 
         return nlp_info
 
@@ -194,8 +305,8 @@ class QueryProcessor:
                     concept = self.brain.components["adaptation_manager"]._extract_concept_from_query(query)
                 except Exception as e:
                     logger.warning(f"Ошибка извлечения концепта: {e}")
-        except Exception:
-            logger.exception("Ошибка при попытке доступа к adaptation_manager в _extract_concept")
+        except (AttributeError, TypeError, RuntimeError) as e:
+            logger.debug(f"Ошибка при попытке доступа к adaptation_manager в _extract_concept: {e}")
         return concept
 
     def _search_knowledge_graph(self, query: str, limit: int = 3) -> List[Any]:
@@ -212,22 +323,45 @@ class QueryProcessor:
             if not self.brain.components.get("knowledge_graph"):
                 return []
 
+            # Проверяем кэш
+            cache_key = None
+            if self.hybrid_cache:
+                try:
+                    cache_key = f"kg:{hashlib.md5((query + '|' + str(limit)).encode('utf-8')).hexdigest()}"
+                    cached_nodes = self.hybrid_cache.get(cache_key)
+                    if isinstance(cached_nodes, list) and cached_nodes:
+                        return cached_nodes
+                except (AttributeError, TypeError, ValueError, KeyError, IndexError) as e:
+                    logger.debug(f"Ошибка получения данных из кэша KG: {e}")
+
             kg = self.brain.components["knowledge_graph"]
 
             # Проверяем доступные методы поиска
             for method_name in ['search_nodes', 'search', 'find_nodes', 'query_nodes']:
                 if hasattr(kg, method_name):
                     try:
-                        return getattr(kg, method_name)(query, limit=limit)
+                        nodes = getattr(kg, method_name)(query, limit=limit)
+                        if self.hybrid_cache and cache_key:
+                            try:
+                                self.hybrid_cache.set(cache_key, nodes)
+                            except (AttributeError, TypeError, ValueError) as e:
+                                logger.debug(f"Ошибка сохранения в кэш KG: {e}")
+                        return nodes
                     except TypeError:
                         # Пытаемся вызвать без параметра limit
                         try:
-                            return getattr(kg, method_name)(query)
+                            nodes = getattr(kg, method_name)(query)
+                            if self.hybrid_cache and cache_key:
+                                try:
+                                    self.hybrid_cache.set(cache_key, nodes)
+                                except (AttributeError, TypeError, ValueError) as e:
+                                    logger.debug(f"Ошибка кэширования узлов KG: {e}")
+                            return nodes
                         except Exception as e:
                             logger.warning(f"Ошибка вызова {method_name}: {e}")
                             return []
-        except Exception:
-            logger.exception("Ошибка в _search_knowledge_graph")
+        except (AttributeError, TypeError, RuntimeError) as e:
+            logger.debug(f"Ошибка в _search_knowledge_graph: {e}")
         return []
 
     def _build_response_from_nodes(self, result: Dict, nodes: List[Any], start_time: float) -> Dict[str, Any]:
@@ -249,8 +383,8 @@ class QueryProcessor:
                 "evidence": [getattr(n, "__dict__", lambda: {"repr": str(n)})() for n in nodes],
                 "metrics": {"time": time.time() - start_time}
             })
-        except Exception:
-            logger.exception("Ошибка при сборке ответа из узлов графа")
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            logger.debug(f"Ошибка при сборке ответа из узлов графа: {e}")
         return result
 
     def _parallel_search(self, query: str) -> List[Dict[str, Any]]:
@@ -265,29 +399,63 @@ class QueryProcessor:
         evidence: List[Dict[str, Any]] = []
         futures = []
 
+        # Попытка получить из кэша заранее объединённые доказательства (если включено через конфиг)
+        cache_key = None
+        evidence_cache_enabled = True
         try:
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                # Поиск в памяти
-                if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search'):
-                    futures.append(executor.submit(self.brain.components["memory_manager"].search, query))
+            evidence_cache_enabled = bool(getattr(self.brain, "config", {}).get("evidence_cache_enabled", True))
+        except (AttributeError, TypeError, ValueError) as e:
+            logger.debug(f"Ошибка получения конфигурации evidence_cache_enabled: {e}")
+            evidence_cache_enabled = True
 
-                # Веб-поиск
-                if self.brain.components.get("web_search_engine"):
-                    futures.append(executor.submit(self.brain.components["web_search_engine"].search, query, max_results=3))
+        if self.hybrid_cache and evidence_cache_enabled:
+            try:
+                cache_key = f"evidence:{hashlib.md5(query.encode('utf-8')).hexdigest()}"
+                cached = self.hybrid_cache.get(cache_key)
+                if isinstance(cached, list) and cached:
+                    return cached
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка получения кэша доказательств: {e}")
 
-                # Сбор результатов
-                for future in as_completed(futures):
-                    try:
-                        results = future.result()
-                        # Нормализуем: если результат — список, расширяем, иначе добавляем как единицу доказательств
-                        if isinstance(results, list):
-                            evidence.extend(results)
-                        else:
-                            evidence.append(results)
-                    except Exception as e:
-                        logger.warning(f"Ошибка при асинхронном поиске: {e}")
-        except Exception:
-            logger.exception("Критическая ошибка в _parallel_search")
+        try:
+            exec_ref = self.executor
+            if exec_ref is None:
+                exec_ref = ThreadPoolExecutor(max_workers=2)
+            
+            # Поиск в памяти
+            if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search'):
+                try:
+                    futures.append(exec_ref.submit(self.brain.components["memory_manager"].search, query))
+                except (AttributeError, TypeError, RuntimeError) as e:
+                    logger.debug(f"Ошибка добавления поиска memory_manager: {e}")
+
+            # Веб-поиск
+            if self.brain.components.get("web_search_engine"):
+                try:
+                    futures.append(exec_ref.submit(self.brain.components["web_search_engine"].search, query, max_results=3))
+                except (AttributeError, TypeError, RuntimeError) as e:
+                    logger.debug(f"Ошибка добавления веб-поиска: {e}")
+
+            # Сбор результатов
+            for future in as_completed(futures):
+                try:
+                    results = future.result()
+                    # Нормализуем: если результат — список, расширяем, иначе добавляем как единицу доказательств
+                    if isinstance(results, list):
+                        evidence.extend(results)
+                    elif results is not None:
+                        evidence.append(results)
+                except Exception as e:
+                    logger.warning(f"Ошибка при асинхронном поиске: {e}")
+        except (RuntimeError, TimeoutError, OSError) as e:
+            logger.debug(f"Критическая ошибка в _parallel_search: {e}")
+
+        # Сохраняем объединённые доказательства в кэш (если включено)
+        if self.hybrid_cache and cache_key and evidence_cache_enabled:
+            try:
+                self.hybrid_cache.set(cache_key, evidence)
+            except (AttributeError, TypeError, ValueError) as e:
+                logger.debug(f"Ошибка сохранения объединённых доказательств в кэш: {e}")
 
         return evidence
 
@@ -305,10 +473,28 @@ class QueryProcessor:
         Returns:
             Optional[str]: Сгенерированный ответ или None
         """
-        if not self.brain.components.get("ml_unit"):
-            return "Извините, модуль генерации недоступен."
-
         try:
+            # Используем унифицированный метод process_query
+            if hasattr(self.brain, 'process_query'):
+                gen_context = {
+                    "nlp": nlp_info,
+                    "evidence": evidence,
+                    "concept": concept,
+                    "user_context": user_context
+                }
+                
+                result = self.brain.process_query(query, context=gen_context)
+                if result and isinstance(result, dict):
+                    return result.get('text', 'Ошибка обработки')
+                elif isinstance(result, str):
+                    return result
+                else:
+                    return "Ошибка обработки ответа"
+            
+            # Запасной вариант: используем старую логику, если GenerationCoordinator недоступен
+            if not self.brain.components.get("ml_unit"):
+                return "Извините, модуль генерации недоступен."
+            
             # Формируем контекст для генерации
             gen_context = {
                 "nlp": nlp_info,
@@ -318,17 +504,17 @@ class QueryProcessor:
             }
 
             # Генерируем ответ
-            ml = self.brain.components["ml_unit"]
-            if hasattr(ml, "process_query"):
-                return ml.process_query(query, context=gen_context)
-            elif hasattr(ml, "generate_response"):
-                return ml.generate_response(query, context=gen_context)
+            result = self.brain.process_query(query, context=gen_context)
+            if result and isinstance(result, dict):
+                return result.get('text', 'Ошибка обработки')
+            elif isinstance(result, str):
+                return result
             else:
-                logger.warning("ml_unit не поддерживает process_query или generate_response")
-                return "Извините, модуль генерации не поддерживает необходимые методы."
-        except Exception:
-            logger.exception("Ошибка генерации ответа")
-            return None
+                return "Ошибка обработки ответа"
+                
+        except Exception as e:
+            logger.exception(f"Ошибка генерации ответа: {e}")
+            return "Извините, произошла ошибка при генерации ответа. Пожалуйста, попробуйте еще раз."
 
     def _check_ethics(self, response: str, nlp_info: Dict, user_context: Optional[Dict]) -> Dict[str, Any]:
         """Проверяет ответ на соответствие этическим нормам.
@@ -362,8 +548,8 @@ class QueryProcessor:
                     }
                 except Exception as e:
                     logger.warning(f"Ошибка этической проверки: {e}")
-        except Exception:
-            logger.exception("Ошибка при попытке доступа к ethics_framework в _check_ethics")
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            logger.debug(f"Ошибка при попытке доступа к ethics_framework в _check_ethics: {e}")
 
         return ethics_result
 
@@ -391,7 +577,31 @@ class QueryProcessor:
                         contradictions = resolver.get_active_contradictions()
                 except Exception as e:
                     logger.warning(f"Ошибка проверки противоречий: {e}")
-        except Exception:
-            logger.exception("Ошибка при попытке доступа к contradiction_resolver в _check_contradictions")
+        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+            logger.debug(f"Ошибка при попытке доступа к contradiction_resolver в _check_contradictions: {e}")
 
         return contradictions
+
+    def _emit_metrics(self, metrics: List[Dict[str, Any]]):
+        """Безопасная эмиссия метрик для QueryProcessor (через событийную шину и прямой вызов)."""
+        try:
+            if getattr(self, "brain", None):
+                try:
+                    if hasattr(self.brain, "events") and self.brain.events:
+                        self.brain.events.trigger('metrics', metrics)
+                except (AttributeError, TypeError, RuntimeError) as e:
+                    logger.debug(f"Ошибка отправки метрик через события: {e}")
+                try:
+                    if hasattr(self.brain, "emit_metrics"):
+                        self.brain.emit_metrics(metrics)
+                except (AttributeError, TypeError, RuntimeError) as e:
+                    logger.debug(f"Ошибка прямого вызова emit_metrics: {e}")
+        except (AttributeError, TypeError, RuntimeError) as e:
+            logger.debug(f"Ошибка в _emit_metrics: {e}")
+
+    def __del__(self):
+        try:
+            if self._own_executor and self.executor:
+                self.executor.shutdown(wait=False)
+        except (AttributeError, TypeError, RuntimeError, OSError) as e:
+            logger.debug(f"Ошибка при shutdown executor: {e}")

@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 """
 BaseJob: интерфейс задач для Автопилота
 """
-from __future__ import annotations
 from typing import Any
+import logging
 try:
     from cogniflex.core.deferred_command_system import CommandPriority
-except Exception:  # fallback when deferred system is unavailable
+except (ImportError, ModuleNotFoundError) as e:  # fallback when deferred system is unavailable
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Deferred command system unavailable: {e}")
     class CommandPriority:  # type: ignore
         LOW = 10
         MEDIUM = 20

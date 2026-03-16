@@ -1,3 +1,19 @@
+
+def safe_json_loads(value):
+    """Безопасная загрузка JSON с обработкой ошибок."""
+    if not value:
+        return {}
+    try:
+        if isinstance(value, str):
+            return json.loads(value)
+        elif isinstance(value, (bytes, bytearray)):
+            return json.loads(value.decode('utf-8'))
+        else:
+            # Если значение не является строкой, возвращаем пустой dict
+            return {}
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        return {}
+
 """
 Модуль графа знаний для CogniFlex - управление структурой знаний
 Обновленная версия с поддержкой гибридного кэша, асинхронной токенизации и версионирования
@@ -62,6 +78,7 @@ class RelationType(Enum):
     PART_OF = "part_of"
     HAS_PROPERTY = "has_property"
     CAUSES = "causes"
+    SUPPORTS = "supports"
     USED_FOR = "used_for"
     LOCATED_AT = "located_at"
     OCCURS_DURING = "occurs_during"
@@ -419,36 +436,13 @@ class KnowledgeGraph:
         self.brain = brain
         self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "cogniflex_knowledge_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
-        
-        # Инициализация компонентов для интеграции
-        self._init_integration_components(hybrid_cache, text_processor)
-        
-        # Путь к базе данных
-        self.db_path = os.path.join(self.cache_dir, "knowledge_graph.db")
-        
-        # Инициализируем базу данных
-        self._init_db()
-        
-        # Загружаем узлы и связи
+
+        # Настройки пула потоков должны быть доступны раннее для зависимостей
+        self.max_workers = max_workers
+
+        # Подготовка структур и статистики до загрузки БД
         self.nodes = {}
         self.edges = {}
-        self._load_nodes()
-        self._load_edges()
-        
-        # Инициализируем индексы
-        self._init_indexes()
-        
-        # Пул потоков для асинхронных операций
-        self.max_workers = max_workers
-        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
-        self.futures: Dict[str, Future] = {}
-        
-        # Состояние
-        self.initialized = True
-        self.running = False
-        self.stop_event = threading.Event()
-        
-        # Статистика
         self.stats = {
             "total_nodes": 0,
             "total_edges": 0,
@@ -461,10 +455,35 @@ class KnowledgeGraph:
             "failed_queries": 0,
             "total_processing_time": 0.0
         }
-        
+
+        # Инициализация компонентов для интеграции (могут зависеть от max_workers)
+        self._init_integration_components(hybrid_cache, text_processor)
+
+        # Путь к базе данных
+        self.db_path = os.path.join(self.cache_dir, "knowledge_graph.db")
+
+        # Инициализируем базу данных
+        self._init_db()
+
+        # Загружаем узлы и связи
+        self._load_nodes()
+        self._load_edges()
+
+        # Инициализируем индексы
+        self._init_indexes()
+
+        # Пул потоков для асинхронных операций
+        self.executor = ThreadPoolExecutor(max_workers=self.max_workers)
+        self.futures: Dict[str, Future] = {}
+
+        # Состояние
+        self.initialized = True
+        self.running = False
+        self.stop_event = threading.Event()
+
         # Запускаем фоновые службы
         self._start_background_services()
-        
+
         logger.info(f"KnowledgeGraph инициализирован с {len(self.nodes)} узлами и {len(self.edges)} связями")
     
     def _init_integration_components(self, hybrid_cache: Optional[Any], text_processor: Optional[Any]):
@@ -473,14 +492,11 @@ class KnowledgeGraph:
         self.hybrid_cache = hybrid_cache
         if self.hybrid_cache is None and HybridTokenCache:
             try:
+                # Используем поддерживаемые параметры HybridTokenCache
                 self.hybrid_cache = HybridTokenCache(
                     brain=self.brain,
-                    cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
-                    max_memory_size=10000,
-                    disk_cache_threshold=5000,
-                    eviction_policy="lru",
-                    cache_ttl=86400,
-                    disk_cache_size=50000
+                    max_memory_tokens=10000,
+                    disk_cache_dir="hybrid_cache"
                 )
                 logger.debug("Создан внутренний гибридный кэш")
             except Exception as e:
@@ -490,12 +506,13 @@ class KnowledgeGraph:
         self.text_processor = text_processor
         if self.text_processor is None and UnifiedTextProcessor:
             try:
+                config = {
+                    'model_name': "paraphrase-multilingual-MiniLM-L12-v2",
+                    'use_async': True
+                }
                 self.text_processor = UnifiedTextProcessor(
                     brain=self.brain,
-                    cache_dir=os.path.join(self.cache_dir, "text_processing"),
-                    use_gpu=True,
-                    max_workers=self.max_workers,
-                    hybrid_cache=self.hybrid_cache
+                    config=config
                 )
                 logger.debug("Создан внутренний текстовый процессор")
             except Exception as e:
@@ -608,16 +625,16 @@ class KnowledgeGraph:
                     domain=row[4],
                     strength=row[5],
                     timestamp=row[6],
-                    meta=json.loads(row[9]) if row[9] else {},
+                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
                     version=row[8],
-                    spatial_info=json.loads(row[10]) if row[10] else {},
-                    temporal_info=json.loads(row[11]) if row[11] else {}
+                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
                 )
                 node.last_updated = row[7]
-                node.history = json.loads(row[12]) if row[12] else []
-                node.contradictions = json.loads(row[13]) if row[13] else []
-                node.keyword_index = json.loads(row[14]) if row[14] else []
-                node.concept_index = json.loads(row[15]) if row[15] else []
+                node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+                node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
+                node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
+                node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
                 
                 self.nodes[node.id] = node
             
@@ -646,13 +663,13 @@ class KnowledgeGraph:
                     relation_type=row[3],
                     strength=row[4],
                     timestamp=row[5],
-                    meta=json.loads(row[9]) if row[9] else {},
+                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
                     version=row[8],
-                    spatial_info=json.loads(row[10]) if row[10] else {},
-                    temporal_info=json.loads(row[11]) if row[11] else {}
+                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
                 )
                 edge.last_updated = row[6]
-                edge.history = json.loads(row[12]) if row[12] else []
+                edge.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
                 
                 self.edges[edge.id] = edge
             
@@ -667,6 +684,21 @@ class KnowledgeGraph:
     
     def _init_indexes(self):
         """Инициализирует индексы для быстрого поиска."""
+        def safe_sort_key(item):
+            """Безопасное извлечение временной метки для сортировки"""
+            timestamp = item[0]
+            if isinstance(timestamp, str):
+                try:
+                    # Пытаемся преобразовать строку в число
+                    return float(timestamp)
+                except (ValueError, TypeError):
+                    # Если не получается - используем 0 как значение по умолчанию
+                    return 0.0
+            elif isinstance(timestamp, (int, float)):
+                return float(timestamp)
+            # Для других типов возвращаем 0
+            return 0.0
+
         # Индекс по доменам
         self.domain_index = defaultdict(list)
         for node in self.nodes.values():
@@ -691,18 +723,6 @@ class KnowledgeGraph:
                 self.temporal_index.append((node.last_updated, node.id, "node"))
         
         for edge in self.edges.values():
-            if edge.temporal_info:
-                self.temporal_index.append((edge.timestamp, edge.id, "edge"))
-            if edge.last_updated != edge.timestamp:
-                self.temporal_index.append((edge.last_updated, edge.id, "edge"))
-        
-        # Сортируем временной индекс
-        self.temporal_index.sort(key=lambda x: x[0])
-    
-    def _update_indexes(self, node: Optional[KnowledgeNode] = None, 
-                       edge: Optional[KnowledgeEdge] = None):
-        """Обновляет индексы после изменений."""
-        if node:
             # Обновляем доменный индекс
             self.domain_index[node.domain] = [
                 nid for nid in self.domain_index[node.domain] if nid != node.id
@@ -724,8 +744,8 @@ class KnowledgeGraph:
             if node.last_updated != node.timestamp:
                 self.temporal_index.append((node.last_updated, node.id, "node"))
             
-            # Сортируем временной индекс
-            self.temporal_index.sort(key=lambda x: x[0])
+            # Сортируем временной индекс с безопасной функцией сортировки
+            self.temporal_index.sort(key=safe_sort_key)
         
         if edge:
             # Обновляем индекс связей
@@ -743,8 +763,8 @@ class KnowledgeGraph:
             if edge.last_updated != edge.timestamp:
                 self.temporal_index.append((edge.last_updated, edge.id, "edge"))
             
-            # Сортируем временной индекс
-            self.temporal_index.sort(key=lambda x: x[0])
+            # Сортируем временной индекс с безопасной функцией сортировки
+            self.temporal_index.sort(key=safe_sort_key)
     
     def _start_background_services(self):
         """Запускает фоновые службы графа знаний."""
@@ -1139,7 +1159,18 @@ class KnowledgeGraph:
                     self.temporal_index.append((edge.last_updated, edge.id, "edge"))
             
             # Сортируем временной индекс
-            self.temporal_index.sort(key=lambda x: x[0])
+            # Сортируем временной индекс, приводя timestamp к float
+            def sort_key(x):
+                ts = x[0]
+                if isinstance(ts, (int, float)):
+                    return float(ts)
+                elif isinstance(ts, str):
+                    try:
+                        return float(ts)
+                    except (ValueError, TypeError):
+                        return 0.0
+                return 0.0
+            self.temporal_index.sort(key=sort_key)
             
             logger.debug("Индексы графа знаний оптимизированы")
         except Exception as e:
@@ -1246,6 +1277,43 @@ class KnowledgeGraph:
             logger.error(f"Ошибка добавления узла в граф знаний: {e}", exc_info=True)
             self._update_statistics(start_time, False)
             return ""
+
+    def add_concept(self, concept: str, description: str,
+                    domain: str = "general", strength: float = 1.0,
+                    source: Optional[str] = None, tags: Optional[list] = None,
+                    user_id: Optional[str] = None,
+                    spatial_info: Optional[Dict] = None,
+                    temporal_info: Optional[Dict] = None) -> str:
+        """
+        Обертка для обратной совместимости: добавляет концепт как узел типа "concept".
+
+        Args:
+            concept: Название концепта
+            description: Описание концепта
+            domain: Домен знаний
+            strength: Сила знания (0.0-1.0)
+            source: Источник информации
+            tags: Теги (необязательно)
+            user_id: ID пользователя (необязательно)
+            spatial_info: Пространственные метаданные (необязательно)
+            temporal_info: Временные метаданные (необязательно)
+
+        Returns:
+            str: ID созданного узла
+        """
+        meta = {"source": source, "tags": (tags or []), "user_id": user_id}
+        return self.add_node(
+            name=concept,
+            description=description,
+            node_type="concept",
+            domain=domain,
+            strength=strength,
+            meta=meta,
+            spatial_info=spatial_info,
+            temporal_info=temporal_info,
+            user_id=user_id,
+            source=source,
+        )
     
     def _update_statistics(self, start_time: float, success: bool):
         """Обновляет статистику запросов."""
@@ -1899,6 +1967,18 @@ class KnowledgeGraph:
             List[KnowledgeNode]: Список всех узлов
         """
         return list(self.nodes.values())
+
+    def get_nodes_by_domain(self, domain: str) -> List[KnowledgeNode]:
+        """
+        Возвращает узлы указанного домена.
+        
+        Args:
+            domain: Домен для фильтрации узлов
+            
+        Returns:
+            List[KnowledgeNode]: Список узлов указанного домена
+        """
+        return [node for node in self.nodes.values() if node.domain == domain]
     
     def get_all_edges(self) -> List[KnowledgeEdge]:
         """
@@ -1998,7 +2078,9 @@ class KnowledgeGraph:
             
             # Подготавливаем запрос
             query_lower = query.lower()
-            params = [f"%{query_lower}%", f"%{query_lower}%"]
+            # Параметры должны соответствовать порядку плейсхолдеров в SQL:
+            # (LIKE name, LIKE description, strength, [domains...], [node_types...], limit)
+            params = [f"%{query_lower}%", f"%{query_lower}%", min_strength]
             
             sql = """
             SELECT id, name, description, node_type, domain, strength, timestamp, last_updated, 
@@ -2025,6 +2107,19 @@ class KnowledgeGraph:
             sql += " ORDER BY strength DESC LIMIT ?"
             params.append(limit)
             
+            # Диагностика: проверяем соответствие количества плейсхолдеров и параметров
+            placeholders_count = sql.count("?")
+            if placeholders_count != len(params):
+                logger.error(
+                    f"Несоответствие параметров SQL: плейсхолдеров={placeholders_count}, параметров={len(params)}. "
+                    f"SQL={sql} | params={params}"
+                )
+            else:
+                logger.debug(
+                    f"Выполняем SQL запрос. Плейсхолдеров={placeholders_count}, параметров={len(params)}. "
+                    f"SQL={sql} | params={params}"
+                )
+
             cursor.execute(sql, params)
             
             results = []
@@ -2037,16 +2132,16 @@ class KnowledgeGraph:
                     domain=row[4],
                     strength=row[5],
                     timestamp=row[6],
-                    meta=json.loads(row[9]) if row[9] else {},
+                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
                     version=row[8],
-                    spatial_info=json.loads(row[10]) if row[10] else {},
-                    temporal_info=json.loads(row[11]) if row[11] else {}
+                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
                 )
                 node.last_updated = row[7]
-                node.history = json.loads(row[12]) if row[12] else []
-                node.contradictions = json.loads(row[13]) if row[13] else []
-                node.keyword_index = json.loads(row[14]) if row[14] else []
-                node.concept_index = json.loads(row[15]) if row[15] else []
+                node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+                node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
+                node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
+                node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
                 
                 results.append(node)
             
@@ -2280,6 +2375,33 @@ class KnowledgeGraph:
             logger.error(f"Ошибка удаления узла: {e}", exc_info=True)
             return False
     
+    def remove_all_concepts(self, user_id: Optional[str] = None) -> int:
+        """
+        Массово удаляет все узлы типа "concept" из графа знаний.
+
+        Args:
+            user_id: ID пользователя, инициировавшего удаление (опционально)
+
+        Returns:
+            int: Количество успешно удалённых узлов
+        """
+        try:
+            # Собираем список ID узлов типа "concept" на текущий момент
+            concept_ids = [n.id for n in list(self.nodes.values()) if getattr(n, "node_type", None) == "concept"]
+            removed = 0
+            for nid in concept_ids:
+                try:
+                    if self.remove_node(nid, user_id=user_id):
+                        removed += 1
+                except Exception:
+                    # Локально подавляем, общий отчёт ниже
+                    logger.error(f"Не удалось удалить концепт с ID: {nid}", exc_info=True)
+            logger.info(f"Массовое удаление концептов завершено: удалено {removed} из {len(concept_ids)}")
+            return removed
+        except Exception as e:
+            logger.error(f"Ошибка массового удаления концептов: {e}", exc_info=True)
+            return 0
+    
     def remove_edge(self, edge_id: str, user_id: Optional[str] = None) -> bool:
         """
         Удаляет связь из графа знаний.
@@ -2418,6 +2540,46 @@ class KnowledgeGraph:
             else:
                 stats[node.node_type] = 1
         return stats
+
+    def _get_cache_statistics(self) -> Dict[str, Any]:
+        """Возвращает статистику кэша."""
+        cache_stats = {
+            "hybrid_cache_enabled": self.hybrid_cache is not None,
+            "cache_dir": self.cache_dir,
+            "cache_size_mb": 0.0,
+            "cache_entries": 0,
+            "cache_hit_rate": 0.0
+        }
+        
+        try:
+            # Размер директории кэша
+            if os.path.exists(self.cache_dir):
+                total_size = 0
+                for root, dirs, files in os.walk(self.cache_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        try:
+                            total_size += os.path.getsize(file_path)
+                        except OSError:
+                            continue
+                cache_stats["cache_size_mb"] = total_size / (1024 * 1024)
+            
+            # Статистика гибридного кэша
+            if self.hybrid_cache and hasattr(self.hybrid_cache, 'get_stats'):
+                try:
+                    hybrid_stats = self.hybrid_cache.get_stats()
+                    cache_stats.update({
+                        "cache_entries": hybrid_stats.get("entries", 0),
+                        "cache_hit_rate": hybrid_stats.get("hit_rate", 0.0),
+                        "memory_usage_mb": hybrid_stats.get("memory_usage_mb", 0.0)
+                    })
+                except Exception as e:
+                    logger.debug(f"Не удалось получить статистику гибридного кэша: {e}")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка при сборе статистики кэша: {e}")
+        
+        return cache_stats
     
     def _get_relation_type_statistics(self) -> Dict[str, int]:
         """Возвращает статистику по типам связей."""
@@ -3930,7 +4092,8 @@ class KnowledgeGraph:
     
     def get_history(self, node_id: Optional[str] = None, 
                   edge_id: Optional[str] = None,
-                  days: int = 30) -> List[Dict[str, Any]]:
+                  days: int = 30,
+                  limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Получает историю изменений за указанный период.
         
@@ -3938,6 +4101,7 @@ class KnowledgeGraph:
             node_id: ID узла (опционально)
             edge_id: ID связи (опционально)
             days: Количество дней для истории
+            limit: Лимит результатов
             
         Returns:
             List[Dict[str, Any]]: История изменений
@@ -3965,6 +4129,11 @@ class KnowledgeGraph:
             # Сортировка
             sql += " ORDER BY timestamp DESC"
             
+            # Лимит
+            if isinstance(limit, int) and limit > 0:
+                sql += " LIMIT ?"
+                params.append(limit)
+            
             cursor.execute(sql, params)
             
             history = []
@@ -3974,7 +4143,7 @@ class KnowledgeGraph:
                     "node_id": row[1],
                     "edge_id": row[2],
                     "change_type": row[3],
-                    "changes": json.loads(row[4]) if row[4] else {},
+                    "changes": safe_json_loads(row[4]) if len(row) > 4 and row[4] else {},
                     "timestamp": row[5],
                     "user_id": row[6],
                     "source": row[7],
@@ -6826,7 +6995,7 @@ class KnowledgeGraph:
         try:
             domains = {}
             for node_id, node in self.nodes.items():
-                domain = node.metadata.get("domain", "unknown")
+                domain = getattr(node, "meta", {}).get("domain", "unknown")
                 if domain not in domains:
                     domains[domain] = {
                         "nodes": 0,
@@ -6843,7 +7012,8 @@ class KnowledgeGraph:
             
             # Подсчитываем связи по доменам
             for edge in self.edges.values():
-                source_domain = self.nodes.get(edge.source_id, {}).metadata.get("domain", "unknown")
+                src_node = self.nodes.get(edge.source_id)
+                source_domain = getattr(src_node, "meta", {}).get("domain", "unknown") if src_node else "unknown"
                 domains.setdefault(source_domain, {"nodes": 0, "edges": 0, "concepts": 0, "entities": 0})
                 domains[source_domain]["edges"] += 1
             
@@ -6866,7 +7036,7 @@ class KnowledgeGraph:
                     "contradicts": sum(1 for e in self.edges.values() if e.relation_type == RelationType.CONTRADICTS),
                     "causes": sum(1 for e in self.edges.values() if e.relation_type == RelationType.CAUSES)
                 },
-                "domains": list(set(n.metadata.get("domain", "unknown") for n in self.nodes.values())),
+                "domains": list(set(getattr(n, "meta", {}).get("domain", "unknown") for n in self.nodes.values())),
                 "last_updated": max((n.last_updated for n in self.nodes.values()), default=time.time()),
                 "cache_stats": self._get_cache_statistics()
             }
@@ -6903,6 +7073,15 @@ class KnowledgeGraph:
             return result
         except Exception as e:
             logger.error(f"Ошибка получения статистики: {e}")
-            return {"error": str(e)}
+            # Возвращаем совместимый по схеме объект, чтобы GUI не падал
+            return {
+                "total_nodes": len(getattr(self, "nodes", {})),
+                "total_edges": len(getattr(self, "edges", {})),
+                "node_types": {},
+                "domains": [],
+                "last_updated": time.time(),
+                "cache_stats": {},
+                "error": str(e)
+            }
 
  

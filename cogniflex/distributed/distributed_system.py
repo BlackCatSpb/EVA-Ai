@@ -201,8 +201,44 @@ class DistributedSystem:
     
     def _start_background_processes(self):
         """Запускает фоновые процессы распределенной системы."""
-        # Здесь могут быть запущены фоновые потоки для обработки распределенных задач
-        pass
+        try:
+            import threading
+            
+            # Запускаем поток мониторинга статуса
+            self._status_monitor_thread = threading.Thread(
+                target=self._monitor_system_status,
+                daemon=True,
+                name="DistributedSystemStatusMonitor"
+            )
+            self._status_monitor_thread.start()
+            logger.debug("Фоновые процессы DistributedSystem запущены")
+        except Exception as e:
+            logger.error(f"Ошибка запуска фоновых процессов: {e}")
+    
+    def _monitor_system_status(self):
+        """Мониторинг статуса системы в фоне."""
+        while self.running and not self.stop_event.is_set():
+            try:
+                # Обновляем статистику каждые 30 секунд
+                self.stop_event.wait(30)
+                if not self.stop_event.is_set():
+                    self._update_system_stats()
+            except Exception as e:
+                logger.error(f"Ошибка мониторинга статуса: {e}")
+    
+    def _update_system_stats(self):
+        """Обновляет статистику системы."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO system_stats (timestamp, active_nodes, task_count, completion_rate)
+                VALUES (?, ?, ?, ?)
+            ''', (time.time(), len(self.get_active_nodes()), 
+                  self.task_scheduler.get_pending_count() if self.task_scheduler else 0, 0.0))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Ошибка обновления статистики: {e}")
     
     def stop(self):
         """Останавливает распределенную систему."""
@@ -238,8 +274,16 @@ class DistributedSystem:
     
     def _stop_background_processes(self):
         """Останавливает фоновые процессы распределенной системы."""
-        # Здесь могут быть остановлены фоновые потоки
-        pass
+        try:
+            self.stop_event.set()
+            
+            # Ожидаем завершения потоков
+            if hasattr(self, '_status_monitor_thread'):
+                self._status_monitor_thread.join(timeout=2.0)
+                
+            logger.debug("Фоновые процессы DistributedSystem остановлены")
+        except Exception as e:
+            logger.error(f"Ошибка остановки фоновых процессов: {e}")
     
     def get_system_status(self) -> Dict[str, Any]:
         """Возвращает статус распределенной системы."""

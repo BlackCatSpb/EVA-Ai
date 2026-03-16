@@ -25,9 +25,10 @@ logger = logging.getLogger("cogniflex.gui.core")
 class CogniFlexGUI:
     """Полнофункциональный графический интерфейс для CogniFlex с поддержкой всех расширенных функций."""
     
-    def __init__(self, brain=None, cache_dir: Optional[str] = None):
+    def __init__(self, brain=None, integrator=None, cache_dir: Optional[str] = None):
         logger.debug("Инициализация графического интерфейса...")
         self.brain = brain
+        self.integrator = integrator  # Новый интегратор системы
         self.cache_dir = cache_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "cogniflex_gui_cache")
         self.cache_dir = os.path.abspath(self.cache_dir)
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -65,6 +66,7 @@ class CogniFlexGUI:
             "name": None,
             "progress": 0,
             "error": None,
+            "action": "load",
         }
         
         self.dashboard_data = {}
@@ -90,33 +92,318 @@ class CogniFlexGUI:
         
         logger.info("GUI инициализирован")
 
+    def process_query_via_integrator(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Обработка запроса через интегратор системы.
+
+        Args:
+            query: Текст запроса
+            context: Дополнительный контекст
+
+        Returns:
+            Dict с результатом обработки
+        """
+        if not self.integrator:
+            logger.warning("Интегратор не доступен, использую прямую обработку через brain")
+            return self._fallback_query_processing(query, context)
+
+        try:
+            logger.info(f"Отправка запроса через интегратор: '{query[:50]}...'")
+
+            # Публикуем событие query_received через событийную шину интегратора
+            query_data = {
+                'query': query,
+                'context': context or {},
+                'source': 'gui',
+                'timestamp': time.time()
+            }
+
+            # Используем событийную шину интегратора для публикации события
+            if hasattr(self.integrator, 'event_bus'):
+                self.integrator.event_bus.trigger('query_received', query_data)
+
+                # Ожидаем ответ (асинхронно через события)
+                return self._wait_for_response(query_data)
+
+            else:
+                # Fallback: прямой вызов
+                return self.integrator.process_query(query, context)
+
+        except Exception as e:
+            logger.error(f"Ошибка обработки запроса через интегратор: {e}")
+            return self._fallback_query_processing(query, context)
+
+    def _wait_for_response(self, query_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Ожидание ответа на запрос через событийную шину.
+        """
+        timeout = 30.0  # 30 секунд таймаут
+        start_time = time.time()
+        request_id = f"gui_{int(start_time)}"
+
+        # Создаем объект для ожидания ответа
+        response_received = threading.Event()
+        response_data = {}
+
+        def on_response_received(data):
+            nonlocal response_data
+            if data.get('request_id') == request_id or 'response' in data:
+                response_data = data
+                response_received.set()
+
+        # Подписываемся на событие response_generated
+        if hasattr(self.integrator, 'event_bus'):
+            self.integrator.event_bus.subscribe(
+                'response_generated',
+                on_response_received,
+                priority=10
+            )
+
+        # Ждем ответ
+        if response_received.wait(timeout):
+            return response_data
+        else:
+            return {
+                'status': 'timeout',
+                'error': 'Превышено время ожидания ответа',
+                'response': 'Извините, обработка запроса заняла слишком много времени.'
+            }
+
+    def _fallback_query_processing(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Запасной вариант обработки запроса напрямую через brain.
+        """
+        try:
+            if not self.brain:
+                return {
+                    'status': 'error',
+                    'error': 'Система недоступна',
+                    'response': 'Извините, система временно недоступна.'
+                }
+
+            # Пытаемся использовать response_generator
+            if hasattr(self.brain, 'process_query'):
+                result = self.brain.process_query(query, context)
+                if result:
+                    self.gui_queue.put(lambda: self._add_message("CogniFlex", result.get("text", "Ошибка обработки"), 0))
+                else:
+                    self.gui_queue.put(lambda: self._add_message("CogniFlex", "Пустой ответ от системы", 0))
+            else:
+                # Fallback
+                self.gui_queue.put(lambda: self._add_message("CogniFlex", "Система обработки запросов недоступна", 0))
+            return {
+                'status': 'error',
+                'error': str(e),
+                'response': 'Произошла ошибка при обработке запроса.'
+            }
+
+        except Exception as e:
+            logger.error(f"Ошибка fallback обработки: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'response': 'Произошла ошибка при обработке запроса.'
+            }
+
+    def get_system_status_via_integrator(self) -> Dict[str, Any]:
+        """
+        Получение статуса системы через интегратор.
+        """
+        if self.integrator and hasattr(self.integrator, 'get_system_health'):
+            return self.integrator.get_system_health()
+        elif self.integrator and hasattr(self.integrator, 'get_system_stats'):
+            return self.integrator.get_system_stats()
+        else:
+            # Fallback через brain
+            return self._get_system_status_fallback()
+
+    def _get_system_status_fallback(self) -> Dict[str, Any]:
+        """Запасной вариант получения статуса системы."""
+        try:
+            if not self.brain:
+                return {'status': 'disconnected'}
+
+            status = {'status': 'unknown'}
+
+            if hasattr(self.brain, 'running') and self.brain.running:
+                status['status'] = 'active'
+            elif hasattr(self.brain, 'components') and self.brain.components:
+                status['status'] = 'active'
+            else:
+                status['status'] = 'disconnected'
+
+            # Добавляем информацию о компонентах
+            if hasattr(self.brain, 'components'):
+                status['components_count'] = len(self.brain.components)
+
+            return status
+
+        except Exception as e:
+            logger.error(f"Ошибка получения статуса системы: {e}")
+            return {'status': 'error', 'error': str(e)}
+
+    def start_self_dialog_via_integrator(self):
+        """Запуск самодиалога через интегратор."""
+        try:
+            if self.integrator and hasattr(self.integrator, 'start_self_dialog'):
+                self.integrator.start_self_dialog()
+                self.show_toast("Самодиалог запущен", "info")
+            else:
+                self.show_toast("Самодиалог недоступен", "warning")
+        except Exception as e:
+            logger.error(f"Ошибка запуска самодиалога: {e}")
+            self.show_toast(f"Ошибка самодиалога: {e}", "error")
+
+    def optimize_system_via_integrator(self):
+        """Оптимизация системы через интегратор."""
+        try:
+            if self.integrator and hasattr(self.integrator, 'optimize_system'):
+                self.integrator.optimize_system()
+                self.show_toast("Оптимизация системы запущена", "info")
+            else:
+                self.show_toast("Оптимизация недоступна", "warning")
+        except Exception as e:
+            logger.error(f"Ошибка оптимизации системы: {e}")
+            self.show_toast(f"Ошибка оптимизации: {e}", "error")
+
     def _init_modules(self):
+        """Инициализирует модули GUI с улучшенной обработкой ошибок и приоритетом chat модуля."""
+        print("DEBUG: _init_modules() вызван!")
         if not self.content_area:
             logger.error("Попытка инициализации модулей до создания интерфейса")
             return
+        
+        print(f"DEBUG: Начинаем инициализацию модулей GUI")
+        logger.info("Начинаем инициализацию модулей GUI")
+        
+        # Приоритизируем chat модуль - инициализируем его первым
+        chat_initialized = False
 
+        # Сначала пытаемся инициализировать chat модуль отдельно
+        try:
+            logger.info(" Инициализация chat модуля с приоритетом...")
+            from .chat_module import ChatModule
+
+            # Проверяем, что класс существует
+            if hasattr(ChatModule, '__init__'):
+                self.chat_module = ChatModule(self)
+                chat_initialized = True
+                logger.info("✅ Chat модуль инициализирован успешно (приоритет)")
+            else:
+                logger.warning("Класс ChatModule не найден")
+
+        except ImportError as e:
+            logger.warning(f"Не удалось импортировать ChatModule: {e}")
+        except Exception as e:
+            logger.error(f"Ошибка инициализации ChatModule: {e}", exc_info=True)
+
+        # Если chat не инициализирован, пробуем fallback
+        if not chat_initialized:
+            try:
+                logger.info("Попытка fallback инициализации chat модуля...")
+                module = __import__('cogniflex.gui.chat_module', fromlist=['ChatModule'])
+                module_class = getattr(module, 'ChatModule')
+                self.chat_module = module_class(self)
+                chat_initialized = True
+                logger.info("✅ Chat модуль инициализирован через fallback")
+            except Exception as e:
+                logger.critical(f"Не удалось инициализировать ChatModule даже через fallback: {e}")
+
+        # Теперь инициализируем остальные модули
         module_map = {
-            "chat": ".chat_module.ChatModule",
-            "analytics": ".analytics_module.AnalyticsModule",
-            "knowledge": ".knowledge_graph_module.KnowledgeGraphModule",
-            "contradictions": ".contradiction_module.ContradictionModule",
-            "memory": ".memory_module.MemoryModule",
-            "learning": ".learning_module.LearningModule",
-            "settings": ".settings_module.SettingsModule",
-            "neuromorphic": ".neuromorphic_module.NeuromorphicModule",
+            "analytics": ("cogniflex.gui.analytics_module", "AnalyticsModule"),
+            "knowledge": ("cogniflex.gui.knowledge_graph_module", "KnowledgeGraphModule"), 
+            "contradictions": ("cogniflex.gui.contradiction_module", "ContradictionModule"),
+            "memory": ("cogniflex.gui.memory_module", "MemoryModule"),
+            "learning": ("cogniflex.gui.learning_module", "LearningModule"),
+            "settings": ("cogniflex.gui.settings_module", "SettingsModule"),
+            "neuromorphic": ("cogniflex.gui.neuromorphic_module", "NeuromorphicModule"),
         }
 
-        for name, path in module_map.items():
+        for name, (module_path, class_name) in module_map.items():
             try:
-                module_path, class_name = path.rsplit('.', 1)
-                module = __import__(f"cogniflex.gui{module_path}", fromlist=[class_name])
+                logger.info(f"Инициализация модуля: {name}")
+                module = __import__(module_path, fromlist=[None])
+                
+                print(f"DEBUG: Модуль {name}, путь {module_path}, класс {class_name}")
+                print(f"DEBUG: Модуль импортирован: {module is not None}")
+                print(f"DEBUG: Класс {class_name} существует: {hasattr(module, class_name)}")
+                
+                # Проверяем, что класс существует
+                if not hasattr(module, class_name):
+                    logger.warning(f"Класс {class_name} не найден в модуле {module_path}")
+                    logger.warning(f"Доступные классы в модуле: {[attr for attr in dir(module) if attr.endswith('Module')]}")
+                    continue
+
                 module_class = getattr(module, class_name)
+                print(f"DEBUG: Класс {class_name} получен: {module_class is not None}")
+                
                 instance = module_class(self)
+                print(f"DEBUG: Экземпляр {class_name} создан: {instance is not None}")
+                
                 setattr(self, f"{name}_module", instance)
-                logger.info(f"Модуль '{name}' инициализирован")
+                print(f"DEBUG: Атрибут {name}_module установлен: {hasattr(self, f'{name}_module')}")
+                
+                logger.info(f"✅ Модуль '{name}' инициализирован успешно")
+
+            except ImportError as e:
+                logger.error(f"Не удалось импортировать модуль '{name}': {e}", exc_info=True)
+                print(f"DEBUG: ImportError при инициализации {name}: {e}")
             except Exception as e:
-                logger.warning(f"Модуль '{name}' недоступен: {e}", exc_info=True)
-        
+                logger.error(f"Ошибка инициализации модуля '{name}': {e}", exc_info=True)
+                print(f"DEBUG: Exception при инициализации {name}: {e}")
+
+        # Финальная проверка chat модуля
+        if not hasattr(self, 'chat_module') or self.chat_module is None:
+            logger.error("КРИТИЧЕСКАЯ ОШИБКА: Chat модуль не инициализирован после всех попыток!")
+            # Создаем заглушку для chat модуля
+            try:
+                logger.info("Создание заглушки для chat модуля...")
+
+                class ChatModuleStub:
+                    def __init__(self, gui):
+                        self.gui = gui
+                        self.message_history = []
+                        logger.warning("Chat модуль заменен заглушкой - функциональность ограничена")
+
+                    def activate(self):
+                        # Создаем простой интерфейс
+                        for widget in self.gui.content_area.winfo_children():
+                            widget.destroy()
+
+                        from tkinter import ttk
+                        frame = ttk.Frame(self.gui.content_area)
+                        frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+                        ttk.Label(frame, text="⚠️ Chat модуль временно недоступен",
+                                font=("Segoe UI", 14, "bold")).pack(pady=(0, 10))
+
+                        ttk.Label(frame, text="Chat работает только с фрактальным хранилищем.\n"
+                                "Проверьте, что memory_manager инициализирован.",
+                                wraplength=400, justify="center").pack(pady=(0, 20))
+
+                        ttk.Button(frame, text="Перезагрузить систему",
+                                 command=lambda: self.gui._reboot_system()).pack()
+
+                        logger.warning("Chat модуль заменен заглушкой")
+
+                    def deactivate(self):
+                        """Деактивирует заглушку модуля чата"""
+                        try:
+                            logger.debug("ChatModuleStub деактивирован")
+                        except Exception as e:
+                            logger.debug(f"Ошибка деактивации ChatModuleStub: {e}")
+
+                self.chat_module = ChatModuleStub(self)
+                logger.info("✅ Заглушка для chat модуля создана")
+
+            except Exception as e:
+                logger.critical(f"Не удалось создать даже заглушку для chat модуля: {e}")
+
+        # Проверяем успешность инициализации
+        final_chat_status = hasattr(self, 'chat_module') and self.chat_module is not None
+        logger.info(f"Итог инициализации модулей: chat={'успешно' if final_chat_status else 'не удалось'}")
+
         self._switch_view("chat")
 
     def _create_styles(self):
@@ -164,6 +451,7 @@ class CogniFlexGUI:
         right_frame = ttk.Frame(navbar)
         right_frame.pack(side=tk.RIGHT)
         ttk.Button(right_frame, text="Перезагрузить", command=self._reboot_system).pack(side=tk.LEFT, padx=5)
+        ttk.Button(right_frame, text="Горячая перезагрузка", command=self._soft_reload).pack(side=tk.LEFT, padx=5)
 
     def _create_status_bar(self):
         self.status_bar = ttk.Frame(self.root, height=30)
@@ -188,7 +476,20 @@ class CogniFlexGUI:
         self.memory_label.pack(side=tk.LEFT, padx=(0, 10))
         ttk.Label(metrics_frame, text="Противоречия:").pack(side=tk.LEFT)
         self.contradictions_label = ttk.Label(metrics_frame, text="0")
-        self.contradictions_label.pack(side=tk.LEFT)
+        self.contradictions_label.pack(side=tk.LEFT, padx=(0, 10))
+        # Доп. метрики из CoreBrain: кэш и I/O
+        ttk.Label(metrics_frame, text="HitRate:").pack(side=tk.LEFT)
+        self.hit_rate_label = ttk.Label(metrics_frame, text="0.0%")
+        self.hit_rate_label.pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(metrics_frame, text="CacheUtil:").pack(side=tk.LEFT)
+        self.cache_util_label = ttk.Label(metrics_frame, text="0.0%")
+        self.cache_util_label.pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(metrics_frame, text="DiskEntries:").pack(side=tk.LEFT)
+        self.disk_entries_label = ttk.Label(metrics_frame, text="0")
+        self.disk_entries_label.pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(metrics_frame, text="IOtokens:").pack(side=tk.LEFT)
+        self.io_tokens_label = ttk.Label(metrics_frame, text="0")
+        self.io_tokens_label.pack(side=tk.LEFT)
 
     def on_close(self):
         if messagebox.askyesno("Подтверждение", "Вы действительно хотите выйти?"):
@@ -224,6 +525,21 @@ class CogniFlexGUI:
             ttk.Label(self.content_area, text=f"Модуль '{view_id}' недоступен.").pack()
         self.current_view = view_id
 
+    def _schedule_update(self):
+        try:
+            if not self.running:
+                return
+            if not self.root:
+                return
+            self._update_interface()
+            interval = self.settings.get("gui", {}).get("auto_update_interval", 5000)
+            self.update_job = self.root.after(interval, self._schedule_update)
+        except Exception as e:
+            try:
+                self.chat_logger.debug(f"_schedule_update error: {e}")
+            except Exception:
+                pass
+
     def _start_background_services(self):
         self._schedule_update()
         self._process_gui_queue()
@@ -236,21 +552,90 @@ class CogniFlexGUI:
                     try:
                         self.brain.events.on('model_load', handler)
                         self.chat_logger.info("GUI подписан на события model_load через EventSystem")
+                        # Подписка на готовность моделей
+                        try:
+                            self.brain.events.on('models_ready', lambda data=None: self.gui_queue.put(self._handle_models_ready_event))
+                            self.chat_logger.info("GUI подписан на событие models_ready")
+                        except Exception:
+                            pass
+                        # Подписка на запрос перезагрузки GUI
+                        try:
+                            self.brain.events.on('request_gui_reload', lambda data=None: self.gui_queue.put(self.reload))
+                            self.chat_logger.info("GUI подписан на событие request_gui_reload")
+                        except Exception:
+                            pass
                     except Exception:
                         # Фолбэк на список колбэков
                         if not hasattr(self.brain, 'on_model_load'):
                             setattr(self.brain, 'on_model_load', [])
                         self.brain.on_model_load.append(handler)
                         self.chat_logger.info("GUI подписан на события model_load через on_model_load")
+                        # Фолбэк подписки на models_ready
+                        try:
+                            if not hasattr(self.brain, 'on_models_ready'):
+                                setattr(self.brain, 'on_models_ready', [])
+                            self.brain.on_models_ready.append(lambda data=None: self.gui_queue.put(self._handle_models_ready_event))
+                        except Exception:
+                            pass
                 else:
                     if not hasattr(self.brain, 'on_model_load'):
                         setattr(self.brain, 'on_model_load', [])
                     self.brain.on_model_load.append(handler)
                     self.chat_logger.info("GUI подписан на события model_load (fallback)")
+                    # Фолбэк подписки на models_ready
+                    try:
+                        if not hasattr(self.brain, 'on_models_ready'):
+                            setattr(self.brain, 'on_models_ready', [])
+                        self.brain.on_models_ready.append(lambda data=None: self.gui_queue.put(self._handle_models_ready_event))
+                    except Exception:
+                        pass
         except Exception as e:
             logger.warning(f"Не удалось подписаться на события model_load: {e}")
 
-    def _schedule_update(self):
+        # Фолбэк: если нет шины событий, можно дергать reload() из ядра через прямой атрибут
+        try:
+            if self.brain and not (hasattr(self.brain, 'events') and self.brain.events):
+                setattr(self.brain, 'request_gui_reload', lambda reason=None: self.gui_queue.put(self.reload))
+        except Exception:
+            pass
+
+    def reload(self):
+        """Горячая перезагрузка GUI: обновление стилей/настроек и повторная инициализация модулей."""
+        try:
+            if not self.root or not self.running:
+                return
+            self.chat_logger.info("Выполняется горячая перезагрузка GUI...")
+            # Перечитать настройки и обновить тему/цвета
+            try:
+                self.settings = load_settings(os.path.join(self.cache_dir, "gui_settings.json"))
+            except Exception:
+                pass
+            self.theme = self.settings.get("gui", {}).get("theme", self.theme)
+            self.colors = self.theme_colors.get(self.theme, self.colors)
+            # Применить стили повторно
+            try:
+                self._create_styles()
+            except Exception:
+                pass
+            # Переинициализировать модули (сохраняя текущий view)
+            cur_view = getattr(self, 'current_view', 'chat')
+            try:
+                if self.content_area:
+                    for w in self.content_area.winfo_children():
+                        w.destroy()
+                self._init_modules()
+                # Вернуться к предыдущему виду
+                self._switch_view(cur_view)
+            except Exception:
+                pass
+            self._update_interface()
+            self.show_toast("GUI обновлён (soft-reload)", "info")
+            self.chat_logger.info("Горячая перезагрузка GUI завершена")
+        except tk.TclError:
+            pass
+        except Exception as e:
+            self.chat_logger.warning(f"Ошибка горячей перезагрузки GUI: {e}")
+
         if not self.running: return
         self._update_interface()
         self.update_job = self.root.after(self.settings.get("gui", {}).get("auto_update_interval", 5000), self._schedule_update)
@@ -259,8 +644,25 @@ class CogniFlexGUI:
         if not self.root or not self.running: return
         
         try:
-            if self.brain and hasattr(self.brain, 'get_system_dashboard_data'):
+            # Получаем данные дашборда через интегратор
+            if self.integrator and hasattr(self.integrator, 'get_system_stats'):
+                self.dashboard_data = self.integrator.get_system_stats()
+            elif self.brain and hasattr(self.brain, 'get_system_dashboard_data'):
                 self.dashboard_data = self.brain.get_system_dashboard_data()
+            
+            # Безопасно обновляем снимки ресурсов и статистику кэша
+            self.resource_snapshot = {}
+            self.cache_stats = {}
+            try:
+                if self.brain and hasattr(self.brain, 'get_resource_snapshot'):
+                    self.resource_snapshot = self.brain.get_resource_snapshot() or {}
+            except Exception:
+                self.resource_snapshot = {}
+            try:
+                if self.brain and hasattr(self.brain, 'get_cache_stats'):
+                    self.cache_stats = self.brain.get_cache_stats() or {}
+            except Exception:
+                self.cache_stats = {}
             
             self.timestamp_label.config(text=datetime.now().strftime("%H:%M:%S"))
             self._update_status_indicator()
@@ -297,13 +699,86 @@ class CogniFlexGUI:
         self.memory_label.config(text=f"{mem_val:.1f}%")
         contradiction_stats = self.dashboard_data.get('contradiction_stats', {})
         self.contradictions_label.config(text=str(contradiction_stats.get('total', 0)))
+        # Обновляем метрики кэша и I/O из CoreBrain API (если доступны)
+        try:
+            hit_rate = float(self.cache_stats.get('hit_rate', 0.0)) * (100.0 if self.cache_stats.get('hit_rate', 0.0) <= 1.5 else 1.0)
+        except Exception:
+            hit_rate = 0.0
+        try:
+            util = float(self.cache_stats.get('cache_utilization_percent', 0.0))
+            if util <= 1.5:
+                util *= 100.0
+        except Exception:
+            util = 0.0
+        try:
+            disk_entries = int(self.cache_stats.get('disk_stats', {}).get('entries', 0))
+        except Exception:
+            disk_entries = 0
+        try:
+            io_tokens = float(self.resource_snapshot.get('io_tokens', 0.0))
+        except Exception:
+            io_tokens = 0.0
+        # Отображаем
+        if hasattr(self, 'hit_rate_label'):
+            self.hit_rate_label.config(text=f"{hit_rate:.1f}%")
+        if hasattr(self, 'cache_util_label'):
+            self.cache_util_label.config(text=f"{util:.1f}%")
+        if hasattr(self, 'disk_entries_label'):
+            self.disk_entries_label.config(text=str(disk_entries))
+        if hasattr(self, 'io_tokens_label'):
+            # Компактный формат без дробной части для больших значений
+            try:
+                if io_tokens >= 1_000_000_000:
+                    io_disp = f"{io_tokens/1_000_000_000:.1f}G"
+                elif io_tokens >= 1_000_000:
+                    io_disp = f"{io_tokens/1_000_000:.1f}M"
+                elif io_tokens >= 1_000:
+                    io_disp = f"{io_tokens/1_000:.1f}K"
+                else:
+                    io_disp = f"{int(io_tokens)}"
+            except Exception:
+                io_disp = "0"
+            self.io_tokens_label.config(text=io_disp)
 
     def _update_status_indicator(self):
-        status = "active" if self.brain and self.brain.running else "disconnected"
-        color = self.colors['success'] if status == "active" else self.colors['danger']
-        status_text = f"Соединение: {'активно' if status == 'active' else 'отключено'}"
-        self.status_indicator.itemconfig("indicator", fill=color)
-        self.connection_status.config(text=status_text)
+        """Обновляет индикатор статуса соединения с улучшенной логикой."""
+        try:
+            # Более надежная проверка статуса brain
+            brain_active = False
+            if self.brain:
+                # Проверяем несколько признаков активности brain
+                brain_active = (
+                    hasattr(self.brain, 'running') and self.brain.running
+                ) or (
+                    hasattr(self.brain, 'components') and self.brain.components
+                ) or (
+                    hasattr(self.brain, 'get_system_status')
+                )
+
+            status = "active" if brain_active else "disconnected"
+            color = self.colors['success'] if status == "active" else self.colors['danger']
+            status_text = f"Соединение: {'активно' if status == 'active' else 'отключено'}"
+
+            # Обновляем только если статус изменился
+            if hasattr(self, '_last_status') and self._last_status != status:
+                self.chat_logger.info(f"Статус соединения изменился: {self._last_status} -> {status}")
+            self._last_status = status
+
+            self.status_indicator.itemconfig("indicator", fill=color)
+            self.connection_status.config(text=status_text)
+
+            # Дополнительная информация для отладки
+            if not brain_active and self.brain:
+                self.chat_logger.debug(f"Brain найден, но не активен. Свойства brain: {dir(self.brain)[:10]}...")
+            elif brain_active:
+                self.chat_logger.debug("Brain активен и работает нормально")
+
+        except Exception as e:
+            # Fallback на disconnected при ошибке
+            self.status_indicator.itemconfig("indicator", fill=self.colors['danger'])
+            self.connection_status.config(text="Соединение: ошибка")
+            self.chat_logger.error(f"Ошибка проверки статуса соединения: {e}")
+
         # Обновляем компактный индикатор загрузки моделей
         self._update_model_loading_indicator()
 
@@ -315,12 +790,20 @@ class CogniFlexGUI:
                 return
             name = st.get("name") or st.get("model_id") or "модель"
             prog = int(st.get("progress") or 0)
+            action = st.get("action") or "load"
             if st.get("error"):
-                self.model_load_label.config(text=f"Загрузка модели '{name}': ошибка")
-            elif prog >= 100:
+                if action == "unload":
+                    self.model_load_label.config(text=f"Выгрузка модели '{name}': ошибка")
+                else:
+                    self.model_load_label.config(text=f"Загрузка модели '{name}': ошибка")
+            elif prog >= 100 and action != "unload":
                 self.model_load_label.config(text=f"Загрузка модели '{name}': завершено")
             else:
-                self.model_load_label.config(text=f"Загрузка модели '{name}': {prog}%")
+                if action == "unload":
+                    # Для выгрузки обычно не считаем проценты
+                    self.model_load_label.config(text=f"Выгрузка модели '{name}'...")
+                else:
+                    self.model_load_label.config(text=f"Загрузка модели '{name}': {prog}%")
         except Exception:
             pass
 
@@ -339,23 +822,49 @@ class CogniFlexGUI:
                             "name": data.get('name'),
                             "progress": 0,
                             "error": None,
+                            "action": "load",
                         })
                     elif event == 'model_load_progress':
                         self.model_loading_state.update({
                             "active": True,
                             "model_id": data.get('model_id'),
-                            "progress": max(0, min(100, int(data.get('progress', 0))))
+                            "progress": max(0, min(100, int(data.get('progress', 0)))),
+                            "action": "load",
                         })
                     elif event == 'model_load_complete':
                         self.model_loading_state.update({
                             "active": False,
                             "progress": 100,
                             "error": None,
+                            "action": "load",
                         })
                     elif event == 'model_load_error':
                         self.model_loading_state.update({
                             "active": False,
                             "error": data.get('error') or 'unknown',
+                            "action": "load",
+                        })
+                    elif event == 'model_unload_start':
+                        self.model_loading_state.update({
+                            "active": True,
+                            "model_id": data.get('model_id'),
+                            "name": data.get('name'),
+                            "progress": 0,
+                            "error": None,
+                            "action": "unload",
+                        })
+                    elif event == 'model_unload_complete':
+                        self.model_loading_state.update({
+                            "active": False,
+                            "progress": 0,
+                            "error": None,
+                            "action": "unload",
+                        })
+                    elif event == 'model_unload_error':
+                        self.model_loading_state.update({
+                            "active": False,
+                            "error": data.get('error') or 'unknown',
+                            "action": "unload",
                         })
                     self._update_model_loading_indicator()
                 except tk.TclError:
@@ -364,6 +873,25 @@ class CogniFlexGUI:
                     pass
             # Планируем в GUI-потоке
             self.gui_queue.put(apply_update)
+        except Exception:
+            pass
+
+    def _handle_models_ready_event(self):
+        """Обработка события глобовой готовности моделей: очищаем индикатор загрузки."""
+        try:
+            def apply_ready():
+                try:
+                    self.model_loading_state.update({
+                        "active": False,
+                        "progress": 100,
+                        "error": None,
+                        "action": "load",
+                    })
+                    self._update_model_loading_indicator()
+                    self.show_toast("Модели готовы к работе", "info")
+                except Exception:
+                    pass
+            self.gui_queue.put(apply_ready)
         except Exception:
             pass
 
@@ -377,8 +905,10 @@ class CogniFlexGUI:
             self.show_toast(f"Обнаружено {serious_contradictions} серьезных противоречий!", "warning", key="serious_contradictions")
 
         opportunities = self.dashboard_data.get('learning_opportunities', [])
-        if len(opportunities) > 0:
-            self.show_toast(f"Найдено {len(opportunities)} новых возможностей для обучения.", "info", key="learning_opportunities")
+        # Count only unexecuted opportunities for "new" notification
+        new_opportunities = [op for op in opportunities if not op.get('executed', False)]
+        if len(new_opportunities) > 0:
+            self.show_toast(f"Найдено {len(new_opportunities)} новых возможностей для обучения.", "info", key="learning_opportunities")
 
     def _process_gui_queue(self):
         # Если GUI остановлен или окно уничтожено – не продолжаем
@@ -564,7 +1094,43 @@ class CogniFlexGUI:
         self.gui_queue.put(lambda: self._create_toast_window(message, level, duration))
 
     def _create_toast_window(self, message, level, duration):
-        pass # Placeholder
+        """Создает всплывающее окно с уведомлением"""
+        try:
+            toast = tk.Toplevel(self.root)
+            toast.overrideredirect(True)
+            
+            # Цвета по уровню
+            colors = {
+                'info': ('#0078d7', 'white'),
+                'success': ('#28a745', 'white'),
+                'warning': ('#ffc107', 'black'),
+                'error': ('#dc3545', 'white')
+            }
+            bg_color, fg_color = colors.get(level, ('#333333', 'white'))
+            
+            toast.configure(bg=bg_color)
+            
+            # Размещение в правом нижнем углу
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            label = tk.Label(toast, text=message, bg=bg_color, fg=fg_color,
+                           font=('Segoe UI', 10), wraplength=300, padx=15, pady=10)
+            label.pack()
+            
+            toast.update_idletasks()
+            width = toast.winfo_width()
+            height = toast.winfo_height()
+            
+            x = screen_width - width - 20
+            y = screen_height - height - 100
+            toast.geometry(f"{width}x{height}+{x}+{y}")
+            
+            # Автоматическое закрытие
+            self.root.after(int(duration * 1000), toast.destroy)
+            
+        except Exception as e:
+            logger.debug(f"Ошибка создания toast окна: {e}")
 
     def _reboot_system(self):
         if not messagebox.askyesno("Подтверждение", "Вы действительно хотите перезагрузить систему?"):
@@ -582,6 +1148,33 @@ class CogniFlexGUI:
             self.chat_logger.error("Попытка перезагрузки без поддержки функции reboot в ядре")
             self.show_toast("Функция перезагрузки не поддерживается", "error")
 
+    def _soft_reload(self):
+        """Инициирует soft-reload ядра с сохранением ML и обновлением GUI."""
+        try:
+            if not self.brain or not hasattr(self.brain, 'soft_reload'):
+                self.show_toast("Soft-reload не поддерживается ядром", "error")
+                return
+            self.show_toast("Горячая перезагрузка...", "info")
+            self.chat_logger.warning("Инициирован soft-reload ядра по запросу пользователя")
+            def _do_reload():
+                try:
+                    ok = self.brain.soft_reload(reload_gui=True)
+                    if not ok:
+                        self.gui_queue.put(lambda: self.show_toast("Soft-reload завершился с ошибкой", "error"))
+                except Exception as e:
+                    self.gui_queue.put(lambda: self.show_toast(f"Soft-reload ошибка: {e}", "error"))
+            threading.Thread(target=_do_reload, daemon=True).start()
+        except Exception:
+            pass
+
+    def start_gui(self) -> None:
+        """Запуск GUI для CoreBrain."""
+        if not self.running:
+            self.chat_logger.info("Запуск GUI после полной инициализации системы...")
+            self.start()
+        else:
+            self.chat_logger.info("GUI уже запущен")
+    
     def start(self):
         if self.running: 
             self.chat_logger.warning("Попытка запуска GUI, когда он уже запущен")
@@ -591,22 +1184,35 @@ class CogniFlexGUI:
         self.chat_logger.info("Запуск графического интерфейса...")
         
         try:
-            self.root = tk.Tk()
-            self.root.title("CogniFlex - Адаптивная когнитивная система")
-            self.root.geometry("1280x800")
-            self.root.minsize(800, 600)
-            self._create_styles()
-            self._create_interface()
-            self._init_modules()
+            # НЕ создаем root если он уже существует (из run_gui.py)
+            # if self.root is None:
+            #     self.root = tk.Tk()
+            #     self.root.title("CogniFlex - Адаптивная когнитивная система")
+            #     self.root.geometry("1280x800")
+            #     self.root.minsize(800, 600)
+            #     self._create_styles()
+            
+            # Проверяем, были ли модули уже инициализированы
+            if not hasattr(self, 'analytics_module') or self.analytics_module is None:
+                # self._create_interface()  # Не вызываем, так как интерфейс уже создан
+                self._init_modules()
+            
             self._load_state()
             self._start_background_services()
-            self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+            
+            # Устанавливаем обработчик закрытия только если root существует
+            if self.root is not None:
+                self.root.protocol("WM_DELETE_WINDOW", self.on_close)
             
             # Логируем успешный запуск
             self.chat_logger.info("Графический интерфейс успешно запущен")
-            self.chat_logger.info(f"Разрешение окна: {self.root.winfo_width()}x{self.root.winfo_height()}")
+            if self.root is not None:
+                self.chat_logger.info(f"Разрешение окна: {self.root.winfo_width()}x{self.root.winfo_height()}")
+            else:
+                self.chat_logger.warning("Окно root не создано, пропускаем логирование размера")
             
-            self.root.mainloop()
+            if self.root is not None:
+                self.root.mainloop()
         except Exception as e:
             self.chat_logger.critical(f"Критическая ошибка запуска GUI: {e}", exc_info=True)
 
@@ -638,6 +1244,9 @@ class CogniFlexGUI:
             
         self._save_state()
         
+        # Очищаем все модули с after задачами
+        self._cleanup_modules()
+        
         if self.brain: 
             self.brain.stop()
             self.chat_logger.info("Ядро системы остановлено")
@@ -647,6 +1256,48 @@ class CogniFlexGUI:
             self.chat_logger.info("Окно GUI уничтожено")
         
         self.chat_logger.info("Графический интерфейс остановлен")
+
+    def _cleanup_modules(self):
+        """Очищает все модули с after задачами."""
+        try:
+            modules_to_cleanup = [
+                'contradiction_module',
+                'neuromorphic_module', 
+                'memory_module',
+                'learning_module'
+            ]
+            
+            for module_name in modules_to_cleanup:
+                module = getattr(self, module_name, None)
+                if module and hasattr(module, 'cleanup'):
+                    module.cleanup()
+                    self.chat_logger.debug(f"Очищен модуль: {module_name}")
+                elif module and hasattr(module, '_after_jobs'):
+                    # Прямая очистка если нет метода cleanup
+                    if hasattr(self, 'root') and self.root:
+                        for job_id in module._after_jobs:
+                            try:
+                                self.root.after_cancel(job_id)
+                            except:
+                                pass
+                        module._after_jobs.clear()
+                        self.chat_logger.debug(f"Прямая очистка after задач в модуле: {module_name}")
+            
+            # Очищаем активные уведомления
+            if hasattr(self, 'active_notifications') and self.root:
+                for notification in self.active_notifications[:]:
+                    try:
+                        job_id = notification.get('job_id')
+                        if job_id:
+                            self.root.after_cancel(job_id)
+                    except:
+                        pass
+                self.active_notifications.clear()
+                self.chat_logger.debug("Очищены активные уведомления")
+                        
+            self.chat_logger.info("Очистка модулей завершена")
+        except Exception as e:
+            self.chat_logger.error(f"Ошибка при очистке модулей: {e}")
 
     def _save_state(self):
         """Сохраняет состояние GUI с подробным логгированием."""
@@ -757,6 +1408,21 @@ def create_gui(brain=None, cache_dir: str = None):
     """Создает и возвращает экземпляр GUI с подробным логгированием."""
     logger.info("Создание экземпляра GUI")
     gui = CogniFlexGUI(brain, cache_dir)
+    
+    # Создаем главное окно ПЕРЕД инициализацией интерфейса
+    try:
+        gui.create_main_window()
+        logger.info("Главное окно создано в create_gui()")
+    except Exception as e:
+        logger.error(f"Ошибка создания главного окна: {e}", exc_info=True)
+    
+    # Инициализируем модули GUI
+    try:
+        gui._create_interface()
+        gui._init_modules()
+        logger.info("Модули GUI инициализированы в create_gui()")
+    except Exception as e:
+        logger.error(f"Ошибка инициализации модулей GUI: {e}", exc_info=True)
     
     # Логируем создание экземпляра
     logger.info("Экземпляр GUI создан")

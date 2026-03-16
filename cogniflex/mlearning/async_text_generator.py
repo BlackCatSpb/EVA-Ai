@@ -34,7 +34,7 @@ class SamplingConfig:
 
 class SimpleKVCache:
     """In-memory KV cache with naive size control."""
-    def __init__(self, max_items: int = 16):
+    def __init__(self, max_items: int = 8):
         self.max_items = max_items
         self.store: Dict[str, Tuple[Any, float]] = {}
 
@@ -90,7 +90,8 @@ def _sample_token(logits: torch.Tensor, cfg: SamplingConfig) -> int:
 class AsyncTextGenerator:
     def __init__(self, device: str = "cpu"):
         self.device = device
-        self.kv_cache = SimpleKVCache(max_items=16)
+        # Более узкое горячее окно KV по умолчанию
+        self.kv_cache = SimpleKVCache(max_items=8)
         # prompt token cache (ids) separate from kv cache
         self.prompt_cache: Dict[str, Tuple[Any, Any]] = {}
         # Optional disk caches (lazy-init per options)
@@ -116,11 +117,20 @@ class AsyncTextGenerator:
         enable_kv_cache = bool(cache_opts.get("enable_kv_cache", True))
         enable_disk_prompt_cache = bool(cache_opts.get("enable_disk_prompt_cache", True))
         disk_cache_dir = cache_opts.get("disk_cache_dir", os.path.join("token_cache", "disk_storage"))
+        # Позволяем управлять размером горячего KV-окна на лету
+        try:
+            kv_max_items = int(cache_opts.get("kv_max_items", self.kv_cache.max_items))
+            self.kv_cache.max_items = max(2, kv_max_items)
+        except Exception:
+            pass
 
         # Lazy init disk caches if enabled
         if enable_prompt_cache and enable_disk_prompt_cache and self._disk_prompt_cache is None:
             try:
-                self._disk_prompt_cache = DiskCache(disk_cache_dir, max_size_gb=float(cache_opts.get("disk_max_gb", 10.0)))
+                self._disk_prompt_cache = DiskCache(
+                    disk_cache_dir,
+                    max_size_gb=float(cache_opts.get("disk_max_gb", 20.0)),
+                )
             except Exception:
                 self._disk_prompt_cache = None
         if self._disk_kv_meta_cache is None:
@@ -135,6 +145,14 @@ class AsyncTextGenerator:
         tokenizer_key = getattr(tokenizer, "name_or_path", None) or "custom_tokenizer"
         kv_key = f"kv::{model_key}::{tokenizer_key}::{prompt_key}::{cfg.max_new_tokens}::{cfg.temperature}::{cfg.top_p}::{cfg.top_k}::{cfg.repetition_penalty}"
         pt_key = f"pt::{model_key}::{tokenizer_key}::{prompt_key}"
+        # Filesystem-safe variants for disk caches
+        def _safe_key(k: str) -> str:
+            try:
+                return "k_" + hashlib.sha1(k.encode("utf-8")).hexdigest()
+            except Exception:
+                return "k_" + _hash_text(k)[:40]
+        pt_disk_key = _safe_key(pt_key)
+        kv_disk_key = _safe_key(kv_key)
 
         # Tokenize (with cache)
         input_ids = None
@@ -144,7 +162,7 @@ class AsyncTextGenerator:
             input_ids, attn_mask = self.prompt_cache[pt_key]
         # 2) disk prompt cache
         elif enable_prompt_cache and enable_disk_prompt_cache and self._disk_prompt_cache is not None:
-            disk_item = self._disk_prompt_cache.get(pt_key)
+            disk_item = self._disk_prompt_cache.get(pt_disk_key)
             if isinstance(disk_item, dict) and "input_ids" in disk_item:
                 try:
                     input_ids = disk_item["input_ids"].to(self.device)
@@ -173,7 +191,7 @@ class AsyncTextGenerator:
                 self.prompt_cache[pt_key] = (input_ids, attn_mask)
                 if enable_disk_prompt_cache and self._disk_prompt_cache is not None:
                     try:
-                        self._disk_prompt_cache.put(pt_key, {
+                        self._disk_prompt_cache.put(pt_disk_key, {
                             "input_ids": input_ids.detach().cpu(),
                             "attention_mask": attn_mask.detach().cpu() if attn_mask is not None else None,
                             "created_at": time.time(),
@@ -208,7 +226,7 @@ class AsyncTextGenerator:
                     # Persist lightweight metadata to disk for observability
                     if self._disk_kv_meta_cache is not None:
                         try:
-                            self._disk_kv_meta_cache.put(kv_key, {
+                            self._disk_kv_meta_cache.put(kv_disk_key, {
                                 "prefill_cached": True,
                                 "ts": time.time(),
                                 "model": model_key,

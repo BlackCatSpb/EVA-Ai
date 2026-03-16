@@ -5,7 +5,8 @@ import json
 import time
 import threading
 import shutil
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Iterable
+from pathlib import Path
 from datetime import datetime
 
 # Пытаемся импортировать psutil для получения реальных системных метрик памяти
@@ -47,6 +48,67 @@ class MemoryManager:
         
         # Типы памяти
         self.working_memory = []
+        self.hybrid_cache = None
+        
+    def get_hybrid_cache(self):
+        """
+        Возвращает гибридный кэш или инициализирует его при необходимости.
+        
+        Returns:
+            HybridTokenCache: Экземпляр гибридного кэша токенов
+            
+        Raises:
+            RuntimeError: Если не удалось инициализировать кэш
+        """
+        if not hasattr(self, '_hybrid_cache') or not self._hybrid_cache:
+            # Используем единый экземпляр из brain вместо создания нового
+            if self.brain and hasattr(self.brain, 'hybrid_cache'):
+                self._hybrid_cache = self.brain.hybrid_cache
+                logger.debug("Используем единый HybridTokenCache из brain")
+            else:
+                # Fallback - создаем свой экземпляр если brain недоступен
+                try:
+                    from ..mlearning.hybrid_token_cache import HybridTokenCache
+                    self._hybrid_cache = HybridTokenCache(
+                        cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
+                        brain=self.brain
+                    )
+                    logger.info("Гибридный кэш успешно инициализирован")
+                except ImportError as e:
+                    logger.error(f"Не удалось импортировать HybridTokenCache: {e}")
+                    raise RuntimeError("Не удалось загрузить модуль гибридного кэша")
+                except Exception as e:
+                    logger.error(f"Ошибка инициализации гибридного кэша: {e}")
+                    self._hybrid_cache = None
+                    raise RuntimeError(f"Ошибка инициализации гибридного кэша: {e}")
+                
+        return self._hybrid_cache
+        
+    def get_state(self) -> Tuple[str, Optional[str]]:
+        """
+        Возвращает текущее состояние менеджера памяти
+        Returns:
+            Tuple[str, Optional[str]]: (состояние, сообщение об ошибке)
+        """
+        if not self.initialized:
+            if self.error:
+                return "error", f"Ошибка инициализации: {self.error}"
+            return "initializing", None
+            
+        if not self.running:
+            return "stopped", None
+            
+        # Проверяем доступность основных компонентов
+        try:
+            if not os.path.exists(self.working_memory_file):
+                return "error", "Файл рабочей памяти недоступен"
+                
+            if not self.knowledge_graph or not getattr(self.knowledge_graph, 'is_initialized', False):
+                return "error", "Граф знаний не инициализирован"
+                
+            return "ready", None
+        except Exception as e:
+            return "error", f"Ошибка проверки состояния: {str(e)}"
         self.semantic_memory = []
         self.episodic_memory = []
         self.user_profiles = {}
@@ -90,12 +152,36 @@ class MemoryManager:
                 os.makedirs(safe_cache_dir, exist_ok=True)
                 brain_obj = _BrainShim(safe_cache_dir)
 
-            self.hybrid_cache = HybridTokenCache(
-                brain=brain_obj,
-                max_memory_tokens=10000,
-                disk_cache_dir="hybrid_cache"
-            )
-            logger.info(f"Гибридный кэш инициализирован с размером памяти {10000} токенов.")
+            # Читаем лимит памяти кэша из конфигурации ядра или переменной окружения
+            try:
+                mem_gb_env = os.getenv("COGNIFLEX_CACHE_MEM_GB")
+                mem_gb_cfg = None
+                try:
+                    # Если у brain есть config, попытаемся прочитать оттуда
+                    mem_gb_cfg = float(getattr(getattr(self.brain, 'config', {}), 'get', lambda *_: None)(
+                        'cache_memory_gb'
+                    ) or 0)
+                except Exception:
+                    mem_gb_cfg = None
+                target_memory_gb = float(mem_gb_env) if mem_gb_env else (mem_gb_cfg if mem_gb_cfg else 16.0)
+            except Exception:
+                target_memory_gb = 16.0
+
+            # Используем единый экземпляр из brain если доступен
+            if self.brain and hasattr(self.brain, 'hybrid_cache') and self.brain.hybrid_cache:
+                self.hybrid_cache = self.brain.hybrid_cache
+                logger.debug("Используем единый HybridTokenCache из brain")
+            else:
+                # Fallback - создаем свой экземпляр
+                self.hybrid_cache = HybridTokenCache(
+                    brain=brain_obj,
+                    max_memory_tokens=10000,
+                    disk_cache_dir="hybrid_cache",
+                    target_memory_gb=target_memory_gb,
+                )
+                logger.info(
+                    f"Гибридный кэш инициализирован: max_memory_tokens=10000, target_memory_gb={target_memory_gb}, disk_dir=hybrid_cache"
+                )
 
         except Exception as e:
             logger.error(f"Ошибка инициализации гибридного кэша: {e}", exc_info=True)
@@ -312,24 +398,66 @@ class MemoryManager:
             raise
 
     def optimize_cache(self):
-        """Оптимизация кэша (заглушка)."""
-        logger.info("Оптимизация кэша выполнена")
-    
-    def _initialize(self):
-        """Инициализирует внутренние компоненты менеджера памяти."""
-        logger.info("Инициализация менеджера памяти...")
+        """Оптимизация кэша."""
         try:
-            # Загружаем данные
-            self._load_working_memory()
-            self._load_semantic_memory()
-            self._load_episodic_memory()
-            self._load_user_profiles()
-            
-            self.initialized = True
-            logger.info("Менеджер памяти полностью инициализирован")
+            if self.hybrid_cache and hasattr(self.hybrid_cache, 'optimize'):
+                self.hybrid_cache.optimize()
+            # Оптимизируем списки памяти
+            self._optimize_memory_lists()
+            logger.info("Кэш оптимизирован")
         except Exception as e:
-            logger.error(f"Ошибка полной инициализации менеджера памяти: {e}", exc_info=True)
-            self.initialized = False
+            logger.error(f"Ошибка оптимизации кэша: {e}")
+
+    def clear_inactive_caches(self, max_age_days: int = 30):
+        """Очищает неактивные кэши."""
+        try:
+            cutoff = time.time() - max_age_days * 24 * 3600
+            for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
+                mem_list = getattr(self, mem_type, [])
+                original_len = len(mem_list)
+                mem_list[:] = [entry for entry in mem_list if entry.get('timestamp', 0) > cutoff]
+                if len(mem_list) < original_len:
+                    self._save_memory(mem_type.replace("_memory", ""))
+            logger.info(f"Очищены неактивные кэши старше {max_age_days} дней")
+        except Exception as e:
+            logger.error(f"Ошибка очистки неактивных кэшей: {e}")
+
+    def compress_data(self):
+        """Сжимает данные в памяти."""
+        try:
+            # Простое сжатие: удаление дубликатов по содержимому
+            for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
+                mem_list = getattr(self, mem_type, [])
+                seen = set()
+                compressed = []
+                for entry in mem_list:
+                    content_hash = hash(str(entry.get('content', '')))
+                    if content_hash not in seen:
+                        seen.add(content_hash)
+                        compressed.append(entry)
+                if len(compressed) < len(mem_list):
+                    setattr(self, mem_type, compressed)
+                    self._save_memory(mem_type.replace("_memory", ""))
+            logger.info("Данные в памяти сжаты")
+        except Exception as e:
+            logger.error(f"Ошибка сжатия данных: {e}")
+    
+    def initialize(self) -> bool:
+        """
+        Публичный метод инициализации менеджера памяти.
+        
+        Returns:
+            bool: True если инициализация прошла успешно
+        """
+        if self.initialized:
+            return True
+            
+        try:
+            self._initialize()
+            return self.initialized
+        except Exception as e:
+            logger.error(f"Ошибка инициализации MemoryManager: {e}", exc_info=True)
+            return False
     
     def start(self):
         """Запускает фоновые процессы менеджера памяти."""
@@ -732,9 +860,243 @@ class MemoryManager:
         return {
             "working_memory_size": len(self.working_memory),
             "semantic_memory_size": len(self.semantic_memory),
-            "episodic_memory_size": len(self.episodic_memory),
-            "user_profiles_count": len(self.user_profiles),
-            "memory_usage": (len(self.working_memory) + len(self.semantic_memory) + len(self.episodic_memory)) / 1000.0,
-            "initialized": self.initialized,
-            "running": self.running
         }
+
+    # ===================== Граф памяти: экспорт/импорт и манифест =====================
+    def export_memory_graph(self) -> List[Dict[str, Any]]:
+        """Экспортирует текущую память в унифицированные записи графа (JSONL формат).
+
+        Формат записей:
+        - узлы: {"type": "node", "id": str, "kind": str, "ts": float, "attrs": dict}
+        - ребра: {"type": "edge", "src": str, "dst": str, "label": str, "ts": float, "attrs": dict}
+        """
+        records: List[Dict[str, Any]] = []
+        now_ts = time.time()
+
+        def add_node(entry: Dict[str, Any], kind: str) -> None:
+            records.append({
+                "type": "node",
+                "id": str(entry.get("id")),
+                "kind": kind,
+                "ts": float(entry.get("timestamp", now_ts)),
+                "attrs": {
+                    "content": entry.get("content"),
+                    "metadata": entry.get("metadata", {}),
+                    "user_id": entry.get("user_id"),
+                },
+            })
+
+        # Узлы: working / semantic / episodic
+        try:
+            for entry in self.working_memory:
+                if isinstance(entry, dict) and entry.get("id"):
+                    add_node(entry, "working")
+        except Exception:
+            logger.debug("Ошибка экспорта working_memory", exc_info=True)
+
+        try:
+            for entry in self.semantic_memory:
+                if isinstance(entry, dict) and entry.get("id"):
+                    add_node(entry, "semantic")
+        except Exception:
+            logger.debug("Ошибка экспорта semantic_memory", exc_info=True)
+
+        try:
+            for entry in self.episodic_memory:
+                if isinstance(entry, dict) and entry.get("id"):
+                    add_node(entry, "episodic")
+        except Exception:
+            logger.debug("Ошибка экспорта episodic_memory", exc_info=True)
+
+        # Узлы и ребра профилей пользователей
+        try:
+            for user_id, profile in self.user_profiles.items():
+                user_node_id = f"user:{user_id}"
+                records.append({
+                    "type": "node",
+                    "id": user_node_id,
+                    "kind": "user_profile",
+                    "ts": float(profile.get("last_active", now_ts)),
+                    "attrs": profile,
+                })
+                for interaction in profile.get("interaction_history", []):
+                    if not isinstance(interaction, dict) or "id" not in interaction:
+                        continue
+                    inter_id = str(interaction["id"])
+                    # узел взаимодействия
+                    records.append({
+                        "type": "node",
+                        "id": inter_id,
+                        "kind": "interaction",
+                        "ts": float(interaction.get("timestamp", now_ts)),
+                        "attrs": interaction,
+                    })
+                    # связь user -> interaction
+                    records.append({
+                        "type": "edge",
+                        "src": user_node_id,
+                        "dst": inter_id,
+                        "label": "performed",
+                        "ts": float(interaction.get("timestamp", now_ts)),
+                        "attrs": {},
+                    })
+        except Exception:
+            logger.debug("Ошибка экспорта user_profiles", exc_info=True)
+
+        return records
+
+    def import_memory_graph(self, records: Iterable[Dict[str, Any]]) -> Tuple[int, int]:
+        """Импортирует записи графа в структуры памяти.
+
+        Возвращает кортеж (nodes, edges), где nodes — количество восстановленных узлов,
+        edges — количество обработанных связей.
+        """
+        nodes_count = 0
+        edges_count = 0
+        try:
+            # Сначала собираем узлы
+            for rec in records:
+                if not isinstance(rec, dict):
+                    continue
+                if rec.get("type") != "node":
+                    continue
+                kind = rec.get("kind")
+                nid = rec.get("id")
+                attrs = rec.get("attrs", {}) or {}
+                ts = float(rec.get("ts", time.time()))
+                if not nid or not kind:
+                    continue
+                if kind in ("working", "semantic", "episodic"):
+                    entry = {
+                        "id": nid,
+                        "content": attrs.get("content"),
+                        "timestamp": ts,
+                        "metadata": attrs.get("metadata", {}),
+                        "user_id": attrs.get("user_id"),
+                    }
+                    if kind == "working":
+                        with self.memory_locks["working"]:
+                            self.working_memory.append(entry)
+                            self._save_working_memory()
+                    elif kind == "semantic":
+                        with self.memory_locks["semantic"]:
+                            self.semantic_memory.append(entry)
+                            self._save_semantic_memory()
+                    elif kind == "episodic":
+                        with self.memory_locks["episodic"]:
+                            self.episodic_memory.append(entry)
+                            self._save_episodic_memory()
+                    nodes_count += 1
+                elif kind == "user_profile":
+                    profile = dict(attrs)
+                    uid = profile.get("id") or str(nid).split(":", 1)[-1]
+                    with self.memory_locks["user_profiles"]:
+                        self.user_profiles[uid] = profile
+                        self._save_user_profiles()
+                    nodes_count += 1
+                elif kind == "interaction":
+                    interaction = dict(attrs)
+                    # добавим как рабочую запись, а также в профиль пользователя, если известен
+                    inter_id = interaction.get("id", nid)
+                    self.add_memory("working", interaction, {"type": "interaction"}, interaction.get("user_id"))
+                    nodes_count += 1
+
+            # Затем обрабатываем связи (можно расширить при необходимости)
+            for rec in records:
+                if isinstance(rec, dict) and rec.get("type") == "edge":
+                    edges_count += 1
+        except Exception:
+            logger.error("Ошибка импорта графа памяти", exc_info=True)
+        return nodes_count, edges_count
+
+    def save_memory_graph_manifest(
+        self,
+        manifest_dir: str,
+        records: Iterable[Dict[str, Any]],
+        meta: Optional[Dict[str, Any]] = None,
+        manifest_filename: str = "manifest.jsonl",
+        meta_filename: str = "manifest_meta.json",
+    ) -> Tuple[str, str]:
+        """Атомарно сохраняет JSONL манифест графа памяти и метаданные.
+
+        Возвращает пути к сохраненным файлам (manifest_path, meta_path).
+        """
+        base = Path(manifest_dir)
+        base.mkdir(parents=True, exist_ok=True)
+
+        manifest_path = base / manifest_filename
+        meta_path = base / meta_filename
+        tmp_manifest = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
+        tmp_meta = meta_path.with_suffix(meta_path.suffix + ".tmp")
+
+        # Пишем jsonl во временный файл
+        with open(tmp_manifest, "w", encoding="utf-8") as f:
+            for rec in records:
+                try:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                except Exception as e:
+                    logger.debug("Failed to write record to manifest file: %s", e)
+            try:
+                f.flush()
+                os.fsync(f.fileno())
+            except Exception as e:
+                logger.debug("Failed to flush/fsync manifest file: %s", e)
+        os.replace(tmp_manifest, manifest_path)
+
+        # Пишем метаданные
+        meta_obj = meta or {}
+        meta_obj.setdefault("version", 1)
+        meta_obj.setdefault("created_ts", time.time())
+        with open(tmp_meta, "w", encoding="utf-8") as mf:
+            json.dump(meta_obj, mf, ensure_ascii=False, indent=2)
+            try:
+                mf.flush()
+                os.fsync(mf.fileno())
+            except Exception as e:
+                logger.debug("Failed to flush/fsync meta file: %s", e)
+        os.replace(tmp_meta, meta_path)
+
+        return str(manifest_path), str(meta_path)
+
+    def load_memory_graph_manifest(
+        self,
+        manifest_dir: str,
+        manifest_filename: str = "manifest.jsonl",
+        meta_filename: str = "manifest_meta.json",
+        limit: Optional[int] = None,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        """Загружает JSONL манифест графа и метаданные.
+
+        limit — опционально ограничивает количество прочитанных записей.
+        """
+        base = Path(manifest_dir)
+        manifest_path = base / manifest_filename
+        meta_path = base / meta_filename
+
+        records: List[Dict[str, Any]] = []
+        meta: Dict[str, Any] = {}
+        try:
+            if meta_path.exists():
+                with meta_path.open("r", encoding="utf-8") as mf:
+                    meta = json.load(mf)
+        except Exception:
+            logger.debug("Не удалось прочитать manifest_meta.json", exc_info=True)
+
+        if not manifest_path.exists():
+            return records, meta
+
+        try:
+            with manifest_path.open("r", encoding="utf-8") as f:
+                for i, line in enumerate(f):
+                    if limit is not None and i >= int(limit):
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        records.append(json.loads(line))
+                    except Exception:
+                        continue
+        except Exception:
+            logger.debug("Не удалось прочитать manifest.jsonl", exc_info=True)
+        return records, meta

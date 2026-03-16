@@ -7,8 +7,19 @@ import json
 import hashlib
 from typing import Dict, List, Optional, Tuple, Any, Set, Union
 from collections import defaultdict, deque
+from enum import Enum
+from .knowledge_hybrid_index import KnowledgeHybridIndex
 
 logger = logging.getLogger("cogniflex.knowledge.core")
+
+class RelationType(Enum):
+    """Типы отношений в графе знаний."""
+    IS_A = "is_a"
+    PART_OF = "part_of" 
+    MEMBER_OF = "member_of"
+    SUPPORTS = "supports"
+    CONTRADICTS = "contradicts"
+    RELATED_TO = "related_to"
 
 class KnowledgeNode:
     """Представляет узел в графе знаний."""
@@ -242,6 +253,17 @@ class KnowledgeGraph:
             "last_update": time.time()
         }
         
+        # Гибридный индекс (LRU + DiskCache) для узлов и связей графа знаний
+        try:
+            base_cache_dir = (
+                getattr(self.brain, 'cache_dir', None)
+                or self.cache_dir
+                or os.path.join(os.getcwd(), 'cogniflex_cache')
+            )
+            self.hybrid_index = KnowledgeHybridIndex(base_cache_dir=base_cache_dir, namespace="kg_index")
+        except Exception:
+            self.hybrid_index = None
+
         logger.info("Граф знаний инициализирован")
     
     def is_ready(self) -> bool:
@@ -474,6 +496,13 @@ class KnowledgeGraph:
             ))
             self.db.commit()
             
+            # Индексируем в гибридном индексе
+            if self.hybrid_index is not None:
+                try:
+                    self.hybrid_index.put_node(node)
+                except Exception:
+                    pass
+            
             # Обновляем статистику
             self._update_stats()
             
@@ -524,6 +553,13 @@ class KnowledgeGraph:
             ))
             self.db.commit()
             
+            # Индексируем в гибридном индексе
+            if self.hybrid_index is not None:
+                try:
+                    self.hybrid_index.put_edge(edge)
+                except Exception:
+                    pass
+            
             # Обновляем статистику
             self._update_stats()
             
@@ -544,7 +580,24 @@ class KnowledgeGraph:
         Returns:
             Optional[KnowledgeNode]: Узел или None
         """
-        return self.nodes.get(node_id)
+        node = self.nodes.get(node_id)
+        if node is not None:
+            return node
+        # Пытаемся достать из гибридного индекса
+        if self.hybrid_index is not None:
+            try:
+                data = self.hybrid_index.get_node(node_id)
+                if data:
+                    node = KnowledgeNode.from_dict(data)
+                    # Кладём в оперативные структуры (без повторной записи в БД)
+                    self.nodes[node.id] = node
+                    self.domains[node.domain].append(node.id)
+                    if node.context:
+                        self.contexts[node.context].append(node.id)
+                    return node
+            except Exception:
+                pass
+        return None
     
     def get_edge(self, edge_id: str) -> Optional[KnowledgeEdge]:
         """
@@ -556,7 +609,21 @@ class KnowledgeGraph:
         Returns:
             Optional[KnowledgeEdge]: Связь или None
         """
-        return self.edges.get(edge_id)
+        edge = self.edges.get(edge_id)
+        if edge is not None:
+            return edge
+        if self.hybrid_index is not None:
+            try:
+                data = self.hybrid_index.get_edge(edge_id)
+                if data:
+                    edge = KnowledgeEdge.from_dict(data)
+                    self.edges[edge.id] = edge
+                    self.node_edges[edge.source].append(edge.id)
+                    self.node_edges[edge.target].append(edge.id)
+                    return edge
+            except Exception:
+                pass
+        return None
     
     def get_nodes_by_domain(self, domain: str) -> List[KnowledgeNode]:
         """
@@ -714,6 +781,13 @@ class KnowledgeGraph:
             cursor.execute("DELETE FROM edges WHERE source = ? OR target = ?", (node_id, node_id))
             self.db.commit()
             
+            # Удаляем из гибридного индекса
+            if self.hybrid_index is not None:
+                try:
+                    self.hybrid_index.remove_node(node_id)
+                except Exception:
+                    pass
+            
             # Обновляем статистику
             self._update_stats()
             
@@ -752,6 +826,13 @@ class KnowledgeGraph:
             cursor = self.db.cursor()
             cursor.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
             self.db.commit()
+            
+            # Удаляем из гибридного индекса
+            if self.hybrid_index is not None:
+                try:
+                    self.hybrid_index.remove_edge(edge_id)
+                except Exception:
+                    pass
             
             # Обновляем статистику
             self._update_stats()

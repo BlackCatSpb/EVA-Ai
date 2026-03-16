@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional, List, Tuple
 logger = logging.getLogger("cogniflex.knowledge_manager")
 
 # Импортируем компоненты
-from .knowledge_core import KnowledgeGraph
+from .knowledge_graph import KnowledgeGraph
 from .knowledge_analyzer import KnowledgeAnalyzer
 from .knowledge_integrator import KnowledgeIntegrator
 
@@ -83,23 +83,16 @@ class KnowledgeManager:
         if not 0.0 <= strength <= 1.0:
             raise ValueError("strength должен быть между 0.0 и 1.0")
         
-        from .knowledge_core import KnowledgeNode
-        import hashlib
-        import time
-        
-        node_id = hashlib.md5(f"{concept}_{domain}_{time.time()}".encode()).hexdigest()
-        node = KnowledgeNode(
-            id=node_id,
-            content=description,
+        # Создаем узел через API KnowledgeGraph
+        node_id = self.knowledge_graph.add_node(
+            name=concept,
+            description=description,
             node_type="concept",
             domain=domain,
             strength=strength,
             meta={"source": source, "tags": tags or [], "user_id": user_id}
         )
-        
-        if self.knowledge_graph.add_node(node):
-            return node_id
-        return ""
+        return node_id or ""
     
     def add_connection(self, source_id: str, target_id: str, 
                       relation: str, strength: float = 0.8, 
@@ -125,23 +118,16 @@ class KnowledgeManager:
         if not 0.0 <= strength <= 1.0:
             raise ValueError("strength должен быть между 0.0 и 1.0")
         
-        from .knowledge_core import KnowledgeEdge
-        import hashlib
-        import time
-        
-        edge_id = hashlib.md5(f"{source_id}_{target_id}_{relation}_{time.time()}".encode()).hexdigest()
-        edge = KnowledgeEdge(
-            id=edge_id,
-            source=source_id,
-            target=target_id,
-            relation=relation,
+        # Добавляем связь через API KnowledgeGraph
+        edge_id = self.knowledge_graph.add_edge(
+            source_id=source_id,
+            target_id=target_id,
+            relation_type=relation,
             strength=strength,
-            meta=metadata or {}
+            meta=metadata or {},
+            user_id=user_id
         )
-        
-        if self.knowledge_graph.add_edge(edge):
-            return edge_id
-        return ""
+        return edge_id or ""
     
     def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -507,7 +493,7 @@ class KnowledgeManager:
         Returns:
             List[Dict[str, Any]]: История изменений
         """
-        return self.knowledge_core.get_history(node_id, days)
+        return self.knowledge_graph.get_history(node_id=node_id, days=days)
     
     def get_recent_changes(self, limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -519,7 +505,7 @@ class KnowledgeManager:
         Returns:
             List[Dict[str, Any]]: Недавние изменения
         """
-        return self.knowledge_core.get_recent_changes(limit)
+        return self.knowledge_graph.get_recent_changes(limit)
     
     def close(self):
         """Закрывает модуль управления знаниями и освобождает ресурсы."""

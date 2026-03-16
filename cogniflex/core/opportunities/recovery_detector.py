@@ -7,29 +7,27 @@ from .base_detector import BaseDetector
 
 
 class ModuleRecoveryDetector(BaseDetector):
-    name = "module_recovery"
-    cooldown_sec = 60.0
+    name = "recovery"
+    cooldown_sec = 30.0
 
     def _do_probe(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
         brain = context.get('brain')
         if not brain:
             return []
-        critical = ['knowledge_graph', 'ml_unit', 'memory_manager']
+        
+        # Проверяем состояние модулей
         to_recover = []
-        for key in critical + ['response_generator', 'text_processor']:
-            comp = (brain.components or {}).get(key)
-            if not comp:
-                to_recover.append(key)
-                continue
-            # если есть health_check и он False — восстановление
-            try:
-                if hasattr(comp, 'health_check'):
-                    status = comp.health_check()
-                    ok = bool(status.get('healthy', False)) if isinstance(status, dict) else bool(status)
-                    if not ok:
-                        to_recover.append(key)
-            except Exception:
-                to_recover.append(key)
+        try:
+            # Проверяем основные компоненты
+            components = ['memory', 'reasoning', 'learning', 'adaptation']
+            for comp in components:
+                if hasattr(brain, comp):
+                    module = getattr(brain, comp)
+                    if hasattr(module, 'health_check') and not module.health_check():
+                        to_recover.append(comp)
+        except Exception:
+            pass
+        
         if not to_recover:
             return []
         return [{"job_type": "ModuleRecoveryJob", "params": {"targets": to_recover}}]

@@ -354,6 +354,11 @@ class SystemMetricsManager:
         self.metrics["reboot_time"] = total_time
         print(f"[METRICS] Система перезагружена за {total_time:.2f} сек")
     
+    def record_system_reboot(self, total_time):
+        # Логируем время перезагрузки
+        self.metrics["reboot_time"] = total_time
+        print(f"[METRICS] Система перезагружена за {total_time:.2f} сек")
+    
     def record_query_metrics(self, query_length, response_length, processing_time, tokens_processed):
         # Записываем метрики запроса
         self.update_request_metrics(processing_time, True)
@@ -362,3 +367,6 @@ class SystemMetricsManager:
         self.metrics["last_tokens_processed"] = tokens_processed
         print(f"[METRICS] Обработан запрос: {query_length} символов -> {response_length} символов за {processing_time:.2f} сек")
 
+
+# Алиас для совместимости с core_brain.py
+MetricsManager = SystemMetricsManager

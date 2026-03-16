@@ -1,46 +1,40 @@
+"""
+CogniFlex GUI Package
+
+Графический интерфейс CogniFlex - интеграция с единой фрактальной архитектурой
+"""
+
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("cogniflex.gui")
 
+# Импорт основных компонентов GUI
+def create_gui(brain=None, **kwargs):
+    """Фабричная функция для создания экземпляра CogniFlexGUI."""
+    logger.info("Создание экземпляра CogniFlexGUI через фабричную функцию.")
+    from .core_gui import create_gui as _create_gui
+    return _create_gui(brain=brain, **kwargs)
 
-def _init_modules(self):
-    """Инициализирует модули GUI с безопасной загрузкой."""
+try:
+    from .integrated_gui import IntegratedCogniFlexGUI, create_integrated_gui
+    from .core_gui import CogniFlexGUI
+    
+    # Псевдоним для совместимости
+    MainWindow = CogniFlexGUI
+    
+except ImportError as e:
+    logging.warning(f"Не удалось импортировать компоненты GUI: {e}")
+    
+    # Заглушка на случай ошибки импорта
+    class MainWindow:
+        def __init__(self, *args, **kwargs):
+            logging.warning("Используется заглушка MainWindow из-за ошибки импорта")
 
-    if not hasattr(self, 'content_area') or self.content_area is None:
-        logger.error("Попытка инициализации модулей до создания интерфейса")
-        return
-
-    self.active_modules = []
-
-    # Список модулей в формате: (атрибут, модуль, класс)
-    modules = [
-        ("chat_module", "chat_module", "ChatModule"),
-        ("analytics_module", "analytics_module", "AnalyticsModule"),
-        ("knowledge_module", "knowledge_graph_module", "KnowledgeGraphModule"),
-        ("contradiction_module", "contradiction_module", "ContradictionModule"),
-        ("memory_module", "memory_module", "MemoryModule"),
-        ("learning_module", "learning_module", "LearningModule"),
-        ("settings_module", "settings_module", "SettingsModule"),
-    ]
-
-    for attr_name, module_name, class_name in modules:
-        try:
-            # Относительный импорт из текущей папки (где лежит core_gui.py)
-            mod = __import__(f".{module_name}", fromlist=[class_name], package=__package__)
-            cls = getattr(mod, class_name)
-            instance = cls(self)
-            setattr(self, attr_name, instance)
-            self.active_modules.append(instance)
-            logger.info(f"{class_name} инициализирован")
-        except ImportError as e:
-            logger.warning(f"{class_name} недоступен (ImportError): {e}")
-            setattr(self, attr_name, None)
-        except Exception as e:
-            logger.error(f"Ошибка инициализации {class_name}: {e}", exc_info=True)
-            setattr(self, attr_name, None)
-
-    # После загрузки переключаем на чат, если он есть
-    if self.chat_module:
-        self._switch_view("chat")
-    else:
-        logger.warning("Чат-модуль не загружен, невозможно переключиться на чат")
+# Экспорт для обратной совместимости
+__all__ = [
+    'IntegratedCogniFlexGUI',
+    'create_integrated_gui',
+    'CogniFlexGUI',
+    'MainWindow',
+    'create_gui'
+]

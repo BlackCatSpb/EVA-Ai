@@ -139,7 +139,8 @@ def show_notification(gui, message: str, level: str = "info",
     
     # Автоматическое исчезновение
     duration = duration or gui.settings["gui"].get("notification_duration", 5000)
-    gui.root.after(duration, lambda: hide_notification(gui, notification))
+    job_id = gui.root.after(duration, lambda: hide_notification(gui, notification))
+    notification.job_id = job_id  # Сохраняем job_id для отмены
 
 def hide_notification(gui, notification):
     """Скрывает уведомление с анимацией."""

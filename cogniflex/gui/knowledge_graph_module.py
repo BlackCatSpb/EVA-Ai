@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext, simpledialog, font
 import logging
+
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
@@ -28,6 +29,8 @@ class KnowledgeGraphModule:
     
     def __init__(self, gui):
         self.gui = gui
+        
+        # Инициализация атрибутов
         self.knowledge_frame = None
         self.notebook = None
         self.graph_canvas = None
@@ -37,27 +40,66 @@ class KnowledgeGraphModule:
         self.selected_edge = None
         self.current_view = "all"
         self.search_query = ""
-        self.search_results = []
-        self.search_index = 0
-        self.update_queue = queue.Queue()
+        
+        # Поток обновления
         self.update_thread = None
-        self.stop_event = threading.Event()
-        self.update_interval = 5000  # Интервал обновления в миллисекундах (5 секунд)
-        self.node_size = 300
-        self.edge_width = 1.5
-        self.font_size = 9
+        self.update_running = False
+        
+        # Цветовая схема
         self.color_scheme = {
+            "background": {"dark": "#1e1e1e", "light": "#ffffff"},
+            "node": {"default": "#4a90e2", "selected": "#e74c3c"},
+            "edge": {"default": "#95a5a6", "selected": "#f39c12"},
+            "text": {"dark": "#ffffff", "light": "#000000"},
             "fact": {"node": "#1f77b4", "text": "white"},
             "concept": {"node": "#ff7f0e", "text": "black"},
             "entity": {"node": "#2ca02c", "text": "white"},
             "relation": {"edge": "#9467bd"},
-            "contradiction": {"edge": "#d62728", "width": 2.5},
-            "background": {"light": "white", "dark": "#1e1e1e"}
+            "contradiction": {"edge": "#d62728", "width": 2.5}
         }
-        logger.info("Модуль графа знаний инициализирован")
-
+        
+        # Отложенные события
+        self.pending_after_events = []
+        
+        # Потоковые атрибуты
+        self.search_results = []
+        self.search_index = 0
+        self.update_queue = queue.Queue()
+        self.stop_event = threading.Event()
+        self.update_interval = 5000  # Интервал обновления в миллисекундах (5 секунд)
+        self.pending_after_ids = []  # Отслеживание after событий
+        self.node_size = 300
+        self.edge_width = 1.5
+        self.font_size = 9
+        
+    def _safe_brain_call(self, method_name: str, *args, **kwargs):
+        """Безопасный вызов метода brain с логированием"""
+        if hasattr(self, 'gui') and hasattr(self.gui, 'brain') and self.gui.brain:
+            try:
+                method = getattr(self.gui.brain, method_name, None)
+                if method:
+                    result = method(*args, **kwargs)
+                    logger.debug(f"[{self.__class__.__name__}] Успешный вызов brain.{method_name}()")
+                    return result
+                else:
+                    logger.warning(f"[{self.__class__.__name__}] Метод brain.{method_name} не найден")
+                    return None
+            except Exception as e:
+                logger.error(f"[{self.__class__.__name__}] Ошибка вызова brain.{method_name}: {e}")
+                return None
+        else:
+            logger.warning(f"[{self.__class__.__name__}] Brain недоступен")
+            return None
+    
     def activate(self):
         """Активирует модуль графа знаний."""
+        logger.info("Активация модуля графа знаний")
+        
+        # Проверяем доступность компонентов
+        if not self._log_brain_access("knowledge_graph"):
+            logger.error("Компонент knowledge_graph недоступен")
+            return
+        
         # Очищаем область контента
         for widget in self.gui.content_area.winfo_children():
             widget.destroy()
@@ -69,13 +111,34 @@ class KnowledgeGraphModule:
         self._start_update_thread()
         
         logger.info("Модуль графа знаний активирован")
+        
+        # Начинаем обновление данных
+        self._start_update_thread()
+        
+        logger.info("Модуль графа знаний активирован")
 
     def deactivate(self):
         """Деактивирует модуль графа знаний."""
         # Останавливаем обновление данных
         self._stop_update_thread()
         
+        # Отменяем все pending after события
+        self._cancel_pending_after_events()
+        
         logger.info("Модуль графа знаний деактивирован")
+
+    def _log_brain_access(self, component_name: str) -> bool:
+        """Проверяет и логирует доступ к компоненту brain."""
+        if not hasattr(self.gui, 'brain') or not self.gui.brain:
+            logger.warning(f"Brain недоступен для {component_name}")
+            return False
+        
+        if not hasattr(self.gui.brain, component_name):
+            logger.warning(f"Компонент {component_name} недоступен в brain")
+            return False
+        
+        logger.debug(f"Доступ к {component_name} получен")
+        return True
 
     def _start_update_thread(self):
         """Запускает фоновый поток для обновления данных."""
@@ -100,6 +163,35 @@ class KnowledgeGraphModule:
         if self.update_thread.is_alive():
             self.update_thread.join(timeout=2.0)
         logger.debug("Фоновый поток обновления графа знаний остановлен")
+    
+    def _cancel_pending_after_events(self):
+        """Отменяет все ожидающие after события."""
+        if not self.gui or not hasattr(self.gui, 'root') or not self.gui.root:
+            return
+            
+        try:
+            for after_id in list(self.pending_after_ids):
+                try:
+                    self.gui.root.after_cancel(after_id)
+                except tk.TclError:
+                    pass  # Событие уже выполнено или отменено
+            self.pending_after_ids.clear()
+            logger.debug("Все after события отменены")
+        except Exception as e:
+            logger.error(f"Ошибка отмены after событий: {e}")
+    
+    def _safe_after(self, delay_ms: int, callback):
+        """Безопасно планирует after событие с отслеживанием."""
+        if not self.gui or not hasattr(self.gui, 'root') or not self.gui.root:
+            return None
+            
+        try:
+            after_id = self.gui.root.after(delay_ms, callback)
+            self.pending_after_ids.append(after_id)
+            return after_id
+        except (tk.TclError, RuntimeError):
+            # Окно уничтожено или не в главном потоке
+            return None
 
     def _update_data_loop(self):
         """Цикл обновления данных графа знаний."""
@@ -110,7 +202,7 @@ class KnowledgeGraphModule:
                     self._update_graph_data()
                 
                 # Отправляем сигнал обновления
-                self.gui.root.after(100, self._process_update_queue)
+                self._safe_after(100, self._process_update_queue)
                 
                 # Ждем перед следующим обновлением
                 time.sleep(self.update_interval / 1000.0)
@@ -123,8 +215,8 @@ class KnowledgeGraphModule:
         """Обновляет данные графа знаний из системы."""
         try:
             # Получаем доступ к графу знаний
-            if not self.gui.brain or not hasattr(self.gui.brain, 'knowledge_graph'):
-                logger.warning("Граф знаний недоступен")
+            if not self._log_brain_access('knowledge_graph'):
+                logger.warning("Граф знаний недоступен для загрузки доменов")
                 return
             
             knowledge_graph = self.gui.brain.knowledge_graph
@@ -138,7 +230,8 @@ class KnowledgeGraphModule:
                 # Ищем узлы по запросу
                 nodes = knowledge_graph.search_nodes(self.search_query)
                 # Получаем связанные узлы и связи
-                node_ids = [node["id"] for node in nodes]
+                node_ids = [getattr(node, "id", None) if not isinstance(node, dict) else node.get("id") for node in nodes]
+                node_ids = [nid for nid in node_ids if nid]
                 edges = []
                 for node_id in node_ids:
                     node_edges = knowledge_graph.get_edges(node_id)
@@ -147,8 +240,21 @@ class KnowledgeGraphModule:
                 # Получаем связанные узлы
                 related_node_ids = set()
                 for edge in edges:
-                    related_node_ids.add(edge["source_id"])
-                    related_node_ids.add(edge["target_id"])
+                    # Поддержка обоих вариантов: объект и словарь
+                    src = getattr(edge, "source_id", None)
+                    if src is None:
+                        src = getattr(edge, "source", None)
+                    if src is None and isinstance(edge, dict):
+                        src = edge.get("source_id") or edge.get("source")
+                    tgt = getattr(edge, "target_id", None)
+                    if tgt is None:
+                        tgt = getattr(edge, "target", None)
+                    if tgt is None and isinstance(edge, dict):
+                        tgt = edge.get("target_id") or edge.get("target")
+                    if src:
+                        related_node_ids.add(src)
+                    if tgt:
+                        related_node_ids.add(tgt)
                 
                 # Получаем данные для связанных узлов
                 related_nodes = []
@@ -164,7 +270,8 @@ class KnowledgeGraphModule:
                 domain = self.current_view.split(":", 1)[1]
                 nodes = knowledge_graph.get_nodes_by_domain(domain)
                 # Получаем связанные узлы и связи
-                node_ids = [node["id"] for node in nodes]
+                node_ids = [getattr(node, "id", None) if not isinstance(node, dict) else node.get("id") for node in nodes]
+                node_ids = [nid for nid in node_ids if nid]
                 edges = []
                 for node_id in node_ids:
                     node_edges = knowledge_graph.get_edges(node_id)
@@ -177,23 +284,53 @@ class KnowledgeGraphModule:
             
             # Добавляем узлы
             for node in nodes:
+                if isinstance(node, dict):
+                    node_id = node.get("id")
+                    label = node.get("name") or node.get("label") or str(node_id)
+                    node_type = node.get("node_type") or node.get("type") or "other"
+                    domain = node.get("domain") or "general"
+                    strength = node.get("strength", 0.0)
+                    description = node.get("description") or node.get("content") or ""
+                else:
+                    node_id = getattr(node, "id", None)
+                    label = getattr(node, "name", None) or getattr(node, "content", None) or str(node_id)
+                    node_type = getattr(node, "node_type", "other")
+                    domain = getattr(node, "domain", "general")
+                    strength = getattr(node, "strength", 0.0)
+                    description = getattr(node, "description", None) or getattr(node, "content", "")
+                if not node_id:
+                    continue
                 G.add_node(
-                    node["id"],
-                    label=node["name"],
-                    type=node["node_type"],
-                    domain=node["domain"],
-                    strength=node["strength"],
-                    description=node["description"]
+                    node_id,
+                    label=label,
+                    type=node_type,
+                    domain=domain,
+                    strength=strength,
+                    description=description
                 )
             
             # Добавляем связи
             for edge in edges:
+                if isinstance(edge, dict):
+                    src = edge.get("source_id") or edge.get("source")
+                    tgt = edge.get("target_id") or edge.get("target")
+                    label = edge.get("relation_type") or edge.get("relation") or ""
+                    strength = edge.get("strength", 0.0)
+                    eid = edge.get("id")
+                else:
+                    src = getattr(edge, "source_id", None) or getattr(edge, "source", None)
+                    tgt = getattr(edge, "target_id", None) or getattr(edge, "target", None)
+                    label = getattr(edge, "relation_type", None) or getattr(edge, "relation", "")
+                    strength = getattr(edge, "strength", 0.0)
+                    eid = getattr(edge, "id", None)
+                if not src or not tgt:
+                    continue
                 G.add_edge(
-                    edge["source_id"],
-                    edge["target_id"],
-                    label=edge["relation_type"],
-                    strength=edge["strength"],
-                    id=edge["id"]
+                    src,
+                    tgt,
+                    label=label,
+                    strength=strength,
+                    id=eid
                 )
             
             # Сохраняем в очередь
@@ -545,17 +682,66 @@ class KnowledgeGraphModule:
                 logger.warning("Граф знаний недоступен для загрузки доменов")
                 return
             
-            # Получаем статистику по доменам
-            domain_stats = self.gui.brain.knowledge_graph.get_domain_statistics()
-            
+            kg = self.gui.brain.knowledge_graph
+            domain_stats = {}
+            try:
+                # Пытаемся получить из ядра
+                domain_stats = kg.get_domain_statistics() or {}
+            except Exception as e:
+                logger.warning(f"Не удалось получить статистику доменов из ядра: {e}")
+                domain_stats = {}
+
+            # Если ядро вернуло в неожиданном формате или пусто — считаем самостоятельно
+            if not isinstance(domain_stats, dict) or not domain_stats:
+                domain_stats = {}
+                nodes = kg.get_all_nodes()
+                edges = kg.get_all_edges() if hasattr(kg, 'get_all_edges') else []
+                # Подсчет узлов и типов
+                for node in nodes:
+                    if isinstance(node, dict):
+                        domain = node.get("domain", "general")
+                        ntype = node.get("node_type") or node.get("type") or "other"
+                    else:
+                        domain = getattr(node, "domain", "general")
+                        ntype = getattr(node, "node_type", "other")
+                    d = domain_stats.setdefault(domain, {"nodes": 0, "edges": 0, "node_types": {}})
+                    d["nodes"] += 1
+                    d["node_types"][ntype] = d["node_types"].get(ntype, 0) + 1
+                # Подсчет связей по домену источника
+                for edge in edges:
+                    if isinstance(edge, dict):
+                        src_id = edge.get("source_id") or edge.get("source")
+                    else:
+                        src_id = getattr(edge, "source_id", None) or getattr(edge, "source", None)
+                    if not src_id:
+                        continue
+                    src_node = kg.get_node(src_id)
+                    if src_node is None:
+                        continue
+                    domain = src_node.get("domain") if isinstance(src_node, dict) else getattr(src_node, "domain", "general")
+                    d = domain_stats.setdefault(domain, {"nodes": 0, "edges": 0, "node_types": {}})
+                    d["edges"] += 1
+
+            # Общая метка времени
+            overall_ts = None
+            try:
+                overall = kg.get_statistics() if hasattr(kg, 'get_statistics') else None
+                if isinstance(overall, dict):
+                    overall_ts = overall.get("last_update") or overall.get("last_updated")
+            except Exception:
+                pass
+
             # Заполняем таблицу
             for domain, stats in domain_stats.items():
-                last_updated = datetime.fromtimestamp(stats["last_updated"]).strftime("%Y-%m-%d %H:%M:%S") if stats["last_updated"] else "N/A"
-                
+                last_ts = stats.get("last_updated") if isinstance(stats, dict) else None
+                last_ts = last_ts or overall_ts or time.time()
+                last_updated = datetime.fromtimestamp(last_ts).strftime("%Y-%m-%d %H:%M:%S") if last_ts else "N/A"
+                nodes_cnt = stats.get("nodes", 0) if isinstance(stats, dict) else 0
+                edges_cnt = stats.get("edges", 0) if isinstance(stats, dict) else 0
                 self.domains_tree.insert("", tk.END, values=(
                     domain,
-                    stats["nodes"],
-                    stats["edges"],
+                    nodes_cnt,
+                    edges_cnt,
                     last_updated
                 ))
         except Exception as e:
@@ -689,11 +875,34 @@ class KnowledgeGraphModule:
                 return
             
             # Получаем статистику
-            stats = self.gui.brain.knowledge_graph.get_statistics()
+            kg = self.gui.brain.knowledge_graph
+            stats = {}
+            try:
+                raw_stats = kg.get_statistics()
+                if isinstance(raw_stats, dict):
+                    stats = raw_stats
+            except Exception as e:
+                logger.warning(f"Не удалось получить общую статистику из ядра: {e}")
+                stats = {}
+            # Безопасные значения по умолчанию
+            if not stats:
+                try:
+                    total_nodes = len(kg.get_all_nodes()) if hasattr(kg, 'get_all_nodes') else 0
+                    total_edges = len(kg.get_all_edges()) if hasattr(kg, 'get_all_edges') else 0
+                except Exception:
+                    total_nodes = 0
+                    total_edges = 0
+                stats = {
+                    "total_nodes": total_nodes,
+                    "total_edges": total_edges,
+                    "node_types": {},
+                    "domains": [],
+                    "last_updated": time.time(),
+                }
             
             # Приводим статистику доменов к формату dict[domain] -> count для графиков
             try:
-                domain_stats = self.gui.brain.knowledge_graph.get_domain_statistics()
+                domain_stats = kg.get_domain_statistics()
                 domain_counts = {}
                 for domain, dstats in (domain_stats or {}).items():
                     if isinstance(dstats, dict):
@@ -705,11 +914,22 @@ class KnowledgeGraphModule:
                 stats["domains"] = domain_counts
             except Exception as e2:
                 logger.warning(f"Не удалось получить детальную статистику доменов: {e2}")
+                # Fallback: посчитать домены по узлам
+                try:
+                    domain_counts = {}
+                    for node in kg.get_all_nodes():
+                        domain = node.get("domain") if isinstance(node, dict) else getattr(node, "domain", "general")
+                        domain_counts[domain] = domain_counts.get(domain, 0) + 1
+                    stats["domains"] = domain_counts
+                except Exception:
+                    stats["domains"] = {}
             
             # Обновляем метрики
-            self.nodes_value.config(text=str(stats["total_nodes"]))
-            self.edges_value.config(text=str(stats["total_edges"]))
-            self.domains_value.config(text=str(len(stats["domains"])))
+            self.nodes_value.config(text=str(stats.get("total_nodes", 0)))
+            self.edges_value.config(text=str(stats.get("total_edges", 0)))
+            domains_obj = stats.get("domains", {})
+            domains_count = len(domains_obj) if isinstance(domains_obj, dict) else len(domains_obj) if isinstance(domains_obj, list) else 0
+            self.domains_value.config(text=str(domains_count))
             self.contradictions_value.config(text=str(stats.get("contradictions", 0)))
             
             # Обновляем графики
@@ -734,8 +954,9 @@ class KnowledgeGraphModule:
                 ax.clear()
                 
                 # Подготовка данных
-                node_types = list(stats["node_types"].keys())
-                counts = list(stats["node_types"].values())
+                node_types_dict = stats.get("node_types") or {}
+                node_types = list(node_types_dict.keys())
+                counts = list(node_types_dict.values())
                 
                 # Создаем круговую диаграмму
                 if sum(counts) > 0:
@@ -764,12 +985,22 @@ class KnowledgeGraphModule:
                 ax.clear()
                 
                 # Подготовка данных
-                domains = list(stats["domains"].keys())
-                counts = list(stats["domains"].values())
+                domains_obj = stats.get("domains") or {}
+                if isinstance(domains_obj, dict):
+                    domains = list(domains_obj.keys())
+                    counts = list(domains_obj.values())
+                elif isinstance(domains_obj, list):
+                    # Если это список доменов без счетчиков — считаем по 1
+                    domains = domains_obj
+                    counts = [1 for _ in domains_obj]
+                else:
+                    domains = []
+                    counts = []
                 
                 # Создаем гистограмму
                 if len(domains) > 0:
-                    ax.bar(domains, counts)
+                    ax.bar(range(len(domains)), counts)
+                    ax.set_xticks(range(len(domains)))
                     ax.set_xticklabels(domains, rotation=45, ha='right')
                     ax.set_ylabel('Количество')
                 else:
@@ -817,9 +1048,37 @@ class KnowledgeGraphModule:
             return
             
         try:
-            # Очищаем текущий график
+            # Очищаем текущий график безопасно
             fig = self.graph_canvas.figure
-            fig.clear()
+            
+            # Проверяем, что фигура и ее атрибуты существуют
+            if hasattr(fig, 'clear') and hasattr(self, 'graph_canvas'):
+                try:
+                    # Сохраняем ссылку на toolbar перед очисткой
+                    toolbar = None
+                    if hasattr(self.graph_canvas, 'get_tk_widget'):
+                        toolbar = self.graph_canvas.manager.toolbar if hasattr(self.graph_canvas.manager, 'toolbar') else None
+                    
+                    # Очищаем фигуру
+                    fig.clear()
+                    
+                    # Восстанавливаем toolbar если он был уничтожен
+                    if toolbar is not None and hasattr(toolbar, 'update'):
+                        try:
+                            toolbar.update()
+                        except:
+                            pass  # Игнорируем ошибки toolbar
+                            
+                except Exception as clear_error:
+                    # Если очистка не удалась, создаем новую фигуру
+                    import matplotlib.pyplot as plt
+                    fig = plt.Figure(figsize=(8, 6), dpi=100)
+                    self.graph_canvas.figure = fig
+            else:
+                # Создаем новую фигуру если старая недоступна
+                import matplotlib.pyplot as plt
+                fig = plt.Figure(figsize=(8, 6), dpi=100)
+                self.graph_canvas.figure = fig
             
             # Создаем новую ось
             ax = fig.add_subplot(111)
@@ -835,9 +1094,9 @@ class KnowledgeGraphModule:
             fig.patch.set_facecolor(bg_color)
             ax.set_facecolor(bg_color)
             
-            # Определяем позиции узлов, если они не заданы
-            if not self.pos:
-                self.pos = nx.spring_layout(self.graph)
+            # Всегда пересчитываем позиции узлов для текущего графа,
+            # чтобы избежать отсутствующих позиций у новых узлов
+            self.pos = nx.spring_layout(self.graph, k=0.5, iterations=50, seed=42)
             
             # Определяем цвета узлов
             node_colors = []
@@ -930,8 +1189,19 @@ class KnowledgeGraphModule:
                 ax=ax
             )
             
-            # Обновляем холст
-            self.graph_canvas.draw()
+            # Обновляем холст безопасно
+            try:
+                if hasattr(self, 'graph_canvas') and self.graph_canvas is not None:
+                    # Проверяем, что виджет все еще существует
+                    widget = self.graph_canvas.get_tk_widget()
+                    if widget.winfo_exists():
+                        self.graph_canvas.draw()
+                    else:
+                        logger.debug("Canvas widget больше не существует, пропускаем отрисовку")
+                else:
+                    logger.debug("Graph canvas недоступен, пропускаем отрисовку")
+            except Exception as draw_error:
+                logger.debug(f"Ошибка отрисовки canvas: {draw_error}")
             
         except Exception as e:
             logger.error(f"Ошибка обновления визуализации графа: {e}", exc_info=True)
@@ -1323,13 +1593,28 @@ class KnowledgeGraphModule:
         
         # Заполняем таблицу результатами
         for result in self.search_results:
-            strength = f"{result.get('strength', 0):.2f}"
+            if isinstance(result, dict):
+                name = result.get("name") or result.get("label") or "N/A"
+                node_type = result.get("node_type") or result.get("type") or "N/A"
+                domain = result.get("domain", "N/A")
+                strength_val = result.get("strength", 0)
+                description = result.get("description") or result.get("content") or "N/A"
+            else:
+                name = getattr(result, "name", None) or getattr(result, "content", None) or "N/A"
+                node_type = getattr(result, "node_type", "N/A")
+                domain = getattr(result, "domain", "N/A")
+                strength_val = getattr(result, "strength", 0)
+                description = getattr(result, "description", None) or getattr(result, "content", None) or "N/A"
+            try:
+                strength = f"{float(strength_val):.2f}"
+            except Exception:
+                strength = "0.00"
             self.search_tree.insert("", tk.END, values=(
-                result.get("name", "N/A"),
-                result.get("node_type", "N/A"),
-                result.get("domain", "N/A"),
+                name,
+                node_type,
+                domain,
                 strength,
-                result.get("description", "N/A")
+                description
             ))
 
     def _on_search_result_double_click(self, event):

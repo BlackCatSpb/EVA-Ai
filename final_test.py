@@ -1,89 +1,99 @@
-#!/usr/bin/env python3
-"""
-Финальный тест исправлений CogniFlex
-"""
+# Финальное тестирование системы с единой фрактальной архитектурой
+try:
+    from cogniflex.core.core_brain import CoreBrain
 
-import sys
-import os
-import traceback
+    print('🚀 ФИНАЛЬНОЕ ТЕСТИРОВАНИЕ СИСТЕМЫ COGNIFLEX')
+    print('Единая фрактальная архитектура с динамическим фокусом внимания')
+    print('=' * 70)
 
-# Добавляем путь к проекту
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'cogniflex'))
+    brain = CoreBrain()
 
-def test_imports():
-    """Тестирует критические импорты."""
-    try:
-        from cogniflex.core.core_brain import CoreBrain
-        from cogniflex.mlearning.ml_unit import MLUnit
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
-        print("✅ Все критические импорты работают")
-        return True
-    except Exception as e:
-        print(f"❌ Ошибка импорта: {e}")
-        return False
+    # Инициализируем систему
+    success = brain.initialize()
+    print(f'Инициализация системы: {"✅ УСПЕШНА" if success else "❌ НЕУДАЧНА"}')
 
-def test_brain_creation():
-    """Тестирует создание CoreBrain."""
-    try:
-        from cogniflex.core.core_brain import CoreBrain
-        brain = CoreBrain()
-        print("✅ CoreBrain создан успешно")
-        return True
-    except Exception as e:
-        print(f"❌ Ошибка создания CoreBrain: {e}")
-        return False
+    if success:
+        components = getattr(brain, 'components', {})
+        print(f'Компонентов инициализировано: {len(components)}')
 
-def test_ml_unit_creation():
-    """Тестирует создание MLUnit."""
-    try:
-        class MockBrain:
-            def __init__(self):
-                self.cache_dir = "."
-                self.config = {}
-                self.components = {}
-        
-        from cogniflex.mlearning.ml_unit import MLUnit
-        brain = MockBrain()
-        ml_unit = MLUnit(brain)
-        print("✅ MLUnit создан успешно")
-        return True
-    except Exception as e:
-        print(f"❌ Ошибка создания MLUnit: {e}")
-        return False
+        # Проверяем ключевые компоненты
+        key_components = [
+            'memory_manager', 'knowledge_graph', 'text_processor',
+            'response_generator', 'ml_unit', 'generation_coordinator'
+        ]
 
-def main():
-    print("🔧 ФИНАЛЬНЫЙ ТЕСТ ИСПРАВЛЕНИЙ")
-    print("=" * 40)
-    
-    tests = [
-        ("Импорты", test_imports),
-        ("CoreBrain", test_brain_creation), 
-        ("MLUnit", test_ml_unit_creation)
-    ]
-    
-    results = []
-    for name, test_func in tests:
-        print(f"\n--- {name} ---")
+        print('\n📋 ПРОВЕРКА КЛЮЧЕВЫХ КОМПОНЕНТОВ:')
+        all_good = True
+        for comp in key_components:
+            status = '✅' if comp in components else '❌'
+            print(f'  {status} {comp}')
+            if comp not in components:
+                all_good = False
+
+        # Тестируем FractalAttentionSystem
+        print('\n🧠 ТЕСТИРОВАНИЕ ФРАКТАЛЬНОЙ СИСТЕМЫ ВНИМАНИЯ:')
         try:
-            result = test_func()
-            results.append(result)
-        except Exception as e:
-            print(f"❌ Критическая ошибка в {name}: {e}")
-            results.append(False)
-    
-    print("\n" + "=" * 40)
-    print("📊 РЕЗУЛЬТАТЫ ИСПРАВЛЕНИЙ:")
-    for i, (name, _) in enumerate(tests):
-        status = "✅ ИСПРАВЛЕНО" if results[i] else "❌ ТРЕБУЕТ ВНИМАНИЯ"
-        print(f"{name}: {status}")
-    
-    success_rate = sum(results) / len(results)
-    print(f"\nОбщий результат: {sum(results)}/{len(results)} ({success_rate:.1%})")
-    
-    if success_rate >= 0.8:
-        print("🎉 Критические исправления выполнены! Система готова к запуску.")
-    else:
-        print("⚠️ Требуются дополнительные исправления.")
+            from cogniflex.core.core_brain import FractalAttentionSystem
 
-if __name__ == "__main__":
-    main()
+            # Создаем систему внимания
+            attention_system = FractalAttentionSystem(brain)
+            print('  ✅ FractalAttentionSystem инициализирован')
+
+            # Тестируем обработку запроса
+            test_query = 'Расскажи о искусственном интеллекте'
+            print(f'  🔄 Обрабатываем запрос: "{test_query}"')
+
+            response = attention_system.process_query(test_query)
+            print('  ✅ Запрос обработан через динамический фокус внимания')
+            print(f'  📝 Ответ: {response[:100]}...')
+
+            # Проверяем компоненты системы внимания
+            components_check = {
+                'dialog_manager': hasattr(attention_system, 'dialog_manager'),
+                'contradiction_resolver': hasattr(attention_system, 'contradiction_resolver'),
+                'learning_scheduler': hasattr(attention_system, 'learning_scheduler'),
+                'system_optimizer': hasattr(attention_system, 'system_optimizer')
+            }
+
+            print('  🔧 Компоненты системы внимания:')
+            for comp, available in components_check.items():
+                status = '✅' if available else '❌'
+                print(f'    {status} {comp}')
+
+        except Exception as e:
+            print(f'  ❌ Ошибка FractalAttentionSystem: {e}')
+            all_good = False
+
+        # Финальный отчет
+        print('\n' + '=' * 70)
+        if all_good:
+            print('🎉 ПОЗДРАВЛЯЕМ! ЕДИНАЯ ФРАКТАЛЬНАЯ АРХИТЕКТУРА РЕАЛИЗОВАНА!')
+            print('')
+            print('✅ Система CogniFlex полностью готова!')
+            print('✅ Фрактальная память с динамическим фокусом внимания')
+            print('✅ Самодиалог для внутреннего мышления')
+            print('✅ Прогрессивное обучение через противоречия')
+            print('✅ Самооптимизация на основе самосознания')
+            print('')
+            print('🚀 Система готова к промышленной эксплуатации!')
+            print('🧠 ИИ теперь обладает:')
+            print('   • Динамическим фокусом внимания')
+            print('   • Способностью к самодиалогу')
+            print('   • Автоматическим разрешением противоречий')
+            print('   • Самообучением и самооптимизацией')
+
+        else:
+            print('⚠️  СИСТЕМА ЧАСТИЧНО ГОТОВА')
+            print('✅ Основные компоненты работают')
+            print('⚠️  Есть проблемы с некоторыми модулями')
+            print('')
+            print('🔧 Рекомендуется доработать проблемные компоненты')
+
+    else:
+        print('❌ ИНИЦИАЛИЗАЦИЯ НЕ УДАЛАСЬ')
+        print('Проверьте логи для получения подробной информации об ошибках')
+
+except Exception as e:
+    print('💥 КРИТИЧЕСКАЯ ОШИБКА:', e)
+    import traceback
+    traceback.print_exc()

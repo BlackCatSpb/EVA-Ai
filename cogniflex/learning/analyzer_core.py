@@ -107,6 +107,41 @@ class AnalyzerCore:
         
         logger.info("AnalyzerCore инициализирован")
     
+    def clear_learning_opportunities(self) -> Dict[str, Any]:
+        """Очищает все записи из таблицы learning_opportunities в БД самоанализа.
+
+        Возвращает словарь-отчет: { ok: bool, deleted: int, error?: str }
+        Операция быстрая, не требует ML и не влияет на другие таблицы.
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            # Подсчитываем количество записей до удаления
+            try:
+                cursor.execute("SELECT COUNT(*) FROM learning_opportunities")
+                total = int(cursor.fetchone()[0])
+            except Exception:
+                total = 0
+            # Удаляем все записи
+            cursor.execute("DELETE FROM learning_opportunities")
+            conn.commit()
+            # Опционально можно выполнить VACUUM для сжатия файла БД
+            try:
+                cursor.execute("VACUUM")
+            except Exception:
+                pass
+            conn.close()
+            # Обновляем внутреннюю статистику, если ведется
+            try:
+                self.analysis_stats["learning_opportunities"] = 0
+            except Exception:
+                pass
+            logger.info(f"Очищены возможности для обучения: удалено {total} записей")
+            return {"ok": True, "deleted": total}
+        except Exception as e:
+            logger.error(f"Ошибка очистки возможностей для обучения: {e}", exc_info=True)
+            return {"ok": False, "deleted": 0, "error": str(e)}
+    
     def _init_db(self):
         """Инициализирует базу данных для хранения данных AnalyzerCore."""
         try:
@@ -515,6 +550,67 @@ class AnalyzerCore:
         logger.info("AnalyzerCore закрыт")
     
     def _save_data(self):
-        """Сохраняет данные в базу данных."""
-        # В реальной системе здесь будут операции сохранения
-        pass
+        """Сохраняет данные анализа."""
+        try:
+            import json
+            import os
+            
+            data = {
+                'patterns': getattr(self, 'patterns', []),
+                'metrics_history': getattr(self, 'metrics_history', []),
+                'learning_opportunities': getattr(self, 'learning_opportunities', []),
+                'timestamp': time.time()
+            }
+            
+            # Сохраняем в файл кэша
+            cache_dir = os.path.join(os.path.dirname(__file__), '..', 'core', 'cogniflex_cache', 'analytics')
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            cache_file = os.path.join(cache_dir, 'analyzer_core_data.json')
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+                
+            logger.debug(f"Данные AnalyzerCore сохранены в {cache_file}")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения данных AnalyzerCore: {e}")
+
+    def _start_background_processes(self):
+        """Запускает фоновые процессы распределенной системы."""
+        try:
+            import threading
+            
+            # Запускаем поток мониторинга статуса
+            self._status_monitor_thread = threading.Thread(
+                target=self._monitor_system_status,
+                daemon=True,
+                name="DistributedSystemStatusMonitor"
+            )
+            self._status_monitor_thread.start()
+            logger.debug("Фоновые процессы DistributedSystem запущены")
+        except Exception as e:
+            logger.error(f"Ошибка запуска фоновых процессов: {e}")
+    
+    def _monitor_system_status(self):
+        """Мониторинг статуса системы в фоне."""
+        while self.running and not self.stop_event.is_set():
+            try:
+                # Обновляем статистику каждые 30 секунд
+                self.stop_event.wait(30)
+                if not self.stop_event.is_set():
+                    self._update_system_stats()
+            except Exception as e:
+                logger.error(f"Ошибка мониторинга статуса: {e}")
+    
+    def _update_system_stats(self):
+        """Обновляет статистику системы."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO system_stats (timestamp, active_nodes, task_count, completion_rate)
+                VALUES (?, ?, ?, ?)
+            ''', (time.time(), len(self.get_active_nodes()), 
+                  self.task_scheduler.get_pending_count() if self.task_scheduler else 0, 0.0))
+            conn.commit()
+        except Exception as e:
+            logger.error(f"Ошибка обновления статистики: {e}")

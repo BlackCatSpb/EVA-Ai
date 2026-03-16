@@ -1,0 +1,184 @@
+{
+  "results": [
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.6174711999919964,
+      "throughput_items_per_s": 3091.24514861516,
+      "num_workers": 1,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.5879554999992251,
+      "throughput_items_per_s": 3148.7028446341474,
+      "num_workers": 1,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.639585500000976,
+      "throughput_items_per_s": 3049.5512432849787,
+      "num_workers": 1,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.6135352999990573,
+      "throughput_items_per_s": 3098.7856292966885,
+      "num_workers": 1,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.7075393999984954,
+      "throughput_items_per_s": 2928.1901196566273,
+      "num_workers": 2,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.7221367999882204,
+      "throughput_items_per_s": 2903.3698136142266,
+      "num_workers": 2,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.7336420000065118,
+      "throughput_items_per_s": 2884.101792631477,
+      "num_workers": 2,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.7577912999986438,
+      "throughput_items_per_s": 2844.4787501245783,
+      "num_workers": 2,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.8495063000009395,
+      "throughput_items_per_s": 2703.424151622225,
+      "num_workers": 4,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.926380099990638,
+      "throughput_items_per_s": 2595.5417625131713,
+      "num_workers": 4,
+      "torch_threads": 1,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.8768415000085952,
+      "throughput_items_per_s": 2664.0502141374764,
+      "num_workers": 4,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 0
+    },
+    {
+      "submitted": 5000,
+      "received": 5000,
+      "duration_s": 1.8811799000104656,
+      "throughput_items_per_s": 2657.906349080268,
+      "num_workers": 4,
+      "torch_threads": 2,
+      "interop_threads": 1,
+      "batching": {
+        "max_items": 32,
+        "max_tokens": 4096,
+        "timeout_ms": 5
+      },
+      "repeat": 1
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "initialization": {
+    "core_brain": false,
+    "enhanced_learning": true,
+    "memory_graph_ml": true,
+    "reasoning_engine": true,
+    "fractal_model": true,
+    "errors": [],
+    "core_brain_import": true,
+    "core_brain_created": true,
+    "core_brain_initialized": true
+  },
+  "generation": {},
+  "self_learning": {},
+  "reasoning": {},
+  "memory_graph": {},
+  "integration": {},
+  "summary": {
+    "test_duration_seconds": 160.79,
+    "components_initialized": 4,
+    "total_tests": 17,
+    "passed_tests": 7,
+    "failed_tests": 10,
+    "success_rate": 41.2,
+    "errors_count": 1,
+    "warnings_count": 0,
+    "breakdown": {
+      "initialization": {
+        "passed": 7,
+        "total": 8
+      },
+      "generation": {
+        "passed": 0,
+        "total": 0
+      },
+      "self_learning": {
+        "passed": 0,
+        "total": 1
+      },
+      "reasoning": {
+        "passed": 0,
+        "total": 0
+      },
+      "memory_graph": {
+        "passed": 0,
+        "total": 3
+      },
+      "integration": {
+        "passed": 0,
+        "total": 5
+      }
+    }
+  }
+}

@@ -48,12 +48,12 @@ class PrinciplesManager:
         # Инициализируем базу данных
         self._init_db()
         
+        # Блокировка ресурсов
+        self.lock = threading.Lock()
+        
         # Загружаем принципы
         self.principles = {}
         self.load_principles()
-        
-        # Блокировка ресурсов
-        self.lock = threading.Lock()
         
         logger.info(f"Менеджер этических принципов инициализирован с {len(self.principles)} принципами")
     

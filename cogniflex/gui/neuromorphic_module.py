@@ -2,6 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 import logging
+
 import time
 from typing import Any, Dict, Optional, List
 
@@ -19,6 +20,25 @@ class NeuromorphicModule:
         self._update_job_id: Optional[str] = None
         self._last_strengths: List[float] = []
         logger.info("Модуль нейроморфики инициализирован")
+
+    def _safe_brain_call(self, method_name: str, *args, **kwargs):
+        """Безопасный вызов метода brain с логированием"""
+        if hasattr(self, 'gui') and hasattr(self.gui, 'brain') and self.gui.brain:
+            try:
+                method = getattr(self.gui.brain, method_name, None)
+                if method:
+                    result = method(*args, **kwargs)
+                    logger.debug(f"[{self.__class__.__name__}] Успешный вызов brain.{method_name}()")
+                    return result
+                else:
+                    logger.warning(f"[{self.__class__.__name__}] Метод brain.{method_name} не найден")
+                    return None
+            except Exception as e:
+                logger.error(f"[{self.__class__.__name__}] Ошибка вызова brain.{method_name}: {e}")
+                return None
+        else:
+            logger.warning(f"[{self.__class__.__name__}] Brain недоступен")
+            return None
 
     # Lifecycle
     def activate(self):
@@ -127,6 +147,16 @@ class NeuromorphicModule:
             self._update_job_id = self.gui.root.after(interval_ms, lambda: self._schedule_update(interval_ms))
         except Exception:
             self._update_job_id = None
+    
+    def cleanup(self):
+        """Очищает запланированные задачи."""
+        try:
+            if hasattr(self, '_update_job_id') and self._update_job_id and hasattr(self.gui, 'root') and self.gui.root:
+                self.gui.root.after_cancel(self._update_job_id)
+                self._update_job_id = None
+                logger.debug("Очищена after задача в neuromorphic_module")
+        except Exception as e:
+            logger.error(f"Ошибка очистки neuromorphic_module: {e}")
 
     def _refresh_metrics(self):
         metrics = {}

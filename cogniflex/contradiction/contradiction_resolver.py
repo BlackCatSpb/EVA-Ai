@@ -42,6 +42,30 @@ class ContradictionResolver:
         }
         
         logger.info("ContradictionResolver инициализирован")
+
+    def _emit_metrics(self, metrics: Dict[str, Any]) -> None:
+        """Унифицированная отправка метрик: сначала через события, затем запасной путь.
+        Схема: попытка brain.events.trigger("metrics", metrics) -> fallback brain.emit_metrics(metrics).
+        Любые ошибки в этом пути не мешают основному потоку.
+        """
+        try:
+            if not self.brain:
+                return
+            # Сначала пробуем через шину событий
+            try:
+                if hasattr(self.brain, "events") and hasattr(self.brain.events, "trigger"):
+                    self.brain.events.trigger("metrics", metrics)
+                    return
+            except Exception as e:
+                logger.debug(f"Не удалось отправить метрики через события: {e}", exc_info=True)
+            # Запасной путь — прямой вызов emit_metrics
+            try:
+                if hasattr(self.brain, "emit_metrics"):
+                    self.brain.emit_metrics(metrics)
+            except Exception as e:
+                logger.debug(f"Не удалось отправить метрики напрямую: {e}", exc_info=True)
+        except Exception as e:
+            logger.debug(f"Ошибка внутри _emit_metrics: {e}", exc_info=True)
     
     def start(self):
         """Запускает резолвер противоречий"""
@@ -65,10 +89,21 @@ class ContradictionResolver:
             List[Dict]: Список обнаруженных противоречий
         """
         try:
+            start_time = time.time()
             contradictions = []
             
             if not self.knowledge_graph:
                 logger.warning("Граф знаний недоступен для обнаружения противоречий")
+                # Метрики о попытке без графа
+                self._emit_metrics({
+                    "type": "contradiction_detection",
+                    "status": "no_knowledge_graph",
+                    "concept": concept,
+                    "domain": domain,
+                    "count": 0,
+                    "duration_ms": int((time.time() - start_time) * 1000),
+                    "timestamp": int(time.time())
+                })
                 return contradictions
             
             # Если указан конкретный концепт
@@ -87,10 +122,29 @@ class ContradictionResolver:
             self.stats["last_scan"] = time.time()
             
             logger.info(f"Обнаружено {len(contradictions)} противоречий")
+            # Отправляем метрики обнаружения
+            self._emit_metrics({
+                "type": "contradiction_detection",
+                "status": "success",
+                "concept": concept,
+                "domain": domain,
+                "count": len(contradictions),
+                "duration_ms": int((time.time() - start_time) * 1000),
+                "timestamp": int(time.time())
+            })
             return contradictions
             
         except Exception as e:
             logger.error(f"Ошибка обнаружения противоречий: {e}", exc_info=True)
+            # Метрики об ошибке
+            self._emit_metrics({
+                "type": "contradiction_detection",
+                "status": "error",
+                "concept": concept,
+                "domain": domain,
+                "error": str(e),
+                "timestamp": int(time.time())
+            })
             return []
     
     def _analyze_concept_contradictions(self, concept: str) -> List[Dict[str, Any]]:
@@ -145,9 +199,16 @@ class ContradictionResolver:
             bool: Успешно ли разрешено
         """
         try:
+            start_time = time.time()
             # Получаем противоречие
             if contradiction_id not in self.detector.contradictions:
                 logger.error(f"Противоречие {contradiction_id} не найдено")
+                self._emit_metrics({
+                    "type": "contradiction_resolution",
+                    "status": "not_found",
+                    "contradiction_id": contradiction_id,
+                    "timestamp": int(time.time())
+                })
                 return False
             
             contradiction = self.detector.contradictions[contradiction_id]
@@ -171,6 +232,16 @@ class ContradictionResolver:
                 
                 if success:
                     self.stats["resolved"] += 1
+                    # Метрики об успешном разрешении
+                    self._emit_metrics({
+                        "type": "contradiction_resolution",
+                        "status": "success",
+                        "contradiction_id": contradiction_id,
+                        "method": resolution.get("method"),
+                        "confidence": resolution.get("confidence"),
+                        "duration_ms": int((time.time() - start_time) * 1000),
+                        "timestamp": int(time.time())
+                    })
                     
                     # Уведомляем SelfAnalyzer о разрешении
                     if self.brain and hasattr(self.brain, 'self_analyzer'):
@@ -193,15 +264,38 @@ class ContradictionResolver:
                     return True
                 else:
                     self.stats["failed_resolutions"] += 1
+                    self._emit_metrics({
+                        "type": "contradiction_resolution",
+                        "status": "failed_apply",
+                        "contradiction_id": contradiction_id,
+                        "method": resolution.get("method"),
+                        "confidence": resolution.get("confidence"),
+                        "duration_ms": int((time.time() - start_time) * 1000),
+                        "timestamp": int(time.time())
+                    })
                     return False
             else:
                 self.stats["failed_resolutions"] += 1
                 logger.warning(f"Не удалось создать разрешение для противоречия {contradiction_id}")
+                self._emit_metrics({
+                    "type": "contradiction_resolution",
+                    "status": "no_resolution",
+                    "contradiction_id": contradiction_id,
+                    "method": resolution_method,
+                    "timestamp": int(time.time())
+                })
                 return False
                 
         except Exception as e:
             logger.error(f"Ошибка разрешения противоречия {contradiction_id}: {e}", exc_info=True)
             self.stats["failed_resolutions"] += 1
+            self._emit_metrics({
+                "type": "contradiction_resolution",
+                "status": "error",
+                "contradiction_id": contradiction_id,
+                "error": str(e),
+                "timestamp": int(time.time())
+            })
             return False
     
     def _auto_resolve(self, contradiction: Contradiction) -> Optional[Dict[str, Any]]:

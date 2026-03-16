@@ -493,6 +493,82 @@ class WebSearchEngine:
         """Возвращает текущие настройки поиска."""
         return self.search_settings.copy()
     
+    def web_search_and_learn(self, concept: str, num_results: int = 3) -> List[Dict[str, Any]]:
+        """
+        Выполняет веб-поиск по концепту и преобразует выдачу в формат знаний,
+        совместимый с модулями расширения/интеграции знаний.
+
+        Args:
+            concept: Концепт или запрос для поиска
+            num_results: Число результатов, которое следует вернуть
+
+        Returns:
+            List[Dict[str, Any]]: Список знаний в формате
+                {
+                    "concept": str,
+                    "content": str,              # краткое содержимое/сниппет
+                    "domain": str,               # общий домен (без ML-определения)
+                    "source": str,               # источник (web:engine)
+                    "relevance": float,          # оценка релевантности
+                    "metadata": {                # доп. сведения
+                        "url": str,
+                        "engine": str,
+                        "timestamp": float
+                    }
+                }
+        """
+        try:
+            # Выполняем поиск c учётом кэша
+            response = self.search(concept, max_results=num_results, use_cache=self.search_settings.get("use_cache", True))
+
+            # Унифицируем результаты
+            results: List[SearchResult] = []
+            if isinstance(response, dict):
+                # ожидаемый путь: dict со списком SearchResult
+                res = response.get("results") or []
+                # элементы могут быть SearchResult или dict (при чтении из кэша)
+                for item in res:
+                    if isinstance(item, SearchResult):
+                        results.append(item)
+                    elif isinstance(item, dict):
+                        try:
+                            results.append(SearchResult(**item))
+                        except Exception:
+                            # пропускаем некорректные элементы
+                            continue
+            elif isinstance(response, list):
+                # редко: некоторые места могли ожидать list
+                for item in response:
+                    if isinstance(item, SearchResult):
+                        results.append(item)
+                    elif isinstance(item, dict):
+                        try:
+                            results.append(SearchResult(**item))
+                        except Exception:
+                            continue
+
+            knowledge: List[Dict[str, Any]] = []
+            for r in results[:num_results]:
+                # Формируем запись знания. Домен определяем как "general" здесь,
+                # чтобы не тянуть зависимости от KnowledgeExpander.
+                knowledge.append({
+                    "concept": r.query or concept,
+                    "content": r.snippet or (r.title or ""),
+                    "domain": "general",
+                    "source": f"web:{r.source}",
+                    "relevance": float(getattr(r, "relevance_score", 1.0) or 1.0),
+                    "metadata": {
+                        "url": r.url,
+                        "engine": r.source,
+                        "timestamp": getattr(r, "timestamp", time.time())
+                    }
+                })
+
+            return knowledge
+        except Exception as e:
+            logger.error(f"Ошибка web_search_and_learn('{concept}'): {e}", exc_info=True)
+            return []
+    
     def __del__(self):
         """Деструктор - останавливает фоновые процессы."""
         try:
