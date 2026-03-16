@@ -44,6 +44,15 @@ class AnalyticsManager:
         
         logger.info("AnalyticsManager инициализирован")
     
+    def record(self, metric_name: str, value: float, tags: Optional[Dict] = None):
+        """Записывает метрику в систему мониторинга."""
+        try:
+            if hasattr(self, 'performance_analyzer') and self.performance_analyzer:
+                self.performance_analyzer.record_metric(metric_name, value, tags)
+            logger.debug(f"Metric recorded: {metric_name}={value}")
+        except Exception as e:
+            logger.debug(f"Error recording metric: {e}")
+    
     def _init_components(self):
         """Инициализирует аналитические компоненты"""
         try:
