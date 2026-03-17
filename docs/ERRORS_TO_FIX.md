@@ -5,6 +5,26 @@
 
 ---
 
+## ИСПРАВЛЕННЫЕ ОШИБКИ
+
+### ✅ 1. IntegrationLayer создавал новый CoreBrain вместо использования переданного
+- **Файл**: `cogniflex/core/integration_layer.py`
+- **Проблема**: `self.core_brain = CoreBrain(self.config)` перезаписывал переданный brain
+- **Исправление**: Добавлена проверка `if self.core_brain is None`, используется переданный brain
+- **Статус**: ✅ ИСПРАВЛЕНО
+
+### ✅ 2. GUI не показывал ответы
+- **Файлы**: `cogniflex/gui/core_gui.py`, `cogniflex/gui/integrated_gui.py`
+- **Проблема**: `brain.process_query()` возвращает dict, GUI ожидал string
+- **Исправление**: Добавлено извлечение 'text' из dict ответа
+- **Статус**: ✅ ИСПРАВЛЕНО
+
+### ✅ 3. CoreBrain не имеет '_initialize_memory_manager'
+- **Проблема**: Ошибка в логах при инициализации
+- **Статус**: ✅ ИСПРАВЛЕНО (метод существует, был вопрос с порядком вызова)
+
+---
+
 ## НАЙДЕННЫЕ ОШИБКИ (из логов)
 
 ### 1. QueryProcessor не имеет метода 'process'
