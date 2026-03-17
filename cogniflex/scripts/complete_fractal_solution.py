@@ -20,8 +20,8 @@ def cleanup_old_models():
     """Очищает старые модели и связанные файлы"""
     
     try:
-        print("🧹 ОЧИСТКА СТАРЫХ МОДЕЛЕЙ И ФАЙЛОВ")
-        print("="*50)
+        logger.info("🧹 ОЧИСТКА СТАРЫХ МОДЕЛЕЙ И ФАЙЛОВ")
+        logger.info("="*50)
         
         # Пути для очистки
         cleanup_paths = [
@@ -44,24 +44,24 @@ def cleanup_old_models():
                     size_bytes = sum(f.stat().st_size for f in path.rglob('*') if f.is_file())
                     size_mb = size_bytes / (1024 * 1024)
                     
-                    print(f"🗑️ Удаление: {path}")
-                    print(f"   📁 Размер: {size_mb:.1f} MB")
+                    logger.info(f"🗑️ Удаление: {path}")
+                    logger.info(f"   📁 Размер: {size_mb:.1f} MB")
                     
                     # Удаляем директорию
                     shutil.rmtree(path)
                     cleaned_count += 1
                     total_size_freed += size_mb
                     
-                    print(f"   ✅ Удалено")
+                    logger.info(f"   ✅ Удалено")
                     
                 except Exception as e:
-                    print(f"   ❌ Ошибка удаления {path}: {e}")
+                    logger.error(   ❌ Ошибка удаления {path}: {e})
             else:
-                print(f"   ⚪ Путь не найден: {path}")
+                logger.info(f"   ⚪ Путь не найден: {path}")
         
-        print(f"\n📊 ИТОГИ ОЧИСТКИ:")
-        print(f"   🗑️ Удалено директорий: {cleaned_count}")
-        print(f"   💾 Освобождено места: {total_size_freed:.1f} MB")
+        logger.info(f"\n📊 ИТОГИ ОЧИСТКИ:")
+        logger.info(f"   🗑️ Удалено директорий: {cleaned_count}")
+        logger.info(f"   💾 Освобождено места: {total_size_freed:.1f} MB")
         
         return True
         
@@ -75,15 +75,15 @@ def create_unique_fractal_tokenizer():
     try:
         from transformers import AutoTokenizer, GPT2Tokenizer, GPT2TokenizerFast
         
-        print("🔤 СОЗДАНИЕ УНИКАЛЬНОГО ФРАКТАЛЬНОГО ТОКЕНИЗАТОРА")
-        print("="*50)
+        logger.info("🔤 СОЗДАНИЕ УНИКАЛЬНОГО ФРАКТАЛЬНОГО ТОКЕНИЗАТОРА")
+        logger.info("="*50)
         
         # 1. Генерируем уникальный ID
         timestamp = datetime.now().isoformat()
         unique_id = hashlib.md5(timestamp.encode()).hexdigest()[:8]
         model_name = f"fractal_rugpt3_{unique_id}"
         
-        print(f"🆔 Уникальный ID модели: {model_name}")
+        logger.info(f"🆔 Уникальный ID модели: {model_name}")
         
         # 2. Создаем расширенный токенизатор на основе GPT-2
         base_tokenizer = GPT2TokenizerFast.from_pretrained("gpt2")
@@ -119,7 +119,7 @@ def create_unique_fractal_tokenizer():
                 base_tokenizer.add_tokens([token])
                 added_tokens += 1
         
-        print(f"➕ Добавлено русских токенов: {added_tokens}")
+        logger.info(f"➕ Добавлено русских токенов: {added_tokens}")
         
         # 5. Устанавливаем специальные токены
         special_tokens = {
@@ -140,9 +140,9 @@ def create_unique_fractal_tokenizer():
         # 7. Сохраняем токенизатор
         base_tokenizer.save_pretrained(str(tokenizer_dir))
         
-        print(f"✅ Токенизатор сохранен: {tokenizer_dir}")
-        print(f"   📊 Размер словаря: {len(base_tokenizer.get_vocab()):,}")
-        print(f"   🔤 Специальных токенов: {len(base_tokenizer.all_special_tokens)}")
+        logger.info(f"✅ Токенизатор сохранен: {tokenizer_dir}")
+        logger.info(f"   📊 Размер словаря: {len(base_tokenizer.get_vocab()):,}")
+        logger.info(f"   🔤 Специальных токенов: {len(base_tokenizer.all_special_tokens)}")
         
         # 8. Создаем метаданные токенизатора
         tokenizer_metadata = {
@@ -164,7 +164,7 @@ def create_unique_fractal_tokenizer():
         with open(tokenizer_dir / "fractal_metadata.json", 'w', encoding='utf-8') as f:
             json.dump(tokenizer_metadata, f, indent=2, ensure_ascii=False)
         
-        print(f"✅ Метаданные токенизатора сохранены")
+        logger.info(f"✅ Метаданные токенизатора сохранены")
         
         return model_name, str(tokenizer_dir), base_tokenizer
         
@@ -179,20 +179,20 @@ def download_and_export_rugpt3_with_custom_tokenizer():
         from transformers import AutoModelForCausalLM
         from cogniflex.mlearning.storage.fractal_store import export_hf_model_to_fractal
         
-        print("🚀 ЗАГРУЗКА И ЭКСПОРТ RU-GPT3 С КАСТОМНЫМ ТОКЕНИЗАТОРОМ")
-        print("="*60)
+        logger.info("🚀 ЗАГРУЗКА И ЭКСПОРТ RU-GPT3 С КАСТОМНЫМ ТОКЕНИЗАТОРОМ")
+        logger.info("="*60)
         
         # 1. Создаем кастомный токенизатор
         model_name, tokenizer_path, custom_tokenizer = create_unique_fractal_tokenizer()
         
         if not model_name or not custom_tokenizer:
-            print("❌ Не удалось создать токенизатор")
+            logger.info("❌ Не удалось создать токенизатор")
             return False
         
         # 2. Загружаем ruGPT3 модель
         model_id = "sberbank-ai/rugpt3large_based_on_gpt2"
         
-        print(f"\n📦 Загрузка модели: {model_id}")
+        logger.info(f"\n📦 Загрузка модели: {model_id}")
         
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
@@ -202,25 +202,25 @@ def download_and_export_rugpt3_with_custom_tokenizer():
         
         model.eval()
         
-        print(f"✅ Модель загружена")
-        print(f"   📊 Параметров: {sum(p.numel() for p in model.parameters()):,}")
+        logger.info(f"✅ Модель загружена")
+        logger.info(f"   📊 Параметров: {sum(p.numel() for p in model.parameters()):,}")
         
         # 3. Адаптируем эмбеддинги под новый токенизатор
-        print(f"\n🔧 Адаптация эмбеддингов...")
+        logger.info(f"\n🔧 Адаптация эмбеддингов...")
         
         old_vocab_size = model.get_input_embeddings().weight.shape[0]
         new_vocab_size = len(custom_tokenizer.get_vocab())
         
-        print(f"   📊 Старый vocab: {old_vocab_size}")
-        print(f"   📊 Новый vocab: {new_vocab_size}")
+        logger.info(f"   📊 Старый vocab: {old_vocab_size}")
+        logger.info(f"   📊 Новый vocab: {new_vocab_size}")
         
         if new_vocab_size != old_vocab_size:
             # Изменяем размер эмбеддингов
             model.resize_token_embeddings(new_vocab_size)
-            print(f"✅ Эмбеддинги адаптированы")
+            logger.info(f"✅ Эмбеддинги адаптированы")
         
         # 4. Тестируем генерацию
-        print(f"\n🧪 Тестирование генерации...")
+        logger.info(f"\n🧪 Тестирование генерации...")
         
         test_queries = [
             "Привет, как дела?",
@@ -243,18 +243,18 @@ def download_and_export_rugpt3_with_custom_tokenizer():
                     )
                 
                 response = custom_tokenizer.decode(outputs[0], skip_special_tokens=True)
-                print(f"   📝 '{query}'")
-                print(f"   💬 '{response}'")
-                print()
+                logger.info(f"   📝 '{query}'")
+                logger.info(f"   💬 '{response}'")
+                logger.info()
                 
             except Exception as e:
-                print(f"   ❌ Ошибка: {e}")
+                logger.error(   ❌ Ошибка: {e})
         
         # 5. Сохраняем модель временно для экспорта
         temp_model_dir = Path("out") / f"{model_name}_temp"
         temp_model_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f"\n💾 Сохранение модели для экспорта...")
+        logger.info(f"\n💾 Сохранение модели для экспорта...")
         
         # Сохраняем модель
         model.save_pretrained(str(temp_model_dir))
@@ -262,10 +262,10 @@ def download_and_export_rugpt3_with_custom_tokenizer():
         # Сохраняем кастомный токенизатор
         custom_tokenizer.save_pretrained(str(temp_model_dir))
         
-        print(f"✅ Модель сохранена: {temp_model_dir}")
+        logger.info(f"✅ Модель сохранена: {temp_model_dir}")
         
         # 6. Экспортируем во фрактальное хранилище
-        print(f"\n📦 Экспорт во фрактальное хранилище...")
+        logger.info(f"\n📦 Экспорт во фрактальное хранилище...")
         
         output_path = Path("out") / f"{model_name}_fractal"
         output_path.mkdir(parents=True, exist_ok=True)
@@ -283,10 +283,10 @@ def download_and_export_rugpt3_with_custom_tokenizer():
         )
         
         if success:
-            print(f"✅ Модель экспортирована во фрактальное хранилище")
+            logger.info(f"✅ Модель экспортирована во фрактальное хранилище")
             
             # Проверяем структуру
-            print(f"\n📋 Структура экспорта:")
+            logger.info(f"\n📋 Структура экспорта:")
             
             file_count = 0
             total_size = 0
@@ -298,21 +298,21 @@ def download_and_export_rugpt3_with_custom_tokenizer():
                     file_count += 1
                     
                     if item.suffix in ['.json', '.txt']:
-                        print(f"   📄 {item.relative_to(output_path)} ({size_mb:.1f} MB)")
+                        logger.info(f"   📄 {item.relative_to(output_path)} ({size_mb:.1f} MB)")
             
-            print(f"   📁 Всего файлов: {file_count}")
-            print(f"   💾 Общий размер: {total_size:.1f} MB")
+            logger.info(f"   📁 Всего файлов: {file_count}")
+            logger.info(f"   💾 Общий размер: {total_size:.1f} MB")
             
             # 7. Очищаем временные файлы
             try:
                 shutil.rmtree(temp_model_dir)
-                print(f"🧹 Временные файлы очищены")
+                logger.info(f"🧹 Временные файлы очищены")
             except Exception as e:
-                print(f"⚠️ Ошибка очистки временных файлов: {e}")
+                logger.error(⚠️ Ошибка очистки временных файлов: {e})
             
             return True
         else:
-            print(f"❌ Экспорт не удался")
+            logger.info(f"❌ Экспорт не удался")
             return False
             
     except Exception as e:
@@ -416,7 +416,7 @@ def load_fractal_model_if_available(self):
         with open("fractal_integration.py", 'w', encoding='utf-8') as f:
             f.write(integration_code)
         
-        print("✅ Интеграционный код сохранен: fractal_integration.py")
+        logger.info("✅ Интеграционный код сохранен: fractal_integration.py")
         return True
         
     except Exception as e:
@@ -426,44 +426,44 @@ def load_fractal_model_if_available(self):
 def main():
     """Основная функция"""
     
-    print("🚀 ПОЛНОЕ РЕШЕНИЕ: ОЧИСТКА + УНИКАЛЬНЫЙ ТОКЕНИЗАТОР + ЭКСПОРТ")
-    print("="*70)
+    logger.info("🚀 ПОЛНОЕ РЕШЕНИЕ: ОЧИСТКА + УНИКАЛЬНЫЙ ТОКЕНИЗАТОР + ЭКСПОРТ")
+    logger.info("="*70)
     
     # 1. Очищаем старые модели
-    print("ШАГ 1: ОЧИСТКА СТАРЫХ МОДЕЛЕЙ")
+    logger.info("ШАГ 1: ОЧИСТКА СТАРЫХ МОДЕЛЕЙ")
     cleanup_success = cleanup_old_models()
     
     if not cleanup_success:
-        print("❌ Очистка не удалась")
+        logger.info("❌ Очистка не удалась")
         return False
     
     # 2. Создаем уникальный токенизатор и экспортируем модель
-    print("\nШАГ 2: СОЗДАНИЕ УНИКАЛЬНОГО ТОКЕНИЗАТОРА И ЭКСПОРТ")
+    logger.info("\nШАГ 2: СОЗДАНИЕ УНИКАЛЬНОГО ТОКЕНИЗАТОРА И ЭКСПОРТ")
     export_success = download_and_export_rugpt3_with_custom_tokenizer()
     
     if not export_success:
-        print("❌ Экспорт не удался")
+        logger.info("❌ Экспорт не удался")
         return False
     
     # 3. Создаем интеграцию
-    print("\nШАГ 3: СОЗДАНИЕ ИНТЕГРАЦИИ")
+    logger.info("\nШАГ 3: СОЗДАНИЕ ИНТЕГРАЦИИ")
     integration_success = create_fractal_integration()
     
     if integration_success:
-        print("\n🎉 ВСЕ ОПЕРАЦИИ УСПЕШНЫ!")
-        print("✅ Старые модели очищены")
-        print("✅ Уникальный фрактальный токенизатор создан")
-        print("✅ ruGPT3 экспортирована во фрактальное хранилище")
-        print("✅ Интеграционный код создан")
+        logger.info("\n🎉 ВСЕ ОПЕРАЦИИ УСПЕШНЫ!")
+        logger.info("✅ Старые модели очищены")
+        logger.info("✅ Уникальный фрактальный токенизатор создан")
+        logger.info("✅ ruGPT3 экспортирована во фрактальное хранилище")
+        logger.info("✅ Интеграционный код создан")
         
-        print("\n📋 СЛЕДУЮЩИЕ ШАГИ:")
-        print("1. Примените интеграционный код к OptimizedFractalModelManager")
-        print("2. Перезапустите систему")
-        print("3. Система будет использовать новую фрактальную модель")
+        logger.info("\n📋 СЛЕДУЮЩИЕ ШАГИ:")
+        logger.info("1. Примените интеграционный код к OptimizedFractalModelManager")
+        logger.info("2. Перезапустите систему")
+        logger.info("3. Система будет использовать новую фрактальную модель")
         
         return True
     else:
-        print("❌ Создание интеграции не удалось")
+        logger.info("❌ Создание интеграции не удалось")
         return False
 
 if __name__ == "__main__":

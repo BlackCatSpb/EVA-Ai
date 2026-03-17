@@ -332,10 +332,101 @@ class CoreBrain:
             logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
             self.background = None
     
+    def _initialize_memory_manager(self) -> bool:
+        """
+        Инициализирует менеджер памяти через component_initializer.
+        Этот метод вызывается для обеспечения полной инициализации памяти.
+        
+        Returns:
+            bool: True если инициализация успешна, False в противном случае
+        """
+        self.query_logger.info("=" * 60)
+        self.query_logger.info("Инициализация менеджера памяти (MemoryManager)...")
+        self.query_logger.info("=" * 60)
+        
+        try:
+            # Проверяем, есть ли component_initializer
+            if not self.component_initializer:
+                self.query_logger.error("ComponentInitializer недоступен")
+                return False
+            
+            # Проверяем, инициализирован ли уже memory_manager
+            if hasattr(self, 'memory_manager') and self.memory_manager is not None:
+                self.query_logger.info("MemoryManager уже инициализирован")
+                return True
+            
+            # Пробуем получить memory_manager из component_initializer
+            if hasattr(self.component_initializer, 'memory_manager'):
+                self.memory_manager = self.component_initializer.memory_manager
+                self.components['memory_manager'] = self.memory_manager
+                self.query_logger.info("MemoryManager получен из component_initializer")
+                
+                # Если есть метод initialize, вызываем его
+                if hasattr(self.memory_manager, 'initialize'):
+                    self.query_logger.info("Вызов memory_manager.initialize()...")
+                    init_result = self.memory_manager.initialize()
+                    self.query_logger.info(f"Результат инициализации MemoryManager: {init_result}")
+                    return init_result
+                
+                self.query_logger.info("MemoryManager успешно инициализирован")
+                return True
+            else:
+                self.query_logger.error("memory_manager не найден в component_initializer")
+                return False
+                
+        except Exception as e:
+            self.query_logger.error(f"Ошибка инициализации MemoryManager: {e}", exc_info=True)
+            return False
+    
+    def _initialize_detailed_logging(self):
+        """Включает детальное логгирование для всех компонентов."""
+        self.query_logger.info("=" * 80)
+        self.query_logger.info("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
+        self.query_logger.info("=" * 80)
+        
+        # Логируем информацию о системе
+        self.query_logger.info(f"Python version: {sys.version}")
+        self.query_logger.info(f"Platform: {sys.platform}")
+        self.query_logger.info(f"CPU count: {os.cpu_count()}")
+        
+        # Информация о памяти
+        mem = psutil.virtual_memory()
+        self.query_logger.info(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+        self.query_logger.info(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+        self.query_logger.info(f"RAM usage: {mem.percent}%")
+        
+        # Информация о диске
+        disk = psutil.disk_usage('.')
+        self.query_logger.info(f"Total disk: {disk.total / (1024**3):.2f} GB")
+        self.query_logger.info(f"Free disk: {disk.free / (1024**3):.2f} GB")
+        self.query_logger.info(f"Disk usage: {disk.percent}%")
+        
+        # CUDA информация
+        try:
+            import torch
+            if torch.cuda.is_available():
+                self.query_logger.info(f"CUDA available: Yes")
+                self.query_logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+                self.query_logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+            else:
+                self.query_logger.info("CUDA available: No")
+        except ImportError:
+            self.query_logger.info("PyTorch not installed")
+        
+        self.query_logger.info("=" * 80)
+        
+        return True
+    
     def initialize(self) -> bool:
         """Инициализирует все компоненты системы."""
+        
+        # Включаем детальное логгирование в начале
+        self._initialize_detailed_logging()
+        
         start_time = time.time()
-        self.query_logger.info("Начало инициализации ядра CogniFlex...")
+        self.query_logger.info("=" * 60)
+        self.query_logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ ЯДРА COGNIFLEX")
+        self.query_logger.info("=" * 60)
         
         try:
             # Обновляем состояние системы
@@ -364,6 +455,11 @@ class CoreBrain:
                     return False
             else:
                 self.query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
+            
+            # Явная инициализация MemoryManager
+            self.query_logger.info("Вызов _initialize_memory_manager()...")
+            if not self._initialize_memory_manager():
+                self.query_logger.warning("Не удалось инициализировать MemoryManager, продолжаем без него")
             
             # Устанавливаем ссылки на компоненты после инициализации
             if 'model_manager' in self.components:
