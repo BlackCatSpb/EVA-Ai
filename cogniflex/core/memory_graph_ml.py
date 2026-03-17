@@ -15,6 +15,14 @@ from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
 
+# Torch imports for GPU-based embeddings
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+    torch = None
+
 logger = logging.getLogger("cogniflex.memory_graph_ml")
 
 
@@ -534,7 +542,12 @@ class MemoryGraphML:
         Использует фрактальную структуру для создания иерархических представлений.
         """
         try:
-            import torch
+            if not TORCH_AVAILABLE:
+                # CPU fallback
+                np.random.seed(hash(text) % 2**32)
+                vector = np.random.randn(self.embedding_dim).astype(np.float32)
+                return vector / np.linalg.norm(vector)
+            
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             
             # Используем токены для создания embedding
@@ -571,12 +584,26 @@ class MemoryGraphML:
             vector = np.random.randn(self.embedding_dim).astype(np.float32)
             return vector / np.linalg.norm(vector)
     
-    def _fractal_transform(self, embedding: torch.Tensor) -> torch.Tensor:
+    def _fractal_transform(self, embedding):
         """
         Применяет фрактальное преобразование к embedding.
         Создаёт иерархические представления для разных уровней графа.
         """
         try:
+            if not TORCH_AVAILABLE or not isinstance(embedding, torch.Tensor):
+                # CPU fallback - numpy-based
+                emb = np.array(embedding)
+                chunk_size = max(1, self.embedding_dim // self.fractal_levels)
+                result_parts = []
+                for level in range(self.fractal_levels):
+                    start_idx = level * chunk_size
+                    end_idx = min((level + 1) * chunk_size, self.embedding_dim)
+                    level_part = emb[start_idx:end_idx] * self.level_weights[level]
+                    result_parts.append(level_part)
+                result = np.concatenate(result_parts)
+                result = np.tanh(result)
+                return torch.tensor(result, dtype=torch.float32) if TORCH_AVAILABLE else result
+            
             # Фрактальное преобразование - разбиваем на уровни
             level_embeddings = []
             chunk_size = max(1, self.embedding_dim // self.fractal_levels)
