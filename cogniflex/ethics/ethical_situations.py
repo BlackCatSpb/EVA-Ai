@@ -371,8 +371,8 @@ class EthicalSituationHandler:
             principle = self.principles_manager.get_principle_by_name(principle_name)
             if principle:
                 return principle.weight
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"Ошибка получения веса принципа {principle_name}: {e}")
         return 1.0
     
     def _generate_alternatives(self, highest_risk_principle: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -607,7 +607,8 @@ class EthicalSituationHandler:
             # Получаем данные о рисках
             try:
                 risk_data = self.risk_assessor.get_risk_dashboard_data()
-            except:
+            except Exception as e:
+                logger.warning(f"Ошибка получения данных о рисках: {e}")
                 risk_data = {}
             
             return {
@@ -749,7 +750,8 @@ class EthicalSituationHandler:
                         **principle.__dict__
                     } for pid, principle in principles.items()
                 ]
-            except:
+            except Exception as e:
+                logger.warning(f"Ошибка экспорта принципов: {e}")
                 export_data["principles"] = []
             
             # Сохраняем в JSON
@@ -853,9 +855,10 @@ class EthicalSituationHandler:
                             avg_score = sum(item["score"] for item in history) / len(history)
                             if avg_score < principle.threshold * 0.8:
                                 low_compliance_count += 1
-                    except:
-                        pass
-            except:
+                    except Exception as e:
+                        logger.warning(f"Ошибка анализа принципа {principle_id}: {e}")
+            except Exception as e:
+                logger.warning(f"Ошибка получения данных о принципах: {e}")
                 total_principles = 0
                 low_compliance_count = 0
             

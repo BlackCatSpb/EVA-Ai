@@ -182,8 +182,8 @@ class ModelSelector:
         if self.loaded_model:
             try:
                 self.loaded_model.unload()
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Не удалось выгрузить модель: {e}")
             self.loaded_model = None
         
         # Возвращаем статус

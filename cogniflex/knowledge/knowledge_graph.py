@@ -3437,7 +3437,8 @@ class KnowledgeGraph:
                 elif key == 'd2':
                     try:
                         strength = float(data_elem.text or "0.5")
-                    except:
+                    except ValueError:
+                        logger.warning(f"Не удалось преобразовать значение в число: {data_elem.text}, установлено значение по умолчанию 0.5")
                         strength = 0.5
             
             # Создаем узел (упрощенно)
@@ -3500,7 +3501,8 @@ class KnowledgeGraph:
                         elif for_attr == 'strength':
                             try:
                                 strength = float(value)
-                            except:
+                            except ValueError:
+                                logger.warning(f"Не удалось преобразовать значение в число: {value}, установлено значение по умолчанию 0.5")
                                 strength = 0.5
                 
                 # Создаем узел
