@@ -422,6 +422,11 @@ class CogniFlexGUI:
             style.theme_use("default")
             style.configure(".", background=self.colors['bg'], foreground=self.colors['text'], fieldbackground=self.colors['card-bg'])
 
+        # Navigation button styles
+        style.configure("Nav.TButton", padding=(10, 5), relief=tk.FLAT)
+        style.configure("NavActive.TButton", padding=(10, 5), relief=tk.FLAT, background=self.colors['primary'])
+        style.map("NavActive.TButton", background=[("active", self.colors['primary'])])
+
         self.root.configure(bg=self.colors['bg'])
 
     def _create_interface(self):
@@ -429,14 +434,14 @@ class CogniFlexGUI:
         self.main_container.pack(fill=tk.BOTH, expand=True)
         self._create_navbar()
         self.content_frame = ttk.Frame(self.main_container)
-        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=0)
         self.content_area = ttk.Frame(self.content_frame)
         self.content_area.pack(fill=tk.BOTH, expand=True)
         self._create_status_bar()
 
     def _create_navbar(self):
         navbar = ttk.Frame(self.main_container, height=50)
-        navbar.pack(fill=tk.X, padx=10, pady=10)
+        navbar.pack(fill=tk.X, padx=10, pady=5)
         ttk.Label(navbar, text="CogniFlex", font=("Segoe UI", 16, "bold"), foreground=self.colors['primary']).pack(side=tk.LEFT)
         nav_frame = ttk.Frame(navbar)
         nav_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
@@ -445,13 +450,24 @@ class CogniFlexGUI:
             ("Противоречия", "contradictions"), ("Память", "memory"),
             ("Обучение", "learning"), ("Нейроморфика", "neuromorphic"), ("Настройки", "settings")
         ]
+        self._nav_buttons = {}
         for text, view_id in nav_items:
-            btn = ttk.Button(nav_frame, text=text, command=lambda v=view_id: self._switch_view(v))
+            btn = ttk.Button(nav_frame, text=text, command=lambda v=view_id: self._switch_view(v), style="Nav.TButton")
             btn.pack(side=tk.LEFT, padx=5)
+            self._nav_buttons[view_id] = btn
         right_frame = ttk.Frame(navbar)
         right_frame.pack(side=tk.RIGHT)
         ttk.Button(right_frame, text="Перезагрузить", command=self._reboot_system).pack(side=tk.LEFT, padx=5)
         ttk.Button(right_frame, text="Горячая перезагрузка", command=self._soft_reload).pack(side=tk.LEFT, padx=5)
+
+
+    def _update_nav_visual_state(self, active_view_id: str):
+        """Обновляет визуальное состояние кнопок навигации."""
+        for view_id, btn in self._nav_buttons.items():
+            if view_id == active_view_id:
+                btn.configure(style="NavActive.TButton")
+            else:
+                btn.configure(style="Nav.TButton")
 
     def _create_status_bar(self):
         self.status_bar = ttk.Frame(self.root, height=30)
@@ -524,6 +540,7 @@ class CogniFlexGUI:
         else:
             ttk.Label(self.content_area, text=f"Модуль '{view_id}' недоступен.").pack()
         self.current_view = view_id
+        self._update_nav_visual_state(view_id)
 
     def _schedule_update(self):
         try:
