@@ -465,8 +465,9 @@ def load_rugpt3_medium_local(storage_path: str = None,
                             device: str = "auto") -> Tuple[Optional[Any], Optional[Any]]:
     """Удобная функция для загрузки ruGPT-3 Medium/Large"""
     # Если путь не указан, используем путь к ruGPT-3 Large во фрактальном хранилище
+    # Важно: модель находится в подпапке model/
     if storage_path is None:
-        storage_path = "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal"
+        storage_path = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"
     
     loader = Localrugpt3largeLoader(storage_path)
     return loader.load_model_and_tokenizer(device)

@@ -152,7 +152,7 @@ class FractalModelManager:
                     break
             
             if storage_path is None:
-                storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal")
+                storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
                 logger.warning(f"Модель не найдена, используем путь по умолчанию: {storage_path}")
             
             logger.info(f"Используем путь к хранилищу: {os.path.abspath(storage_path)}")

@@ -142,9 +142,9 @@ class HybridModelManager:
                     
                     if not tokenizer_success:
                         logger.warning("Не удалось загрузить токенизатор, пробуем альтернативные пути...")
-                        # Пробуем альтернативные пути
+                        # Пробуем альтернативные пути - важно: модель в подпапке model/
                         alt_paths = [
-                            "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal",
+                            "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
                             "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
                             "cogniflex_cache/ml_unit/fractal_storage/tokenizer/rugpt3_large_fractal"
                         ]
