@@ -180,6 +180,12 @@ class IntegratedCogniFlexGUI:
         self.input_field = ttk.Entry(input_frame, font=("Arial", 11))
         self.input_field.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.input_field.bind("<Return>", self.send_message)
+        
+        # Добавляем шоткаты
+        self.input_field.bind("<Control-a>", lambda e: (self.input_field.select_range(0, 'end'), "break"))
+        self.input_field.bind("<Control-A>", lambda e: (self.input_field.select_range(0, 'end'), "break"))
+        self.input_field.bind("<Control-q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
+        self.input_field.bind("<Control-Q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
 
         ttk.Button(
             input_frame,

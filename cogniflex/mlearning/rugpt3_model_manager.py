@@ -352,7 +352,7 @@ class RuGPT3ModelManager:
                 return_tensors=return_tensors,
                 padding=True,
                 truncation=True,
-                max_length=512
+                max_length=2048  # Увеличено с 512
             )
             
             # Перемещение на GPU

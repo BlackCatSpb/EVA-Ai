@@ -295,7 +295,7 @@ class GenerationCoordinator:
                 return_tensors="pt",
                 padding=False,  # Отключаем padding для генерации
                 truncation=True,
-                max_length=1024,  # Ограничиваем длину контекста
+                max_length=4096,  # Увеличено с 1024 до 4096
                 return_attention_mask=True
             ).to(self.device)
             

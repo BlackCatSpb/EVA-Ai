@@ -250,7 +250,7 @@ class FractalModelManager:
                 return_tensors="pt",
                 padding=False,  # Отключаем padding для генерации
                 truncation=True,
-                max_length=1024,
+                max_length=2048,  # Увеличено с 1024
                 return_attention_mask=True
             )
             
