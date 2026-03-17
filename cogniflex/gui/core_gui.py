@@ -268,12 +268,12 @@ class CogniFlexGUI:
 
     def _init_modules(self):
         """Инициализирует модули GUI с улучшенной обработкой ошибок и приоритетом chat модуля."""
-        print("DEBUG: _init_modules() вызван!")
+        logger.debug("DEBUG: _init_modules() вызван!")
         if not self.content_area:
             logger.error("Попытка инициализации модулей до создания интерфейса")
             return
         
-        print(f"DEBUG: Начинаем инициализацию модулей GUI")
+        logger.debug(f"DEBUG: Начинаем инициализацию модулей GUI")
         logger.info("Начинаем инициализацию модулей GUI")
         
         # Приоритизируем chat модуль - инициализируем его первым
@@ -325,9 +325,9 @@ class CogniFlexGUI:
                 logger.info(f"Инициализация модуля: {name}")
                 module = __import__(module_path, fromlist=[None])
                 
-                print(f"DEBUG: Модуль {name}, путь {module_path}, класс {class_name}")
-                print(f"DEBUG: Модуль импортирован: {module is not None}")
-                print(f"DEBUG: Класс {class_name} существует: {hasattr(module, class_name)}")
+                logger.debug(f"DEBUG: Модуль {name}, путь {module_path}, класс {class_name}")
+                logger.debug(f"DEBUG: Модуль импортирован: {module is not None}")
+                logger.debug(f"DEBUG: Класс {class_name} существует: {hasattr(module, class_name)}")
                 
                 # Проверяем, что класс существует
                 if not hasattr(module, class_name):
@@ -336,22 +336,22 @@ class CogniFlexGUI:
                     continue
 
                 module_class = getattr(module, class_name)
-                print(f"DEBUG: Класс {class_name} получен: {module_class is not None}")
+                logger.debug(f"DEBUG: Класс {class_name} получен: {module_class is not None}")
                 
                 instance = module_class(self)
-                print(f"DEBUG: Экземпляр {class_name} создан: {instance is not None}")
+                logger.debug(f"DEBUG: Экземпляр {class_name} создан: {instance is not None}")
                 
                 setattr(self, f"{name}_module", instance)
-                print(f"DEBUG: Атрибут {name}_module установлен: {hasattr(self, f'{name}_module')}")
+                logger.debug(f"DEBUG: Атрибут {name}_module установлен: {hasattr(self, f'{name}_module')}")
                 
                 logger.info(f"✅ Модуль '{name}' инициализирован успешно")
 
             except ImportError as e:
                 logger.error(f"Не удалось импортировать модуль '{name}': {e}", exc_info=True)
-                print(f"DEBUG: ImportError при инициализации {name}: {e}")
+                logger.debug(f"DEBUG: ImportError при инициализации {name}: {e}")
             except Exception as e:
                 logger.error(f"Ошибка инициализации модуля '{name}': {e}", exc_info=True)
-                print(f"DEBUG: Exception при инициализации {name}: {e}")
+                logger.debug(f"DEBUG: Exception при инициализации {name}: {e}")
 
         # Финальная проверка chat модуля
         if not hasattr(self, 'chat_module') or self.chat_module is None:
@@ -426,6 +426,11 @@ class CogniFlexGUI:
         style.configure("Nav.TButton", padding=(10, 5), relief=tk.FLAT)
         style.configure("NavActive.TButton", padding=(10, 5), relief=tk.FLAT, background=self.colors['primary'])
         style.map("NavActive.TButton", background=[("active", self.colors['primary'])])
+        
+        # Notebook tab styles
+        style.configure("TNotebook", background=self.colors['bg'])
+        style.configure("TNotebook.Tab", padding=(10, 5), background=self.colors['card-bg'], foreground=self.colors['text'])
+        style.map("TNotebook.Tab", background=[("selected", self.colors['primary'])], foreground=[("selected", "white")])
 
         self.root.configure(bg=self.colors['bg'])
 
@@ -433,41 +438,66 @@ class CogniFlexGUI:
         self.main_container = ttk.Frame(self.root)
         self.main_container.pack(fill=tk.BOTH, expand=True)
         self._create_navbar()
-        self.content_frame = ttk.Frame(self.main_container)
-        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=0)
-        self.content_area = ttk.Frame(self.content_frame)
-        self.content_area.pack(fill=tk.BOTH, expand=True)
+        self._create_notebook()
         self._create_status_bar()
 
     def _create_navbar(self):
-        navbar = ttk.Frame(self.main_container, height=50)
+        """Создаёт упрощённую панель навигации (без кнопок переключения вкладок)."""
+        navbar = ttk.Frame(self.main_container, height=40)
         navbar.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(navbar, text="CogniFlex", font=("Segoe UI", 16, "bold"), foreground=self.colors['primary']).pack(side=tk.LEFT)
-        nav_frame = ttk.Frame(navbar)
-        nav_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        nav_items = [
-            ("Чат", "chat"), ("Аналитика", "analytics"), ("Граф знаний", "knowledge"),
-            ("Противоречия", "contradictions"), ("Память", "memory"),
-            ("Обучение", "learning"), ("Нейроморфика", "neuromorphic"), ("Настройки", "settings")
-        ]
-        self._nav_buttons = {}
-        for text, view_id in nav_items:
-            btn = ttk.Button(nav_frame, text=text, command=lambda v=view_id: self._switch_view(v), style="Nav.TButton")
-            btn.pack(side=tk.LEFT, padx=5)
-            self._nav_buttons[view_id] = btn
+        ttk.Label(navbar, text="CogniFlex", font=("Segoe UI", 14, "bold"), foreground=self.colors['primary']).pack(side=tk.LEFT, padx=10)
         right_frame = ttk.Frame(navbar)
         right_frame.pack(side=tk.RIGHT)
         ttk.Button(right_frame, text="Перезагрузить", command=self._reboot_system).pack(side=tk.LEFT, padx=5)
         ttk.Button(right_frame, text="Горячая перезагрузка", command=self._soft_reload).pack(side=tk.LEFT, padx=5)
 
 
+    def _create_notebook(self):
+        """Создаёт Notebook с вкладками для навигации между модулями."""
+        self.notebook = ttk.Notebook(self.main_container)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        
+        # Привязываем событие переключения вкладок
+        self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
+        
+        # Создаём фреймы для каждой вкладки
+        self.tabs = {}
+        tab_names = [
+            ("chat", "Чат"),
+            ("analytics", "Аналитика"),
+            ("knowledge", "Граф знаний"),
+            ("contradictions", "Противоречия"),
+            ("memory", "Память"),
+            ("learning", "Обучение"),
+            ("neuromorphic", "Нейроморфика"),
+            ("settings", "Настройки")
+        ]
+        
+        for tab_id, tab_title in tab_names:
+            frame = ttk.Frame(self.notebook)
+            self.notebook.add(frame, text=tab_title)
+            self.tabs[tab_id] = frame
+        
+        # content_area будет указывать на активную вкладку
+        self.content_area = self.tabs.get("chat")
+        
+        # Отслеживание порядка вкладок для индексации
+        self.tab_order = [tab_id for tab_id, _ in tab_names]
+
+    def _on_tab_changed(self, event):
+        """Обрабатывает событие переключения вкладки пользователем."""
+        try:
+            selected_index = self.notebook.index(self.notebook.select())
+            if 0 <= selected_index < len(self.tab_order):
+                view_id = self.tab_order[selected_index]
+                self._switch_view(view_id)
+        except Exception as e:
+            logger.debug(f"Ошибка при обработке смены вкладки: {e}")
+
     def _update_nav_visual_state(self, active_view_id: str):
-        """Обновляет визуальное состояние кнопок навигации."""
-        for view_id, btn in self._nav_buttons.items():
-            if view_id == active_view_id:
-                btn.configure(style="NavActive.TButton")
-            else:
-                btn.configure(style="Nav.TButton")
+        """Обновляет визуальное состояние кнопок навигации (теперь для вкладок)."""
+        # ttk.Notebook сам управляет подсветкой активной вкладки
+        pass
 
     def _create_status_bar(self):
         self.status_bar = ttk.Frame(self.root, height=30)
@@ -513,7 +543,21 @@ class CogniFlexGUI:
 
     def _switch_view(self, view_id: str):
         logger.debug(f"Переключение на представление: {view_id}")
-        if not self.content_area: return
+        
+        # Проверяем, что вкладка существует
+        if not self.tabs or view_id not in self.tabs:
+            logger.warning(f"Попытка переключения на несуществующую вкладку: {view_id}")
+            return
+
+        # Обновляем content_area на соответствующий фрейм вкладки
+        self.content_area = self.tabs[view_id]
+        
+        # Переключаем вкладку в Notebook
+        try:
+            tab_index = self.tab_order.index(view_id)
+            self.notebook.select(tab_index)
+        except (ValueError, IndexError) as e:
+            logger.warning(f"Не удалось переключить вкладку {view_id}: {e}")
 
         # Деактивируем предыдущий модуль, чтобы отменить таймеры/задания
         try:
@@ -529,9 +573,11 @@ class CogniFlexGUI:
         except Exception:
             pass
 
+        # Очищаем фрейм вкладки
         for widget in self.content_area.winfo_children():
             widget.destroy()
 
+        # Активируем модуль
         module = getattr(self, f"{view_id}_module", None)
         if module and hasattr(module, 'activate'):
             # Логируем активацию модуля
@@ -540,7 +586,6 @@ class CogniFlexGUI:
         else:
             ttk.Label(self.content_area, text=f"Модуль '{view_id}' недоступен.").pack()
         self.current_view = view_id
-        self._update_nav_visual_state(view_id)
 
     def _schedule_update(self):
         try:
@@ -1295,7 +1340,7 @@ class CogniFlexGUI:
                         for job_id in module._after_jobs:
                             try:
                                 self.root.after_cancel(job_id)
-                            except:
+                            except Exception:
                                 pass
                         module._after_jobs.clear()
                         self.chat_logger.debug(f"Прямая очистка after задач в модуле: {module_name}")
@@ -1307,7 +1352,7 @@ class CogniFlexGUI:
                         job_id = notification.get('job_id')
                         if job_id:
                             self.root.after_cancel(job_id)
-                    except:
+                    except Exception:
                         pass
                 self.active_notifications.clear()
                 self.chat_logger.debug("Очищены активные уведомления")

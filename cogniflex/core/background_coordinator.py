@@ -624,7 +624,8 @@ class BackgroundCoordinator:
                 logger.info("BackgroundCoordinator зарегистрировал команды в DeferredCommandSystem")
                 
         except Exception as e:
-            logger.error(f"Ошибка интеграции с системой событий: {e}")
+            # Логируем как предупреждение, а не ошибку - это не критично
+            logger.warning(f"Неполная интеграция с системой событий: {e}")
 
     def _handle_system_ready(self, data: Dict[str, Any]) -> None:
         """Обработчик события готовности системы."""

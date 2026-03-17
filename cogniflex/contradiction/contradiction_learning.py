@@ -267,7 +267,7 @@ class ContradictionLearningOpportunity:
             usage_count = knowledge_graph.get_concept_usage_count(self.concept)
             # Логарифмическая шкала для учета частоты использования
             usage_frequency = min(0.5, 0.1 + np.log1p(usage_count) * 0.1)
-        except:
+        except Exception:
             pass
         
         # 2. Анализ важности концепта через контент
@@ -1179,7 +1179,7 @@ class ContradictionLearningOpportunity:
             usage_count = knowledge_graph.get_concept_usage_count(self.concept)
             # Логарифмическая шкала для учета частоты использования
             usage_frequency = min(0.5, 0.1 + np.log1p(usage_count) * 0.1)
-        except:
+        except Exception:
             pass
         
         # 2. Анализ важности концепта через контент

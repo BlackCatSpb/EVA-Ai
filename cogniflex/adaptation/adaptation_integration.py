@@ -669,7 +669,7 @@ def _extract_concept_from_query(self, query: str) -> Optional[str]:
                 try:
                     spacy.cli.download("ru_core_news_sm")
                     self.nlp_spacy = spacy.load("ru_core_news_sm")
-                except:
+                except Exception:
                     self.nlp_spacy = None
         
         if self.nlp_spacy:

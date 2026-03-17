@@ -1,10 +1,17 @@
-# CogniFlex Agent Swarm System
+# -*- coding: utf-8 -*-
+import sys
+import os
+
+# Change to docs directory
+os.chdir('docs')
+
+# AGENT_SWARM.md content
+agent_swarm_content = """# CogniFlex Agent Swarm System
 
 ## Status
 **Date:** 17 March 2026  
-**Version:** 1.1  
+**Version:** 1.0  
 **Active agents:** 4  
-**Last Update:** Notebook UI implementation completed
 
 ---
 
@@ -16,34 +23,33 @@
 | Replace print with logger | Frontend Agent | COMPLETED | HIGH |
 | Delete backup files | QA Agent | COMPLETED | HIGH |
 | SQL parameterization | Frontend Agent | IN PROGRESS | HIGH |
-| Notebook UI implementation | Frontend Agent | COMPLETED | HIGH |
-| Update documentation | Documentation Agent | COMPLETED | MEDIUM |
+| Update documentation | Documentation Agent | IN PROGRESS | MEDIUM |
 
 ---
 
 ## Architecture
 
 ```
-                     +---------------------------------------------+
-                     |           COORDINATOR (I)                    |
-                     |        (Role: CTO / Team Lead)               |
-                     +----------------------+----------------------+
-                                            |
-             +-------------------------------+-------------------------------+
-             |                               |                               |
-             v                               v                               v
+                    +---------------------------------------------+
+                    |           COORDINATOR (I)                    |
+                    |        (Role: CTO / Team Lead)               |
+                    +----------------------+----------------------+
+                                           |
+            +-------------------------------+-------------------------------+
+            |                               |                               |
+            v                               v                               v
 +---------------------+           +---------------------+           +---------------------+
 |   AGENT: UI/UX     |           |  AGENT: FRONTEND   |           |  AGENT: QA/TEST    |
 |   (Research)       |           |   (Implementation)  |           |   (Verification)   |
 +---------------------+           +---------------------+           +---------------------+
-             |                               |                               |
-             +-------------------------------+-------------------------------+
-                                            |
-                                            v
-                     +---------------------------------------------+
-                     |         SHARED CONTEXT STORE               |
-                     |    (Shared memory - docs/agents/)          |
-                     +---------------------------------------------+
+            |                               |                               |
+            +-------------------------------+-------------------------------+
+                                           |
+                                           v
+                    +---------------------------------------------+
+                    |         SHARED CONTEXT STORE               |
+                    |    (Shared memory - docs/agents/)          |
+                    +---------------------------------------------+
 ```
 
 ## Agents and Their Roles
@@ -153,3 +159,37 @@ result3 = task(agent3, context=result2)
 ---
 
 *System updated: 17 March 2026*
+"""
+
+# CHANGELOG.md content
+changelog_content = """# Changelog
+
+## [0.1.1] - 2026-03-17
+
+### Fixed
+- Fixed bare except in 8 files
+- Replaced print() with logger in 7+ files
+- Removed backup file core_gui.py.bak
+
+### Added
+- Agent Swarm coordination system
+- Documentation: AGENT_SWARM.md, TECHNICAL_DEBT.md
+
+---
+
+## [0.1.0] - 2026-03-16
+
+### Added
+- Initial project structure
+- Core modules: adaptation, contradiction, generation, gui, knowledge, learning, memory, mlearning
+"""
+
+# Write AGENT_SWARM.md
+with open('AGENT_SWARM.md', 'w', encoding='utf-8') as f:
+    f.write(agent_swarm_content)
+print('AGENT_SWARM.md updated')
+
+# Write CHANGELOG.md
+with open('CHANGELOG.md', 'w', encoding='utf-8') as f:
+    f.write(changelog_content)
+print('CHANGELOG.md created')
