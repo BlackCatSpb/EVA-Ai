@@ -767,9 +767,22 @@ class ReasoningEngine:
         logger.debug(f"Синтез завершен: {len(insights)} инсайтов")
     
     def _generate_internal_questions(self, dialogue: InternalDialogue, context: Dict) -> List[str]:
-        """Генерация внутренних вопросов на основе контекста"""
+        """Генерация внутренних вопросов на основе контекста и данных из графа памяти"""
         questions = []
         query_type = context.get('query_type', 'general')
+        
+        # Получаем сущности из MemoryGraphML для генерации релевантных вопросов
+        ml_entities = context.get('ml_entities', [])
+        graph_context = context.get('graph_context', {})
+        
+        # Вопросы на основе данных из графа памяти
+        if ml_entities:
+            # Используем найденные сущности для генерации вопросов
+            for entity in ml_entities[:3]:  # Берем первые 3 сущности
+                if isinstance(entity, dict):
+                    entity_name = entity.get('name', entity.get('id', ''))
+                    if entity_name:
+                        questions.append(f"Как связана сущность '{entity_name}' с запросом '{dialogue.original_query}'?")
         
         # Базовые вопросы для всех типов
         questions.extend([
@@ -777,6 +790,12 @@ class ReasoningEngine:
             "Какая информация из памяти наиболее релевантна?",
             "Есть ли пробелы в знаниях, которые нужно заполнить?"
         ])
+        
+        # Если есть данные из графа - добавляем вопросы о паттернах
+        if graph_context:
+            patterns = graph_context.get('patterns', [])
+            if patterns:
+                questions.append("Какие паттерны из прошлых рассуждений применимы?")
         
         # Специфичные вопросы по типу
         if query_type == 'explanatory':
@@ -803,7 +822,7 @@ class ReasoningEngine:
             questions.append("Как разрешить обнаруженные противоречия?")
         
         # Если мало знаний
-        if not context.get('memories') and not context.get('web_search_results'):
+        if not context.get('memory') and not context.get('web_search'):
             questions.append("Как ответить при недостатке информации?")
         
         return questions[:5]  # Ограничиваем количество
@@ -819,7 +838,7 @@ class ReasoningEngine:
 Ответь кратко и по существу:"""
                 
                 response = self.brain.generation_coordinator.generate_response(
-                    prompt, max_tokens=50
+                    prompt, max_tokens=100
                 )
                 if response and response.strip():
                     return response
@@ -933,7 +952,7 @@ class ReasoningEngine:
         if self.brain and hasattr(self.brain, 'generation_coordinator') and self.brain.generation_coordinator:
             try:
                 response = self.brain.generation_coordinator.generate_response(
-                    query, max_tokens=150
+                    query, max_tokens=300
                 )
                 if response and response.strip():
                     return response

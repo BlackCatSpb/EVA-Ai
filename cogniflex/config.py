@@ -6,7 +6,7 @@ import os
 # Model loading flags
 # Set to True to disable all models except RUGPT3
 DISABLE_ALL_MODELS = os.environ.get('COGNIFLEX_DISABLE_MODELS', 'true').lower() == 'true'
-DISABLE_EMBEDDINGS = os.environ.get('COGNIFLEX_DISABLE_EMBEDDINGS', 'true').lower() == 'true'
+DISABLE_EMBEDDINGS = os.environ.get('COGNIFLEX_DISABLE_EMBEDDINGS', 'false').lower() == 'true'  # Включено для работы MemoryGraphML
 DISABLE_TOKENIZERS = os.environ.get('COGNIFLEX_DISABLE_TOKENIZERS', 'false').lower() == 'true'
 DISABLE_TRAINING = os.environ.get('COGNIFLEX_DISABLE_TRAINING', 'false').lower() == 'true'
 

@@ -17,7 +17,7 @@ class GenerationRequest:
     
     def __init__(self, text: str, **kwargs):
         self.text = text
-        self.max_tokens = kwargs.get('max_tokens', 100)
+        self.max_tokens = kwargs.get('max_tokens', 200)  # Увеличено с 100 до 200
         self.temperature = kwargs.get('temperature', 0.7)
         self.context = kwargs.get('context')
         self.user_context = kwargs.get('user_context')
@@ -434,13 +434,13 @@ class UnifiedGenerationCoordinator:
             source="fallback"
         )
 
-    def generate_response(self, prompt: str, max_tokens: int = 100, **kwargs) -> str:
+    def generate_response(self, prompt: str, max_tokens: int = 200, **kwargs) -> str:
         """
         Упрощенный метод генерации текста для обратной совместимости.
         
         Args:
             prompt: Текст промпта
-            max_tokens: Максимальное количество токенов
+            max_tokens: Максимальное количество токенов (по умолчанию 200)
             **kwargs: Дополнительные параметры
             
         Returns:
