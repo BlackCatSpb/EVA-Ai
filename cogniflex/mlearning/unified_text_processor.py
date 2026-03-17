@@ -22,6 +22,15 @@ import spacy
 import torch
 from nltk.stem import WordNetLemmatizer
 
+# Import config
+try:
+    from cogniflex.config import is_embedding_loading_disabled, DISABLE_ALL_MODELS
+except ImportError:
+    # Fallback if config doesn't exist
+    def is_embedding_loading_disabled():
+        return False
+    DISABLE_ALL_MODELS = False
+
 # Импортируем базовый класс компонента
 try:
     from cogniflex.core.base_component import BaseComponent
@@ -32,11 +41,16 @@ except ImportError:
 else:
     logger = logging.getLogger("cogniflex.unified_text_processor")
 
-try:
-    # Optional dependency; allow absence in test environments
-    from sentence_transformers import SentenceTransformer  # type: ignore
-except Exception:  # pragma: no cover - optional dependency may be absent
-    SentenceTransformer = None  # type: ignore
+# Check if embeddings are disabled
+if not is_embedding_loading_disabled():
+    try:
+        # Optional dependency; allow absence in test environments
+        from sentence_transformers import SentenceTransformer  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency may be absent
+        SentenceTransformer = None  # type: ignore
+else:
+    SentenceTransformer = None
+    logger.info("SentenceTransformer disabled by configuration")
 
 from transformers import pipeline
 
@@ -164,6 +178,12 @@ class UnifiedTextProcessor(BaseComponent):
             
     def _load_embedding_models(self):
         """Загружает модели для эмбеддингов и семантического поиска."""
+        # Check if embeddings are disabled
+        if is_embedding_loading_disabled():
+            logger.info("Загрузка эмбеддингов отключена конфигурацией")
+            self.embedding_model = None
+            return
+            
         try:
             if SentenceTransformer is not None:
                 # Проверяем наличие локальных моделей
@@ -213,27 +233,31 @@ class UnifiedTextProcessor(BaseComponent):
                     self.nlp = None
             
             # Загрузка модели эмбеддингов
-            try:
-                device = "cuda" if self.use_gpu else "cpu"
-                if SentenceTransformer is not None:
-                    # Преобразуем имя модели в путь к локальной директории
-                    if self.model_name == 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2':
-                        embedding_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2')
-                    else:
-                        embedding_model_path = os.path.join(self.models_base_path, self.model_name)
-                    
-                    if os.path.exists(embedding_model_path):
-                        self.embedder = SentenceTransformer(embedding_model_path, device=device)
-                        logger.info(f"Модель эмбеддингов '{self.model_name}' загружена локально с {device}")
+            if is_embedding_loading_disabled():
+                logger.info("Загрузка эмбеддингов отключена конфигурацией")
+                self.embedder = None
+            else:
+                try:
+                    device = "cuda" if self.use_gpu else "cpu"
+                    if SentenceTransformer is not None:
+                        # Преобразуем имя модели в путь к локальной директории
+                        if self.model_name == 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2':
+                            embedding_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2')
+                        else:
+                            embedding_model_path = os.path.join(self.models_base_path, self.model_name)
+                        
+                        if os.path.exists(embedding_model_path):
+                            self.embedder = SentenceTransformer(embedding_model_path, device=device)
+                            logger.info(f"Модель эмбеддингов '{self.model_name}' загружена локально с {device}")
+                        else:
+                            self.embedder = None
+                            logger.warning(f"Локальная модель эмбеддингов не найдена: {embedding_model_path}")
                     else:
                         self.embedder = None
-                        logger.warning(f"Локальная модель эмбеддингов не найдена: {embedding_model_path}")
-                else:
+                        logger.info("sentence_transformers не установлен; пропускаем загрузку embedder")
+                except Exception as e:
+                    logger.warning(f"Не удалось загрузить модель эмбеддингов: {e}")
                     self.embedder = None
-                    logger.info("sentence_transformers не установлен; пропускаем загрузку embedder")
-            except Exception as e:
-                logger.warning(f"Не удалось загрузить модель эмбеддингов: {e}")
-                self.embedder = None
             
             # Определяем размерность эмбеддинга
             try:
