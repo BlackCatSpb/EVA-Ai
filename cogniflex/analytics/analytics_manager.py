@@ -60,6 +60,10 @@ class AnalyticsManager:
             from cogniflex.learning.performance_analyzer import PerformanceAnalyzer
             self.performance_analyzer = PerformanceAnalyzer(self.brain)
             
+            # Добавляем в brain для доступа извне
+            if self.brain:
+                self.brain.performance_analyzer = self.performance_analyzer
+            
             # KnowledgeAnalytics
             from cogniflex.knowledge.knowledge_analytics import KnowledgeAnalytics
             self.knowledge_analytics = KnowledgeAnalytics(self.brain)
