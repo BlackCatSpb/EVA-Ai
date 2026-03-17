@@ -1047,17 +1047,23 @@ class CogniFlexGUI:
             self.chat_logger.info(f"Начало обработки запроса в ядре. Токенов: {len(tokens)}")
             
             # 9. Вызываем обработку запроса
-            response = self.brain.process_query(query)
+            response_obj = self.brain.process_query(query)
+            
+            # Извлекаем текст из ответа (может быть dict или str)
+            if isinstance(response_obj, dict):
+                response = response_obj.get('text') or response_obj.get('response') or str(response_obj)
+            else:
+                response = str(response_obj) if response_obj else "нет ответа"
             
             # 10. Логируем время обработки
             processing_time = time.time() - processing_start
-            self.chat_logger.info(f"Обработка запроса завершена за {processing_time:.4f} сек")
             
             # 11. Логируем получение ответа
-            self.chat_logger.info(f"Получен ответ от ядра: '{response[:100]}{'...' if len(response) > 100 else ''}'")
+            response_preview = response[:100] if response else ""
+            self.chat_logger.info(f"Получен ответ от ядра: '{response_preview}...'")
             
             # 12. Проверяем валидность ответа
-            if not response or response.strip().lower() == "нет ответа":
+            if not response or (isinstance(response, str) and response.strip().lower() == "нет ответа"):
                 self.chat_logger.error(f"Ядро вернуло недопустимый ответ на запрос '{query}'")
                 response = (
                     "Система временно не может предоставить полный ответ. "

@@ -313,26 +313,27 @@ class IntegratedCogniFlexGUI:
     def handle_query_result(self, result: Dict[str, Any]):
         """Обработка результата запроса."""
         try:
-            if result.get('status') == 'success':
-                response = result.get('response', 'Нет ответа')
-                if isinstance(response, dict):
-                    response = response.get('text', str(response))
+            # brain.process_query() returns dict with 'text' key
+            if isinstance(result, dict):
+                if 'text' in result:
+                    response = result.get('text', 'Нет ответа')
+                    self.add_to_chat("CogniFlex", response)
+                    self.update_status("Готов")
+                    self.add_to_log(f"✅ Запрос обработан успешно за {result.get('processing_time', 0):.2f} сек")
+                    return
+                elif result.get('status') == 'error':
+                    error_msg = result.get('error', 'Неизвестная ошибка')
+                    self.add_to_chat("Система", f"Ошибка: {error_msg}")
+                    self.update_status("Ошибка")
+                    self.add_to_log(f"❌ Ошибка обработки: {error_msg}")
+                    return
 
-                self.add_to_chat("CogniFlex", response)
+            if isinstance(result, str):
+                self.add_to_chat("CogniFlex", result)
                 self.update_status("Готов")
-
-                # Логируем успешный ответ
-                self.add_to_log(f"✅ Запрос обработан успешно за {result.get('processing_time', 0):.2f} сек")
-
-            elif result.get('status') == 'error':
-                error_msg = result.get('error', 'Неизвестная ошибка')
-                self.add_to_chat("Система", f"Ошибка: {error_msg}")
-                self.update_status("Ошибка")
-                self.add_to_log(f"❌ Ошибка обработки: {error_msg}")
-
             else:
-                self.add_to_chat("Система", "Неожиданный статус ответа")
-                self.update_status("Неизвестный статус")
+                self.add_to_chat("Система", "Неожиданный формат ответа")
+                self.update_status("Ошибка")
 
         except Exception as e:
             logger.error(f"Ошибка обработки результата: {e}")
