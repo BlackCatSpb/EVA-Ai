@@ -167,14 +167,26 @@ class UnifiedTextProcessor(BaseComponent):
         try:
             if SentenceTransformer is not None:
                 # Проверяем наличие локальных моделей
-                local_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--all-MiniLM-L6-v2')
-                if os.path.exists(local_model_path):
-                    logger.info("Загружаем локальную модель эмбеддингов...")
+                # Правильный путь для локальной модели
+                local_model_paths = [
+                    os.path.join(self.models_base_path, 'all-MiniLM-L6-v2'),
+                    os.path.join(self.models_base_path, 'embeddings', 'all-MiniLM-L6-v2'),
+                    os.path.join(self.models_base_path, 'sentence-transformers--all-MiniLM-L6-v2'),
+                ]
+                
+                local_model_path = None
+                for path in local_model_paths:
+                    if os.path.exists(path) and os.path.isdir(path):
+                        local_model_path = path
+                        break
+                
+                if local_model_path:
+                    logger.info(f"Загружаем локальную модель эмбеддингов из: {local_model_path}")
                     try:
                         self.embedding_model = SentenceTransformer(
                             local_model_path,
                             device='cpu',
-                            local_files_only=True  # Только локальные файлы
+                            local_files_only=True
                         )
                         logger.info("Локальная модель эмбеддингов загружена успешно")
                     except Exception as e:
