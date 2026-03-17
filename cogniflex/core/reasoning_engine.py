@@ -25,6 +25,8 @@ class ReasoningPhase(Enum):
     WEB_SEARCH = "web_search"
     KNOWLEDGE_GRAPH_QUERY = "knowledge_graph_query"
     ETHICS_CHECK = "ethics_check"
+    ANALYTICS_CHECK = "analytics_check"
+    PERFORMANCE_ANALYSIS = "performance_analysis"
     SYNTHESIS = "synthesis"
     REFLECTION = "reflection"
     FINAL_ANSWER = "final_answer"
@@ -90,6 +92,8 @@ class ReasoningEngine:
             ReasoningPhase.WEB_SEARCH: self.config.get('enable_web_search', True),
             ReasoningPhase.KNOWLEDGE_GRAPH_QUERY: True,
             ReasoningPhase.ETHICS_CHECK: True,
+            ReasoningPhase.ANALYTICS_CHECK: self.config.get('enable_analytics', True),
+            ReasoningPhase.PERFORMANCE_ANALYSIS: self.config.get('enable_performance', True),
             ReasoningPhase.SYNTHESIS: True,
             ReasoningPhase.REFLECTION: True,
             ReasoningPhase.FINAL_ANSWER: True
@@ -172,15 +176,23 @@ class ReasoningEngine:
             if self.enabled_phases[ReasoningPhase.ETHICS_CHECK]:
                 self._ethics_check(dialogue)
             
-            # Фаза 7: Синтез через внутренний диалог
+            # Фаза 7: Аналитика - сбор данных о системе
+            if self.enabled_phases[ReasoningPhase.ANALYTICS_CHECK]:
+                self._analytics_check(dialogue)
+            
+            # Фаза 8: Анализ производительности
+            if self.enabled_phases[ReasoningPhase.PERFORMANCE_ANALYSIS]:
+                self._performance_analysis(dialogue)
+            
+            # Фаза 9: Синтез через внутренний диалог
             if self.enabled_phases[ReasoningPhase.SYNTHESIS]:
                 self._synthesize_answer(dialogue)
             
-            # Фаза 8: Рефлексия
+            # Фаза 10: Рефлексия
             if self.enabled_phases[ReasoningPhase.REFLECTION]:
                 self._reflection(dialogue)
             
-            # Фаза 9: Финальный ответ
+            # Фаза 11: Финальный ответ
             result = self._finalize_answer(dialogue, start_time)
             
             # Сохраняем в историю
@@ -525,6 +537,136 @@ class ReasoningEngine:
         if not ethics_result['approved']:
             logger.warning(f"Этические проблемы: {ethics_result['issues']}")
     
+    def _analytics_check(self, dialogue: InternalDialogue):
+        """
+        Сбор и анализ аналитических данных системы.
+        Использует AnalyticsManager и PerformanceAnalyzer для оценки состояния системы.
+        """
+        logger.debug("Сбор аналитических данных...")
+        
+        analytics_data = {
+            'system_state': {},
+            'component_health': {},
+            'metrics': {},
+            'insights': []
+        }
+        
+        try:
+            # Получаем данные от AnalyticsManager
+            if self.brain and hasattr(self.brain, 'analytics_manager'):
+                try:
+                    analytics_manager = self.brain.analytics_manager
+                    if hasattr(analytics_manager, 'get_system_analytics'):
+                        analytics_data['system_state'] = analytics_manager.get_system_analytics()
+                    if hasattr(analytics_manager, 'get_metrics'):
+                        analytics_data['metrics'] = analytics_manager.get_metrics()
+                except Exception as e:
+                    logger.debug(f"Ошибка получения аналитики от analytics_manager: {e}")
+            
+            # Получаем данные о состоянии компонентов
+            if self.brain and hasattr(self.brain, 'components'):
+                for comp_name, comp in self.brain.components.items():
+                    if comp is not None:
+                        try:
+                            # Пробуем получить статус компонента
+                            if hasattr(comp, 'get_status'):
+                                status = comp.get_status()
+                                analytics_data['component_health'][comp_name] = status
+                            elif hasattr(comp, 'health') or hasattr(comp, 'is_ready'):
+                                analytics_data['component_health'][comp_name] = {
+                                    'available': True,
+                                    'health': getattr(comp, 'health', 'unknown'),
+                                    'ready': getattr(comp, 'is_ready', None)
+                                }
+                        except Exception:
+                            pass
+            
+            # Добавляем инсайты на основе аналитики
+            if analytics_data['component_health']:
+                healthy_count = sum(1 for h in analytics_data['component_health'].values() 
+                                  if h.get('available', False))
+                total_count = len(analytics_data['component_health'])
+                health_ratio = healthy_count / max(total_count, 1)
+                
+                if health_ratio < 0.5:
+                    analytics_data['insights'].append(f"Только {healthy_count}/{total_count} компонентов работают")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка сбора аналитики: {e}")
+        
+        step = ReasoningStep(
+            phase=ReasoningPhase.ANALYTICS_CHECK,
+            query=dialogue.original_query,
+            result=analytics_data,
+            timestamp=time.time(),
+            confidence=0.8,
+            metadata={'components_checked': len(analytics_data.get('component_health', {}))}
+        )
+        dialogue.steps.append(step)
+    
+    def _performance_analysis(self, dialogue: InternalDialogue):
+        """
+        Анализ производительности системы.
+        Использует PerformanceAnalyzer для оценки эффективности работы.
+        """
+        logger.debug("Анализ производительности...")
+        
+        perf_data = {
+            'response_time': 0.0,
+            'memory_usage': 0.0,
+            'cpu_usage': 0.0,
+            'recommendations': [],
+            'bottlenecks': []
+        }
+        
+        try:
+            # Получаем данные от PerformanceAnalyzer
+            if self.brain and hasattr(self.brain, 'performance_analyzer'):
+                try:
+                    pa = self.brain.performance_analyzer
+                    if hasattr(pa, 'get_performance_report'):
+                        report = pa.get_performance_report()
+                        perf_data.update(report)
+                    elif hasattr(pa, 'analyze'):
+                        perf_data = pa.analyze()
+                except Exception as e:
+                    logger.debug(f"Ошибка анализа производительности: {e}")
+            
+            # Fallback: пробуем получить данные от metrics_manager
+            if not perf_data.get('response_time') and self.brain:
+                if hasattr(self.brain, 'metrics_manager'):
+                    try:
+                        mm = self.brain.metrics_manager
+                        if hasattr(mm, 'get_average_response_time'):
+                            perf_data['response_time'] = mm.get_average_response_time()
+                    except Exception:
+                        pass
+            
+            # Анализируем и добавляем рекомендации
+            if perf_data.get('response_time', 0) > 5.0:
+                perf_data['bottlenecks'].append('Медленный ответ системы')
+                perf_data['recommendations'].append('Оптимизировать кэширование')
+            
+            if perf_data.get('memory_usage', 0) > 80:
+                perf_data['bottlenecks'].append('Высокое использование памяти')
+                perf_data['recommendations'].append('Очистить неиспользуемые данные')
+                
+        except Exception as e:
+            logger.debug(f"Ошибка анализа производительности: {e}")
+        
+        step = ReasoningStep(
+            phase=ReasoningPhase.PERFORMANCE_ANALYSIS,
+            query=dialogue.original_query,
+            result=perf_data,
+            timestamp=time.time(),
+            confidence=0.7,
+            metadata={
+                'bottlenecks_count': len(perf_data.get('bottlenecks', [])),
+                'recommendations_count': len(perf_data.get('recommendations', []))
+            }
+        )
+        dialogue.steps.append(step)
+    
     def _gather_context(self, dialogue: InternalDialogue) -> Dict[str, Any]:
         """Сбор контекста из всех шагов рассуждения с учетом MemoryGraphML"""
         context = {
@@ -536,6 +678,8 @@ class ReasoningEngine:
             'knowledge_graph': [],
             'graph_context': {},
             'ethics': {},
+            'analytics': {},
+            'performance': {},
             'patterns': []
         }
         
@@ -568,6 +712,12 @@ class ReasoningEngine:
             elif step.phase == ReasoningPhase.ETHICS_CHECK:
                 if isinstance(step.result, dict):
                     context['ethics'] = step.result
+            elif step.phase == ReasoningPhase.ANALYTICS_CHECK:
+                if isinstance(step.result, dict):
+                    context['analytics'] = step.result
+            elif step.phase == ReasoningPhase.PERFORMANCE_ANALYSIS:
+                if isinstance(step.result, dict):
+                    context['performance'] = step.result
         
         # Дополнительно получаем контекст из MemoryGraphML если доступен
         if self.brain and hasattr(self.brain, 'memory_graph_ml') and self.brain.memory_graph_ml:
