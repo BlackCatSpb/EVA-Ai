@@ -1697,13 +1697,46 @@ class ChatModule:
             logger.error(f"Ошибка переключения автодиалога: {e}", exc_info=True)
     
     def _self_dialog_loop(self):
-        """Фоновая петля автодиалога."""
+        """Фоновая петля автодиалога с использованием данных из MemoryGraphML."""
         try:
-            starters = [
-                "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.",
-                "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
-                "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?",
-            ]
+            # Получаем данные из MemoryGraphML для генерации релевантных вопросов
+            ml_entities = []
+            graph_patterns = []
+            
+            # Пробуем получить данные из MemoryGraphML
+            if hasattr(self.gui, 'brain') and self.gui.brain:
+                brain = self.gui.brain
+                if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
+                    mgml = brain.memory_graph_ml
+                    if hasattr(mgml, 'embeddings'):
+                        # Получаем последние сущности из графа
+                        recent_embeddings = list(mgml.embeddings.items())[-5:]  # Последние 5
+                        ml_entities = [
+                            {'name': v.metadata.get('insight', v.metadata.get('source_query', 'unknown'))[:100]}
+                            for k, v in recent_embeddings
+                        ]
+                    if hasattr(mgml, 'patterns'):
+                        graph_patterns = list(mgml.patterns.keys())[-3:]
+            
+            # Формируем стартовые вопросы на основе данных из графа
+            starters = []
+            
+            if ml_entities:
+                # Используем найденные сущности
+                for entity in ml_entities[:3]:
+                    starters.append(f"Что ты знаешь о '{entity.get('name', 'этой теме')}'?")
+            
+            if graph_patterns:
+                starters.append(f"Как применются паттерны {graph_patterns[0]} в нашей работе?")
+            
+            # Fallback темы если нет данных
+            if not starters:
+                starters = [
+                    "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.",
+                    "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
+                    "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?",
+                ]
+            
             current_prompt = random.choice(starters)
             
             while not self.self_dialog_stop.is_set():
@@ -1768,8 +1801,27 @@ class ChatModule:
                 pass
     
     def _make_followup_prompt(self, reply_text: str, seed_topic: str = "") -> str:
-        """Формирует следующий вопрос по теме."""
+        """Формирует следующий вопрос по теме с использованием данных из MemoryGraphML."""
         try:
+            # Пробуем получить данные из MemoryGraphML для генерации более релевантных вопросов
+            graph_context = None
+            
+            if hasattr(self.gui, 'brain') and self.gui.brain:
+                brain = self.gui.brain
+                if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
+                    mgml = brain.memory_graph_ml
+                    if hasattr(mgml, 'embeddings') and mgml.embeddings:
+                        # Получаем последние данные из графа
+                        recent = list(mgml.embeddings.items())
+                        if recent:
+                            #提取 ключевую информацию из последних записей
+                            last_meta = recent[-1][1].metadata if recent else {}
+                            graph_context = {
+                                'last_insight': last_meta.get('insight', ''),
+                                'last_query': last_meta.get('source_query', ''),
+                                'total_entities': len(recent)
+                            }
+            
             base = _fix_mojibake(reply_text or "").strip()
             if not base:
                 return seed_topic or "Продолжим: уточни сильные и слабые стороны подхода?"
@@ -1784,8 +1836,15 @@ class ChatModule:
             words = clean.split()
             keywords = [w for w in words if len(w) > 4 and w[0].isupper() or len(w) > 6]
             
-            # Шаблоны
-            if keywords:
+            # Шаблоны - приоритет для данных из графа
+            if graph_context and graph_context.get('total_entities', 0) > 0:
+                templates = [
+                    f"Как эти знания связаны с предыдущим рассуждением о '{graph_context.get('last_query', 'теме')[:50]}'?",
+                    f"Какие новые паттерны мы можем выделить из этого ответа?",
+                    f"Как можно улучшить качество рассуждений на основе этих данных?",
+                    "Какие пробелы в знаниях нужно заполнить?",
+                ]
+            elif keywords:
                 templates = [
                     f"Как {random.choice(keywords).lower()} влияет на результат?",
                     f"Что можно сказать о {random.choice(keywords).lower()}?",
