@@ -114,10 +114,13 @@ class Localrugpt3largeLoader:
         # Автоматически определяем путь к модели
         if storage_path is None:
             # Пробуем найти модель в стандартных местах
+            # ВАЖНО: модель находится в models/rugpt3_large_fractal/model/, не в tokenizers/
             possible_paths = [
-                # Новые пути к ruGPT-3 Large во фрактальном хранилище (относительно проекта)
-                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
+                # Путь к ruGPT-3 Large во фрактальном хранилище (модель в подпапке model/)
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal"),
+                # Fallback на старый путь tokenizers (для обратной совместимости)
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
                 # Путь к rugpt3_large (полная модель ~3GB)
                 os.path.join(project_root, "cogniflex_cache", "mlearning", "cogniflex_models", "rugpt3_large"),
                 # Альтернативный путь от корня проекта
@@ -146,8 +149,10 @@ class Localrugpt3largeLoader:
             # Fallback: если стандартные пути не содержат модель, пробуем fractal_unified_tokenizer
             if not os.path.exists(os.path.join(storage_path, "pytorch_model.bin")):
                 # Пробуем разные варианты fallback
+                # ВАЖНО: правильный путь - models/rugpt3_large_fractal/model/
                 fallback_paths = [
-                    os.path.join(project_root, "cogniflex", "mlearning", "tokenizers", "fractal_unified_tokenizer"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal"),
                     os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
                     os.path.join(project_root, "cogniflex", "mlearning", "tokenizers", "fractal_unified_tokenizer"),
                     os.path.join(os.path.dirname(__file__), "tokenizers", "fractal_unified_tokenizer"),
