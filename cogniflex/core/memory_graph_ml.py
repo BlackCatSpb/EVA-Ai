@@ -83,6 +83,9 @@ class MemoryGraphML:
         self.fractal_levels = self.config.get('fractal_levels', 3)
         self.level_weights = [1.0, 0.7, 0.5, 0.3]  # Веса уровней
         
+        # Гибридный кэш для токенизации
+        self._hybrid_cache = None
+        
         logger.info("MemoryGraphML инициализирован")
     
     def initialize(self) -> bool:
@@ -91,6 +94,9 @@ class MemoryGraphML:
             if not self.brain or not hasattr(self.brain, 'knowledge_graph'):
                 logger.warning("KnowledgeGraph недоступен")
                 return False
+            
+            # Пытаемся получить гибридный кэш
+            self._get_hybrid_cache()
             
             self._load_graph_structure()
             self._extract_patterns()
@@ -519,22 +525,75 @@ class MemoryGraphML:
             return False
     
     def _tokenize_text(self, text: str) -> List[int]:
-        """Токенизирует текст через систему токенизации"""
+        """
+        Токенизирует текст через систему токенизации.
+        Использует hybrid_cache для кэширования токенов.
+        """
         try:
+            # Пробуем сначала получить токены из гибридного кэша
+            cache_key = f"tokenize:{hash(text) % 10000000}"
+            if hasattr(self, '_hybrid_cache') and self._hybrid_cache:
+                cached = self._hybrid_cache.get(cache_key)
+                if cached is not None:
+                    return cached if isinstance(cached, list) else []
+            
+            tokens = None
+            
             # Пробуем через text_processor
             if hasattr(self.brain, 'text_processor') and self.brain.text_processor:
                 tokenizer = getattr(self.brain.text_processor, 'tokenizer', None)
                 if tokenizer and hasattr(tokenizer, 'encode'):
                     tokens = tokenizer.encode(text)
-                    if tokens:
-                        return tokens
+            
+            # Fallback: пробуем через memory_manager
+            if not tokens and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                mm = self.brain.memory_manager
+                if hasattr(mm, 'hybrid_cache') and mm.hybrid_cache:
+                    tokenizer = getattr(mm.hybrid_cache, 'tokenizer', None)
+                    if tokenizer and hasattr(tokenizer, 'encode'):
+                        tokens = tokenizer.encode(text)
             
             # Fallback: простая токенизация
-            return [hash(word) % 50000 for word in text.split() if word]
+            if not tokens:
+                tokens = [hash(word) % 50000 for word in text.split() if word]
+            
+            # Кэшируем результат в hybrid_cache
+            if tokens and hasattr(self, '_hybrid_cache') and self._hybrid_cache:
+                try:
+                    self._hybrid_cache.put(cache_key, tokens)
+                except Exception:
+                    pass
+            
+            return tokens if tokens else []
             
         except Exception as e:
             logger.debug(f"Ошибка токенизации: {e}")
             return []
+    
+    def _get_hybrid_cache(self):
+        """Получает гибридный кэш из различных источников"""
+        if hasattr(self, '_hybrid_cache') and self._hybrid_cache:
+            return self._hybrid_cache
+        
+        # Пробуем получить из brain
+        if self.brain:
+            if hasattr(self.brain, 'hybrid_cache') and self.brain.hybrid_cache:
+                self._hybrid_cache = self.brain.hybrid_cache
+                return self._hybrid_cache
+            
+            # Пробуем через memory_manager
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                mm = self.brain.memory_manager
+                if hasattr(mm, 'hybrid_cache') and mm.hybrid_cache:
+                    self._hybrid_cache = mm.hybrid_cache
+                    return mm.hybrid_cache
+                if hasattr(mm, 'get_hybrid_cache'):
+                    hc = mm.get_hybrid_cache()
+                    if hc:
+                        self._hybrid_cache = hc
+                        return hc
+        
+        return None
     
     def _compute_embedding_on_gpu(self, text: str, tokens: List[int]) -> np.ndarray:
         """
