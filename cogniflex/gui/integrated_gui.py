@@ -181,11 +181,18 @@ class IntegratedCogniFlexGUI:
         self.input_field.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.input_field.bind("<Return>", self.send_message)
         
-        # Добавляем шоткаты
-        self.input_field.bind("<Control-a>", lambda e: (self.input_field.select_range(0, 'end'), "break"))
-        self.input_field.bind("<Control-A>", lambda e: (self.input_field.select_range(0, 'end'), "break"))
-        self.input_field.bind("<Control-q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
-        self.input_field.bind("<Control-Q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
+        # Шоткаты для поля ввода (исправленные)
+        # Ctrl+A - выделить все
+        self.input_field.bind("<Control-Key-a>", lambda e: (self.input_field.selection_range(0, 'end'), "break"))
+        self.input_field.bind("<Control-Key-A>", lambda e: (self.input_field.selection_range(0, 'end'), "break"))
+        
+        # Ctrl+Q - очистить поле
+        self.input_field.bind("<Control-Key-q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
+        self.input_field.bind("<Control-Key-Q>", lambda e: (self.input_field.delete(0, 'end'), "break"))
+        
+        # Ctrl+C - копи (Entry поддерживает стандартно)
+        # Ctrl+V - вставить (Entry поддерживает стандартно)  
+        # Ctrl+X - вырезать (Entry поддерживает стандартно)
 
         ttk.Button(
             input_frame,

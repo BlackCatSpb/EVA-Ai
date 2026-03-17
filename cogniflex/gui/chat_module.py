@@ -558,24 +558,67 @@ class ChatModule:
         self.chat_display.bind("<Button-1>", self._handle_url_click)
         self.chat_display.bind("<Button-3>", self._show_context_menu)
         
-        # Горячие клавиши
+        # Горячие клавиши - исправляем проблему с копированием
+        self.chat_display.bind("<Control-Key-c>", self._on_chat_copy)
+        self.chat_display.bind("<Control-Key-C>", self._on_chat_copy)
+        self.chat_display.bind("<Control-Key-a>", self._on_chat_select_all)
+        self.chat_display.bind("<Control-Key-A>", self._on_chat_select_all)
+        
+        # Ctrl+Q - использовать выделенный текст как контекст
+        self.chat_display.bind("<Control-Key-q>", self._on_use_selection_as_context)
+        self.chat_display.bind("<Control-Key-Q>", self._on_use_selection_as_context)
+        
+        # Ctrl+Enter - использовать выделенный текст как контекст (как в GPT)
+        self.chat_display.bind("<Control-Key-Return>", self._on_use_selection_as_context)
+        self.chat_display.bind("<Control-Key-KP_Enter>", self._on_use_selection_as_context)
+        
+        # Ctrl+Shift+Q - уточнить по выделению
+        self.chat_display.bind("<Control-Shift-Key-q>", lambda e: (self._run_command_on_selection('ask'), "break"))
+        self.chat_display.bind("<Control-Shift-Key-Q>", lambda e: (self._run_command_on_selection('ask'), "break"))
+        self.chat_display.bind("<Control-Shift-Key-G>", 
+            lambda e: (self._run_command_on_selection('add_to_graph'), "break"))
+    
+    def _on_chat_copy(self, event):
+        """Обработка Ctrl+C в чате"""
         try:
-            self.chat_display.bind("<Control-c>", lambda e: (self._copy_selected(), "break"))
-            self.chat_display.bind("<Control-C>", lambda e: (self._copy_selected(), "break"))
-            self.chat_display.bind("<Control-a>", self._on_chat_select_all)
-            self.chat_display.bind("<Control-A>", self._on_chat_select_all)
-            self.chat_display.bind("<Control-q>", lambda e: (self._quote_selection_to_input(), "break"))
-            self.chat_display.bind("<Control-Q>", lambda e: (self._quote_selection_to_input(), "break"))
-            self.chat_display.bind("<Control-Shift-S>", 
-                lambda e: (self._run_command_on_selection('ask'), "break"))
-            self.chat_display.bind("<Control-Shift-D>", 
-                lambda e: (self._run_command_on_selection('challenge'), "break"))
-            self.chat_display.bind("<Control-Shift-E>", 
-                lambda e: (self._run_command_on_selection('explain'), "break"))
-            self.chat_display.bind("<Control-Shift-G>", 
-                lambda e: (self._run_command_on_selection('add_to_graph'), "break"))
-        except (AttributeError, TypeError, RuntimeError):
-            pass
+            self._copy_selected()
+            return "break"
+        except Exception:
+            return None
+    
+    def _on_use_selection_as_context(self, event):
+        """Обработка Ctrl+Enter или Ctrl+Q - использовать выделенный текст как контекст"""
+        try:
+            # Получаем выделенный текст
+            try:
+                selected = self.chat_display.get(tk.SEL_FIRST, tk.SEL_LAST)
+            except tk.TclError:
+                # Нет выделения - пробуем получить текущую строку
+                try:
+                    current_pos = self.chat_display.index(tk.INSERT)
+                    line_start = f"{current_pos.split('.')[0]}.0"
+                    line_end = f"{current_pos.split('.')[0]}.end"
+                    selected = self.chat_display.get(line_start, line_end)
+                except Exception:
+                    return None
+            
+            if selected and selected.strip():
+                # Формируем запрос с контекстом
+                context_prompt = f"Относительно этого текста: \"{selected.strip()}\"\n\n"
+                # Вставляем в поле ввода
+                self.input_text.insert("1.0", context_prompt)
+                self.input_text.focus_set()
+                # Прокручиваем курсор в конец
+                self.input_text.mark_set(tk.INSERT, "1.0")
+                self.input_text.see(tk.INSERT)
+                
+                # Показываем подсказку
+                self.gui.gui_queue.put(lambda: self._show_toast("Контекст добавлен. Введите ваш вопрос.", "info"))
+            
+            return "break"
+        except Exception as e:
+            logger.error(f"Ошибка использования выделения как контекста: {e}")
+            return None
     
     def _create_context_menu(self):
         """Создает контекстное меню."""
