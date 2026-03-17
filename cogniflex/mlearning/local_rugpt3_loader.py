@@ -169,7 +169,7 @@ class Localrugpt3largeLoader:
         self.storage_path = storage_path
         logger.info(f"Localrugpt3largeLoader инициализирован с путем: {storage_path}")
         logger.info(f"Корень проекта: {project_root}")
-        logger.info(f"Абсолютный путь: {os.path.abspath(storage_path)}")
+        logger.debug(f"Абсолютный путь: {os.path.abspath(storage_path)}")
         
         # Проверяем что путь не является HuggingFace репозиторием
         if storage_path.startswith('sberbank-ai/') or storage_path.startswith('huggingface/'):
@@ -247,23 +247,20 @@ class Localrugpt3largeLoader:
             
             vocab_path = None
             for i, path in enumerate(possible_vocab_paths):
-                logger.info(f"Проверяем путь {i+1}: {path}")
-                logger.info(f"  Существует: {os.path.exists(path)}")
+                logger.debug(f"Проверяем путь {i+1}: {path}, существует: {os.path.exists(path)}")
                 if os.path.exists(path):
                     vocab_path = path
-                    logger.info(f"  Найден vocab по пути: {path}")
+                    logger.info(f"Найден vocab по пути: {path}")
                     break
             
             tokenizer_subdir_path = os.path.join(tokenizer_path, "vocab.json")
             
             if vocab_path:
-                logger.info(f"Проверяем путь к токенизатору: {vocab_path}")
-                logger.info(f"Абсолютный путь: {os.path.abspath(vocab_path)}")
-                logger.info(f"Файл существует в корне: {os.path.exists(vocab_path)}")
+                logger.debug(f"Проверяем путь к токенизатору: {vocab_path}")
             else:
-                logger.warning("vocab_path не найден")
+                logger.debug("vocab_path не найден")
             
-            logger.info(f"Файл существует в поддиректории tokenizer: {os.path.exists(tokenizer_subdir_path)}")
+            logger.debug(f"Файл существует в поддиректории tokenizer: {os.path.exists(tokenizer_subdir_path)}")
             
             # Пробуем загрузить из корневой директории (для rugpt3_large)
             if vocab_path and os.path.exists(vocab_path):
@@ -412,9 +409,9 @@ class Localrugpt3largeLoader:
             pytorch_bin_subdir = os.path.join(model_subdir_path, "pytorch_model.bin")
             model_config_subdir = os.path.join(model_subdir_path, "config.json")
             
-            logger.info(f"Проверяем локальные веса модели:")
-            logger.info(f"  Корневая директория: {pytorch_bin_root} (exists: {os.path.exists(pytorch_bin_root)})")
-            logger.info(f"  Поддиректория model: {pytorch_bin_subdir} (exists: {os.path.exists(pytorch_bin_subdir)})")
+            logger.debug(f"Проверяем локальные веса модели:")
+            logger.debug(f"  Корневая директория: {pytorch_bin_root} (exists: {os.path.exists(pytorch_bin_root)})")
+            logger.debug(f"  Поддиректория model: {pytorch_bin_subdir} (exists: {os.path.exists(pytorch_bin_subdir)})")
             
             # Пробуем загрузить из корневой директории (для rugpt3_large)
             if pytorch_bin_root and model_config_root and os.path.exists(pytorch_bin_root) and os.path.exists(model_config_root):

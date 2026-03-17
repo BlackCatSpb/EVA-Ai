@@ -396,7 +396,7 @@ class HybridTokenCache:
                 self.target_memory_bytes,
                 int(total_ram_gb * 1024 ** 3 * (max_ram_usage_percent / 100.0))
             )
-            logger.info(f"Динамический лимит памяти: {target_memory_gb:.2f}GB ({max_ram_usage_percent}% RAM)")
+            logger.debug(f"Динамический лимит памяти: {target_memory_gb:.2f}GB ({max_ram_usage_percent}% RAM)")
         
         # Расчет максимального количества токенов
         self.max_memory_tokens = (
@@ -422,15 +422,15 @@ class HybridTokenCache:
             self.vram_cache = LRUCache(vram_tokens_limit)
             self.ram_cache = LRUCache(ram_tokens_limit)
             
-            logger.info(f"VRAM кэш: {vram_tokens_limit} токенов (~1.5GB)")
-            logger.info(f"RAM кэш: {ram_tokens_limit} токенов (~1GB)")
+            logger.debug(f"VRAM кэш: {vram_tokens_limit} токенов (~1.5GB)")
+            logger.debug(f"RAM кэш: {ram_tokens_limit} токенов (~1GB)")
         else:
             # Без GPU весь кэш в RAM (1GB)
             ram_limit_bytes = int(1.0 * 1024 ** 3)  # 1GB
             ram_tokens_limit = max(1, int(ram_limit_bytes / self.avg_token_size_bytes))
             self.ram_cache = LRUCache(ram_tokens_limit)
             self.vram_cache = LRUCache(1)  # Пустой кэш
-            logger.info(f"RAM кэш: {ram_tokens_limit} токенов (~1GB)")
+            logger.debug(f"RAM кэш: {ram_tokens_limit} токенов (~1GB)")
         
         self.memory_cache = self.ram_cache  # Для обратной совместимости
         
