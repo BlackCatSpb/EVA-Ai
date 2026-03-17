@@ -209,6 +209,54 @@ class Localrugpt3largeLoader:
             logger.error(f"❌ Ошибка загрузки конфигураций: {e}")
             return False
     
+    def _create_tokenizer_manually(self, model_path: str) -> Optional["SimpleTokenizer"]:
+        """Создаёт токенизатор вручную из локальных файлов"""
+        try:
+            from transformers import GPT2Tokenizer
+            import json
+            
+            vocab_file = os.path.join(model_path, "vocab.json")
+            merges_file = os.path.join(model_path, "merges.txt")
+            config_file = os.path.join(model_path, "config.json")
+            
+            if not os.path.exists(vocab_file):
+                logger.debug(f"vocab.json не найден: {vocab_file}")
+                return None
+            
+            # Читаем vocab
+            with open(vocab_file, 'r', encoding='utf-8') as f:
+                vocab = json.load(f)
+            
+            # Читаем merges
+            merges = []
+            if os.path.exists(merges_file):
+                with open(merges_file, 'r', encoding='utf-8') as f:
+                    merges = [line.strip() for line in f if line.strip()]
+            
+            # Читаем config
+            config = {}
+            if os.path.exists(config_file):
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            
+            # Создаём токенизатор
+            tokenizer = GPT2Tokenizer(vocab_file=vocab_file, merges_file=merges_file)
+            
+            # Устанавливаем специальные токены
+            tokenizer.pad_token = tokenizer.eos_token = '</s>'
+            tokenizer.bos_token = '<s>'
+            tokenizer.unk_token = '<unk>'
+            
+            # Устанавливаем размер vocabulary
+            tokenizer.vocab_size = len(vocab)
+            
+            logger.debug(f"Токенизатор создан вручную: vocab_size={tokenizer.vocab_size}, merges={len(merges)}")
+            return tokenizer
+            
+        except Exception as e:
+            logger.debug(f"Ошибка ручного создания токенизатора: {e}")
+            return None
+    
     def create_tokenizer(self) -> "SimpleTokenizer":
         """Создает простой токенизатор"""
         try:
@@ -299,14 +347,19 @@ class Localrugpt3largeLoader:
                     )
                     logger.info("Токенизатор успешно загружен")
                 except Exception as e:
-                    logger.warning(f"Не удалось загрузить токенизатор: {e}")
-                    if DISABLE_HUGGINGFACE_FALLBACK:
-                        logger.error("❌ HuggingFace fallback отключен. Локальный токенизатор обязателен.")
-                        return None
-                    else:
-                        # Fallback на HuggingFace
-                        logger.warning("Используем fallback токенизатор ruGPT-3 Medium из HuggingFace")
-                        tokenizer = GPT2Tokenizer.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
+                    # Если не удалось загрузить напрямую, пробуем создать вручную
+                    logger.debug(f"Не удалось загрузить через transformers: {e}")
+                    try:
+                        tokenizer = self._create_tokenizer_manually(load_path)
+                        if tokenizer:
+                            logger.info("Токенизатор создан вручную из локальных файлов")
+                            return tokenizer
+                    except Exception as manual_err:
+                        logger.debug(f"Ручное создание не удалось: {manual_err}")
+                    
+                    # Fallback на HuggingFace
+                    logger.warning("Используем fallback токенизатор ruGPT-3 Medium из HuggingFace")
+                    tokenizer = GPT2Tokenizer.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
             # Пробуем загрузить из поддиректории tokenizer (для других структур)
             elif tokenizer_subdir_path and os.path.exists(tokenizer_subdir_path):
                 logger.info("✅ Найден локальный токенизатор в поддиректории tokenizer, загружаем...")
