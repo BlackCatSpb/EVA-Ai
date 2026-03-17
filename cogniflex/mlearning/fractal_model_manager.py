@@ -11,6 +11,43 @@ from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 logger = logging.getLogger(__name__)
 
+
+def _get_project_root() -> str:
+    """Возвращает корневую директорию проекта"""
+    possible_roots = []
+    
+    # 1. Относительно текущего файла
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)  # cogniflex/mlearning
+    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))  # cogniflex
+    possible_roots.append(os.path.dirname(current_dir))  # project root
+    
+    # 2. Проверяем common project markers
+    for root in possible_roots:
+        if os.path.exists(os.path.join(root, 'cogniflex')) or \
+           os.path.exists(os.path.join(root, 'pyproject.toml')) or \
+           os.path.exists(os.path.join(root, 'setup.py')):
+            return root
+    
+    # 3. Fallback - ищем по ключевым директориям
+    drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+    possible_locations = [
+        os.path.join(drive, 'Users', os.environ.get('USERNAME', 'user'), 'OneDrive', 'Desktop', 'CogniFlex'),
+        os.path.join(drive, 'Users', os.environ.get('USERNAME', 'user'), 'Desktop', 'CogniFlex'),
+        os.path.join(drive, 'CogniFlex'),
+        os.path.join(os.getcwd(), '..'),
+        os.path.join(os.getcwd(), '..', '..'),
+    ]
+    
+    for loc in possible_locations:
+        if os.path.exists(loc):
+            if os.path.exists(os.path.join(loc, 'cogniflex')) or \
+               os.path.exists(os.path.join(loc, 'pyproject.toml')):
+                return os.path.abspath(loc)
+    
+    return os.getcwd()
+
+
 class FractalModelManager:
     """
     Менеджер фрактальной модели с реальной генерацией.
@@ -91,14 +128,20 @@ class FractalModelManager:
             
             # Загружаем модель и токенизатор локально
             import os
-            # Пробуем путь к ruGPT-3 Large во фрактальном хранилище
+            
+            # Получаем корень проекта
+            project_root = _get_project_root()
+            logger.info(f"Корень проекта: {project_root}")
+            
+            # Пробуем путь к ruGPT-3 Large во фрактальном хранилище (абсолютные пути)
             storage_paths = [
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_medium_fractal"),
+                os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_large"),
+                # Старые пути для совместимости
                 "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
-                # Путь для токенизатора (обратная совместимость)
                 "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
-                # Путь для rugpt3medium (обратная совместимость)
-                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_medium_fractal",
-                "cogniflex/mlearning/cogniflex_models/rugpt3_large",
             ]
             
             storage_path = None
@@ -109,7 +152,7 @@ class FractalModelManager:
                     break
             
             if storage_path is None:
-                storage_path = "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal"
+                storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal")
                 logger.warning(f"Модель не найдена, используем путь по умолчанию: {storage_path}")
             
             logger.info(f"Используем путь к хранилищу: {os.path.abspath(storage_path)}")

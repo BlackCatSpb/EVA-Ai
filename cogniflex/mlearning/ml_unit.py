@@ -17,6 +17,49 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 logger = logging.getLogger("cogniflex.ml_unit")
 
+
+def _get_project_root() -> str:
+    """Возвращает корневую директорию проекта"""
+    import sys
+    
+    possible_roots = []
+    
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))
+    possible_roots.append(os.path.dirname(current_dir))
+    
+    if sys.argv and sys.argv[0]:
+        argv_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        possible_roots.append(argv_dir)
+        possible_roots.append(os.path.dirname(argv_dir))
+    
+    for root in possible_roots:
+        if root and os.path.exists(root):
+            cogniflex_marker = os.path.join(root, 'cogniflex')
+            if os.path.exists(cogniflex_marker):
+                return root
+    
+    drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+    username = os.environ.get('USERNAME', 'user')
+    
+    onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex')
+    if os.path.exists(onedrive_path) and os.path.exists(os.path.join(onedrive_path, 'cogniflex')):
+        return onedrive_path
+    
+    possible_locations = [
+        os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex'),
+        os.path.join(drive, 'Users', username, 'Desktop', 'CogniFlex'),
+        os.path.join(drive, 'CogniFlex'),
+    ]
+    
+    for loc in possible_locations:
+        if os.path.exists(loc):
+            if os.path.exists(os.path.join(loc, 'cogniflex')):
+                return os.path.abspath(loc)
+    
+    return os.getcwd()
+
 # Пытаемся импортировать torch
 try:
     import torch
@@ -106,7 +149,8 @@ class MLUnit:
             from cogniflex.nlp.text_processor import TextProcessor
             
             # Используем правильную директорию с моделью и токенизатором
-            model_dir = os.path.join(os.getcwd(), "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model")
+            project_root = _get_project_root()
+            model_dir = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
             
             self.text_processor = TextProcessor(
                 model_name=model_dir,  # Используем полный путь к директории

@@ -1066,7 +1066,7 @@ class KnowledgeGraphModule:
                     if toolbar is not None and hasattr(toolbar, 'update'):
                         try:
                             toolbar.update()
-                        except:
+                        except Exception:
                             pass  # Игнорируем ошибки toolbar
                             
                 except Exception as clear_error:

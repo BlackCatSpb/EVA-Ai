@@ -455,7 +455,7 @@ class ContradictionModule:
                 for job_id in self._after_jobs:
                     try:
                         self.gui.root.after_cancel(job_id)
-                    except:
+                    except Exception:
                         pass
                 self._after_jobs.clear()
                 logger.debug("Очищены все after задачи в contradiction_module")

@@ -41,21 +41,87 @@ except ImportError:
 class Localrugpt3largeLoader:
     """Локальный загрузчик ruGPT-3 Large из фрактального хранилища"""
     
+    @staticmethod
+    def _get_project_root() -> str:
+        """Возвращает корневую директорию проекта"""
+        import sys
+        
+        # Пробуем определить корень проекта несколькими способами
+        possible_roots = []
+        
+        # 1. Относительно текущего файла
+        current_file = os.path.abspath(__file__)
+        current_dir = os.path.dirname(current_file)  # cogniflex/mlearning
+        possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))  # cogniflex
+        possible_roots.append(os.path.dirname(current_dir))  # cogniflex/mlearning -> project root
+        
+        # 2. Относительно sys.argv[0] (главный скрипт)
+        if sys.argv and sys.argv[0]:
+            argv_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+            possible_roots.append(argv_dir)
+            possible_roots.append(os.path.dirname(argv_dir))
+        
+        # 3. Проверяем common project markers - с дополнительной проверкой
+        for root in possible_roots:
+            if root and os.path.exists(root):
+                cogniflex_marker = os.path.join(root, 'cogniflex')
+                pyproject_marker = os.path.join(root, 'pyproject.toml')
+                setup_marker = os.path.join(root, 'setup.py')
+                
+                # Дополнительная проверка - также проверяем что это правильная директория
+                has_cogniflex_dir = os.path.exists(cogniflex_marker)
+                
+                if has_cogniflex_dir or os.path.exists(pyproject_marker) or os.path.exists(setup_marker):
+                    # Дополнительная проверка - убеждаемся что это "наш" проект
+                    expected_items = ['cogniflex', 'tools', 'test_cogniflex.py', 'pyproject.toml', 'requirements.txt']
+                    found_items = [item for item in expected_items if os.path.exists(os.path.join(root, item)) or 
+                                  os.path.exists(os.path.join(root, 'cogniflex', item))]
+                    
+                    if has_cogniflex_dir:
+                        return root
+        
+        # 4. Fallback - ищем по ключевым директориям с явным указанием
+        # ВСЕГДА предпочитаем OneDrive путь если есть
+        drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+        username = os.environ.get('USERNAME', 'user')
+        
+        # Явно проверяем OneDrive путь first
+        onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex')
+        if os.path.exists(onedrive_path) and os.path.exists(os.path.join(onedrive_path, 'cogniflex')):
+            return onedrive_path
+        
+        possible_locations = [
+            os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex'),
+            os.path.join(drive, 'Users', username, 'Desktop', 'CogniFlex'),
+            os.path.join(drive, 'CogniFlex'),
+            os.path.join(os.getcwd(), '..'),
+            os.path.join(os.getcwd(), '..', '..'),
+        ]
+        
+        for loc in possible_locations:
+            if os.path.exists(loc):
+                if os.path.exists(os.path.join(loc, 'cogniflex')) or \
+                   os.path.exists(os.path.join(loc, 'pyproject.toml')):
+                    return os.path.abspath(loc)
+        
+        # 5. Последний fallback - возвращаем директорию где запущен скрипт
+        return os.getcwd()
+    
     def __init__(self, storage_path: str = None):
+        # Получаем корень проекта для построения абсолютных путей
+        project_root = self._get_project_root()
+        
         # Автоматически определяем путь к модели
         if storage_path is None:
             # Пробуем найти модель в стандартных местах
             possible_paths = [
-                # Новые пути к ruGPT-3 Large во фрактальном хранилище
-                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
-                "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal",
+                # Новые пути к ruGPT-3 Large во фрактальном хранилище (относительно проекта)
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal"),
                 # Путь к rugpt3_large (полная модель ~3GB)
-                os.path.join(os.path.dirname(__file__), "cogniflex_models", "rugpt3_large"),
+                os.path.join(project_root, "cogniflex_cache", "mlearning", "cogniflex_models", "rugpt3_large"),
                 # Альтернативный путь от корня проекта
-                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "cogniflex", "mlearning", "cogniflex_models", "rugpt3_large"),
-                # Старые пути (для обратной совместимости)
-                "./cogniflex_cache/ml_unit/fractal_storage/rugpt3large",
-                "./cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/text-generation",
+                os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_large"),
             ]
             
             for path in possible_paths:
@@ -64,16 +130,40 @@ class Localrugpt3largeLoader:
                     model_file = os.path.join(path, "pytorch_model.bin")
                     if os.path.exists(model_file):
                         storage_path = path
-                        logger.info(f"✅ Найдена локальная модель: {path}")
+                        logger.info(f"Найдена локальная модель: {path}")
+                        break
+                    # Также проверяем в поддиректории model
+                    model_file = os.path.join(path, "model", "pytorch_model.bin")
+                    if os.path.exists(model_file):
+                        storage_path = path
+                        logger.info(f"Найдена локальная модель: {path}")
                         break
             
             if storage_path is None:
                 storage_path = possible_paths[0]  # По умолчанию первый путь
-                logger.warning(f"⚠️ Локальная модель не найдена, используем путь по умолчанию: {storage_path}")
+                logger.warning(f"Локальная модель не найдена, используем путь по умолчанию: {storage_path}")
+            
+            # Fallback: если стандартные пути не содержат модель, пробуем fractal_unified_tokenizer
+            if not os.path.exists(os.path.join(storage_path, "pytorch_model.bin")):
+                # Пробуем разные варианты fallback
+                fallback_paths = [
+                    os.path.join(project_root, "cogniflex", "mlearning", "tokenizers", "fractal_unified_tokenizer"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
+                    os.path.join(project_root, "cogniflex", "mlearning", "tokenizers", "fractal_unified_tokenizer"),
+                    os.path.join(os.path.dirname(__file__), "tokenizers", "fractal_unified_tokenizer"),
+                ]
+                
+                for fallback_tokenizer_path in fallback_paths:
+                    logger.info(f"[_get_project_root] Checking fallback path: {fallback_tokenizer_path}")
+                    if os.path.exists(os.path.join(fallback_tokenizer_path, "tokenizer.json")) or \
+                       os.path.exists(os.path.join(fallback_tokenizer_path, "vocab.json")):
+                        logger.info(f"[_get_project_root] Using fallback: {fallback_tokenizer_path}")
+                        storage_path = fallback_tokenizer_path
+                        break
         
         self.storage_path = storage_path
         logger.info(f"Localrugpt3largeLoader инициализирован с путем: {storage_path}")
-        logger.info(f"Текущая рабочая директория: {os.getcwd()}")
+        logger.info(f"Корень проекта: {project_root}")
         logger.info(f"Абсолютный путь: {os.path.abspath(storage_path)}")
         
         # Проверяем что путь не является HuggingFace репозиторием
@@ -119,11 +209,14 @@ class Localrugpt3largeLoader:
         try:
             from transformers import GPT2Tokenizer
             
+            # Получаем корень проекта
+            project_root = self._get_project_root()
+            
             # Проверяем наличие файлов токенизатора
             # Для ruGPT-3 Large во фрактальном хранилище
             tokenizer_path = self.storage_path
             
-            # Возможные пути к vocab.json
+            # Возможные пути к vocab.json - используем корень проекта
             possible_vocab_paths = [
                 os.path.join(tokenizer_path, "vocab.json"),  # В корневой директории (приоритет)
                 os.path.join(tokenizer_path, "tokenizer", "vocab.json"),  # В поддиректории tokenizer
@@ -131,14 +224,14 @@ class Localrugpt3largeLoader:
             
             # Дополнительные проверки для фрактального хранилища
             if "rugpt3_large_fractal" in tokenizer_path or "rugpt3large_fractal" in tokenizer_path:
-                # Если это путь к токенизатору ruGPT-3 Large, используем абсолютные пути
-                current_dir = os.getcwd()
+                # Если это путь к токенизатору ruGPT-3 Large, используем абсолютные пути от проекта
                 
-                # Пробуем разные варианты базовых путей
+                # Пробуем разные варианты базовых путей от проекта
                 base_paths = [
-                    os.path.join(current_dir, "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"),
-                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
-                    os.path.join(current_dir, "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
+                    os.path.join(project_root, "cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
+                    os.path.join(project_root, "cogniflex", "mlearning", "tokenizers", "fractal_unified_tokenizer"),
                 ]
                 
                 for base_path in base_paths:
@@ -153,7 +246,7 @@ class Localrugpt3largeLoader:
                 logger.info(f"  Существует: {os.path.exists(path)}")
                 if os.path.exists(path):
                     vocab_path = path
-                    logger.info(f"  ✅ Найден vocab по пути: {path}")
+                    logger.info(f"  Найден vocab по пути: {path}")
                     break
             
             tokenizer_subdir_path = os.path.join(tokenizer_path, "vocab.json")
@@ -177,13 +270,32 @@ class Localrugpt3largeLoader:
                     # Для других случаев используем tokenizer_path
                     load_path = tokenizer_path
                 
-                logger.info(f"✅ Найден локальный токенизатор, загружаем из: {load_path}")
+                # Специальная обработка для fractal_unified_tokenizer
+                if vocab_path and "fractal_unified_tokenizer" in vocab_path:
+                    logger.info(f"Обнаружен fractal_unified_tokenizer, используем библиотеку tokenizers")
+                    try:
+                        from tokenizers import Tokenizer
+                        tokenizer_json = os.path.join(os.path.dirname(vocab_path), "tokenizer.json")
+                        if os.path.exists(tokenizer_json):
+                            tokenizer = Tokenizer.from_file(tokenizer_json)
+                            logger.info("Токенизатор загружен через tokenizers.JSON")
+                            # Оборачиваем в HuggingFace токенизатор для совместимости
+                            from transformers import PreTrainedTokenizerFast
+                            fast_tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
+                            fast_tokenizer.pad_token = tokenizer.token_to_id('<pad>') or tokenizer.token_to_id('</s>') or tokenizer.eos_id
+                            fast_tokenizer.eos_token = tokenizer.id_to_token(tokenizer.eos_id) or '</s>'
+                            fast_tokenizer.bos_token = tokenizer.id_to_token(tokenizer.bos_id) or '<s>'
+                            return fast_tokenizer
+                    except Exception as e:
+                        logger.warning(f"Не удалось загрузить через tokenizers: {e}")
+                
+                logger.info(f"Найден локальный токенизатор, загружаем из: {load_path}")
                 try:
                     tokenizer = GPT2Tokenizer.from_pretrained(
                         load_path,
                         local_files_only=True
                     )
-                    logger.info("✅ Токенизатор успешно загружен")
+                    logger.info("Токенизатор успешно загружен")
                 except Exception as e:
                     logger.warning(f"Не удалось загрузить токенизатор: {e}")
                     if DISABLE_HUGGINGFACE_FALLBACK:

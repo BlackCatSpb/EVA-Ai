@@ -48,7 +48,22 @@ class MemoryManager:
         
         # Типы памяти
         self.working_memory = []
+        self.semantic_memory = []
+        self.episodic_memory = []
         self.hybrid_cache = None
+        
+        # Замки для потокобезопасности
+        self.memory_locks = {
+            "working": threading.Lock(),
+            "semantic": threading.Lock(),
+            "episodic": threading.Lock()
+        }
+        
+        # Ошибки
+        self.error = None
+        
+        # Вызываем внутреннюю инициализацию
+        self._initialize()
         
     def get_hybrid_cache(self):
         """

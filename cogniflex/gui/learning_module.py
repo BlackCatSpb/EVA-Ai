@@ -150,7 +150,7 @@ class LearningModule:
                 for aid_str in self._pending_after_ids:
                     try:
                         self.gui.root.after_cancel(aid_str)
-                    except:
+                    except Exception:
                         pass
                 self._pending_after_ids.clear()
                 logger.debug("Очищены все after задачи в learning_module")
