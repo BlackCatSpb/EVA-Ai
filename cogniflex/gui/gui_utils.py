@@ -4,7 +4,11 @@
 import queue
 import json
 import os
+import logging
 import tkinter as tk
+
+logger = logging.getLogger(__name__)
+
 from tkinter import ttk
 from datetime import datetime
 from .gui_modules import switch_view
@@ -19,7 +23,7 @@ def load_settings(settings_path: str) -> dict:
             with open(settings_path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Ошибка загрузки настроек: {e}")
+        logger.info(f"Ошибка загрузки настроек: {e}")
     
     # Возвращаем настройки по умолчанию
     return {
@@ -44,7 +48,7 @@ def save_settings(settings: dict, settings_path: str):
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"Ошибка сохранения настроек: {e}")
+        logger.info(f"Ошибка сохранения настроек: {e}")
 
 def process_gui_queue(gui):
     """Обрабатывает очередь GUI-задач."""
@@ -56,7 +60,7 @@ def process_gui_queue(gui):
         except queue.Empty:
             pass
         except Exception as e:
-            print(f"Ошибка обработки очереди GUI: {e}")
+            logger.info(f"Ошибка обработки очереди GUI: {e}")
         finally:
             gui.root.after(100, _process)
     

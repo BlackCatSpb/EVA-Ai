@@ -1,7 +1,11 @@
 """
 Модуль для работы с настройками графического интерфейса
 """
+import logging
 import json
+
+logger = logging.getLogger(__name__)
+
 import os
 from typing import Dict, Any
 
@@ -30,7 +34,7 @@ def load_settings(settings_path: str) -> Dict[str, Any]:
             with open(settings_path, "r", encoding="utf-8") as f:
                 return json.load(f)
     except Exception as e:
-        print(f"Ошибка загрузки настроек: {e}")
+        logger.info(f"Ошибка загрузки настроек: {e}")
     
     return get_default_settings()
 
@@ -40,4 +44,4 @@ def save_settings(settings: Dict[str, Any], settings_path: str):
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, ensure_ascii=False, indent=2)
     except Exception as e:
-        print(f"Ошибка сохранения настроек: {e}")
+        logger.info(f"Ошибка сохранения настроек: {e}")

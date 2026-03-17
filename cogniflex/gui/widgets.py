@@ -108,14 +108,14 @@ def show_notification(message: str, level: str = "info",
         actions: Список действий (кнопок)
     """
     # Эта функция будет заменена на метод GUI, но оставлена для обратной совместимости
-    print(f"[{level.upper()}] {message}")
+    logger.info(f"[{level.upper()}] {message}")
     if title:
-        print(f"  {title}")
+        logger.info(f"  {title}")
     if actions:
         action_names = [action["text"] for action in actions]
-        print(f"  Доступные действия: {', '.join(action_names)}")
+        logger.info(f"  Доступные действия: {', '.join(action_names)}")
 
 def show_toast(message: str, duration: int = 3000, **kwargs):
     """Показывает всплывающее уведомление."""
     # Заглушка для всплывающих уведомлений
-    print(f"[TOAST] {message}")
+    logger.info(f"[TOAST] {message}")
