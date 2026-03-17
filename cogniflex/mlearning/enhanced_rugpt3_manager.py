@@ -174,9 +174,11 @@ class EnhancedRuGPT3ModelManager:
             DISABLE_HUGGINGFACE_FALLBACK = True
             
             # Ищем локальную модель ruGPT-3 Large
+            # ВАЖНО: модель находится в models/rugpt3_large_fractal/model/
             local_paths = [
-                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
+                "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
                 "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal",
+                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
             ]
             
             tokenizer = None

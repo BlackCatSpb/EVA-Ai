@@ -49,10 +49,13 @@ class GenerationCoordinator:
         # Инициализация токенизатора с использованием ruGPT-3 Large из фрактального хранилища
         try:
             # Проверяем наличие ruGPT-3 Large во фрактальном хранилище
+            # ВАЖНО: модель находится в models/rugpt3_large_fractal/model/
             possible_paths = [
                 # Основной путь к ruGPT-3 Large токенизатору
+                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model',
+                # Fallback для обратной совместимости
+                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal',
                 'cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal',
-                # Альтернативные пути для обратной совместимости
                 'cogniflex/mlearning/cogniflex_models/fractal_unified_text-generation',
                 'cogniflex/mlearning/cogniflex_models/rugpt3_large',
             ]
