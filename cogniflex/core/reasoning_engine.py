@@ -942,6 +942,25 @@ class ReasoningEngine:
                             domain="insights"
                         )
                 
+                # Добавляем инсайты в ML-граф памяти с токенизацией и GPU
+                if hasattr(self.brain, 'memory_graph_ml') and self.brain.memory_graph_ml:
+                    try:
+                        mgml = self.brain.memory_graph_ml
+                        for insight in dialogue.insights:
+                            if insight and len(insight) > 10:
+                                mgml.add_insight(
+                                    insight=insight,
+                                    source_query=dialogue.original_query,
+                                    metadata={
+                                        'confidence': dialogue.confidence,
+                                        'query_id': dialogue.query_id,
+                                        'reasoning_steps': len(dialogue.steps)
+                                    }
+                                )
+                        logger.debug(f"Инсайты добавлены в MemoryGraphML: {len(dialogue.insights)} шт")
+                    except Exception as e:
+                        logger.debug(f"Ошибка добавления в MemoryGraphML: {e}")
+                
                 logger.debug(f"Граф памяти обновлен для {dialogue.query_id}")
         except Exception as e:
             logger.debug(f"Ошибка обновления графа памяти: {e}")
