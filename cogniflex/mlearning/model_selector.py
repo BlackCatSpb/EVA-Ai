@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Конфигурация моделей
+# RUGPT3 - только разрешённая модель (остальные отключены)
 MODEL_CONFIGS = {
     "rugpt3large": {
         "name": "RuGPT-3 Large",
@@ -18,7 +19,8 @@ MODEL_CONFIGS = {
         "speed": "медленно",
         "quality": "средне",
         "description": "Русская модель (текущая)",
-        "status": "ready"
+        "status": "ready",
+        "enabled": True
     },
     "qwen3.5-0.8b": {
         "name": "Qwen3.5-0.8B",
@@ -28,8 +30,9 @@ MODEL_CONFIGS = {
         "speed": "быстро",
         "quality": "средне",
         "description": "Минимальная мультимодальная",
-        "status": "not_loaded",
-        "requires": "transformers>=4.51"
+        "status": "disabled",
+        "requires": "transformers>=4.51",
+        "enabled": False
     },
     "qwen3.5-2b": {
         "name": "Qwen3.5-2B",
@@ -39,7 +42,8 @@ MODEL_CONFIGS = {
         "speed": "средне",
         "quality": "хорошо",
         "description": "Оптимально для CPU",
-        "status": "not_loaded"
+        "status": "disabled",
+        "enabled": False
     },
     "bitnet-2b": {
         "name": "BitNet 2B",
@@ -49,8 +53,9 @@ MODEL_CONFIGS = {
         "speed": "очень быстро",
         "quality": "ниже среднего",
         "description": "Microsoft 1-bit (самая быстрая)",
-        "status": "not_loaded",
-        "requires": "llama-cpp-python"
+        "status": "disabled",
+        "requires": "llama-cpp-python",
+        "enabled": False
     }
 }
 
@@ -108,22 +113,18 @@ class ModelSelector:
         """
         model_name = model_name or self.current_model
         
+        # Check if model is enabled
+        if model_name in MODEL_CONFIGS and not MODEL_CONFIGS[model_name].get('enabled', True):
+            logger.warning(f"Модель {model_name} отключена конфигурацией")
+            return False
+        
         if model_name == "rugpt3large":
             # Текущая модель уже загружена
             return True
         
-        try:
-            if model_name.startswith("qwen3.5"):
-                return self._load_qwen(model_name)
-            elif model_name.startswith("bitnet"):
-                return self._load_bitnet(model_name)
-            else:
-                logger.error(f"Неизвестный тип модели: {model_name}")
-                return False
-        except Exception as e:
-            logger.error(f"Ошибка загрузки модели {model_name}: {e}")
-            MODEL_CONFIGS[model_name]["status"] = "error"
-            return False
+        # Загружать другие модели запрещено
+        logger.warning(f"Модель {model_name} недоступна - разрешена только RUGPT3")
+        return False
     
     def _load_qwen(self, model_name: str) -> bool:
         """Загружает Qwen модель"""

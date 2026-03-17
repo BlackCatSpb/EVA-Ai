@@ -4,18 +4,28 @@
 import os
 
 # Model loading flags
-DISABLE_ALL_MODELS = os.environ.get('COGNIFLEX_DISABLE_MODELS', 'false').lower() == 'true'
-DISABLE_EMBEDDINGS = os.environ.get('COGNIFLEX_DISABLE_EMBEDDINGS', 'false').lower() == 'true'
+# Set to True to disable all models except RUGPT3
+DISABLE_ALL_MODELS = os.environ.get('COGNIFLEX_DISABLE_MODELS', 'true').lower() == 'true'
+DISABLE_EMBEDDINGS = os.environ.get('COGNIFLEX_DISABLE_EMBEDDINGS', 'true').lower() == 'true'
 DISABLE_TOKENIZERS = os.environ.get('COGNIFLEX_DISABLE_TOKENIZERS', 'false').lower() == 'true'
 DISABLE_TRAINING = os.environ.get('COGNIFLEX_DISABLE_TRAINING', 'false').lower() == 'true'
 
+# Allowed models (only RUGPT3 by default - others disabled)
+ALLOWED_MODELS = ['rugpt3', 'rugpt3large', 'sberbank-ai/rugpt3large_based_on_gpt2']
+
 # Feature flags
-ENABLE_SELF_LEARNING = os.environ.get('COGNIFLEX_ENABLE_SELF_LEARNING', 'true').lower() == 'true'
+ENABLE_SELF_LEARNING = os.environ.get('COGNIFLEX_ENABLE_SELF_LEARNING', 'false').lower() == 'true'
 ENABLE_NEUROMORPHIC = os.environ.get('COGNIFLEX_ENABLE_NEUROMORPHIC', 'false').lower() == 'true'
 
-# To disable models, set environment variable:
-# COGNIFLEX_DISABLE_MODELS=true
-# Or use this file to toggle flags
+def is_model_allowed(model_name: str) -> bool:
+    """Check if model is allowed to load"""
+    if not DISABLE_ALL_MODELS:
+        return True
+    model_lower = model_name.lower() if model_name else ''
+    for allowed in ALLOWED_MODELS:
+        if allowed.lower() in model_lower:
+            return True
+    return False
 
 def is_model_loading_disabled():
     """Check if model loading is disabled"""
