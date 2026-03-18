@@ -46,6 +46,15 @@ class Localrugpt3largeLoader:
         """Возвращает корневую директорию проекта"""
         import sys
         
+        # Проверяем, запущен ли скрипт из директории проекта
+        cwd = os.getcwd()
+        # Если в текущей директории есть папка cogniflex - используем её
+        if os.path.exists(os.path.join(cwd, 'cogniflex')):
+            return cwd
+        # Если в родительской директории есть cogniflex - используем её
+        if os.path.exists(os.path.join(cwd, '..', 'cogniflex')):
+            return os.path.abspath(os.path.join(cwd, '..'))
+        
         # Пробуем определить корень проекта несколькими способами
         possible_roots = []
         
