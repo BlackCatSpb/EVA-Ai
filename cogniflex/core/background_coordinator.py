@@ -598,34 +598,25 @@ class BackgroundCoordinator:
                 pass
 
     def _setup_event_integration(self) -> None:
+        # Подписка на события системы
         try:
-            # Интеграция с системой событий
             if hasattr(self.brain, 'events') and self.brain.events:
                 events = self.brain.events
-                
-                # Подписываемся на события системы
                 events.subscribe('system_ready', self._handle_system_ready, priority=5)
                 events.subscribe('system_shutdown', self._handle_system_shutdown, priority=5)
                 events.subscribe('user_activity', self._handle_user_activity, priority=8)
                 events.subscribe('component_health_change', self._handle_component_health_change, priority=7)
                 events.subscribe('training_completed', self._handle_training_completed, priority=6)
-                
                 logger.info("BackgroundCoordinator подписан на события системы")
-            
-            # Интеграция с отложенными командами
-            if self.deferred:
-                # Регистрируем команды автопилота
-                self.deferred.add_command('autopilot_start', self._deferred_start, priority=10)
-                self.deferred.add_command('autopilot_stop', self._deferred_stop, priority=10)
-                self.deferred.add_command('autopilot_pause', self._deferred_pause, priority=10)
-                self.deferred.add_command('autopilot_resume', self._deferred_resume, priority=10)
-                self.deferred.add_command('autopilot_status', self._deferred_status, priority=10)
-                
-                logger.info("BackgroundCoordinator зарегистрировал команды в DeferredCommandSystem")
-                
         except Exception as e:
-            # Логируем как предупреждение, а не ошибку - это не критично
-            logger.warning(f"Неполная интеграция с системой событий: {e}")
+            logger.warning(f"Частичная подписка на события: {e}")
+
+        # Регистрация отложенных задач через DeferredCommandSystem
+        # add_command принимает (callable, args, kwargs, priority=CommandPriority.NORMAL)
+        # — не name/handler. Просто ставим задачи в очередь по факту вызова, не регистрируем заранее.
+        # Оставляем блок пустым; фактические задачи ставятся через _deferred_* методы при необходимости.
+        if self.deferred:
+            logger.debug("BackgroundCoordinator: DeferredCommandSystem доступен, задачи будут ставиться по требованию")
 
     def _handle_system_ready(self, data: Dict[str, Any]) -> None:
         """Обработчик события готовности системы."""

@@ -6,7 +6,7 @@
     "device": "cuda:0",
     "ram_buffer_mb": 1024,
     "ssd_cache_enabled": true,
-    "max_context_length": 1024,
+    "max_context_length": 4096,
     "max_batch_size": 4,
     "memory_check_interval": 5,
     "aggressive_eviction": true,
@@ -14,17 +14,25 @@
     "gpu_memory_fraction": 0.4
   },
   "model": {
+    "backend": "auto",
     "name": "rugpt3",
     "path": "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/fractal_rugpt_full.safetensors",
     "vocab_size": 50257,
     "max_length": 1024,
-    "device": "cuda:0"
+    "device": "cuda:0",
+    "profiles": {
+      "gpu_8gb":  { "name": "saiga_llama3_8b",  "backend": "transformers",  "enabled": false },
+      "gpu_4gb":  { "name": "qwen3.5-4b",        "backend": "llama_cpp",     "enabled": false },
+      "cpu_16gb": { "name": "qwen3.5-2b",         "backend": "llama_cpp",     "enabled": true  },
+      "cpu_8gb":  { "name": "qwen3.5-0.8b",       "backend": "llama_cpp",     "enabled": true  },
+      "fallback": { "name": "rugpt3",             "backend": "transformers",  "enabled": true  }
+    }
   },
   "generation": {
     "temperature": 0.7,
     "top_p": 0.9,
     "top_k": 50,
-    "max_new_tokens": 100,
+    "max_new_tokens": 256,
     "do_sample": true,
     "pad_token_id": 50256
   },
@@ -46,6 +54,12 @@
     "disable_learning_threads": true,
     "disable_background_training": true,
     "max_concurrent_operations": 1
+  },
+  "models": {
+    "allowed": ["rugpt3", "qwen3.5"],
+    "disabled": ["saiga", "llama", "bitnet", "qwen2"],
+    "embeddings_enabled": false,
+    "embeddings_model": "intfloat/multilingual-e5-small"
   },
   "logging": {
     "level": "INFO",

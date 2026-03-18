@@ -113,7 +113,7 @@ debug_export_output/
 models/
 text-generation/
 cache/
-core/
+/core/
 ml_cache/
 benchmark_cache/
 backup_*/

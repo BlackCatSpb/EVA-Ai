@@ -478,17 +478,24 @@ class ChatModule:
         self.chat_frame.pack(fill=tk.BOTH, expand=True)
         
         # Область отображения сообщений
+        c = self.gui.colors
         self.chat_display = scrolledtext.ScrolledText(
             self.chat_frame,
             wrap=tk.WORD,
             state=tk.DISABLED,
-            bg=self.gui.colors['card-bg'],
-            fg=self.gui.colors['text'],
-            font=('Segoe UI', 10),
-            padx=10,
-            pady=10
+            bg=c['card-bg'],
+            fg=c['text'],
+            font=('Segoe UI', 11),
+            padx=16,
+            pady=12,
+            relief="flat",
+            borderwidth=0,
+            selectbackground=c['primary'],
+            selectforeground="white",
+            spacing1=4,   # интервал перед параграфом
+            spacing3=4,   # интервал после параграфа
         )
-        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.chat_display.pack(fill=tk.BOTH, expand=True, padx=0, pady=0)
         
         # Панель рассуждений
         self._init_reasoning_panel()
@@ -529,27 +536,66 @@ class ChatModule:
     
     def _configure_chat_tags(self):
         """Настраивает стили тегов для сообщений."""
-        self.chat_display.tag_configure("user", 
-            foreground=self.gui.colors['primary'], 
-            font=('Segoe UI', 10, 'bold'))
-        self.chat_display.tag_configure("system", 
-            foreground=self.gui.colors['text'], 
-            font=('Segoe UI', 10))
-        self.chat_display.tag_configure("reasoning", 
-            foreground=self.gui.colors['text-muted'], 
-            font=('Segoe UI', 10, 'italic'))
-        self.chat_display.tag_configure("timestamp", 
-            foreground=self.gui.colors['text-muted'], 
-            font=('Segoe UI', 8))
-        self.chat_display.tag_configure("url", 
-            foreground=self.gui.colors['primary'], 
-            underline=True)
-        self.chat_display.tag_configure("bold", font=('Segoe UI', 10, 'bold'))
-        self.chat_display.tag_configure("italic", font=('Segoe UI', 10, 'italic'))
-        self.chat_display.tag_configure("code", 
-            background=self.gui.colors['bg'], 
-            font=('Consolas', 9))
-        self.chat_display.tag_configure("emoji", font=('Segoe UI Emoji', 10))
+        c = self.gui.colors
+
+        # Метка пользователя
+        self.chat_display.tag_configure("user_label",
+            foreground=c['primary'],
+            font=('Segoe UI', 10, 'bold'),
+            spacing3=2,
+        )
+        # Текст пользователя
+        self.chat_display.tag_configure("user",
+            foreground=c['text'],
+            font=('Segoe UI', 11),
+            lmargin1=16, lmargin2=16,
+            spacing3=8,
+        )
+        # Метка системы/AI
+        self.chat_display.tag_configure("system_label",
+            foreground=c['success'],
+            font=('Segoe UI', 10, 'bold'),
+            spacing3=2,
+        )
+        # Текст ответа AI
+        self.chat_display.tag_configure("system",
+            foreground=c['text'],
+            font=('Segoe UI', 11),
+            lmargin1=16, lmargin2=16,
+            spacing3=8,
+        )
+        # Рассуждения (скрытая панель)
+        self.chat_display.tag_configure("reasoning",
+            foreground=c['text-muted'],
+            font=('Segoe UI', 9, 'italic'),
+            lmargin1=20, lmargin2=20,
+        )
+        # Временная метка
+        self.chat_display.tag_configure("timestamp",
+            foreground=c['text-muted'],
+            font=('Segoe UI', 8),
+            spacing1=2,
+        )
+        # Ссылки
+        self.chat_display.tag_configure("url",
+            foreground=c['primary'],
+            underline=True,
+        )
+        # Форматирование
+        self.chat_display.tag_configure("bold",   font=('Segoe UI', 11, 'bold'))
+        self.chat_display.tag_configure("italic",  font=('Segoe UI', 11, 'italic'))
+        self.chat_display.tag_configure("code",
+            background=c['bg'],
+            foreground=c['text'],
+            font=('Consolas', 10),
+            lmargin1=20, lmargin2=20,
+        )
+        self.chat_display.tag_configure("emoji",   font=('Segoe UI Emoji', 11))
+        # Разделитель между сообщениями
+        self.chat_display.tag_configure("divider",
+            foreground=c['border'],
+            font=('Segoe UI', 6),
+        )
     
     def _setup_chat_event_handlers(self):
         """Настраивает обработчики событий для области чата."""
@@ -630,19 +676,24 @@ class ChatModule:
     
     def _create_input_area(self):
         """Создает область ввода сообщения."""
+        c = self.gui.colors
         self.input_frame = ttk.Frame(self.chat_frame)
-        self.input_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+        self.input_frame.pack(fill=tk.X, padx=8, pady=(4, 8))
+
         self.input_text = scrolledtext.ScrolledText(
             self.input_frame,
-            height=3,
+            height=4,
             wrap=tk.WORD,
-            bg=self.gui.colors['card-bg'],
-            fg=self.gui.colors['text'],
-            font=('Segoe UI', 10),
-            insertbackground=self.gui.colors['primary'],
-            highlightbackground=self.gui.colors['border'],
-            highlightthickness=1
+            bg=c['card-bg'],
+            fg=c['text'],
+            font=('Segoe UI', 11),
+            insertbackground=c['primary'],
+            highlightbackground=c['border'],
+            highlightcolor=c['primary'],
+            highlightthickness=1,
+            relief="flat",
+            padx=8,
+            pady=6,
         )
         self.input_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
@@ -678,29 +729,32 @@ class ChatModule:
     
     def _create_input_buttons(self):
         """Создает кнопки области ввода."""
-        # Кнопка импорта
-        self.import_button = ttk.Button(
-            self.input_frame,
-            text="Импорт",
-            command=self._on_import_document
-        )
-        self.import_button.pack(side=tk.RIGHT, padx=(5, 0))
-        
-        # Кнопка автодиалога
-        self.self_dialog_button = ttk.Button(
-            self.input_frame,
-            text="Автодиалог",
-            command=self._toggle_self_dialog
-        )
-        self.self_dialog_button.pack(side=tk.RIGHT, padx=(5, 0))
-        
-        # Кнопка отправки
+        btn_frame = ttk.Frame(self.input_frame)
+        btn_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(6, 0))
+
+        # Отправить — главная акцентная кнопка
         self.send_button = ttk.Button(
-            self.input_frame,
-            text="Отправить",
-            command=self._send_message
+            btn_frame,
+            text="▶  Отправить",
+            style="Primary.TButton",
+            command=self._send_message,
         )
-        self.send_button.pack(side=tk.RIGHT, padx=(5, 0))
+        self.send_button.pack(fill=tk.X, pady=(0, 4))
+
+        # Вторичные кнопки
+        self.self_dialog_button = ttk.Button(
+            btn_frame,
+            text="⟳ Автодиалог",
+            command=self._toggle_self_dialog,
+        )
+        self.self_dialog_button.pack(fill=tk.X, pady=(0, 4))
+
+        self.import_button = ttk.Button(
+            btn_frame,
+            text="↑ Импорт",
+            command=self._on_import_document,
+        )
+        self.import_button.pack(fill=tk.X)
     
     def _bind_input_events(self):
         """Привязывает события поля ввода."""
@@ -723,37 +777,41 @@ class ChatModule:
             lambda e: (self._quote_selection_to_input(), "break"))
     
     def _create_status_bar(self):
-        """Создает статус-бар с метриками."""
+        """Создает мини статус-бар чата: только индикатор ML и подсказка."""
+        c = self.gui.colors
         self.status_frame = ttk.Frame(self.chat_frame)
-        self.status_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
-        
-        self.cpu_label = ttk.Label(self.status_frame, text="CPU: --%")
-        self.cpu_label.pack(side=tk.LEFT)
-        
-        self.mem_label = ttk.Label(self.status_frame, text="RAM: --%")
-        self.mem_label.pack(side=tk.LEFT, padx=(10, 0))
-        
-        # Индикатор готовности ML
+        self.status_frame.pack(fill=tk.X, padx=8, pady=(0, 4))
+
+        # ML-индикатор
         try:
             self.ml_status_canvas = tk.Canvas(
-                self.status_frame, 
-                width=12, 
-                height=12, 
-                highlightthickness=0, 
-                bg=self.gui.colors['bg'])
-            self.ml_status_canvas.pack(side=tk.LEFT, padx=(15, 4))
-            self.ml_status_canvas.create_oval(
-                1, 1, 11, 11, 
-                fill=self.gui.colors['success'], 
-                outline="", 
-                tags="ml_indicator")
+                self.status_frame,
+                width=8, height=8,
+                highlightthickness=0,
+                bg=c['bg'],
+            )
+            self.ml_status_canvas.pack(side=tk.LEFT, padx=(0, 5), pady=4)
+            self.ml_status_canvas.create_oval(1, 1, 7, 7, fill=c['success'], outline="", tags="ml_indicator")
             self.ml_status_label = ttk.Label(
-                self.status_frame, 
-                text="Фрактальное хранилище: активно")
+                self.status_frame,
+                text="Модель готова",
+                style="Muted.TLabel",
+            )
             self.ml_status_label.pack(side=tk.LEFT)
         except (AttributeError, TypeError, RuntimeError, tk.TclError):
             self.ml_status_canvas = None
             self.ml_status_label = None
+
+        # Подсказка по горячим клавишам
+        ttk.Label(
+            self.status_frame,
+            text="Enter — отправить · Shift+Enter — перенос строки",
+            style="Muted.TLabel",
+        ).pack(side=tk.RIGHT)
+
+        # Скрытые совместимые атрибуты (на случай если _schedule_status_update обновляет их)
+        self.cpu_label = ttk.Label(self.status_frame, text="")
+        self.mem_label = ttk.Label(self.status_frame, text="")
     
     def _create_typing_indicator(self):
         """Создает индикатор набора текста."""

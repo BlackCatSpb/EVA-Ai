@@ -599,6 +599,10 @@ class QueryProcessor:
         except (AttributeError, TypeError, RuntimeError) as e:
             logger.debug(f"Ошибка в _emit_metrics: {e}")
 
+    # Алиас для обратной совместимости: некоторые компоненты вызывают .process() вместо .process_query()
+    def process(self, query: str, user_context=None):
+        return self.process_query(query, user_context)
+
     def __del__(self):
         try:
             if self._own_executor and self.executor:

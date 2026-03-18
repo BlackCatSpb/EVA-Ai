@@ -181,21 +181,18 @@ class CogniFlexGUI:
                     'response': 'Извините, система временно недоступна.'
                 }
 
-            # Пытаемся использовать response_generator
             if hasattr(self.brain, 'process_query'):
                 result = self.brain.process_query(query, context)
                 if result:
-                    self.gui_queue.put(lambda: self._add_message("CogniFlex", result.get("text", "Ошибка обработки"), 0))
+                    text = result.get("text", result.get("response", "Ошибка обработки")) if isinstance(result, dict) else str(result)
+                    self.gui_queue.put(lambda t=text: self._add_message("CogniFlex", t, 0))
+                    return {'status': 'ok', 'response': text}
                 else:
                     self.gui_queue.put(lambda: self._add_message("CogniFlex", "Пустой ответ от системы", 0))
+                    return {'status': 'error', 'error': 'empty response', 'response': 'Пустой ответ от системы.'}
             else:
-                # Fallback
                 self.gui_queue.put(lambda: self._add_message("CogniFlex", "Система обработки запросов недоступна", 0))
-            return {
-                'status': 'error',
-                'error': str(e),
-                'response': 'Произошла ошибка при обработке запроса.'
-            }
+                return {'status': 'error', 'error': 'no process_query', 'response': 'Обработчик запросов недоступен.'}
 
         except Exception as e:
             logger.error(f"Ошибка fallback обработки: {e}")
@@ -410,29 +407,112 @@ class CogniFlexGUI:
         style = ttk.Style()
         self.theme = self.settings.get("gui", {}).get("theme", "light")
         self.colors = self.theme_colors[self.theme]
+        c = self.colors
 
-        if self.theme == "dark":
-            style.theme_use("clam")
-            style.configure(".", background=self.colors['bg'], foreground=self.colors['text'], fieldbackground=self.colors['card-bg'], bordercolor=self.colors['border'])
-            style.configure("TFrame", background=self.colors['bg'])
-            style.configure("TLabel", background=self.colors['bg'], foreground=self.colors['text'])
-            style.configure("TButton", background=self.colors['card-bg'], foreground=self.colors['text'], borderwidth=1)
-            style.map("TButton", background=[("active", self.colors['primary'])])
-        else:
-            style.theme_use("default")
-            style.configure(".", background=self.colors['bg'], foreground=self.colors['text'], fieldbackground=self.colors['card-bg'])
+        # Используем clam для обоих тем — выглядит намного лучше чем "default"
+        style.theme_use("clam")
 
-        # Navigation button styles
-        style.configure("Nav.TButton", padding=(10, 5), relief=tk.FLAT)
-        style.configure("NavActive.TButton", padding=(10, 5), relief=tk.FLAT, background=self.colors['primary'])
-        style.map("NavActive.TButton", background=[("active", self.colors['primary'])])
-        
-        # Notebook tab styles
-        style.configure("TNotebook", background=self.colors['bg'])
-        style.configure("TNotebook.Tab", padding=(10, 5), background=self.colors['card-bg'], foreground=self.colors['text'])
-        style.map("TNotebook.Tab", background=[("selected", self.colors['primary'])], foreground=[("selected", "white")])
+        # Базовые цвета
+        style.configure(".",
+            background=c['bg'],
+            foreground=c['text'],
+            fieldbackground=c['card-bg'],
+            bordercolor=c['border'],
+            troughcolor=c['bg'],
+            focuscolor=c['primary'],
+            font=("Segoe UI", 10) if self.theme == "light" else ("Segoe UI", 10),
+        )
 
-        self.root.configure(bg=self.colors['bg'])
+        # Фрейм
+        style.configure("TFrame", background=c['bg'])
+        style.configure("Card.TFrame", background=c['card-bg'], relief="flat", borderwidth=1)
+
+        # Лейблы
+        style.configure("TLabel", background=c['bg'], foreground=c['text'], padding=2)
+        style.configure("Muted.TLabel", background=c['bg'], foreground=c['text-muted'], font=("Segoe UI", 9))
+        style.configure("Title.TLabel", background=c['bg'], foreground=c['primary'],
+                        font=("Segoe UI", 16, "bold"))
+        style.configure("StatusOk.TLabel",  background=c['bg'], foreground=c['success'])
+        style.configure("StatusErr.TLabel", background=c['bg'], foreground=c['danger'])
+
+        # Кнопки
+        style.configure("TButton",
+            background=c['card-bg'],
+            foreground=c['text'],
+            borderwidth=1,
+            bordercolor=c['border'],
+            padding=(8, 4),
+            relief="flat",
+        )
+        style.map("TButton",
+            background=[("active", c['primary']), ("pressed", c['primary'])],
+            foreground=[("active", "white"), ("pressed", "white")],
+            bordercolor=[("active", c['primary'])],
+        )
+
+        # Кнопка-акцент (primary)
+        style.configure("Primary.TButton",
+            background=c['primary'],
+            foreground="white",
+            borderwidth=0,
+            padding=(10, 5),
+            relief="flat",
+        )
+        style.map("Primary.TButton",
+            background=[("active", c['primary']), ("pressed", "#005fa3")],
+            foreground=[("active", "white")],
+        )
+
+        # Danger кнопка
+        style.configure("Danger.TButton",
+            background=c['danger'],
+            foreground="white",
+            borderwidth=0,
+            padding=(8, 4),
+            relief="flat",
+        )
+        style.map("Danger.TButton",
+            background=[("active", "#b02030"), ("pressed", "#901020")],
+        )
+
+        # Notebook (вкладки)
+        style.configure("TNotebook",
+            background=c['bg'],
+            borderwidth=0,
+            tabmargins=[2, 4, 0, 0],
+        )
+        style.configure("TNotebook.Tab",
+            padding=(14, 6),
+            background=c['card-bg'],
+            foreground=c['text-muted'],
+            borderwidth=0,
+            font=("Segoe UI", 10),
+        )
+        style.map("TNotebook.Tab",
+            background=[("selected", c['bg']), ("active", c['bg'])],
+            foreground=[("selected", c['primary']), ("active", c['text'])],
+            font=[("selected", ("Segoe UI", 10, "bold"))],
+        )
+
+        # Entry / Scrollbar
+        style.configure("TEntry",
+            fieldbackground=c['card-bg'],
+            foreground=c['text'],
+            bordercolor=c['border'],
+            insertcolor=c['text'],
+            padding=4,
+        )
+        style.configure("TScrollbar",
+            background=c['border'],
+            troughcolor=c['bg'],
+            borderwidth=0,
+            arrowsize=12,
+        )
+
+        # Separator
+        style.configure("TSeparator", background=c['border'])
+
+        self.root.configure(bg=c['bg'])
 
     def _create_interface(self):
         self.main_container = ttk.Frame(self.root)
@@ -442,14 +522,29 @@ class CogniFlexGUI:
         self._create_status_bar()
 
     def _create_navbar(self):
-        """Создаёт упрощённую панель навигации (без кнопок переключения вкладок)."""
-        navbar = ttk.Frame(self.main_container, height=40)
-        navbar.pack(fill=tk.X, padx=10, pady=5)
-        ttk.Label(navbar, text="CogniFlex", font=("Segoe UI", 14, "bold"), foreground=self.colors['primary']).pack(side=tk.LEFT, padx=10)
-        right_frame = ttk.Frame(navbar)
-        right_frame.pack(side=tk.RIGHT)
-        ttk.Button(right_frame, text="Перезагрузить", command=self._reboot_system).pack(side=tk.LEFT, padx=5)
-        ttk.Button(right_frame, text="Горячая перезагрузка", command=self._soft_reload).pack(side=tk.LEFT, padx=5)
+        """Создаёт панель навигации с заголовком и кнопками управления."""
+        navbar = ttk.Frame(self.main_container)
+        navbar.pack(fill=tk.X, padx=0, pady=0)
+
+        # Цветная полоска-акцент сверху
+        accent = tk.Frame(navbar, bg=self.colors['primary'], height=3)
+        accent.pack(fill=tk.X, side=tk.TOP)
+
+        inner = ttk.Frame(navbar)
+        inner.pack(fill=tk.X, padx=12, pady=6)
+
+        # Логотип / заголовок
+        ttk.Label(inner, text="CogniFlex", style="Title.TLabel").pack(side=tk.LEFT)
+        ttk.Label(inner, text=" · AI", style="Muted.TLabel").pack(side=tk.LEFT)
+
+        # Кнопки справа
+        right = ttk.Frame(inner)
+        right.pack(side=tk.RIGHT)
+        ttk.Button(right, text="↺ Горячий рестарт", command=self._soft_reload).pack(side=tk.LEFT, padx=(0, 6))
+        ttk.Button(right, text="⏻ Перезагрузить", style="Danger.TButton", command=self._reboot_system).pack(side=tk.LEFT)
+
+        # Тонкая линия-разделитель под navbar
+        ttk.Separator(self.main_container, orient="horizontal").pack(fill=tk.X)
 
 
     def _create_notebook(self):
@@ -500,42 +595,53 @@ class CogniFlexGUI:
         pass
 
     def _create_status_bar(self):
-        self.status_bar = ttk.Frame(self.root, height=30)
-        self.status_bar.pack(fill=tk.X, padx=10, pady=(0, 10))
-        self.status_indicator = tk.Canvas(self.status_bar, width=15, height=15, highlightthickness=0)
-        self.status_indicator.pack(side=tk.LEFT, padx=(0, 5))
-        self.status_indicator.create_oval(2, 2, 13, 13, fill=self.colors['warning'], tags="indicator")
-        self.connection_status = ttk.Label(self.status_bar, text="Соединение: инициализация...")
+        """Статусбар: индикатор состояния + ключевые метрики + время."""
+        # Разделитель над статусбаром
+        ttk.Separator(self.root, orient="horizontal").pack(fill=tk.X)
+
+        self.status_bar = ttk.Frame(self.root)
+        self.status_bar.pack(fill=tk.X, padx=10, pady=4)
+
+        # --- Левая часть: индикатор + текст статуса ---
+        left = ttk.Frame(self.status_bar)
+        left.pack(side=tk.LEFT)
+
+        self.status_indicator = tk.Canvas(
+            left, width=10, height=10, highlightthickness=0,
+            bg=self.colors['bg'],
+        )
+        self.status_indicator.pack(side=tk.LEFT, padx=(0, 6), pady=3)
+        self.status_indicator.create_oval(1, 1, 9, 9, fill=self.colors['warning'], outline="", tags="indicator")
+
+        self.connection_status = ttk.Label(left, text="Инициализация…", style="Muted.TLabel")
         self.connection_status.pack(side=tk.LEFT)
-        # Компактный индикатор загрузки моделей рядом со статусом
-        self.model_load_label = ttk.Label(self.status_bar, text="")
-        self.model_load_label.pack(side=tk.LEFT, padx=(10, 0))
-        self.timestamp_label = ttk.Label(self.status_bar, text="--:--:--")
-        self.timestamp_label.pack(side=tk.RIGHT, padx=10)
-        metrics_frame = ttk.Frame(self.status_bar)
-        metrics_frame.pack(side=tk.RIGHT, padx=10)
-        ttk.Label(metrics_frame, text="CPU:").pack(side=tk.LEFT)
-        self.cpu_label = ttk.Label(metrics_frame, text="0%")
-        self.cpu_label.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(metrics_frame, text="RAM:").pack(side=tk.LEFT)
-        self.memory_label = ttk.Label(metrics_frame, text="0%")
-        self.memory_label.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(metrics_frame, text="Противоречия:").pack(side=tk.LEFT)
-        self.contradictions_label = ttk.Label(metrics_frame, text="0")
-        self.contradictions_label.pack(side=tk.LEFT, padx=(0, 10))
-        # Доп. метрики из CoreBrain: кэш и I/O
-        ttk.Label(metrics_frame, text="HitRate:").pack(side=tk.LEFT)
-        self.hit_rate_label = ttk.Label(metrics_frame, text="0.0%")
-        self.hit_rate_label.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(metrics_frame, text="CacheUtil:").pack(side=tk.LEFT)
-        self.cache_util_label = ttk.Label(metrics_frame, text="0.0%")
-        self.cache_util_label.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(metrics_frame, text="DiskEntries:").pack(side=tk.LEFT)
-        self.disk_entries_label = ttk.Label(metrics_frame, text="0")
-        self.disk_entries_label.pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Label(metrics_frame, text="IOtokens:").pack(side=tk.LEFT)
-        self.io_tokens_label = ttk.Label(metrics_frame, text="0")
-        self.io_tokens_label.pack(side=tk.LEFT)
+
+        self.model_load_label = ttk.Label(left, text="", style="Muted.TLabel")
+        self.model_load_label.pack(side=tk.LEFT, padx=(12, 0))
+
+        # --- Правая часть: метрики ---
+        right = ttk.Frame(self.status_bar)
+        right.pack(side=tk.RIGHT)
+
+        def _metric(parent, label):
+            ttk.Label(parent, text=label, style="Muted.TLabel").pack(side=tk.LEFT)
+            lbl = ttk.Label(parent, text="—", style="Muted.TLabel", width=5)
+            lbl.pack(side=tk.LEFT, padx=(1, 10))
+            return lbl
+
+        self.cpu_label          = _metric(right, "CPU")
+        self.memory_label       = _metric(right, "RAM")
+        self.hit_rate_label     = _metric(right, "Cache")
+        self.contradictions_label = _metric(right, "⚡")
+
+        # Скрытые атрибуты для совместимости с _update_interface
+        self.cache_util_label  = ttk.Label(right, text="")   # скрыт
+        self.disk_entries_label = ttk.Label(right, text="")  # скрыт
+        self.io_tokens_label   = ttk.Label(right, text="")   # скрыт
+
+        ttk.Separator(right, orient="vertical").pack(side=tk.LEFT, fill=tk.Y, padx=6, pady=2)
+        self.timestamp_label = ttk.Label(right, text="--:--:--", style="Muted.TLabel")
+        self.timestamp_label.pack(side=tk.LEFT)
 
     def on_close(self):
         if messagebox.askyesno("Подтверждение", "Вы действительно хотите выйти?"):
