@@ -11,7 +11,7 @@ pip install -r requirements.txt
 # Run the application with GUI
 python cogniflex/run.py
 # or
-python run_gui.py
+python tools/run_gui.py
 
 # Run all tests
 pytest tests/
@@ -31,7 +31,7 @@ TRANSFORMERS_OFFLINE=1 HF_HUB_OFFLINE=1 python -c \
    mm=ModelManager(brain=None,use_gpu=False,max_workers=1,autoload=False); print('OK')"
 
 # Inspect models database
-python -c "import sqlite3, json; db='core/cogniflex_cache/models/models.db'; conn=sqlite3.connect(db); cur=conn.cursor(); cur.execute('select id,name,model_path,model_type,priority from models order by priority desc'); print(json.dumps([dict(zip(['id','name','path','type','priority'],r)) for r in cur.fetchall()], ensure_ascii=False, indent=2))"
+python -c "import sqlite3, json; db='cogniflex/core/cogniflex_cache/models/models.db'; conn=sqlite3.connect(db); cur=conn.cursor(); cur.execute('select id,name,model_path,model_type,priority from models order by priority desc'); print(json.dumps([dict(zip(['id','name','path','type','priority'],r)) for r in cur.fetchall()], ensure_ascii=False, indent=2))"
 ```
 
 ## Key Environment Variables
@@ -88,7 +88,7 @@ Knowledge is structured at 5 abstraction levels (0: tokens → 4: concepts) with
 
 ### Configuration
 
-`brain_config.json` in the repo root is the main system config. **Note: this file currently has a git merge conflict** — resolve before using. Key sections: `hybrid_cache` (VRAM/RAM/SSD tiers), `model` (active model path), `generation` (sampling parameters), `learning` (disabled by default), `system` (background threads disabled).
+`brain_config.json` in the repo root is the main system config. Key sections: `hybrid_cache` (VRAM/RAM/SSD tiers), `model` (active model path), `generation` (sampling parameters), `learning` (disabled by default), `system` (background threads disabled).
 
 ### Test Structure
 
