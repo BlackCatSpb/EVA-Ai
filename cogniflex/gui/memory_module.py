@@ -744,7 +744,37 @@ class MemoryModule:
             node_type = self.node_type_var.get() if hasattr(self, 'node_type_var') else "Все"
             domain = self.domain_var.get() if hasattr(self, 'domain_var') else "Все"
             
-            # Загружаем узлы (заглушка - в реальности здесь должен быть вызов к brain/memory_manager)
+            # Загружаем узлы из KnowledgeGraph
+            try:
+                if hasattr(self.gui, 'brain') and self.gui.brain:
+                    brain = self.gui.brain
+                    if hasattr(brain, 'knowledge_graph') and brain.knowledge_graph:
+                        kg = brain.knowledge_graph
+                        # Получаем все узлы
+                        all_nodes = kg.get_all_nodes()
+                        
+                        # Фильтруем по типу
+                        if node_type and node_type != "Все":
+                            all_nodes = [n for n in all_nodes if n.node_type == node_type]
+                        
+                        # Фильтруем по домену
+                        if domain and domain != "Все":
+                            all_nodes = [n for n in all_nodes if n.domain == domain]
+                        
+                        # Добавляем в дерево
+                        for node in all_nodes:
+                            self.nodes_tree.insert('', 'end', values=(
+                                node.name[:50] if node.name else '',
+                                node.node_type[:20] if node.node_type else '',
+                                node.domain[:20] if node.domain else '',
+                                f"{node.strength:.2f}" if node.strength else '0.00'
+                            ))
+                        
+                        logger.debug(f"Загружено узлов: {len(all_nodes)}")
+                        return
+            except Exception as e:
+                logger.error(f"Ошибка загрузки узлов из knowledge_graph: {e}")
+            
             logger.debug(f"Фильтрация узлов: тип={node_type}, домен={domain}")
             
         except Exception as e:
