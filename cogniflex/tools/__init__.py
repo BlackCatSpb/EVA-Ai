@@ -1,5 +1,6 @@
-"""Tools subpackage for CLI utilities (e.g., train_from_path)."""
+"""Tools subpackage for CLI utilities (e.g., dependency_scan, import_pipeline)."""
 __all__ = [
-    "train_from_path",
     "import_pipeline",
+    "dependency_scan",
+    "system_generation_analysis",
 ]

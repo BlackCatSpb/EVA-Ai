@@ -7,6 +7,9 @@ import os
 import json
 import logging
 import inspect
+import importlib
+import importlib.util
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 sys.path.append('.')
@@ -389,11 +392,6 @@ def main():
     logger.info("=" * 80)
     
     try:
-        # Импортируем необходимые модули
-        import importlib.util
-        import importlib
-        from datetime import datetime
-        
         # Создаем анализатор
         analyzer = SystemAnalyzer()
         

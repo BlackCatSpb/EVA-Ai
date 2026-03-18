@@ -130,63 +130,64 @@ for m in sorted(present_modules):
     if color[m] == WHITE:
         dfs(m)
 
-# In-degree
-indeg: Dict[str, int] = {m: 0 for m in present_modules}
-for u, vs in edges.items():
-    for v in vs:
-        if v in indeg:
-            indeg[v] += 1
-
-# Write report
-with open(REPORT_PATH, 'w', encoding='utf-8') as f:
-    f.write('Dependency Analysis Report\n')
-    f.write(f'Timestamp: {datetime.datetime.now().isoformat()}\n')
-    f.write(f'Root: {PROJECT_ROOT}\n')
-    f.write(f'Total modules: {len(present_modules)}\n')
-    f.write(f'Total edges: {sum(len(v) for v in edges.values())}\n\n')
-    missing_total = sum(len(s) for s in missing_internal.values())
-    f.write(f'Missing internal targets: {missing_total}\n')
-    if missing_total:
-        for m, miss in sorted(missing_internal.items()):
-            if miss:
-                f.write(f'  - {m}:\n')
-                for t in sorted(miss):
-                    f.write(f'      * {t}\n')
-        f.write('\n')
-    f.write(f'Cycles detected: {len(cycle_paths)}\n')
-    if cycle_paths:
-        for i, cyc in enumerate(cycle_paths, 1):
-            f.write(f'  [{i}] ' + ' -> '.join(cyc) + '\n')
-        f.write('\n')
-    top = sorted(indeg.items(), key=lambda x: x[1], reverse=True)[:10]
-    f.write('Top modules by in-degree (most depended-on):\n')
-    for m, deg in top:
-        f.write(f'  - {m}: {deg}\n')
-    f.write('\n')
-    f.write('Note: CoreBrain expected as orchestrator: cogniflex.core.core_brain\n')
-
-# Write JSON graph
-graph = {k: sorted(list(v)) for k, v in edges.items()}
-with open(GRAPH_JSON, 'w', encoding='utf-8') as jf:
-    json.dump({
-        'generated_at': datetime.datetime.now().isoformat(),
-        'modules': sorted(list(present_modules)),
-        'edges': graph,
-        'indegree': indeg,
-        'cycles': cycle_paths,
-        'missing_internal': {k: sorted(list(v)) for k, v in missing_internal.items() if v},
-    }, jf, ensure_ascii=False, indent=2)
-
-# Optional GraphViz .dot
-with open(DOT_PATH, 'w', encoding='utf-8') as df:
-    df.write('digraph cogniflex_deps {\n  rankdir=LR;\n  node [shape=box, fontsize=10];\n')
-    for u, vs in graph.items():
-        u2 = u.replace('.', '_')
-        df.write(f'  {u2} [label=\"{u}\"];\n')
+if __name__ == '__main__':
+    # In-degree
+    indeg: Dict[str, int] = {m: 0 for m in present_modules}
+    for u, vs in edges.items():
         for v in vs:
-            if v.startswith('cogniflex'):
-                v2 = v.replace('.', '_')
-                df.write(f'  {u2} -> {v2};\n')
-    df.write('}\n')
+            if v in indeg:
+                indeg[v] += 1
 
-print(f'Wrote {REPORT_PATH}, {GRAPH_JSON}, {DOT_PATH}')
+    # Write report
+    with open(REPORT_PATH, 'w', encoding='utf-8') as f:
+        f.write('Dependency Analysis Report\n')
+        f.write(f'Timestamp: {datetime.datetime.now().isoformat()}\n')
+        f.write(f'Root: {PROJECT_ROOT}\n')
+        f.write(f'Total modules: {len(present_modules)}\n')
+        f.write(f'Total edges: {sum(len(v) for v in edges.values())}\n\n')
+        missing_total = sum(len(s) for s in missing_internal.values())
+        f.write(f'Missing internal targets: {missing_total}\n')
+        if missing_total:
+            for m, miss in sorted(missing_internal.items()):
+                if miss:
+                    f.write(f'  - {m}:\n')
+                    for t in sorted(miss):
+                        f.write(f'      * {t}\n')
+            f.write('\n')
+        f.write(f'Cycles detected: {len(cycle_paths)}\n')
+        if cycle_paths:
+            for i, cyc in enumerate(cycle_paths, 1):
+                f.write(f'  [{i}] ' + ' -> '.join(cyc) + '\n')
+            f.write('\n')
+        top = sorted(indeg.items(), key=lambda x: x[1], reverse=True)[:10]
+        f.write('Top modules by in-degree (most depended-on):\n')
+        for m, deg in top:
+            f.write(f'  - {m}: {deg}\n')
+        f.write('\n')
+        f.write('Note: CoreBrain expected as orchestrator: cogniflex.core.core_brain\n')
+
+    # Write JSON graph
+    graph = {k: sorted(list(v)) for k, v in edges.items()}
+    with open(GRAPH_JSON, 'w', encoding='utf-8') as jf:
+        json.dump({
+            'generated_at': datetime.datetime.now().isoformat(),
+            'modules': sorted(list(present_modules)),
+            'edges': graph,
+            'indegree': indeg,
+            'cycles': cycle_paths,
+            'missing_internal': {k: sorted(list(v)) for k, v in missing_internal.items() if v},
+        }, jf, ensure_ascii=False, indent=2)
+
+    # Optional GraphViz .dot
+    with open(DOT_PATH, 'w', encoding='utf-8') as df:
+        df.write('digraph cogniflex_deps {\n  rankdir=LR;\n  node [shape=box, fontsize=10];\n')
+        for u, vs in graph.items():
+            u2 = u.replace('.', '_')
+            df.write(f'  {u2} [label="{u}"];\n')
+            for v in vs:
+                if v.startswith('cogniflex'):
+                    v2 = v.replace('.', '_')
+                    df.write(f'  {u2} -> {v2};\n')
+        df.write('}\n')
+
+    print(f'Wrote {REPORT_PATH}, {GRAPH_JSON}, {DOT_PATH}')
