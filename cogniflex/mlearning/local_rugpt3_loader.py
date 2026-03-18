@@ -45,17 +45,39 @@ class Localrugpt3largeLoader:
     def _get_project_root() -> str:
         """Возвращает корневую директорию проекта"""
         import sys
+        import os
         
-        # Проверяем, запущен ли скрипт из директории проекта
+        # Всегда проверяем OneDrive путь first - это наиболее вероятное расположение
+        drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+        username = os.environ.get('USERNAME', 'user')
+        
+        # Явно проверяем OneDrive путь first - наиболее вероятный
+        onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex')
+        if os.path.exists(onedrive_path):
+            # Проверяем что это наш проект
+            if os.path.exists(os.path.join(onedrive_path, 'cogniflex')):
+                return onedrive_path
+        
+        # Если запущен как модуль (-m), sys.argv[0] будет содержать модуль
+        if sys.argv and sys.argv[0] and 'cogniflex' in sys.argv[0]:
+            # Это запуск как модуль - используем dirname для нахождения проекта
+            module_path = os.path.dirname(os.path.abspath(sys.argv[0]))
+            # Идем вверх пока не найдем cogniflex
+            while module_path and not os.path.exists(os.path.join(module_path, 'cogniflex')):
+                parent = os.path.dirname(module_path)
+                if parent == module_path:
+                    break
+                module_path = parent
+            if module_path and os.path.exists(os.path.join(module_path, 'cogniflex')):
+                return module_path
+        
+        # Проверяем текущую директорию и её родителей
         cwd = os.getcwd()
-        # Если в текущей директории есть папка cogniflex - используем её
-        if os.path.exists(os.path.join(cwd, 'cogniflex')):
-            return cwd
-        # Если в родительской директории есть cogniflex - используем её
-        if os.path.exists(os.path.join(cwd, '..', 'cogniflex')):
-            return os.path.abspath(os.path.join(cwd, '..'))
+        for check_path in [cwd, os.path.dirname(cwd), os.path.dirname(os.path.dirname(cwd))]:
+            if check_path and os.path.exists(os.path.join(check_path, 'cogniflex')):
+                return check_path
         
-        # Пробуем определить корень проекта несколькими способами
+        # Fallback - ищем по маркерам
         possible_roots = []
         
         # 1. Относительно текущего файла
