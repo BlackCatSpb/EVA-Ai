@@ -582,7 +582,8 @@ class IntegratedCogniFlexGUI:
                 stats_text += f"Компонентов: {stats.get('health', {}).get('components_count', 0)}\n"
                 stats_text += f"Всего запросов: {stats.get('metrics', {}).get('total_requests', 0)}\n"
                 stats_text += f"Успешных ответов: {stats.get('metrics', {}).get('successful_responses', 0)}\n"
-                stats_text += ".2f"
+                avg_time = stats.get('metrics', {}).get('avg_response_time', 0)
+                stats_text += f"Среднее время ответа: {avg_time:.2f} сек\n"
                 stats_text += f"Активных запросов: {stats.get('active_requests', 0)}\n\n"
 
                 if 'event_bus_stats' in stats:
@@ -651,6 +652,9 @@ class IntegratedCogniFlexGUI:
         if self.root:
             self.root.quit()
 
+
+# Alias for backwards compatibility
+CogniFlexGUI = IntegratedCogniFlexGUI
 
 def create_integrated_gui(integrator: CogniFlexIntegrator) -> IntegratedCogniFlexGUI:
     """

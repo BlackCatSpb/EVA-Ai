@@ -111,11 +111,6 @@ class KnowledgeGraphModule:
         self._start_update_thread()
         
         logger.info("Модуль графа знаний активирован")
-        
-        # Начинаем обновление данных
-        self._start_update_thread()
-        
-        logger.info("Модуль графа знаний активирован")
 
     def deactivate(self):
         """Деактивирует модуль графа знаний."""
