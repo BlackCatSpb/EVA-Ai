@@ -1738,6 +1738,7 @@ class ChatModule:
                 
         except Exception as e:
             logger.error(f"Ошибка переключения автодиалога: {e}", exc_info=True)
+            self._add_message("CogniFlex", f"Ошибка автодиалога: {str(e)}", "system")
     
     def _self_dialog_loop(self):
         """Фоновая петля автодиалога с использованием данных из MemoryGraphML."""
@@ -1747,19 +1748,30 @@ class ChatModule:
             graph_patterns = []
             
             # Пробуем получить данные из MemoryGraphML
-            if hasattr(self.gui, 'brain') and self.gui.brain:
-                brain = self.gui.brain
-                if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
-                    mgml = brain.memory_graph_ml
-                    if hasattr(mgml, 'embeddings'):
-                        # Получаем последние сущности из графа
-                        recent_embeddings = list(mgml.embeddings.items())[-5:]  # Последние 5
-                        ml_entities = [
-                            {'name': v.metadata.get('insight', v.metadata.get('source_query', 'unknown'))[:100]}
-                            for k, v in recent_embeddings
-                        ]
-                    if hasattr(mgml, 'patterns'):
-                        graph_patterns = list(mgml.patterns.keys())[-3:]
+            try:
+                if hasattr(self.gui, 'brain') and self.gui.brain:
+                    brain = self.gui.brain
+                    if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
+                        mgml = brain.memory_graph_ml
+                        if hasattr(mgml, 'embeddings') and mgml.embeddings:
+                            # Получаем последние сущности из графа
+                            recent_embeddings = list(mgml.embeddings.items())[-5:]
+                            for k, v in recent_embeddings:
+                                try:
+                                    # Handle both dict and object formats
+                                    if isinstance(v, dict):
+                                        metadata = v.get('metadata', {})
+                                    else:
+                                        metadata = getattr(v, 'metadata', {})
+                                    ml_entities.append({
+                                        'name': metadata.get('insight', metadata.get('source_query', 'unknown'))[:100]
+                                    })
+                                except Exception:
+                                    pass
+                        if hasattr(mgml, 'patterns') and mgml.patterns:
+                            graph_patterns = list(mgml.patterns.keys())[-3:]
+            except Exception as e:
+                logger.debug(f"Ошибка получения данных из MemoryGraphML: {e}")
             
             # Формируем стартовые вопросы на основе данных из графа
             starters = []
@@ -1849,21 +1861,28 @@ class ChatModule:
             # Пробуем получить данные из MemoryGraphML для генерации более релевантных вопросов
             graph_context = None
             
-            if hasattr(self.gui, 'brain') and self.gui.brain:
-                brain = self.gui.brain
-                if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
-                    mgml = brain.memory_graph_ml
-                    if hasattr(mgml, 'embeddings') and mgml.embeddings:
-                        # Получаем последние данные из графа
-                        recent = list(mgml.embeddings.items())
-                        if recent:
-                            #提取 ключевую информацию из последних записей
-                            last_meta = recent[-1][1].metadata if recent else {}
-                            graph_context = {
-                                'last_insight': last_meta.get('insight', ''),
-                                'last_query': last_meta.get('source_query', ''),
-                                'total_entities': len(recent)
-                            }
+            try:
+                if hasattr(self.gui, 'brain') and self.gui.brain:
+                    brain = self.gui.brain
+                    if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
+                        mgml = brain.memory_graph_ml
+                        if hasattr(mgml, 'embeddings') and mgml.embeddings:
+                            # Получаем последние данные из графа
+                            recent = list(mgml.embeddings.items())
+                            if recent:
+                                # Извлекаем ключевую информацию из последних записей
+                                last_entry = recent[-1][1]
+                                if isinstance(last_entry, dict):
+                                    last_meta = last_entry.get('metadata', {})
+                                else:
+                                    last_meta = getattr(last_entry, 'metadata', {})
+                                graph_context = {
+                                    'last_insight': last_meta.get('insight', ''),
+                                    'last_query': last_meta.get('source_query', ''),
+                                    'total_entities': len(recent)
+                                }
+            except Exception as e:
+                logger.debug(f"Ошибка получения контекста из MemoryGraphML: {e}")
             
             base = _fix_mojibake(reply_text or "").strip()
             if not base:
