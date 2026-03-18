@@ -348,14 +348,14 @@ class Localrugpt3largeLoader:
                     logger.info("Токенизатор успешно загружен")
                 except Exception as e:
                     # Если не удалось загрузить напрямую, пробуем создать вручную
-                    logger.debug(f"Не удалось загрузить через transformers: {e}")
+                    logger.info(f"Не удалось загрузить через transformers: {e}")
                     try:
                         tokenizer = self._create_tokenizer_manually(load_path)
                         if tokenizer:
                             logger.info("Токенизатор создан вручную из локальных файлов")
-                            return tokenizer
+                            return tokenizer  # Важно! Возвращаем токенизатор
                     except Exception as manual_err:
-                        logger.debug(f"Ручное создание не удалось: {manual_err}")
+                        logger.warning(f"Ручное создание не удалось: {manual_err}")
                     
                     # Fallback на HuggingFace
                     logger.warning("Используем fallback токенизатор ruGPT-3 Medium из HuggingFace")
