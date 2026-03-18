@@ -1719,8 +1719,8 @@ class CoreBrain:
         }
         
         if self.state_manager:
-            status["system_state"] = self.state_manager.get_system_info()
-            status["health"] = self.state_manager.get_health_status()
+            status["system_state"] = self.state_manager.get_system_summary()
+            status["health"] = {"status": self.state_manager.get_state().value}
         
         if self.resource_manager:
             status["resources"] = self.resource_manager.get_resource_summary()
