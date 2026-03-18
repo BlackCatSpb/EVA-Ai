@@ -278,11 +278,12 @@ class CoreBrain:
             self.query_logger.warning(f"Ошибка при инициализации компонента: {e}")
             self.query_logger.error(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)
         
-        # Инициализация кэша токенов
+        # Инициализация кэша токенов - используем синглтон
         try:
-            from ..memory.hybrid_token_cache import HybridTokenCache
-            self.token_cache = HybridTokenCache(self)
-            self.query_logger.info("Гибридный кэш токенов инициализирован")
+            from ..memory.hybrid_token_cache import get_shared_cache
+            self.token_cache = get_shared_cache(self, "default")
+            self.hybrid_cache = self.token_cache
+            self.query_logger.info("Гибридный кэш токенов инициализирован (синглтон)")
             if hasattr(self.token_cache, 'get_cache_stats'):
                 cache_stats = self.token_cache.get_cache_stats()
         except ImportError as e:

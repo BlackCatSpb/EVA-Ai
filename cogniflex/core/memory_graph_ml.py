@@ -23,6 +23,13 @@ except ImportError:
     TORCH_AVAILABLE = False
     torch = None
 
+try:
+    from sentence_transformers import SentenceTransformer
+    ST_AVAILABLE = True
+except ImportError:
+    ST_AVAILABLE = False
+    SentenceTransformer = None
+
 logger = logging.getLogger("cogniflex.memory_graph_ml")
 
 
@@ -86,7 +93,24 @@ class MemoryGraphML:
         # Гибридный кэш для токенизации
         self._hybrid_cache = None
         
+        # Sentence-transformer для CPU embeddings
+        self._st_model = None
+        self._st_model_name = self.config.get('st_model', 'paraphrase-multilingual-MiniLM-L12-v2')
+        self._init_st_model()
+        
         logger.info("MemoryGraphML инициализирован")
+    
+    def _init_st_model(self):
+        """Инициализирует sentence-transformer для CPU embeddings."""
+        if not ST_AVAILABLE:
+            return
+        try:
+            self._st_model = SentenceTransformer(self._st_model_name, device='cpu')
+            self.embedding_dim = self._st_model.get_sentence_embedding_dimension()
+            logger.info(f"Sentence-transformer загружен: {self._st_model_name}, dim={self.embedding_dim}")
+        except Exception as e:
+            logger.warning(f"Не удалось загрузить sentence-transformer: {e}")
+            self._st_model = None
     
     def initialize(self) -> bool:
         """Инициализация и загрузка данных из графа памяти"""
@@ -597,51 +621,38 @@ class MemoryGraphML:
     
     def _compute_embedding_on_gpu(self, text: str, tokens: List[int]) -> np.ndarray:
         """
-        Вычисляет embedding на GPU.
-        Использует фрактальную структуру для создания иерархических представлений.
+        Вычисляет embedding с приоритетом: GPU > sentence-transformer (CPU) > random.
         """
         try:
-            if not TORCH_AVAILABLE:
-                # CPU fallback
-                np.random.seed(hash(text) % 2**32)
-                vector = np.random.randn(self.embedding_dim).astype(np.float32)
-                return vector / np.linalg.norm(vector)
+            # Приоритет 1: sentence-transformer (лучшее качество на CPU)
+            if self._st_model is not None:
+                embedding = self._st_model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+                return self._fractal_transform(
+                    torch.from_numpy(embedding).float()
+                ).cpu().numpy()
             
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+            # Приоритет 2: GPU tensor ops
+            if TORCH_AVAILABLE:
+                device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                if tokens:
+                    token_tensor = torch.tensor(tokens[:self.embedding_dim], dtype=torch.long, device=device)
+                    if hasattr(self, '_embedding_layer') and self._embedding_layer is not None:
+                        with torch.no_grad():
+                            embedding = self._embedding_layer(token_tensor).mean(dim=0)
+                    else:
+                        embedding = torch.randn(self.embedding_dim, dtype=torch.float32, device=device)
+                    embedding = self._fractal_transform(embedding)
+                    return (embedding / torch.norm(embedding)).cpu().numpy()
             
-            # Используем токены для создания embedding
-            if tokens:
-                # Создаём embedding из токенов на GPU
-                token_tensor = torch.tensor(tokens[:self.embedding_dim], dtype=torch.long, device=device)
-                
-                # Простой embedding lookup (в реальной системе - обученная модель)
-                if hasattr(self, '_embedding_layer') and self._embedding_layer is not None:
-                    with torch.no_grad():
-                        embedding = self._embedding_layer(token_tensor).mean(dim=0)
-                else:
-                    # Случайный вектор с привязкой к тексту
-                    np.random.seed(hash(text) % 2**32)
-                    embedding = torch.randn(self.embedding_dim, dtype=torch.float32, device=device)
-                
-                # Применяем фрактальное преобразование
-                embedding = self._fractal_transform(embedding)
-                
-                # Нормализация
-                embedding = embedding / torch.norm(embedding)
-                
-                return embedding.cpu().numpy()
-            else:
-                # Fallback
-                np.random.seed(hash(text) % 2**32)
-                vector = np.random.randn(self.embedding_dim).astype(np.float32)
-                return vector / np.linalg.norm(vector)
-                
-        except Exception as e:
-            logger.debug(f"Ошибка GPU embedding: {e}")
-            # CPU fallback
+            # Fallback: детерминированный случайный вектор
             np.random.seed(hash(text) % 2**32)
             vector = np.random.randn(self.embedding_dim).astype(np.float32)
             return vector / np.linalg.norm(vector)
+                
+        except Exception as e:
+            logger.debug(f"Ошибка embedding: {e}")
+            np.random.seed(hash(text) % 2**32)
+            return np.random.randn(self.embedding_dim).astype(np.float32) / np.linalg.norm(np.random.randn(self.embedding_dim))
     
     def _fractal_transform(self, embedding):
         """

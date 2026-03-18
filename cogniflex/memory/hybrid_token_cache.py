@@ -23,6 +23,17 @@ import psutil  # type: ignore
 
 logger = logging.getLogger(__name__)
 
+_cache_registry: Dict[str, 'HybridTokenCache'] = {}
+_registry_lock = threading.RLock()
+
+
+def get_shared_cache(brain, cache_name: str = "default") -> 'HybridTokenCache':
+    """Returns a singleton HybridTokenCache for the given name."""
+    with _registry_lock:
+        if cache_name not in _cache_registry:
+            _cache_registry[cache_name] = HybridTokenCache(brain, _cache_name=cache_name)
+        return _cache_registry[cache_name]
+
 
 # ============================================================================
 # Disk Cache Implementation
@@ -333,6 +344,7 @@ class HybridTokenCache:
         ram_threshold: float = 0.12,  # Более агрессивная выгрузка RAM
         eviction_policy: str = "hybrid",
         hot_threshold: int = 5,  # Увеличиваем порог для горячих токенов
+        _cache_name: str = "default",
         **kwargs
     ):
         """
@@ -879,4 +891,4 @@ class HybridTokenCache:
 
 
 # Экспорт для совместимости
-__all__ = ['HybridTokenCache', 'LRUCache']
+__all__ = ['HybridTokenCache', 'LRUCache', 'get_shared_cache']

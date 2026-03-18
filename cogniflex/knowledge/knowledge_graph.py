@@ -40,8 +40,8 @@ logger = logging.getLogger("cogniflex.knowledge_graph")
 
 # Импорты для интеграции с другими модулями
 try:
-    from cogniflex.memory.hybrid_token_cache import HybridTokenCache
-    logger.debug("HybridTokenCache импортирован успешно")
+    from cogniflex.memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
+    logger.debug("HybridTokenCache и get_shared_cache импортированы успешно")
 except ImportError:
     logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
     HybridTokenCache = None
@@ -490,17 +490,12 @@ class KnowledgeGraph:
         """Инициализирует компоненты для интеграции с другими модулями."""
         # Гибридный кэш
         self.hybrid_cache = hybrid_cache
-        if self.hybrid_cache is None and HybridTokenCache:
+        if self.hybrid_cache is None:
             try:
-                # Используем поддерживаемые параметры HybridTokenCache
-                self.hybrid_cache = HybridTokenCache(
-                    brain=self.brain,
-                    max_memory_tokens=10000,
-                    disk_cache_dir="hybrid_cache"
-                )
-                logger.debug("Создан внутренний гибридный кэш")
+                from ..memory.hybrid_token_cache import get_shared_cache
+                self.hybrid_cache = get_shared_cache(self.brain, "knowledge_graph")
             except Exception as e:
-                logger.warning(f"Не удалось создать гибридный кэш: {e}")
+                logger.warning(f"Не удалось получить гибридный кэш: {e}")
         
         # Текстовый процессор
         self.text_processor = text_processor

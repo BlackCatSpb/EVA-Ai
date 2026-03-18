@@ -5,11 +5,37 @@
 import logging
 import time
 import threading
+import weakref
 from typing import Dict, List, Callable, Any, Deque, Optional
 from collections import defaultdict, deque
 
 logger = logging.getLogger("cogniflex.events")
 timeline_logger = logging.getLogger("cogniflex.events.timeline")
+
+
+class _WrappedCallback:
+    """Opaque wrapper storing callback metadata without polluting function attrs."""
+    __slots__ = ('original_callback', '_event_priority', '_event_name')
+
+    def __init__(self, callback: Callable, event_name: str, priority: int):
+        self.original_callback = callback
+        self._event_priority = priority
+        self._event_name = event_name
+
+    def __call__(self, data: Any) -> None:
+        try:
+            self.original_callback(data)
+        except Exception as e:
+            logger.error(f"Ошибка в обработчике события {self._event_name}: {e}")
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, _WrappedCallback):
+            return self.original_callback == other.original_callback
+        return self.original_callback == other
+
+    def __hash__(self) -> int:
+        return hash(self.original_callback)
+
 
 class EventBus:
     """
@@ -67,26 +93,25 @@ class EventBus:
             callback: Функция обратного вызова
             priority: Приоритет обработки (0-10, выше = важнее)
         """
-        # Создаем обертку для callback с метаданными приоритета
-        def wrapped_callback(data):
-            try:
-                return callback(data)
-            except Exception as e:
-                logger.error(f"Ошибка в обработчике события {event_name}: {e}")
-        
-        # Сохраняем метаданные в обертке
-        wrapped_callback._event_priority = priority
-        wrapped_callback._event_name = event_name
-        wrapped_callback._original_callback = callback
+        wrapped_callback = _WrappedCallback(callback, event_name, priority)
 
         self.listeners[event_name].append(wrapped_callback)
 
-        # Если событие уже было вызвано, немедленно вызываем callback
         if event_name in self._triggered_events:
             try:
-                wrapped_callback(self._triggered_events[event_name])
+                wrapped_callback(data=self._triggered_events[event_name])
             except Exception as e:
                 logger.error(f"Ошибка в обработчике события {event_name}: {e}")
+
+    def unsubscribe(self, event_name: str, callback: Callable):
+        """Отписывается от события."""
+        if event_name not in self.listeners:
+            return
+        for wcb in list(self.listeners[event_name]):
+            orig = wcb.original_callback if isinstance(wcb, _WrappedCallback) else getattr(wcb, '_original_callback', wcb)
+            if orig == callback or wcb == callback:
+                self.listeners[event_name].remove(wcb)
+                return
 
     def trigger(self, event_name: str, data: Any = None, priority_override: Optional[int] = None):
         """
@@ -126,7 +151,7 @@ class EventBus:
                 pass
 
         for cb in listeners:
-            cb_name = getattr(getattr(cb, '_original_callback', cb), "__name__", str(cb))
+            cb_name = getattr(cb.original_callback if isinstance(cb, _WrappedCallback) else getattr(cb, '_original_callback', cb), "__name__", str(cb))
             start = time.perf_counter()
 
             if self._enable_timeline:
@@ -171,11 +196,6 @@ class EventBus:
                         timeline_logger.debug(done)
                     except Exception:
                         pass
-
-    def unsubscribe(self, event_name: str, callback: Callable):
-        """Отписывается от события."""
-        if event_name in self.listeners and callback in self.listeners[event_name]:
-            self.listeners[event_name].remove(callback)
 
     def is_triggered(self, event_name: str) -> bool:
         """Проверяет, было ли событие уже вызвано."""

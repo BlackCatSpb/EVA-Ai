@@ -6,7 +6,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from transformers import GPT2LMHeadModel, AutoTokenizer, AutoConfig
 
 # Relative imports
-from ..memory.hybrid_token_cache import HybridTokenCache
+from ..memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
 from ..mlearning.parallel_tokenization import ParallelTokenizer
 from ..memory.disk_cache import DiskCache
 
@@ -39,12 +39,11 @@ class GenerationCoordinator:
         
         # Инициализация гибридного кеша
         self.brain = brain or self._create_mock_brain(cache_dir, max_cache_size_gb)
-        self.cache = HybridTokenCache(
-            brain=self.brain,
-            disk_cache_dir=os.path.join(cache_dir, "token_cache"),
-            target_memory_gb=max_cache_size_gb,
-            dynamic_memory_limit=True
-        )
+        existing = getattr(self.brain, 'token_cache', None) or getattr(self.brain, 'hybrid_cache', None)
+        if existing is not None:
+            self.cache = existing
+        else:
+            self.cache = get_shared_cache(self.brain, "default")
         
         self.model = None
         self.model_config = None
