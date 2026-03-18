@@ -215,13 +215,22 @@ class Localrugpt3largeLoader:
             from transformers import GPT2Tokenizer
             import json
             
+            # Нормализуем путь - убираем смешанные слеши
+            model_path = os.path.normpath(model_path)
+            
             vocab_file = os.path.join(model_path, "vocab.json")
             merges_file = os.path.join(model_path, "merges.txt")
             config_file = os.path.join(model_path, "config.json")
             
             if not os.path.exists(vocab_file):
-                logger.debug(f"vocab.json не найден: {vocab_file}")
+                logger.warning(f"vocab.json не найден: {vocab_file}")
                 return None
+            
+            if not os.path.exists(merges_file):
+                logger.warning(f"merges.txt не найден: {merges_file}")
+                return None
+            
+            logger.info(f"Создаём токенизатор вручную: vocab={vocab_file}, merges={merges_file}")
             
             # Читаем vocab
             with open(vocab_file, 'r', encoding='utf-8') as f:
