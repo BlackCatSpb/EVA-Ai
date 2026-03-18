@@ -54,19 +54,24 @@ else:
 
 from transformers import pipeline
 
-# Попытка загрузить необходимые ресурсы NLTK
+# Попытка загрузить необходимые ресурсы NLTK (offline-safe)
+NLTK_AVAILABLE = True
 try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
-try:
-    nltk.data.find('corpora/wordnet')
-except LookupError:
-    nltk.download('wordnet')
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
+    try:
+        nltk.data.find('corpora/stopwords')
+    except LookupError:
+        nltk.download('stopwords', quiet=True)
+    try:
+        nltk.data.find('corpora/wordnet')
+    except LookupError:
+        nltk.download('wordnet', quiet=True)
+except Exception as e:
+    logger.warning(f"NLTK resources not fully available, some features may be limited: {e}")
+    NLTK_AVAILABLE = False
 
 class UnifiedTextProcessor(BaseComponent):
     """

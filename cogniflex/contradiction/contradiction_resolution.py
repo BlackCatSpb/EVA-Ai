@@ -17,21 +17,30 @@ from nltk.tokenize import word_tokenize
 
 logger = logging.getLogger("cogniflex.contradiction.resolution")
 
-# Инициализация NLP-ресурсов
+# Инициализация NLP-ресурсов (offline-safe)
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
-    nltk.download('punkt')
+    try:
+        nltk.download('punkt', quiet=True)
+    except Exception:
+        pass
 
 try:
     nltk.data.find('corpora/stopwords')
 except LookupError:
-    nltk.download('stopwords')
+    try:
+        nltk.download('stopwords', quiet=True)
+    except Exception:
+        pass
 
 try:
     nltk.data.find('sentiment/vader_lexicon.zip')
 except LookupError:
-    nltk.download('vader_lexicon')
+    try:
+        nltk.download('vader_lexicon', quiet=True)
+    except Exception:
+        pass
 
 class ContradictionResolution:
     """Класс, содержащий методы разрешения противоречий."""
