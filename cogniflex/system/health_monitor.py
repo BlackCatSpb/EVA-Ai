@@ -6,7 +6,6 @@ import re
 import sqlite3
 import json
 from typing import Dict, List, Any, Optional
-from cogniflex.learning import AnalyzerCore, LearningOpportunity
 
 logger = logging.getLogger("cogniflex.health_monitor")
 
@@ -21,6 +20,8 @@ class HealthMonitor:
             brain: Ссылка на ядро CogniFlex (опционально)
             analyzer_core: Ссылка на ядро самоанализа (опционально)
         """
+        from cogniflex.learning import AnalyzerCore
+        
         self.brain = brain
         self.analyzer_core = analyzer_core or AnalyzerCore(brain)
         logger.info("HealthMonitor инициализирован")

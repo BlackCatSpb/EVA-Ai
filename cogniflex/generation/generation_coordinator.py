@@ -46,6 +46,9 @@ class GenerationCoordinator:
             dynamic_memory_limit=True
         )
         
+        self.model = None
+        self.model_config = None
+        
         # Инициализация токенизатора с использованием ruGPT-3 Large из фрактального хранилища
         try:
             # Проверяем наличие ruGPT-3 Large во фрактальном хранилище
