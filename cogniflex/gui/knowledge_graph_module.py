@@ -1392,72 +1392,14 @@ class KnowledgeGraphModule:
                 ttk.Label(info_frame, text="Описание:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
                 row += 1
                 desc_label = ttk.Label(info_frame, text=node_data.get('description', 'N/A')[:200], font=('Segoe UI', 9), wraplength=400)
-                desc_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+            desc_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
             
             logger.debug(f"Показана информация об узле {node_id} из {source}")
             
         except Exception as e:
             logger.error(f"Ошибка отображения информации об узле: {e}")
             self._show_error_in_info_panel(f"Ошибка: {str(e)}")
-            ).grid(row=2, column=1, sticky=tk.W, pady=2)
-            
-            # Сила
-            ttk.Label(
-                info_frame, 
-                text="Сила:", 
-                font=('Segoe UI', 9, 'bold')
-            ).grid(row=3, column=0, sticky=tk.W, padx=(0, 10), pady=2)
-            ttk.Label(
-                info_frame, 
-                text=f"{node_data.get('strength', 0.0):.2f}", 
-                font=('Segoe UI', 9)
-            ).grid(row=3, column=1, sticky=tk.W, pady=2)
-            
-            # Описание
-            ttk.Label(
-                info_frame, 
-                text="Описание:", 
-                font=('Segoe UI', 9, 'bold')
-            ).grid(row=4, column=0, sticky=tk.NW, padx=(0, 10), pady=(2, 0))
-            
-            description = node_data.get("description", "Описание отсутствует")
-            description_label = ttk.Label(
-                info_frame, 
-                text=description, 
-                font=('Segoe UI', 9),
-                wraplength=600
-            )
-            description_label.grid(row=4, column=1, sticky=tk.W, pady=(2, 0))
-            
-            # Кнопки действий
-            btn_frame = ttk.Frame(info_frame)
-            btn_frame.grid(row=5, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
-            
-            ttk.Button(
-                btn_frame,
-                text="Показать связанные узлы",
-                command=lambda: self._show_related_nodes(node_id)
-            ).pack(side=tk.LEFT, padx=5)
-            
-            ttk.Button(
-                btn_frame,
-                text="Экспорт узла",
-                command=lambda: self._export_node(node_id)
-            ).pack(side=tk.LEFT, padx=5)
-            
-            # Дополнительные действия в зависимости от типа узла
-            node_type = node_data.get("type", "")
-            if node_type == "contradiction":
-                ttk.Button(
-                    btn_frame,
-                    text="Разрешить противоречие",
-                    command=lambda: self._resolve_contradiction(node_id)
-                ).pack(side=tk.LEFT, padx=5)
-                
-        except Exception as e:
-            logger.error(f"Ошибка отображения информации об узле: {e}", exc_info=True)
-            self._show_error_in_info_panel(f"Ошибка при отображении информации: {str(e)}")
-
+    
     def _show_edge_info(self, edge):
         """Показывает информацию о связи."""
         # Очищаем панель
