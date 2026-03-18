@@ -68,8 +68,8 @@ class TextProcessor:
         try:
             # Сначала пробуем через Localrugpt3largeLoader
             try:
-                from cogniflex.mlearning.local_rugpt3_loader import Localrugpt3largeLoader
-                loader = Localrugpt3largeLoader(storage_path=self.tokenizer_path)
+                from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
+                loader = LocalRuGPT3Loader(storage_path=self.tokenizer_path)
                 self._tokenizer = loader.create_tokenizer()
                 if self._tokenizer:
                     logger.info(f"Токенизатор успешно загружен через Localrugpt3largeLoader из: {self.tokenizer_path}")
@@ -137,7 +137,7 @@ class TextProcessor:
         try:
             if isinstance(text, str):
                 return self.tokenizer(text, **params)
-            return self.tokenizer(text, **params, padding=True, truncation=True)
+            return self.tokenizer(text, **params)
         except Exception as e:
             logger.error(f"Ошибка кодирования: {str(e)}")
             raise
