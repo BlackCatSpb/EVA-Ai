@@ -6,6 +6,7 @@ import threading
 import queue
 import json
 import requests
+from .cluster_manager import ClusterNode
 from typing import Dict, List, Optional, Any, Tuple, Callable
 from datetime import datetime, timedelta
 import random
@@ -13,14 +14,16 @@ import hashlib
 
 logger = logging.getLogger("cogniflex.distributed.tasks")
 
-class Task:
+class DistributedTask:
     """Представляет задачу для распределенной обработки."""
     
     def __init__(self, task_id: str, task_type: str, payload: Dict[str, Any], 
                  priority: float = 0.5, timeout: float = 30.0,
                  created_at: float = time.time(),
                  status: str = "pending", result: Optional[Dict[str, Any]] = None,
-                 error: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None):
+                 error: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None,
+                 assigned_node: Optional[str] = None, started_at: Optional[float] = None,
+                 completed_at: Optional[float] = None):
         """
         Инициализирует задачу.
         
@@ -35,6 +38,9 @@ class Task:
             result: Результат выполнения
             error: Описание ошибки
             metadata: Дополнительные метаданные
+            assigned_node: Узел, которому назначена задача
+            started_at: Время начала выполнения
+            completed_at: Время завершения
         """
         self.task_id = task_id
         self.task_type = task_type
@@ -46,9 +52,9 @@ class Task:
         self.result = result
         self.error = error
         self.metadata = metadata or {}
-        self.assigned_node = None
-        self.started_at = None
-        self.completed_at = None
+        self.assigned_node = assigned_node
+        self.started_at = started_at
+        self.completed_at = completed_at
     
     def to_dict(self) -> Dict[str, Any]:
         """Преобразует задачу в словарь."""
@@ -69,7 +75,7 @@ class Task:
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Task':
+    def from_dict(cls, data: Dict[str, Any]) -> 'DistributedTask':
         """Создает задачу из словаря."""
         return cls(
             task_id=data["task_id"],
@@ -106,7 +112,7 @@ class TaskScheduler:
         self.task_queue = queue.PriorityQueue()
         
         # Активные задачи
-        self.active_tasks: Dict[str, Task] = {}
+        self.active_tasks: Dict[str, DistributedTask] = {}
         
         # Блокировка ресурсов
         self.lock = threading.Lock()
@@ -201,7 +207,7 @@ class TaskScheduler:
         except Exception as e:
             logger.error(f"Ошибка обработки задачи: {e}")
     
-    def _assign_task_to_node(self, task: Task):
+    def _assign_task_to_node(self, task: 'DistributedTask'):
         """
         Назначает задачу узлу кластера.
         
@@ -224,7 +230,7 @@ class TaskScheduler:
         # Отправляем задачу на узел
         self._send_task_to_node(task, target_node)
     
-    def _get_suitable_nodes(self, task: Task) -> List:
+    def _get_suitable_nodes(self, task: 'DistributedTask') -> List[ClusterNode]:
         """
         Возвращает подходящие узлы для выполнения задачи.
         
@@ -277,7 +283,7 @@ class TaskScheduler:
         
         return capabilities_map.get(task_type, ["task_processing"])
     
-    def _send_task_to_node(self, task: Task, node: object):
+    def _send_task_to_node(self, task: 'DistributedTask', node: ClusterNode):
         """
         Отправляет задачу на узел кластера.
         
@@ -320,7 +326,7 @@ class TaskScheduler:
             self.cluster_manager.mark_node_error(node.node_id)
             self._handle_task_error(task, str(e))
     
-    def _handle_task_result(self, task: Task, result: Dict[str, Any]):
+    def _handle_task_result(self, task: 'DistributedTask', result: Dict[str, Any]):
         """
         Обрабатывает результат выполнения задачи.
         
@@ -350,7 +356,7 @@ class TaskScheduler:
             except Exception as e:
                 logger.error(f"Ошибка вызова callback для задачи {task.task_id}: {e}")
     
-    def _handle_task_error(self, task: Task, error: str):
+    def _handle_task_error(self, task: 'DistributedTask', error: str):
         """
         Обрабатывает ошибку выполнения задачи.
         
@@ -382,7 +388,7 @@ class TaskScheduler:
             
             logger.error(f"Задача {task.task_id} завершена с ошибкой: {error}")
     
-    def _requeue_task(self, task: Task):
+    def _requeue_task(self, task: 'DistributedTask'):
         """
         Возвращает задачу в очередь с учетом приоритета.
         
@@ -406,7 +412,7 @@ class TaskScheduler:
                 logger.warning(f"Обнаружена зависшая задача {task_id}, перезапуск")
                 self._handle_task_error(task, "Task timeout")
     
-    def _update_statistics(self, task: Task):
+    def _update_statistics(self, task: 'DistributedTask'):
         """Обновляет статистику выполнения задач."""
         self.stats["total_tasks"] += 1
         
@@ -457,7 +463,7 @@ class TaskScheduler:
         task_id = f"task_{hashlib.md5(f'{task_type}_{time.time()}'.encode()).hexdigest()[:12]}"
         
         # Создаем задачу
-        task = Task(
+        task = DistributedTask(
             task_id=task_id,
             task_type=task_type,
             payload=payload,

@@ -44,7 +44,7 @@ class ComponentStateManager:
     """Менеджер состояний компонентов для восстановления."""
 
     def __init__(self, checkpoint_dir: str = "recovery_checkpoints"):
-        self.checkpoint_dir = Path(checkpoint_dir)
+        self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else Path("recovery_checkpoints")
         self.checkpoint_dir.mkdir(exist_ok=True)
         self.current_states: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.Lock()

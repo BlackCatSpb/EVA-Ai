@@ -543,6 +543,35 @@ class ClusterManager:
             "timestamp": time.time()
         }
     
+    def get_node_id(self) -> str:
+        """Возвращает ID текущего узла."""
+        return self.distributed_system.config.get("node_id", "unknown") if self.distributed_system else "unknown"
+    
+    def get_active_nodes(self) -> List["ClusterNode"]:
+        """Возвращает все активные узлы (синоним для get_online_nodes)."""
+        return self.get_online_nodes()
+    
+    def update_node_heartbeat(self, node_id: str):
+        """Обновляет время последнего сигнала узла."""
+        with self.node_lock:
+            if node_id in self.nodes:
+                self.nodes[node_id].last_heartbeat = time.time()
+    
+    def remove_node(self, node_id: str):
+        """Удаляет узел из кластера."""
+        with self.node_lock:
+            if node_id in self.nodes:
+                del self.nodes[node_id]
+                logger.info(f"Узел {node_id} удален из кластера")
+    
+    def mark_node_error(self, node_id: str):
+        """Помечает узел как узел с ошибкой."""
+        with self.node_lock:
+            if node_id in self.nodes:
+                self.nodes[node_id].status = "degraded"
+                self.nodes[node_id].load = min(1.0, self.nodes[node_id].load + 0.2)
+                logger.warning(f"Узел {node_id} помечен как degraded")
+    
     def close(self):
         """Закрывает менеджер кластера и освобождает ресурсы."""
         self.stop()

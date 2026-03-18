@@ -232,10 +232,15 @@ class DistributedSystem:
             conn = self._get_connection()
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO system_stats (timestamp, active_nodes, task_count, completion_rate)
-                VALUES (?, ?, ?, ?)
-            ''', (time.time(), len(self.get_active_nodes()), 
-                  self.task_scheduler.get_pending_count() if self.task_scheduler else 0, 0.0))
+                INSERT INTO system_stats (total_tasks, completed_tasks, failed_tasks, avg_processing_time, last_update)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                len(self.get_active_nodes()) if hasattr(self, 'get_active_nodes') else 0,
+                self.task_scheduler.get_scheduler_statistics()["completed_tasks"] if self.task_scheduler else 0,
+                self.task_scheduler.get_scheduler_statistics()["failed_tasks"] if self.task_scheduler else 0,
+                0.0,
+                datetime.now().isoformat()
+            ))
             conn.commit()
         except Exception as e:
             logger.error(f"Ошибка обновления статистики: {e}")

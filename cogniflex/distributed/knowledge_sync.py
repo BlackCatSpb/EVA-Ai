@@ -385,7 +385,7 @@ class KnowledgeSync:
         if self.cluster_manager:
             try:
                 online_nodes = self.cluster_manager.get_online_nodes()
-                if len(online_nodes) == 0:
+                if stats.get("pending_tasks", 0) == 0:
                     # Проверяем, нужно ли вывести предупреждение
                     if time.time() - self.sync_stats["last_warning"] >= self.sync_settings["warning_interval"]:
                         logger.warning("Кластер слишком мал (0/1), требуется добавление узлов")
