@@ -3,11 +3,9 @@ import os
 import logging
 import time
 import sqlite3
-import numpy as np
 import hashlib
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
-from sklearn.metrics.pairwise import cosine_similarity
 
 
 logger = logging.getLogger("cogniflex.adaptation.analytics")
