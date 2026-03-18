@@ -83,7 +83,7 @@ class MemoryManager:
             else:
                 # Fallback - создаем свой экземпляр если brain недоступен
                 try:
-                    from ..mlearning.hybrid_token_cache import HybridTokenCache
+                    from .hybrid_token_cache import HybridTokenCache
                     self._hybrid_cache = HybridTokenCache(
                         cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
                         brain=self.brain
@@ -124,32 +124,13 @@ class MemoryManager:
             return "ready", None
         except Exception as e:
             return "error", f"Ошибка проверки состояния: {str(e)}"
-        self.semantic_memory = []
-        self.episodic_memory = []
-        self.user_profiles = {}
-        
-        # Блокировки для многопоточного доступа
-        self.memory_locks = {
-            "working": threading.RLock(),
-            "semantic": threading.RLock(),
-            "episodic": threading.RLock(),
-            "user_profiles": threading.RLock()
-        }
-        
-        # Инициализируем гибридный кэш ДОЛЖЕН БЫТЬ ЗДЕСЬ
-        self.hybrid_cache = None
-        self._init_hybrid_cache()
-        
-        # Инициализируем остальные компоненты
-        self._initialize()
-        logger.info("Менеджер памяти инициализирован")
-
+    
     def _init_hybrid_cache(self):
         """Инициализирует гибридный кэш для токенизации и других операций."""
         try:
             # Импортируем HybridTokenCache с обработкой ошибок
             try:
-                from cogniflex.memory.hybrid_token_cache import HybridTokenCache
+                from .hybrid_token_cache import HybridTokenCache
                 logger.debug("HybridTokenCache импортирован успешно")
             except ImportError:
                 logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
@@ -214,10 +195,6 @@ class MemoryManager:
         except Exception as e:
             logger.error(f"Ошибка инициализации менеджера памяти: {e}", exc_info=True)
     
-    def get_hybrid_cache(self):
-        """Возвращает экземпляр гибридного кэша."""
-        return self.hybrid_cache
-
     # ===== GUI-facing compatibility API =====
     def get_memory_statistics(self) -> Dict[str, Any]:
         """Возвращает агрегированную статистику памяти для GUI.
@@ -396,14 +373,8 @@ class MemoryManager:
         """Очищает кэш памяти, если доступен."""
         try:
             if self.hybrid_cache:
-                if hasattr(self.hybrid_cache, "clear_all"):
-                    self.hybrid_cache.clear_all()
-                else:
-                    if hasattr(self.hybrid_cache, "clear_memory"):
-                        self.hybrid_cache.clear_memory()
-                    if hasattr(self.hybrid_cache, "clear_disk"):
-                        self.hybrid_cache.clear_disk()
-            # удаляем директорию дискового кэша, если существует
+                if hasattr(self.hybrid_cache, "clear"):
+                    self.hybrid_cache.clear()
             cache_dir = os.path.join(os.getcwd(), "hybrid_cache")
             if os.path.isdir(cache_dir):
                 shutil.rmtree(cache_dir, ignore_errors=True)
@@ -415,13 +386,25 @@ class MemoryManager:
     def optimize_cache(self):
         """Оптимизация кэша."""
         try:
-            if self.hybrid_cache and hasattr(self.hybrid_cache, 'optimize'):
-                self.hybrid_cache.optimize()
-            # Оптимизируем списки памяти
+            if self.hybrid_cache and hasattr(self.hybrid_cache, 'cleanup'):
+                self.hybrid_cache.cleanup()
             self._optimize_memory_lists()
             logger.info("Кэш оптимизирован")
         except Exception as e:
             logger.error(f"Ошибка оптимизации кэша: {e}")
+
+    def _optimize_memory_lists(self):
+        """Оптимизирует списки памяти - удаляет старые записи."""
+        try:
+            cutoff = time.time() - 7 * 24 * 3600  # 7 days
+            for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
+                mem_list = getattr(self, mem_type, [])
+                original_len = len(mem_list)
+                mem_list[:] = [e for e in mem_list if e.get('timestamp', 0) > cutoff]
+                if len(mem_list) < original_len:
+                    self._save_memory(mem_type.replace("_memory", ""))
+        except Exception as e:
+            logger.debug(f"Ошибка оптимизации списков памяти: {e}")
 
     def clear_inactive_caches(self, max_age_days: int = 30):
         """Очищает неактивные кэши."""
