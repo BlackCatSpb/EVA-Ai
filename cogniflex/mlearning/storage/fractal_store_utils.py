@@ -1,6 +1,7 @@
 """
 Утилиты и дополнительные методы для FractalWeightStore
 """
+import time
 import logging
 import numpy as np
 import torch

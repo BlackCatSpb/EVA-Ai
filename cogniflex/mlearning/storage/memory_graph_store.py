@@ -56,6 +56,9 @@ class MemoryGraphStore:
             device=device
         )
         
+        self.fractal_store = self.node_store
+        self.memory_graph: Dict[str, Any] = {}
+        
         # Memory graph structure with vector storage
         self.nodes: Dict[str, Dict[str, Any]] = {}
         self.edges: List[Dict[str, Any]] = []
@@ -214,14 +217,7 @@ class MemoryGraphStore:
                 'metadata': node
             })
             
-        return {
-            "total_tensors": 0,
-            "compressed_size": 0,
-            "original_size": 0,
-            "compression_ratio": 0.0
-        }
-        
-        logger.info(f"Initialized MemoryGraphStore at {base_path}")
+        return data
         
     def store_tensor(self, 
                     tensor_id: str,

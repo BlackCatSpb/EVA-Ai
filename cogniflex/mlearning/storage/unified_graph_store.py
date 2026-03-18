@@ -58,9 +58,6 @@ class UnifiedMemoryGraph:
     def get(self, key: str) -> Any:
         """Get stored data"""
         return self.fractal_store.get(key)
-        self.nodes: Dict[str, Dict] = {}  # Node metadata
-        self.edges: List[Dict] = []  # Edge data
-        self.node_vectors: Dict[str, torch.Tensor] = {}  # Node embeddings
         
     def add_node(self,
                 content: Union[str, Dict],

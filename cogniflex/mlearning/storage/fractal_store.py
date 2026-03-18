@@ -363,6 +363,78 @@ class FractalWeightStore:
         except Exception:
             pass
 
+    def has_tensor(self, tensor_id: str) -> bool:
+        """Check if a tensor exists in storage"""
+        return tensor_id in self.containers
+
+    def get_tensor(self, tensor_id: str) -> Optional[torch.Tensor]:
+        """Get a tensor from storage"""
+        container = self.get_container(tensor_id)
+        if container is None:
+            return None
+        arr = container.data
+        tensor = torch.from_numpy(np.asarray(arr))
+        if self.device != "cpu":
+            tensor = tensor.to(self.device)
+        return tensor
+
+    def get_similar_tensors(self, vector: torch.Tensor, limit: int = 10) -> List[Dict[str, Any]]:
+        """Find similar tensors based on vector similarity"""
+        results = []
+        if not self.node_vectors:
+            return results
+        query = vector.flatten()
+        for node_id, node_vec in self.node_vectors.items():
+            if node_vec.shape != query.shape:
+                continue
+            sim = torch.nn.functional.cosine_similarity(
+                query.flatten(), node_vec.flatten(), dim=0
+            ).item()
+            results.append({"id": node_id, "similarity": sim})
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        return results[:limit]
+
+    def save_weights(self, model_id: str, weights: Dict[str, torch.Tensor]) -> bool:
+        """Save model weights to storage"""
+        return self.pack_state_dict(weights, model_id)
+
+    def load_weights(self, model_id: str) -> Dict[str, torch.Tensor]:
+        """Load model weights from storage"""
+        state_dict = self.reconstruct_state_dict(
+            include_params=[k for k in self.index.keys() if k.startswith(model_id)]
+        )
+        return state_dict
+
+    def unpack_model_weights(self, model: torch.nn.Module, model_id: str) -> bool:
+        """Unpack model weights from storage into model"""
+        try:
+            state_dict = self.reconstruct_state_dict()
+            model.load_state_dict(state_dict, strict=False)
+            return True
+        except Exception:
+            return False
+
+    def get_model_stats(self, model_id: str) -> Dict[str, Any]:
+        """Get statistics for a stored model"""
+        model_containers = [cid for cid in self.containers.keys() if model_id in cid]
+        total_size = sum(self.containers[cid].get_memory_size() for cid in model_containers if cid in self.containers)
+        return {
+            "compressed_size": total_size,
+            "num_containers": len(model_containers)
+        }
+
+    def remove_model(self, model_id: str) -> bool:
+        """Remove a model from storage"""
+        try:
+            to_remove = [cid for cid in list(self.containers.keys()) if model_id in cid]
+            for cid in to_remove:
+                del self.containers[cid]
+            for level in self.fractal_tree:
+                self.fractal_tree[level] = [cid for cid in self.fractal_tree[level] if cid not in to_remove]
+            return True
+        except Exception:
+            return False
+
     # ----------------------- Вспомогательные методы -----------------------
     def _pack_layer_weights(self, layer_name: str, weights: np.ndarray, model_id: str) -> None:
         """Упаковывает веса слоя в фрактальную структуру на уровне 0."""
