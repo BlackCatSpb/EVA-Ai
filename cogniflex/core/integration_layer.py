@@ -889,3 +889,7 @@ class CogniFlexIntegrator:
                 self.shutdown()
         except Exception:
             pass
+
+
+# Alias for backward compatibility
+IntegrationLayer = CogniFlexIntegrator
