@@ -1,35 +1,35 @@
 {
   "5797a339206d7d7d5aeb2903d7114867": {
-    "timestamp": 1755653091.3179796,
+    "timestamp": 1773779146.99391,
     "results": [
       {
-        "title": "Search result 1 for 'Привет!'",
-        "url": "https://example.com/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
-        "snippet": "This is a sample search result 1 for the query 'Привет!'. Real web search implementation would fetch actual results from search engines.",
-        "source": "google",
-        "relevance_score": 0.8,
+        "title": "Информация о Привет!",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "Это базовая информация о Привет!. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755653091.3179796,
+        "timestamp": 1773779146.2549798,
         "query": "Привет!"
       },
       {
-        "title": "Результат поиска 1 для 'Привет!'",
-        "url": "https://example.ru/result1?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
-        "snippet": "Это пример результата поиска 1 по запросу 'Привет!' от Yandex.",
-        "source": "yandex",
-        "relevance_score": 0.75,
+        "title": "Информация о Привет!",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "Это базовая информация о Привет!. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755653091.3179796,
+        "timestamp": 1773779146.2549918,
         "query": "Привет!"
       },
       {
-        "title": "Search result 2 for 'Привет!'",
-        "url": "https://example.com/result2?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
-        "snippet": "This is a sample search result 2 for the query 'Привет!'. Real web search implementation would fetch actual results from search engines.",
-        "source": "google",
-        "relevance_score": 0.7000000000000001,
+        "title": "Информация о Привет!",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21",
+        "snippet": "Это базовая информация о Привет!. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755653091.3179796,
+        "timestamp": 1773779146.2577727,
         "query": "Привет!"
       }
     ]
@@ -380,36 +380,36 @@
     ]
   },
   "5d8fb2891cc7f37fb6b88fe7ea2665b8": {
-    "timestamp": 1755525762.2580683,
+    "timestamp": 1773776292.6862726,
     "results": [
       {
-        "title": "Search result 1 for 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
-        "url": "https://example.com/result1?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
-        "snippet": "This is a sample search result 1 for the query 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'. Real web search implementation would fetch actual results from search engines.",
-        "source": "google",
-        "relevance_score": 0.8,
+        "title": "Информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
+        "url": "https://example.com/search?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "Это базовая информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755525762.2570515,
+        "timestamp": 1773776291.8568077,
         "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
       },
       {
-        "title": "Результат поиска 1 для 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
-        "url": "https://example.ru/result1?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
-        "snippet": "Это пример результата поиска 1 по запросу 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?' от Yandex.",
-        "source": "yandex",
-        "relevance_score": 0.75,
+        "title": "Информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
+        "url": "https://example.com/search?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "Это базовая информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755525762.2570515,
+        "timestamp": 1773776291.856832,
         "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
       },
       {
-        "title": "Search result 2 for 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'",
-        "url": "https://example.com/result2?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
-        "snippet": "This is a sample search result 2 for the query 'Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?'. Real web search implementation would fetch actual results from search engines.",
-        "source": "google",
-        "relevance_score": 0.7000000000000001,
+        "title": "Информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
+        "url": "https://example.com/search?q=%D0%9D%D0%B0%D1%87%D0%BD%D0%B5%D0%BC%20%D1%81%20%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%D1%81%D1%82%D0%B2%D0%B8%D1%8F%3A%20%D0%BA%D0%B0%D0%BA%20%D1%82%D1%8B%20%D0%BE%D1%86%D0%B5%D0%BD%D0%B8%D0%B2%D0%B0%D0%B5%D1%88%D1%8C%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C%20%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0%20%D0%B4%D0%B0%D0%BD%D0%BD%D1%8B%D1%85%20%D0%BF%D1%80%D0%B8%20%D0%BE%D0%B1%D1%83%D1%87%D0%B5%D0%BD%D0%B8%D0%B8%20%D0%BC%D0%BE%D0%B4%D0%B5%D0%BB%D0%B5%D0%B9%3F",
+        "snippet": "Это базовая информация о Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1755525762.2570515,
+        "timestamp": 1773776291.8600163,
         "query": "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?"
       }
     ]
@@ -2765,7 +2765,7 @@
     ]
   },
   "ebb5e89e8a94e9dd22abf5d915d112b2": {
-    "timestamp": 1773023170.7923927,
+    "timestamp": 1773776079.7521935,
     "results": [
       {
         "title": "Информация о тест",
@@ -2774,7 +2774,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773023169.922033,
+        "timestamp": 1773776078.9683833,
         "query": "тест"
       },
       {
@@ -2784,7 +2784,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773023169.9220405,
+        "timestamp": 1773776078.9683907,
         "query": "тест"
       },
       {
@@ -2794,17 +2794,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773023169.9231327,
-        "query": "тест"
-      },
-      {
-        "title": "Информация о тест",
-        "url": "https://example.com/search?q=%D1%82%D0%B5%D1%81%D1%82",
-        "snippet": "Это базовая информация о тест. Для получения актуальных данных рекомендуется использовать веб-поиск.",
-        "source": "local_fallback",
-        "relevance_score": 0.5,
-        "content": null,
-        "timestamp": 1773023169.9231362,
+        "timestamp": 1773776078.9700234,
         "query": "тест"
       }
     ]
@@ -3255,7 +3245,7 @@
     ]
   },
   "d6eba760e1c07f61468a510e573bd7bb": {
-    "timestamp": 1773092896.8912458,
+    "timestamp": 1773766602.9435642,
     "results": [
       {
         "title": "Информация о Тест генерации",
@@ -3264,7 +3254,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773092895.3311145,
+        "timestamp": 1773766602.1738465,
         "query": "Тест генерации"
       },
       {
@@ -3274,7 +3264,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773092895.3311224,
+        "timestamp": 1773766602.1738565,
         "query": "Тест генерации"
       },
       {
@@ -3284,7 +3274,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773092895.3324916,
+        "timestamp": 1773766602.1765864,
         "query": "Тест генерации"
       }
     ]
@@ -3356,6 +3346,356 @@
         "content": null,
         "timestamp": 1773537389.6285684,
         "query": "Привет! Как работает локальная модель ruGPT-3 Large?"
+      }
+    ]
+  },
+  "16497fa0c8e13ce8fab874d959db91b9": {
+    "timestamp": 1773805820.954898,
+    "results": [
+      {
+        "title": "Информация о Тест",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82",
+        "snippet": "Это базовая информация о Тест. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773805820.9486115,
+        "query": "Тест"
+      },
+      {
+        "title": "Информация о Тест",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82",
+        "snippet": "Это базовая информация о Тест. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773805820.9486206,
+        "query": "Тест"
+      },
+      {
+        "title": "Информация о Тест",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82",
+        "snippet": "Это базовая информация о Тест. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773805820.9480402,
+        "query": "Тест"
+      }
+    ]
+  },
+  "7637b5c63bc4f42483f69b3761cc86df": {
+    "timestamp": 1773720652.063383,
+    "results": [
+      {
+        "title": "Информация о Привет! Кто ты?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D1%82%D0%BE%20%D1%82%D1%8B%3F",
+        "snippet": "Это базовая информация о Привет! Кто ты?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773720651.34043,
+        "query": "Привет! Кто ты?"
+      },
+      {
+        "title": "Информация о Привет! Кто ты?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D1%82%D0%BE%20%D1%82%D1%8B%3F",
+        "snippet": "Это базовая информация о Привет! Кто ты?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773720651.340437,
+        "query": "Привет! Кто ты?"
+      },
+      {
+        "title": "Информация о Привет! Кто ты?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D1%82%D0%BE%20%D1%82%D1%8B%3F",
+        "snippet": "Это базовая информация о Привет! Кто ты?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773720651.342284,
+        "query": "Привет! Кто ты?"
+      }
+    ]
+  },
+  "02890922271ba8e1d83a535da49d651b": {
+    "timestamp": 1773737525.7973864,
+    "results": [
+      {
+        "title": "Информация о расскажи о себе исвоих возможностях",
+        "url": "https://example.com/search?q=%D1%80%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5%20%D0%B8%D1%81%D0%B2%D0%BE%D0%B8%D1%85%20%D0%B2%D0%BE%D0%B7%D0%BC%D0%BE%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8F%D1%85",
+        "snippet": "Это базовая информация о расскажи о себе исвоих возможностях. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773737525.0322618,
+        "query": "расскажи о себе исвоих возможностях"
+      },
+      {
+        "title": "Информация о расскажи о себе исвоих возможностях",
+        "url": "https://example.com/search?q=%D1%80%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5%20%D0%B8%D1%81%D0%B2%D0%BE%D0%B8%D1%85%20%D0%B2%D0%BE%D0%B7%D0%BC%D0%BE%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8F%D1%85",
+        "snippet": "Это базовая информация о расскажи о себе исвоих возможностях. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773737525.0322716,
+        "query": "расскажи о себе исвоих возможностях"
+      },
+      {
+        "title": "Информация о расскажи о себе исвоих возможностях",
+        "url": "https://example.com/search?q=%D1%80%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5%20%D0%B8%D1%81%D0%B2%D0%BE%D0%B8%D1%85%20%D0%B2%D0%BE%D0%B7%D0%BC%D0%BE%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8F%D1%85",
+        "snippet": "Это базовая информация о расскажи о себе исвоих возможностях. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773737525.033881,
+        "query": "расскажи о себе исвоих возможностях"
+      }
+    ]
+  },
+  "ff4221c812ae81d9042d4399676f2218": {
+    "timestamp": 1773855008.6075485,
+    "results": [
+      {
+        "title": "Информация о Тест генерации текста",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82%20%D0%B3%D0%B5%D0%BD%D0%B5%D1%80%D0%B0%D1%86%D0%B8%D0%B8%20%D1%82%D0%B5%D0%BA%D1%81%D1%82%D0%B0",
+        "snippet": "Это базовая информация о Тест генерации текста. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773855006.9492087,
+        "query": "Тест генерации текста"
+      },
+      {
+        "title": "Информация о Тест генерации текста",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82%20%D0%B3%D0%B5%D0%BD%D0%B5%D1%80%D0%B0%D1%86%D0%B8%D0%B8%20%D1%82%D0%B5%D0%BA%D1%81%D1%82%D0%B0",
+        "snippet": "Это базовая информация о Тест генерации текста. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773855006.9499252,
+        "query": "Тест генерации текста"
+      },
+      {
+        "title": "Информация о Тест генерации текста",
+        "url": "https://example.com/search?q=%D0%A2%D0%B5%D1%81%D1%82%20%D0%B3%D0%B5%D0%BD%D0%B5%D1%80%D0%B0%D1%86%D0%B8%D0%B8%20%D1%82%D0%B5%D0%BA%D1%81%D1%82%D0%B0",
+        "snippet": "Это базовая информация о Тест генерации текста. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773855006.9810352,
+        "query": "Тест генерации текста"
+      }
+    ]
+  },
+  "87c507c7015ae00a65974ff82515b5f2": {
+    "timestamp": 1773768374.03371,
+    "results": [
+      {
+        "title": "Информация о Расскажи о себе",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о себе. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773768373.3707924,
+        "query": "Расскажи о себе"
+      },
+      {
+        "title": "Информация о Расскажи о себе",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о себе. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773768373.3707964,
+        "query": "Расскажи о себе"
+      },
+      {
+        "title": "Информация о Расскажи о себе",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D1%81%D0%B5%D0%B1%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о себе. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773768373.3720462,
+        "query": "Расскажи о себе"
+      }
+    ]
+  },
+  "46c39e800b3823588f04f5036e9158a5": {
+    "timestamp": 1773769775.4609425,
+    "results": [
+      {
+        "title": "Информация о ты меня понимаешь?",
+        "url": "https://example.com/search?q=%D1%82%D1%8B%20%D0%BC%D0%B5%D0%BD%D1%8F%20%D0%BF%D0%BE%D0%BD%D0%B8%D0%BC%D0%B0%D0%B5%D1%88%D1%8C%3F",
+        "snippet": "Это базовая информация о ты меня понимаешь?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773769773.2665896,
+        "query": "ты меня понимаешь?"
+      },
+      {
+        "title": "Информация о ты меня понимаешь?",
+        "url": "https://example.com/search?q=%D1%82%D1%8B%20%D0%BC%D0%B5%D0%BD%D1%8F%20%D0%BF%D0%BE%D0%BD%D0%B8%D0%BC%D0%B0%D0%B5%D1%88%D1%8C%3F",
+        "snippet": "Это базовая информация о ты меня понимаешь?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773769773.266597,
+        "query": "ты меня понимаешь?"
+      },
+      {
+        "title": "Информация о ты меня понимаешь?",
+        "url": "https://example.com/search?q=%D1%82%D1%8B%20%D0%BC%D0%B5%D0%BD%D1%8F%20%D0%BF%D0%BE%D0%BD%D0%B8%D0%BC%D0%B0%D0%B5%D1%88%D1%8C%3F",
+        "snippet": "Это базовая информация о ты меня понимаешь?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773769773.2675223,
+        "query": "ты меня понимаешь?"
+      }
+    ]
+  },
+  "b50fc8d2202f08940c8b1fdfe6352529": {
+    "timestamp": 1773776326.5285366,
+    "results": [
+      {
+        "title": "Информация о Расскажи подробнее о важность.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о важность.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776325.7325184,
+        "query": "Расскажи подробнее о важность."
+      },
+      {
+        "title": "Информация о Расскажи подробнее о важность.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о важность.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776325.7325263,
+        "query": "Расскажи подробнее о важность."
+      },
+      {
+        "title": "Информация о Расскажи подробнее о важность.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%B2%D0%B0%D0%B6%D0%BD%D0%BE%D1%81%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о важность.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776325.7398472,
+        "query": "Расскажи подробнее о важность."
+      }
+    ]
+  },
+  "0545ee9925c91b6a18ef03a18f583a74": {
+    "timestamp": 1773776348.9478545,
+    "results": [
+      {
+        "title": "Информация о Расскажи подробнее о написать.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%BD%D0%B0%D0%BF%D0%B8%D1%81%D0%B0%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о написать.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776348.1842494,
+        "query": "Расскажи подробнее о написать."
+      },
+      {
+        "title": "Информация о Расскажи подробнее о написать.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%BD%D0%B0%D0%BF%D0%B8%D1%81%D0%B0%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о написать.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776348.184257,
+        "query": "Расскажи подробнее о написать."
+      },
+      {
+        "title": "Информация о Расскажи подробнее о написать.",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BF%D0%BE%D0%B4%D1%80%D0%BE%D0%B1%D0%BD%D0%B5%D0%B5%20%D0%BE%20%D0%BD%D0%B0%D0%BF%D0%B8%D1%81%D0%B0%D1%82%D1%8C.",
+        "snippet": "Это базовая информация о Расскажи подробнее о написать.. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776348.1849096,
+        "query": "Расскажи подробнее о написать."
+      }
+    ]
+  },
+  "7a93ab58141ffb0235a85da260b494c1": {
+    "timestamp": 1773776371.3790145,
+    "results": [
+      {
+        "title": "Информация о Какие еще детали стоит учесть?",
+        "url": "https://example.com/search?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%B5%D1%89%D0%B5%20%D0%B4%D0%B5%D1%82%D0%B0%D0%BB%D0%B8%20%D1%81%D1%82%D0%BE%D0%B8%D1%82%20%D1%83%D1%87%D0%B5%D1%81%D1%82%D1%8C%3F",
+        "snippet": "Это базовая информация о Какие еще детали стоит учесть?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776370.608757,
+        "query": "Какие еще детали стоит учесть?"
+      },
+      {
+        "title": "Информация о Какие еще детали стоит учесть?",
+        "url": "https://example.com/search?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%B5%D1%89%D0%B5%20%D0%B4%D0%B5%D1%82%D0%B0%D0%BB%D0%B8%20%D1%81%D1%82%D0%BE%D0%B8%D1%82%20%D1%83%D1%87%D0%B5%D1%81%D1%82%D1%8C%3F",
+        "snippet": "Это базовая информация о Какие еще детали стоит учесть?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776370.6087651,
+        "query": "Какие еще детали стоит учесть?"
+      },
+      {
+        "title": "Информация о Какие еще детали стоит учесть?",
+        "url": "https://example.com/search?q=%D0%9A%D0%B0%D0%BA%D0%B8%D0%B5%20%D0%B5%D1%89%D0%B5%20%D0%B4%D0%B5%D1%82%D0%B0%D0%BB%D0%B8%20%D1%81%D1%82%D0%BE%D0%B8%D1%82%20%D1%83%D1%87%D0%B5%D1%81%D1%82%D1%8C%3F",
+        "snippet": "Это базовая информация о Какие еще детали стоит учесть?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773776370.613,
+        "query": "Какие еще детали стоит учесть?"
+      }
+    ]
+  },
+  "5ed39df316481a2a5a8447abe0dff79e": {
+    "timestamp": 1773779674.4615035,
+    "results": [
+      {
+        "title": "Информация о Расскажи о погоде",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D0%BF%D0%BE%D0%B3%D0%BE%D0%B4%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о погоде. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773779673.6200628,
+        "query": "Расскажи о погоде"
+      },
+      {
+        "title": "Информация о Расскажи о погоде",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D0%BF%D0%BE%D0%B3%D0%BE%D0%B4%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о погоде. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773779673.6200747,
+        "query": "Расскажи о погоде"
+      },
+      {
+        "title": "Информация о Расскажи о погоде",
+        "url": "https://example.com/search?q=%D0%A0%D0%B0%D1%81%D1%81%D0%BA%D0%B0%D0%B6%D0%B8%20%D0%BE%20%D0%BF%D0%BE%D0%B3%D0%BE%D0%B4%D0%B5",
+        "snippet": "Это базовая информация о Расскажи о погоде. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773779673.6308942,
+        "query": "Расскажи о погоде"
       }
     ]
   }

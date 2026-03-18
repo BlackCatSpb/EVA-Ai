@@ -3504,3 +3504,145 @@ RuntimeError: boom
 2026-03-17 01:02:38,606 [INFO] BackgroundCoordinator stopped
 2026-03-17 01:02:39,013 [INFO] BackgroundCoordinator stopped
 2026-03-17 01:02:39,015 [INFO] BackgroundCoordinator stopped
+2026-03-17 01:34:31,530 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 01:34:31,536 [INFO] BackgroundCoordinator started
+2026-03-17 01:37:24,159 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 01:37:24,175 [INFO] BackgroundCoordinator started
+2026-03-17 01:44:30,350 [INFO] BackgroundCoordinator stopped
+2026-03-17 01:44:30,350 [INFO] BackgroundCoordinator stopped
+2026-03-17 01:44:31,449 [INFO] BackgroundCoordinator stopped
+2026-03-17 01:44:31,449 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:06:17,303 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 06:06:17,322 [INFO] BackgroundCoordinator started
+2026-03-17 06:22:05,112 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 06:22:05,120 [INFO] BackgroundCoordinator started
+2026-03-17 06:22:35,133 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:22:35,136 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:22:36,339 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:22:36,340 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:30:05,007 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 06:30:05,028 [INFO] BackgroundCoordinator started
+2026-03-17 06:31:41,067 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:31:41,069 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:31:42,711 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:31:42,712 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:40:46,280 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 06:40:46,287 [INFO] BackgroundCoordinator started
+2026-03-17 06:41:16,298 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:41:16,301 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:41:17,490 [INFO] BackgroundCoordinator stopped
+2026-03-17 06:41:17,490 [INFO] BackgroundCoordinator stopped
+2026-03-17 07:10:25,549 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 07:10:25,556 [INFO] BackgroundCoordinator started
+2026-03-17 07:12:10,657 [INFO] BackgroundCoordinator stopped
+2026-03-17 07:12:10,660 [INFO] BackgroundCoordinator stopped
+2026-03-17 07:12:11,745 [INFO] BackgroundCoordinator stopped
+2026-03-17 07:12:11,746 [INFO] BackgroundCoordinator stopped
+2026-03-17 09:48:24,255 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 09:48:24,262 [INFO] BackgroundCoordinator started
+2026-03-17 10:15:49,015 [INFO] BackgroundCoordinator stopped
+2026-03-17 10:15:49,022 [INFO] BackgroundCoordinator stopped
+2026-03-17 10:15:50,752 [INFO] BackgroundCoordinator stopped
+2026-03-17 10:15:50,753 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:12:36,943 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 11:12:36,951 [INFO] BackgroundCoordinator started
+2026-03-17 11:16:37,053 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:16:37,055 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:16:38,565 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:16:38,565 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:49:48,232 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 11:49:48,455 [INFO] BackgroundCoordinator started
+2026-03-17 11:56:12,621 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:56:12,623 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:56:14,333 [INFO] BackgroundCoordinator stopped
+2026-03-17 11:56:14,334 [INFO] BackgroundCoordinator stopped
+2026-03-17 12:04:28,251 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 12:04:28,259 [INFO] BackgroundCoordinator started
+2026-03-17 19:55:10,425 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 19:55:10,457 [INFO] BackgroundCoordinator started
+2026-03-17 20:24:58,807 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 20:24:58,814 [INFO] BackgroundCoordinator started
+2026-03-17 20:48:37,693 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 20:48:37,701 [INFO] BackgroundCoordinator started
+2026-03-17 20:50:04,785 [INFO] BackgroundCoordinator stopped
+2026-03-17 20:50:04,787 [INFO] BackgroundCoordinator stopped
+2026-03-17 20:50:06,738 [INFO] BackgroundCoordinator stopped
+2026-03-17 20:50:06,739 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:34:12,057 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 21:34:12,065 [INFO] BackgroundCoordinator started
+2026-03-17 21:35:12,086 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:35:12,088 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:35:13,530 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:35:13,531 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:40:13,887 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 21:40:13,895 [INFO] BackgroundCoordinator started
+2026-03-17 21:40:37,910 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:40:37,912 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:40:39,060 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:40:39,060 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:46:46,381 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 21:46:46,387 [INFO] BackgroundCoordinator started
+2026-03-17 21:47:47,132 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:47:47,134 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:47:48,855 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:47:48,856 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:53:46,563 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 21:53:46,569 [INFO] BackgroundCoordinator started
+2026-03-17 21:55:21,671 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:55:21,674 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:55:22,170 [INFO] BackgroundCoordinator stopped
+2026-03-17 21:55:22,171 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:01:46,727 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 22:01:46,735 [INFO] BackgroundCoordinator started
+2026-03-17 22:04:16,963 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:04:16,967 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:04:18,128 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:04:18,129 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:16:52,421 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 22:16:52,430 [INFO] BackgroundCoordinator started
+2026-03-17 22:46:42,482 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:46:42,489 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:46:43,545 [INFO] BackgroundCoordinator stopped
+2026-03-17 22:46:43,546 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:18:36,990 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 23:18:37,000 [INFO] BackgroundCoordinator started
+2026-03-17 23:18:55,007 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:18:55,008 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:18:56,150 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:18:56,151 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:25:35,220 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-17 23:25:35,230 [INFO] BackgroundCoordinator started
+2026-03-17 23:42:05,118 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:42:05,121 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:42:06,462 [INFO] BackgroundCoordinator stopped
+2026-03-17 23:42:06,463 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:27:16,263 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-18 06:27:16,270 [INFO] BackgroundCoordinator started
+2026-03-18 06:27:46,762 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:27:46,765 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:27:48,542 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:27:48,542 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:30:54,608 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-18 06:30:54,618 [INFO] BackgroundCoordinator started
+2026-03-18 06:31:09,628 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:31:09,630 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:31:11,102 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:31:11,102 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:34:27,506 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-18 06:34:27,530 [INFO] BackgroundCoordinator started
+2026-03-18 06:34:36,533 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:34:36,534 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:34:37,605 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:34:37,606 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:46:50,852 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-18 06:46:50,862 [INFO] BackgroundCoordinator started
+2026-03-18 06:52:03,900 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:52:03,904 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:52:06,017 [INFO] BackgroundCoordinator stopped
+2026-03-18 06:52:06,022 [INFO] BackgroundCoordinator stopped
+2026-03-18 19:29:23,658 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-18 19:29:24,545 [INFO] BackgroundCoordinator started
+2026-03-18 20:40:40,072 [INFO] BackgroundCoordinator stopped
+2026-03-18 20:40:40,741 [INFO] BackgroundCoordinator stopped
+2026-03-18 20:40:54,331 [INFO] BackgroundCoordinator stopped
+2026-03-18 20:40:54,357 [INFO] BackgroundCoordinator stopped
