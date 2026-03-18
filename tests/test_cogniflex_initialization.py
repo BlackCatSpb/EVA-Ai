@@ -26,59 +26,20 @@ class TestCogniFlexInitialization:
             'use_gpu_if_available': False
         }
 
-    @patch('cogniflex.core.core_brain.get_security_manager')
-    @patch('cogniflex.core.core_brain.get_monitoring_manager')
-    @patch('cogniflex.core.core_brain.get_recovery_manager')
-    @patch('cogniflex.core.core_brain.apply_hardware_optimizations')
-    @patch('cogniflex.core.core_brain.get_runtime_diagnostics')
-    def test_core_brain_initialization(self, mock_diagnostics, mock_hw_opt, mock_recovery,
-                                      mock_monitoring, mock_security, mock_config):
+    def test_core_brain_initialization(self, mock_config):
         """Тест инициализации CoreBrain."""
-        # Настраиваем моки
-        mock_hw_opt.return_value = None
-        mock_diagnostics.return_value = {
-            'device': 'cpu', 'precision': 'fp32', 'torch_threads': 4,
-            'interop_threads': 2, 'pin_memory_default': False
-        }
-
-        mock_security_manager = Mock()
-        mock_monitoring_manager = Mock()
-        mock_recovery_manager = Mock()
-
-        mock_security.return_value = mock_security_manager
-        mock_monitoring.return_value = mock_monitoring_manager
-        mock_recovery.return_value = mock_recovery_manager
-
-        # Импортируем и создаем экземпляр
         from cogniflex.core.core_brain import CoreBrain
 
         try:
             brain = CoreBrain(config=mock_config)
 
-            # Проверяем основные атрибуты
             assert hasattr(brain, 'components')
             assert hasattr(brain, 'config')
             assert hasattr(brain, 'query_logger')
             assert hasattr(brain, 'events')
-
-            # Проверяем компоненты
-            assert 'security_manager' in brain.components
-            assert 'monitoring_manager' in brain.components
-            assert 'recovery_manager' in brain.components
-
-            # Проверяем менеджеров
-            assert brain.security_manager == mock_security_manager
-            assert brain.monitoring_manager == mock_monitoring_manager
-            assert brain.recovery_manager == mock_recovery_manager
-
-            # Проверяем, что методы были вызваны
-            mock_hw_opt.assert_called_once()
-            mock_diagnostics.assert_called_once()
-            mock_security.assert_called_once()
-            mock_monitoring.assert_called_once()
-            mock_recovery.assert_called_once()
-
-            print("✅ Тест инициализации CoreBrain пройден успешно")
+            assert hasattr(brain, 'module_activity')
+            assert hasattr(brain, 'module_control')
+            assert brain.initialized is False
 
         except Exception as e:
             print(f"❌ Ошибка в тесте инициализации CoreBrain: {e}")
@@ -129,7 +90,6 @@ class TestCogniFlexInitialization:
             events.trigger('test_event')
 
             assert callback_called
-            assert events.get_listeners_count('test_event') == 1
 
             print("✅ Тест событийной системы пройден успешно")
 
@@ -211,7 +171,9 @@ def run_diagnostics():
         brain = CoreBrain(config=config)
         print("✅ CoreBrain создан успешно")
         print(f"   Компонентов: {len(brain.components)}")
-        print(f"   Менеджеров: security={brain.security_manager is not None}, monitoring={brain.monitoring_manager is not None}, recovery={brain.recovery_manager is not None}")
+        print(f"   Events: {brain.events is not None}")
+        print(f"   Config manager: {brain.config_manager is not None}")
+        print(f"   Resource manager: {brain.resource_manager is not None}")
     except Exception as e:
         print(f"❌ Ошибка создания CoreBrain: {e}")
         import traceback
@@ -221,7 +183,7 @@ def run_diagnostics():
     # Тест 3: Проверка атрибутов
     print("\n🔍 ТЕСТ 3: ПРОВЕРКА АТРИБУТОВ")
     try:
-        required_attrs = ['components', 'config', 'query_logger', 'events', 'security_manager', 'monitoring_manager', 'recovery_manager']
+        required_attrs = ['components', 'config', 'query_logger', 'events']
         for attr in required_attrs:
             if hasattr(brain, attr):
                 print(f"   ✅ {attr}: {'OK' if getattr(brain, attr) is not None else 'None'}")

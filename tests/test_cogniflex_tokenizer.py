@@ -1,5 +1,6 @@
 import os
 import pytest
+import pytest_asyncio
 
 from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer, TokenizationConfig
 
@@ -12,11 +13,12 @@ def is_offline_env() -> bool:
     os.environ.get("COGNIFLEX_LOCAL_MODEL_DIR") is None,
     reason="COGNIFLEX_LOCAL_MODEL_DIR не задан, пропуск локального офлайн-теста",
 )
-def test_tokenizer_offline_local_load():
+@pytest.mark.asyncio
+async def test_tokenizer_offline_local_load():
     local_dir = os.environ["COGNIFLEX_LOCAL_MODEL_DIR"]
     assert os.path.isdir(local_dir), "Локальный каталог модели не существует"
 
-    tok = CogniFlexTokenizer.from_pretrained(local_dir, local_files_only=True, use_fast=True)
+    tok = await CogniFlexTokenizer.from_pretrained(local_dir, local_files_only=True, use_fast=True)
 
     assert tok is not None
     assert getattr(tok, "tokenizer", None) is not None
@@ -38,11 +40,11 @@ def test_tokenizer_offline_local_load():
     is_offline_env(),
     reason="Офлайн-режим активирован (HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE)",
 )
-def test_tokenizer_online_rugpt3_load():
-    # По умолчанию проверяем ruGPT3 Large; можно переопределить через переменную окружения
+@pytest.mark.asyncio
+async def test_tokenizer_online_rugpt3_load():
     model_id = os.environ.get("COGNIFLEX_TEST_MODEL", "sberbank-ai/rugpt3large_based_on_gpt2")
 
-    tok = CogniFlexTokenizer.from_pretrained(model_id, local_files_only=False, use_fast=True)
+    tok = await CogniFlexTokenizer.from_pretrained(model_id, local_files_only=False, use_fast=True)
 
     assert tok is not None
     assert getattr(tok, "tokenizer", None) is not None
@@ -58,7 +60,6 @@ def test_tokenizer_online_rugpt3_load():
     assert isinstance(decoded, str)
     assert len(decoded) > 0
 
-    # Проверка спец-токенов: pad должен быть установлен (часто pad=eos для GPT2-совместимых)
     inner = tok.tokenizer
     pad = getattr(inner, "pad_token", None)
     eos = getattr(inner, "eos_token", None)
