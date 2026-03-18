@@ -502,6 +502,9 @@ class CoreBrain:
                     if self.fractal_model_manager.model_path:
                         # Проверяем существование директории модели
                         model_dir = self.fractal_model_manager.model_path
+                        # Конвертируем в абсолютный путь если относительный
+                        if not os.path.isabs(model_dir):
+                            model_dir = os.path.abspath(model_dir)
                         model_exists = os.path.exists(model_dir)
                         self.query_logger.info(f"  Директория модели существует: {model_exists}")
                         
