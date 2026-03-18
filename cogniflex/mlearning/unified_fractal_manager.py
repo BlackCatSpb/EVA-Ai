@@ -5,6 +5,8 @@ import os
 import logging
 from typing import Optional, Dict, Any, List
 
+from .fractal_model_manager import FractalModelManager
+
 logger = logging.getLogger("cogniflex.unified_manager")
 
 class UnifiedFractalManager:
@@ -40,8 +42,8 @@ class UnifiedFractalManager:
                         logger.info("Используется OptimizedFractalModelManager")
                     else:
                         self.manager = FractalModelManager(config_path=self.config_path)
-                        self.is_optimized = False
-                        logger.info("Используется FractalModelManager")
+                    self.is_optimized = False
+                    logger.info("Используется FractalModelManager")
                     
                     # Инициализируем улучшенную систему обучения без конфликтов
                     try:
@@ -65,8 +67,6 @@ class UnifiedFractalManager:
             
             # Fallback на стандартный менеджер
             else:
-                from .fractal_model_manager import FractalModelManager
-                
                 self.manager = FractalModelManager(model_path=self.model_path, config_path=self.config_path)
                 self.is_optimized = False
                 logger.info("Используется стандартный FractalModelManager")
@@ -79,10 +79,7 @@ class UnifiedFractalManager:
                 except Exception as e:
                     logger.warning(f"Не удалось инициализировать ComprehensiveLearningSystem: {e}")
                     self.learning_system = None
-        
-            
-            logger.info("Используется стандартный FractalModelManager")
-            
+
         except Exception as e:
             logger.error(f"Критическая ошибка при выборе менеджера: {e}")
             raise
@@ -190,5 +187,5 @@ class UnifiedFractalManager:
     
     def __del__(self):
         """Очистка"""
-        if hasattr(self.manager, '__del__'):
+        if hasattr(self.manager, '__del__') and callable(getattr(self.manager, '__del__')):
             self.manager.__del__()

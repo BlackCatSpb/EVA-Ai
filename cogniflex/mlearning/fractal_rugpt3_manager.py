@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # Русскоязычные модели для локального использования
 RUSSIAN_MODELS = {
     # Модели от Сбера (ruGPT-3)
-    "rugpt3large": {
+    "rugpt3medium": {
         "name": "sberbank-ai/rugpt3large_based_on_gpt2",
         "size_mb": 1500,
         "description": "ruGPT-3 Medium (355M параметров)",
@@ -165,17 +165,14 @@ class FractalRuGPT3Manager:
     def _load_from_fractal_storage(self):
         """Загрузка модели из фрактального хранилища"""
         try:
-            # Используем локальный загрузчик
             from .local_rugpt3_loader import load_rugpt3_medium_local
             
             logger.info(f"Загрузка модели {self.model_name} из фрактального хранилища...")
             
-            # Определяем устройство
             device = "auto"
             if hasattr(self, 'device') and self.device:
                 device = self.device
             
-            # Загружаем модель и токенизатор
             self.model, self.tokenizer = load_rugpt3_medium_local(
                 storage_path=self.storage_path,
                 device=device
@@ -192,76 +189,17 @@ class FractalRuGPT3Manager:
         except Exception as e:
             logger.error(f"Ошибка загрузки из фрактального хранилища: {e}")
             return False
-        """Анализирует структуру модели для фрактального хранения"""
-        logger.info("🔍 Анализ структуры модели...")
-        
-        analysis = {
-            "model_type": type(model).__name__,
-            "total_parameters": sum(p.numel() for p in model.parameters()),
-            "layers": {},
-            "embedding_analysis": {},
-        }
-        
-        try:
-            # Анализ слоев
-            for name, module in model.named_modules():
-                if hasattr(module, 'weight') and module.weight is not None:
-                    layer_info = {
-                        "type": type(module).__name__,
-                        "parameters": module.weight.numel(),
-                        "shape": list(module.weight.shape),
-                        "requires_grad": module.weight.requires_grad,
-                        "device": str(module.weight.device)
-                    }
-                    
-                    # Специфический анализ для разных типов слоев
-                    if hasattr(module, 'bias') and module.bias is not None:
-                        layer_info["bias_shape"] = list(module.bias.shape)
-                    
-                    if hasattr(module, 'num_embeddings'):
-                        layer_info["vocab_size"] = module.num_embeddings
-                    
-                    analysis["layers"][name] = layer_info
-            
-            # Анализ эмбеддингов
-            if hasattr(model, 'transformer') and hasattr(model.transformer, 'wte'):
-                wte = model.transformer.wte
-                analysis["embedding_analysis"] = {
-                    "vocab_size": wte.num_embeddings,
-                    "embedding_dim": wte.embedding_dim,
-                    "embedding_shape": list(wte.weight.shape),
-                    "embedding_dtype": str(wte.weight.dtype)
-                }
-            elif hasattr(model, 'embeddings'):
-                embeddings = model.embeddings
-                analysis["embedding_analysis"] = {
-                    "vocab_size": embeddings.num_embeddings,
-                    "embedding_dim": embeddings.embedding_dim,
-                    "embedding_shape": list(embeddings.weight.shape),
-                    "embedding_dtype": str(embeddings.weight.dtype)
-                }
-            
-            logger.info(f"✅ Анализ завершен. Модель: {analysis['model_type']}, параметров: {analysis['total_parameters']:,}")
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка анализа структуры модели: {e}")
-            analysis["error"] = str(e)
-        
-        return analysis
-    
+
     def _load_and_save_model(self):
         """Загрузка модели и сохранение во фрактальное хранилище"""
         try:
             model_info = RUSSIAN_MODELS.get(self.model_name, RUSSIAN_MODELS["rugpt3large"])
             
             if model_info.get("type") == "fractal":
-                # Используем фрактальную модель
                 self._load_fractal_model()
             else:
-                # Загружаем стандартную модель
                 logger.info(f"Загружаем модель {model_info['name']}...")
                 
-                # Отключаем переменные окружения для стабильной загрузки
                 os.environ.pop('HF_HUB_ENABLE_HF_TRANSFER', None)
                 
                 self.tokenizer = AutoTokenizer.from_pretrained(
@@ -280,11 +218,9 @@ class FractalRuGPT3Manager:
                     low_cpu_mem_usage=True
                 )
                 
-                # Сохраняем во фрактальное хранилище
                 logger.info("Сохраняем модель во фрактальное хранилище...")
                 self.model_loader.save_model(self.model_name, self.model)
                 
-                # Сохраняем токенизатор
                 tokenizer_path = os.path.join(self.storage_path, "tokenizers", self.model_name)
                 os.makedirs(tokenizer_path, exist_ok=True)
                 self.tokenizer.save_pretrained(tokenizer_path)
@@ -294,6 +230,7 @@ class FractalRuGPT3Manager:
         except Exception as e:
             logger.error(f"Ошибка загрузки и сохранения: {e}")
             raise
+
     
     def _load_fractal_model(self):
         """Загрузка локальной фрактальной модели"""
@@ -308,7 +245,7 @@ class FractalRuGPT3Manager:
                 self.tokenizer = AutoTokenizer.from_pretrained(fractal_tokenizer_path)
                 
                 # Создаем простую модель на основе GPT-2 с фрактальными весами
-                self.model = sberbank-ai/rugpt3large_based_on_gpt2LMHeadModel.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
+                self.model = GPT2LMHeadModel.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
                 
                 # Применяем фрактальные веса если есть
                 fractal_weights_path = os.path.join(self.storage_path, "fractal_weights")
@@ -319,7 +256,7 @@ class FractalRuGPT3Manager:
                 # Fallback на GPT-2
                 logger.warning("Фрактальный токенизатор не найден, используем GPT-2")
                 self.tokenizer = AutoTokenizer.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
-                self.model = sberbank-ai/rugpt3large_based_on_gpt2LMHeadModel.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
+                self.model = GPT2LMHeadModel.from_pretrained("sberbank-ai/rugpt3large_based_on_gpt2")
             
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token

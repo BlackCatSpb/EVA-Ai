@@ -68,6 +68,9 @@ class EnhancedLearningIntegration:
             "last_update": time.time()
         }
         
+        # Для корректного расчета uptime
+        self._uptime_start = time.time()
+        
         # Фоновые процессы
         self.background_executor = ThreadPoolExecutor(max_workers=2)
         self.monitoring_thread = None
@@ -406,23 +409,8 @@ class EnhancedLearningIntegration:
                 result["enhanced_system_info"] = {
                     "active_session": self.active_session,
                     "total_sessions": self.system_stats["total_sessions"],
-                    "system_uptime": time.time() - self.system_stats["system_uptime"],
+                    "system_uptime": time.time() - self._uptime_start,
                     "enhanced_learning": True
-                }
-                
-                return result
-            else:
-                # Fallback на обычную генерацию
-                response = self.fractal_model_manager.generate_response(query, max_tokens)
-                return {
-                    "status": "completed",
-                    "response": response,
-                    "web_search_used": False,
-                    "enhanced_system_info": {
-                        "active_session": self.active_session,
-                        "total_sessions": self.system_stats["total_sessions"],
-                        "enhanced_learning": True
-                    }
                 }
                 
         except Exception as e:
@@ -438,7 +426,7 @@ class EnhancedLearningIntegration:
         
         status = {
             "enhanced_system": {
-                "uptime": time.time() - self.system_stats["system_uptime"],
+                "uptime": time.time() - self._uptime_start,
                 "last_update": self.system_stats["last_update"],
                 "active_session": self.active_session,
                 "web_search_available": self.web_search_integration is not None,
@@ -528,7 +516,6 @@ class EnhancedLearningIntegration:
         """Обновляет статистику системы"""
         
         try:
-            self.system_stats["system_uptime"] = time.time() - self.system_stats["system_uptime"]
             self.system_stats["last_update"] = time.time()
             
         except Exception as e:
