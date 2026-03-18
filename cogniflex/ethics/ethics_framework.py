@@ -326,13 +326,13 @@ class EthicsFramework:
         """Проверяет разрешенные нарушения."""
         try:
             current_time = time.time()
-            for violation_id, violation in list(self.violations.items()):
-                # Автоматически разрешаем нарушения старше 7 дней
-                if current_time - violation.get('timestamp', 0) > 7 * 24 * 3600:
-                    if not violation.get('resolved', False):
-                        violation['resolved'] = True
-                        violation['resolution_timestamp'] = current_time
-                        logger.info(f"Автоматически разрешено старое нарушение: {violation_id}")
+            for violation in list(self.violations):
+                if not isinstance(violation, EthicalDecision):
+                    continue
+                if not violation.resolved and (current_time - violation.timestamp) > 7 * 24 * 3600:
+                    violation.resolved = True
+                    violation.resolution_timestamp = current_time
+                    logger.info(f"Автоматически разрешено старое нарушение: {violation.violation_id}")
         except Exception as e:
             logger.error(f"Ошибка проверки разрешенных нарушений: {e}")
     
@@ -369,7 +369,22 @@ class EthicsFramework:
             if os.path.exists(violations_file):
                 with open(violations_file, 'r', encoding='utf-8') as f:
                     loaded_violations = json.load(f)
-                    self.violations.update(loaded_violations)
+                    for vdata in loaded_violations:
+                        try:
+                            self.violations.append(EthicalDecision(
+                                approved=vdata.get("approved", False),
+                                principle=vdata.get("principle", "unknown"),
+                                severity=vdata.get("severity", 0.0),
+                                description=vdata.get("description", ""),
+                                context=vdata.get("context", {}),
+                                timestamp=vdata.get("timestamp", time.time()),
+                                resolved=vdata.get("resolved", False),
+                                resolution=vdata.get("resolution"),
+                                resolution_timestamp=vdata.get("resolution_timestamp"),
+                                source=vdata.get("source", "system")
+                            ))
+                        except Exception:
+                            pass
                     logger.debug(f"Загружено {len(loaded_violations)} нарушений")
             
             # Загружаем статистику
@@ -884,6 +899,33 @@ class EthicsFramework:
                 json.dump(violations_data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения нарушений: {e}", exc_info=True)
+
+    def _save_principles(self):
+        """Сохраняет принципы в файл."""
+        try:
+            principles_data = {}
+            for name, principle in self.principles.items():
+                principles_data[name] = {
+                    "name": principle.name,
+                    "description": principle.description,
+                    "weight": principle.weight,
+                    "threshold": principle.threshold,
+                    "category": principle.category,
+                    "priority": principle.priority
+                }
+            
+            with open(self.principles_file, 'w', encoding='utf-8') as f:
+                json.dump(principles_data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения принципов: {e}", exc_info=True)
+
+    def _save_stats(self):
+        """Сохраняет статистику в файл."""
+        try:
+            with open(self.stats_file, 'w', encoding='utf-8') as f:
+                json.dump(self.stats, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"Ошибка сохранения статистики: {e}", exc_info=True)
 
     def get_ethics_statistics(self) -> Dict[str, Any]:
         """Возвращает статистику этической рамки."""

@@ -722,31 +722,6 @@ class KnowledgeGraph:
             if node.last_updated != node.timestamp:
                 self.temporal_index.append((node.last_updated, node.id, "node"))
         
-        for edge in self.edges.values():
-            # Обновляем доменный индекс
-            self.domain_index[node.domain] = [
-                nid for nid in self.domain_index[node.domain] if nid != node.id
-            ]
-            self.domain_index[node.domain].append(node.id)
-            
-            # Обновляем индекс типов
-            self.node_type_index[node.node_type] = [
-                nid for nid in self.node_type_index[node.node_type] if nid != node.id
-            ]
-            self.node_type_index[node.node_type].append(node.id)
-            
-            # Обновляем временной индекс
-            self.temporal_index = [
-                item for item in self.temporal_index 
-                if not (item[1] == node.id and item[2] == "node")
-            ]
-            self.temporal_index.append((node.timestamp, node.id, "node"))
-            if node.last_updated != node.timestamp:
-                self.temporal_index.append((node.last_updated, node.id, "node"))
-            
-            # Сортируем временной индекс с безопасной функцией сортировки
-            self.temporal_index.sort(key=safe_sort_key)
-        
         if edge:
             # Обновляем индекс связей
             self.relation_index[edge.relation_type] = [
@@ -764,6 +739,48 @@ class KnowledgeGraph:
                 self.temporal_index.append((edge.last_updated, edge.id, "edge"))
             
             # Сортируем временной индекс с безопасной функцией сортировки
+            self.temporal_index.sort(key=safe_sort_key)
+
+    @property
+    def graph(self) -> Dict[str, Any]:
+        """Compatibility property - returns nodes as a dict-like structure."""
+        return self.nodes
+
+    def _update_indexes(self, node: Optional["KnowledgeNode"] = None,
+                       edge: Optional["KnowledgeEdge"] = None):
+        """
+        Updates indexes after node/edge changes.
+        
+        Args:
+            node: Node that was added/updated (optional)
+            edge: Edge that was added/updated (optional)
+        """
+        if node is not None:
+            self.domain_index[node.domain].append(node.id)
+            self.node_type_index[node.node_type].append(node.id)
+            if node.temporal_info:
+                self.temporal_index.append((node.timestamp, node.id, "node"))
+            if node.last_updated != node.timestamp:
+                self.temporal_index.append((node.last_updated, node.id, "node"))
+        
+        if edge is not None:
+            self.relation_index[edge.relation_type].append(edge.id)
+            if edge.temporal_info:
+                self.temporal_index.append((edge.timestamp, edge.id, "edge"))
+            if edge.last_updated != edge.timestamp:
+                self.temporal_index.append((edge.last_updated, edge.id, "edge"))
+        
+        if self.temporal_index:
+            def safe_sort_key(item):
+                ts = item[0]
+                if isinstance(ts, (int, float)):
+                    return float(ts)
+                elif isinstance(ts, str):
+                    try:
+                        return float(ts)
+                    except (ValueError, TypeError):
+                        return 0.0
+                return 0.0
             self.temporal_index.sort(key=safe_sort_key)
     
     def _start_background_services(self):
@@ -1791,9 +1808,8 @@ class KnowledgeGraph:
             meta["usage_count"] = int(meta.get("usage_count", 0)) + 1
             node.meta = meta
 
-            # Фиксируем изменение
-            if hasattr(self, "update_node"):
-                self.update_node(node)
+            if hasattr(self, "_update_node_in_db"):
+                self._update_node_in_db(node)
             else:
                 # Если нет прямого метода — сохраняем в БД и в памяти
                 self.nodes[node.id] = node
@@ -2929,7 +2945,11 @@ class KnowledgeGraph:
                     })
             elif item_type == "edge":
                 edge = self.edges.get(item_id)
-                if edge:
+        last_edge = None
+        for edge in self.edges.values():
+            last_edge = edge
+        
+        if last_edge is not None:
                     # Проверяем, относится ли связь к домену через узлы
                     source_node = self.nodes.get(edge.source_id)
                     target_node = self.nodes.get(edge.target_id)
