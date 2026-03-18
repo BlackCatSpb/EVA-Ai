@@ -1,0 +1,966 @@
+"""
+ComponentInitializer - Единый инициализатор компонентов системы CogniFlex
+Версия: 2.0.0
+Поддерживаемые компоненты: 21
+"""
+import os
+import sys
+import logging
+import time
+import threading
+from typing import Dict, Any, List, Set, Optional, Callable, Tuple
+
+logger = logging.getLogger("cogniflex.component_initializer")
+
+
+class ComponentInitializer:
+    """
+    Полный инициализатор компонентов системы CogniFlex.
+    
+    Управляет жизненным циклом всех компонентов системы:
+    - Регистрация фабрик компонентов
+    - Проверка зависимостей
+    - Последовательная инициализация
+    - Установка связей между компонентами
+    - Мониторинг состояния
+    """
+    
+    # Полный список из 21 компонента системы
+    COMPONENT_LIST = [
+        # Системные компоненты (3)
+        'event_bus',
+        'resource_manager', 
+        'config_manager',
+        
+        # Память и кэширование (2)
+        'memory_manager',
+        'hybrid_cache',
+        
+        # Знания и обработка (2)
+        'knowledge_graph',
+        'text_processor',
+        
+        # ML компоненты (2)
+        'ml_unit',
+        'model_manager',
+        
+        # Основная логика (3)
+        'query_processor',
+        'response_generator',
+        'reasoning_engine',
+        
+        # Обучение (3)
+        'training_orchestrator',
+        'learning_manager',
+        'learning_scheduler',
+        
+        # Аналитика (3)
+        'system_monitor',
+        'metrics_collector',
+        'analytics_manager',
+        
+        # Специализированные (5)
+        'contradiction_manager',
+        'ethics_framework',
+        'adaptation_manager',
+        'web_search_engine',
+        'gui',
+    ]
+    
+    def __init__(self, core_brain):
+        """
+        Инициализирует ComponentInitializer.
+        
+        Args:
+            core_brain: Экземпляр CoreBrain для связи с ядром системы
+        """
+        self.core_brain = core_brain
+        self.initialized_components: Set[str] = set()
+        self.failed_components: Set[str] = set()
+        self.component_dependencies: Dict[str, List[str]] = {}
+        self.component_factories: Dict[str, Callable[[], Any]] = {}
+        self.component_instances: Dict[str, Any] = {}
+        self.component_states: Dict[str, Dict[str, Any]] = {}
+        self.logger = logging.getLogger("cogniflex.component_initializer")
+        
+        # Определяем зависимости между компонентами
+        self._define_dependencies()
+        
+        # Регистрируем фабрики компонентов
+        self._register_component_factories()
+        
+        self.logger.info("ComponentInitializer инициализирован")
+    
+    def _define_dependencies(self):
+        """Определяет зависимости между компонентами."""
+        self.component_dependencies = {
+            # Системные компоненты не имеют зависимостей
+            'event_bus': [],
+            'resource_manager': [],
+            'config_manager': [],
+            
+            # Память не зависит от системных
+            'memory_manager': [],
+            'hybrid_cache': ['memory_manager'],
+            
+            # Знания зависят от событий
+            'knowledge_graph': ['event_bus'],
+            'text_processor': ['hybrid_cache'],
+            
+            # ML зависит от памяти и знаний
+            'ml_unit': ['memory_manager', 'knowledge_graph'],
+            'model_manager': ['ml_unit'],
+            
+            # Логика зависит от обработки и ML
+            'query_processor': ['text_processor', 'knowledge_graph'],
+            'response_generator': ['query_processor'],  # Убрали model_manager как обязательную зависимость
+            'reasoning_engine': ['knowledge_graph'],
+            
+            # Обучение зависит от ML
+            'training_orchestrator': ['ml_unit'],  # Убрали model_manager как обязательную зависимость
+            'learning_manager': ['training_orchestrator', 'knowledge_graph'],
+            'learning_scheduler': ['learning_manager'],
+            
+            # Аналитика зависит от мониторинга
+            'analytics_manager': ['system_monitor'],
+            'system_monitor': ['resource_manager'],
+            'metrics_collector': ['system_monitor'],
+            
+            # Специализированные зависят от знаний
+            'contradiction_manager': ['knowledge_graph'],
+            'adaptation_manager': ['analytics_manager'],
+            'ethics_framework': ['knowledge_graph'],
+            'web_search_engine': ['knowledge_graph'],
+            'gui': [],
+        }
+    
+    def _register_component_factories(self):
+        """Регистрирует фабрики для создания всех 21 компонентов."""
+        
+        # ===== СИСТЕМНЫЕ КОМПОНЕНТЫ =====
+        
+        def create_event_bus():
+            try:
+                from cogniflex.core.event_bus import EventBus
+                event_bus = EventBus()
+                self.core_brain.event_bus = event_bus
+                self.logger.info("✅ EventBus создан")
+                return event_bus
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания event_bus: {e}", exc_info=True)
+                return None
+        
+        def create_resource_manager():
+            try:
+                from cogniflex.core.resource_manager import ResourceManager
+                config_manager = getattr(self.core_brain, 'config_manager', None)
+                resource_manager = ResourceManager(config_manager=config_manager)
+                self.core_brain.resource_manager = resource_manager
+                self.logger.info("✅ ResourceManager создан")
+                return resource_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания resource_manager: {e}", exc_info=True)
+                return None
+        
+        def create_config_manager():
+            try:
+                from cogniflex.core.config_manager import ConfigManager
+                config_manager = ConfigManager()
+                self.core_brain.config_manager = config_manager
+                self.logger.info("✅ ConfigManager создан")
+                return config_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания config_manager: {e}", exc_info=True)
+                return None
+        
+        # ===== ПАМЯТЬ И КЭШИРОВАНИЕ =====
+        
+        def create_memory_manager():
+            try:
+                from cogniflex.memory.memory_manager import MemoryManager
+                cache_dir = os.path.join(
+                    getattr(self.core_brain, 'cache_dir', './cache'),
+                    'memory'
+                )
+                os.makedirs(cache_dir, exist_ok=True)
+                memory_manager = MemoryManager(
+                    brain=self.core_brain,
+                    cache_dir=cache_dir
+                )
+                if hasattr(memory_manager, 'initialize'):
+                    memory_manager.initialize()
+                self.memory_manager = memory_manager
+                self.core_brain.memory_manager = memory_manager
+                self.logger.info("✅ MemoryManager создан")
+                return memory_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания memory_manager: {e}", exc_info=True)
+                raise
+        
+        def create_hybrid_cache():
+            try:
+                self.logger.info("Начало создания HybridTokenCache...")
+                self.logger.debug(f"core_brain тип: {type(self.core_brain)}")
+                self.logger.debug(f"core_brain атрибуты: {dir(self.core_brain)}")
+                
+                # Проверяем, есть ли уже кэш в brain
+                existing = getattr(self.core_brain, 'token_cache', None) or getattr(self.core_brain, 'hybrid_cache', None)
+                if existing is not None:
+                    self.logger.info(f"Используем существующий HybridTokenCache: {id(existing)}")
+                    hybrid_cache = existing
+                else:
+                    from cogniflex.memory.hybrid_token_cache import get_shared_cache
+                    self.logger.info("Импортирован get_shared_cache")
+                    hybrid_cache = get_shared_cache(self.core_brain, "default")
+                    self.logger.info(f"Создан/получен синглтон HybridTokenCache: {id(hybrid_cache)}")
+                
+                if hybrid_cache is None:
+                    self.logger.error("HybridTokenCache вернул None!")
+                    return None
+                
+                # Регистрируем в components
+                if not hasattr(self.core_brain, 'components'):
+                    self.core_brain.components = {}
+                self.core_brain.components['hybrid_cache'] = hybrid_cache
+                self.logger.info("Добавлен в brain.components")
+                
+                # Обратная совместимость
+                self.core_brain.token_cache = hybrid_cache
+                self.core_brain.hybrid_cache = hybrid_cache
+                self.logger.info("Установлены обратные ссылки")
+                
+                self.logger.info(f"✅ HybridTokenCache создан: {id(hybrid_cache)}")
+                return hybrid_cache
+                
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания hybrid_cache: {e}", exc_info=True)
+                return None
+        
+        # ===== ЗНАНИЯ И ОБРАБОТКА =====
+        
+        def create_knowledge_graph():
+            try:
+                from cogniflex.knowledge.knowledge_graph_integrated import IntegratedKnowledgeGraph
+                event_bus = getattr(self.core_brain, 'event_bus', None)
+                knowledge_graph = IntegratedKnowledgeGraph(
+                    brain=self.core_brain,
+                    event_bus=event_bus,
+                    name="knowledge_graph"
+                )
+                if hasattr(knowledge_graph, 'initialize'):
+                    knowledge_graph.initialize()
+                self.knowledge_graph = knowledge_graph
+                self.core_brain.knowledge_graph = knowledge_graph
+                self.logger.info("✅ KnowledgeGraph создан")
+                return knowledge_graph
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания knowledge_graph: {e}", exc_info=True)
+                raise
+        
+        def create_text_processor():
+            try:
+                from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+                text_processor = UnifiedTextProcessor(brain=self.core_brain)
+                hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
+                if hybrid_cache:
+                    text_processor.hybrid_cache = hybrid_cache
+                    self.logger.info("   └─ Гибридный кэш подключен")
+                self.core_brain.text_processor = text_processor
+                self.logger.info("✅ TextProcessor создан")
+                return text_processor
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания text_processor: {e}", exc_info=True)
+                return None
+        
+        # ===== ML КОМПОНЕНТЫ =====
+        
+        def create_ml_unit():
+            try:
+                from cogniflex.mlearning.ml_unit import MLUnit
+                cache_dir = os.path.join(
+                    getattr(self.core_brain, 'cache_dir', './cache'),
+                    'ml_unit'
+                )
+                os.makedirs(cache_dir, exist_ok=True)
+                ml_unit = MLUnit(
+                    brain=self.core_brain,
+                    cache_dir=cache_dir,
+                    max_workers=4
+                )
+                if hasattr(ml_unit, 'initialize'):
+                    ml_unit.initialize()
+                hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
+                if hybrid_cache:
+                    ml_unit.hybrid_cache = hybrid_cache
+                    self.logger.info("   └─ Гибридный кэш подключен")
+                self.ml_unit = ml_unit
+                self.core_brain.ml_unit = ml_unit
+                self.logger.info("✅ MLUnit создан")
+                return ml_unit
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания ml_unit: {e}", exc_info=True)
+                raise
+        
+        def create_model_manager():
+            try:
+                self.logger.info("Начало создания ModelManager...")
+                from cogniflex.mlearning.hybrid_model_manager import HybridModelManager
+                
+                self.logger.info("Создание экземпляра HybridModelManager...")
+                model_manager = HybridModelManager(
+                    brain=self.core_brain,
+                    max_vram_gb=0.5,
+                    max_ssd_gb=2.0
+                )
+                
+                self.logger.info("Вызов initialize()...")
+                try:
+                    if not model_manager.initialize():
+                        self.logger.error("❌ Не удалось инициализировать HybridModelManager")
+                        self.logger.warning("⚠️ Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
+                        return None
+                except Exception as init_error:
+                    self.logger.error(f"❌ Исключение при инициализации ModelManager: {init_error}")
+                    self.logger.warning("⚠️ Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
+                    return None
+                    
+                self.model_manager = model_manager
+                self.core_brain.model_manager = model_manager
+                self.logger.info("✅ ModelManager создан")
+                return model_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания model_manager: {e}", exc_info=True)
+                raise
+        
+        # ===== ОСНОВНАЯ ЛОГИКА =====
+        
+        def create_query_processor():
+            try:
+                from cogniflex.core.query_processor import QueryProcessor
+                query_processor = QueryProcessor(brain=self.core_brain)
+                if hasattr(query_processor, 'initialize'):
+                    query_processor.initialize()
+                self.core_brain.query_processor = query_processor
+                self.logger.info("✅ QueryProcessor создан")
+                return query_processor
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания query_processor: {e}", exc_info=True)
+                return None
+        
+        def create_response_generator():
+            try:
+                from cogniflex.core.response_generator import ResponseGenerator
+                response_generator = ResponseGenerator(brain=self.core_brain)
+                if hasattr(response_generator, 'initialize'):
+                    response_generator.initialize()
+                self.core_brain.response_generator = response_generator
+                self.logger.info("✅ ResponseGenerator создан")
+                return response_generator
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания response_generator: {e}", exc_info=True)
+                return None
+        
+        def create_reasoning_engine():
+            try:
+                from cogniflex.core.reasoning_engine import ReasoningEngine
+                reasoning_engine = ReasoningEngine(brain=self.core_brain)
+                if hasattr(reasoning_engine, 'initialize'):
+                    reasoning_engine.initialize()
+                self.core_brain.reasoning_engine = reasoning_engine
+                self.logger.info("✅ ReasoningEngine создан")
+                return reasoning_engine
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания reasoning_engine: {e}", exc_info=True)
+                return None
+        
+        # ===== ОБУЧЕНИЕ =====
+        
+        def create_training_orchestrator():
+            try:
+                from cogniflex.mlearning.training_orchestrator import TrainingOrchestrator
+                training_orchestrator = TrainingOrchestrator(brain=self.core_brain)
+                if hasattr(training_orchestrator, 'initialize'):
+                    training_orchestrator.initialize()
+                self.core_brain.training_orchestrator = training_orchestrator
+                self.logger.info("✅ TrainingOrchestrator создан")
+                return training_orchestrator
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания training_orchestrator: {e}", exc_info=True)
+                return None
+        
+        def create_learning_manager():
+            try:
+                from cogniflex.learning.learning_manager import LearningManager
+                learning_manager = LearningManager(brain=self.core_brain)
+                if hasattr(learning_manager, 'initialize'):
+                    learning_manager.initialize()
+                self.core_brain.learning_manager = learning_manager
+                self.logger.info("✅ LearningManager создан")
+                return learning_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания learning_manager: {e}", exc_info=True)
+                return None
+        
+        def create_learning_scheduler():
+            try:
+                from cogniflex.core.learning_scheduler import LearningScheduler
+                attention_system = getattr(self.core_brain, 'attention_system', None)
+                if attention_system is None:
+                    class DummyAttentionSystem:
+                        def __init__(self):
+                            self.pending_opportunities = []
+                    attention_system = DummyAttentionSystem()
+                learning_scheduler = LearningScheduler(attention_system)
+                if hasattr(learning_scheduler, 'initialize'):
+                    learning_scheduler.initialize()
+                self.core_brain.learning_scheduler = learning_scheduler
+                self.logger.info("✅ LearningScheduler создан")
+                return learning_scheduler
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания learning_scheduler: {e}", exc_info=True)
+                return None
+        
+        # ===== АНАЛИТИКА =====
+        
+        def create_analytics_manager():
+            try:
+                from cogniflex.analytics.analytics_manager import AnalyticsManager
+                analytics_manager = AnalyticsManager(brain=self.core_brain)
+                if hasattr(analytics_manager, 'initialize'):
+                    analytics_manager.initialize()
+                self.core_brain.analytics_manager = analytics_manager
+                self.logger.info("✅ AnalyticsManager создан")
+                return analytics_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания analytics_manager: {e}", exc_info=True)
+                return None
+        
+        def create_system_monitor():
+            try:
+                from cogniflex.monitoring.system_monitor import SystemMonitor
+                system_monitor = SystemMonitor()
+                if hasattr(system_monitor, 'initialize'):
+                    system_monitor.initialize()
+                self.core_brain.system_monitor = system_monitor
+                self.logger.info("✅ SystemMonitor создан")
+                return system_monitor
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания system_monitor: {e}", exc_info=True)
+                return None
+        
+        def create_metrics_collector():
+            try:
+                from cogniflex.core.metrics_collector import MetricsCollector
+                metrics_collector = MetricsCollector(brain=self.core_brain)
+                if hasattr(metrics_collector, 'initialize'):
+                    metrics_collector.initialize()
+                self.core_brain.metrics_collector = metrics_collector
+                self.logger.info("✅ MetricsCollector создан")
+                return metrics_collector
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания metrics_collector: {e}", exc_info=True)
+                return None
+        
+        # ===== СПЕЦИАЛИЗИРОВАННЫЕ =====
+        
+        def create_contradiction_manager():
+            try:
+                from cogniflex.contradiction.contradiction_manager import ContradictionManager
+                contradiction_manager = ContradictionManager(brain=self.core_brain)
+                if hasattr(contradiction_manager, 'initialize'):
+                    contradiction_manager.initialize()
+                self.core_brain.contradiction_manager = contradiction_manager
+                self.logger.info("✅ ContradictionManager создан")
+                return contradiction_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания contradiction_manager: {e}", exc_info=True)
+                return None
+        
+        def create_adaptation_manager():
+            try:
+                from cogniflex.adaptation.adaptation_core import AdaptationManager
+                adaptation_manager = AdaptationManager(brain=self.core_brain)
+                if hasattr(adaptation_manager, 'initialize'):
+                    adaptation_manager.initialize()
+                self.core_brain.adaptation_manager = adaptation_manager
+                self.logger.info("✅ AdaptationManager создан")
+                return adaptation_manager
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания adaptation_manager: {e}", exc_info=True)
+                return None
+        
+        def create_ethics_framework():
+            try:
+                from cogniflex.ethics.ethics_framework import EthicsFramework
+                ethics_framework = EthicsFramework(brain=self.core_brain)
+                self.core_brain.ethics_framework = ethics_framework
+                self.logger.info("✅ EthicsFramework создан")
+                return ethics_framework
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания ethics_framework: {e}", exc_info=True)
+                return None
+        
+        def create_gui():
+            try:
+                from cogniflex.gui.core_gui import CogniFlexGUI
+                
+                # Создаем основной GUI с brain
+                gui = CogniFlexGUI(brain=self.core_brain)
+                self.core_brain.gui = gui
+                self.logger.info("✅ CogniFlexGUI создан")
+                return gui
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания gui: {e}", exc_info=True)
+                return None
+        
+        def create_web_search_engine():
+            try:
+                from cogniflex.websearch.web_search_engine import WebSearchEngine
+                web_search = WebSearchEngine(brain=self.core_brain)
+                self.core_brain.web_search_engine = web_search
+                self.logger.info("✅ WebSearchEngine создан")
+                return web_search
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания web_search_engine: {e}", exc_info=True)
+                return None
+        
+        # Регистрируем все фабрики
+        self.component_factories = {
+            # Системные
+            'event_bus': create_event_bus,
+            'resource_manager': create_resource_manager,
+            'config_manager': create_config_manager,
+            # Память
+            'memory_manager': create_memory_manager,
+            'hybrid_cache': create_hybrid_cache,
+            # Знания
+            'knowledge_graph': create_knowledge_graph,
+            'text_processor': create_text_processor,
+            # ML
+            'ml_unit': create_ml_unit,
+            'model_manager': create_model_manager,
+            # Логика
+            'query_processor': create_query_processor,
+            'response_generator': create_response_generator,
+            'reasoning_engine': create_reasoning_engine,
+            # Обучение
+            'training_orchestrator': create_training_orchestrator,
+            'learning_manager': create_learning_manager,
+            'learning_scheduler': create_learning_scheduler,
+            # Аналитика
+            'analytics_manager': create_analytics_manager,
+            'system_monitor': create_system_monitor,
+            'metrics_collector': create_metrics_collector,
+            # Специализированные
+            'contradiction_manager': create_contradiction_manager,
+            'adaptation_manager': create_adaptation_manager,
+            'ethics_framework': create_ethics_framework,
+            'web_search_engine': create_web_search_engine,
+            'gui': create_gui,
+        }
+        
+        self.logger.info(f"Зарегистрировано {len(self.component_factories)} фабрик компонентов")
+    
+    def _check_dependencies(self, component_name: str) -> Tuple[bool, List[str]]:
+        """
+        Проверяет, инициализированы ли все зависимости компонента.
+        
+        Args:
+            component_name: Имя компонента для проверки
+            
+        Returns:
+            Tuple[bool, List[str]]: (успех, список отсутствующих зависимостей)
+        """
+        dependencies = self.component_dependencies.get(component_name, [])
+        missing = []
+        
+        for dep in dependencies:
+            if dep not in self.initialized_components:
+                missing.append(dep)
+        
+        if missing:
+            return False, missing
+        return True, []
+    
+    def initialize_components(self, component_list: Optional[List[str]] = None) -> bool:
+        """
+        Инициализирует все компоненты в правильном порядке зависимостей.
+        
+        Args:
+            component_list: Опциональный список компонентов для инициализации
+                           (по умолчанию все 21 компонент)
+        
+        Returns:
+            bool: True если все компоненты инициализированы успешно
+        """
+        try:
+            self.logger.info("=" * 60)
+            self.logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ КОМПОНЕНТОВ")
+            self.logger.info("=" * 60)
+            
+            components_to_init = component_list or self.COMPONENT_LIST
+            
+            success_count = 0
+            failed_count = 0
+            skipped_count = 0
+            
+            # Последовательная инициализация с проверкой зависимостей
+            for component_name in components_to_init:
+                if component_name not in self.component_factories:
+                    self.logger.warning(f"⚠️ Фабрика для {component_name} не найдена - пропущено")
+                    skipped_count += 1
+                    continue
+                
+                # Проверяем зависимости
+                deps_ok, missing_deps = self._check_dependencies(component_name)
+                if not deps_ok:
+                    self.logger.error(f"❌ {component_name}: зависимости не готовы - {missing_deps}")
+                    self.failed_components.add(component_name)
+                    failed_count += 1
+                    continue
+                
+                try:
+                    # Создаем компонент через фабрику
+                    factory = self.component_factories[component_name]
+                    component = factory()
+                    
+                    if component is not None:
+                        # Регистрируем успешно инициализированный компонент
+                        self.initialized_components.add(component_name)
+                        self.component_instances[component_name] = component
+                        self.core_brain.components[component_name] = component
+                        self.logger.info(f"✅ {component_name} инициализирован")
+                        success_count += 1
+                    else:
+                        self.logger.error(f"❌ {component_name} не был создан")
+                        self.failed_components.add(component_name)
+                        failed_count += 1
+                        
+                except Exception as e:
+                    self.logger.error(f"❌ {component_name}: {e}", exc_info=True)
+                    self.failed_components.add(component_name)
+                    failed_count += 1
+            
+            # Пост-инициализация связей
+            if success_count > 0:
+                try:
+                    self.post_initialize_connections()
+                    self.logger.info("✅ Пост-инициализация связей выполнена")
+                except Exception as e:
+                    self.logger.error(f"❌ Ошибка пост-инициализации: {e}")
+            
+            # Итоговый отчет
+            self.logger.info("=" * 60)
+            self.logger.info("ИТОГИ ИНИЦИАЛИЗАЦИИ")
+            self.logger.info("=" * 60)
+            self.logger.info(f"✅ Успешно: {success_count}")
+            self.logger.info(f"❌ Ошибки: {failed_count}")
+            self.logger.info(f"⚠️ Пропущено: {skipped_count}")
+            self.logger.info(f"📊 Всего: {len(components_to_init)}")
+            
+            if failed_count > 0:
+                self.logger.warning(f"Не инициализированы: {self.failed_components}")
+            
+            success_rate = success_count / max(1, len(components_to_init)) * 100
+            self.logger.info(f"📈 Успешность: {success_rate:.1f}%")
+            self.logger.info("=" * 60)
+            
+            return failed_count == 0
+            
+        except Exception as e:
+            self.logger.error(f"❌ Критическая ошибка инициализации: {e}", exc_info=True)
+            return False
+    
+    def post_initialize_connections(self):
+        """Устанавливает связи между компонентами после инициализации."""
+        try:
+            self.logger.info("Установка связей между компонентами...")
+            
+            # ===== Гибридный кэш =====
+            self.logger.info(f"Проверка гибридного кэша в brain.components: {hasattr(self.core_brain, 'components')}")
+            if hasattr(self.core_brain, 'components'):
+                self.logger.info(f"Ключи в brain.components: {list(self.core_brain.components.keys())}")
+            
+            hybrid_cache = self.core_brain.components.get('hybrid_cache')
+            self.logger.info(f"hybrid_cache из brain.components: {hybrid_cache}")
+            
+            if hybrid_cache is not None:
+                self.core_brain.hybrid_cache = hybrid_cache
+                self.logger.info("Установка гибридного кэша в brain.hybrid_cache")
+                
+                # Подключаем ко всем компонентам, которые могут его использовать
+                components_to_connect = [
+                    ('memory_manager', 'memory_manager'),
+                    ('ml_unit', 'ml_unit'),
+                    ('text_processor', 'text_processor'),
+                    ('model_manager', 'model_manager'),
+                    ('query_processor', 'query_processor'),
+                    ('response_generator', 'response_generator')
+                ]
+                
+                for comp_name, comp_key in components_to_connect:
+                    # Ищем компонент в component_instances, а не в brain.components
+                    component = self.component_instances.get(comp_key)
+                    if component is not None:
+                        # Принудительно устанавливаем гибридный кэш
+                        if hasattr(component, 'hybrid_cache'):
+                            old_cache = component.hybrid_cache
+                            component.hybrid_cache = hybrid_cache
+                            
+                            if old_cache is hybrid_cache:
+                                self.logger.info(f"   ✅ {comp_name}: уже был подключен")
+                            elif old_cache is not None:
+                                self.logger.info(f"   🔄 {comp_name}: заменен старый кэш")
+                            else:
+                                self.logger.info(f"   └─ hybrid_cache → {comp_name}")
+                        else:
+                            # Некоторые компоненты могут поддерживать установку кэша через атрибут
+                            try:
+                                setattr(component, 'hybrid_cache', hybrid_cache)
+                                self.logger.info(f"   └─ hybrid_cache → {comp_name} (через setattr)")
+                            except Exception as e:
+                                self.logger.debug(f"   ⚠️ {comp_name}: не удалось установить hybrid_cache: {e}")
+                    else:
+                        self.logger.debug(f"   ⚠️ {comp_name}: компонент не найден")
+            
+            # ===== ML Unit связи =====
+            ml_unit = self.component_instances.get('ml_unit')
+            if ml_unit is not None:
+                model_manager = self.component_instances.get('model_manager')
+                if model_manager is not None and hasattr(ml_unit, 'model_manager'):
+                    ml_unit.model_manager = model_manager
+                    self.logger.info("   └─ ml_unit → model_manager")
+                
+                text_processor = self.component_instances.get('text_processor')
+                if text_processor is not None and hasattr(ml_unit, 'text_processor'):
+                    ml_unit.text_processor = text_processor
+                    self.logger.info("   └─ ml_unit → text_processor")
+            
+            # ===== Response Generator связи =====
+            response_generator = self.component_instances.get('response_generator')
+            if response_generator is not None:
+                model_manager = self.component_instances.get('model_manager')
+                if model_manager is not None and hasattr(response_generator, 'model_manager'):
+                    response_generator.model_manager = model_manager
+                    self.logger.info("   └─ response_generator → model_manager")
+                
+                reasoning_engine = self.component_instances.get('reasoning_engine')
+                if reasoning_engine is not None and hasattr(response_generator, 'reasoning_engine'):
+                    response_generator.reasoning_engine = reasoning_engine
+                    self.logger.info("   └─ response_generator → reasoning_engine")
+            
+            self.logger.info("✅ Все связи установлены")
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка установки связей: {e}", exc_info=True)
+            raise
+    
+    def register_component(self, name: str, component: Any, 
+                          dependencies: Optional[List[str]] = None) -> bool:
+        """
+        Регистрирует компонент в системе.
+        
+        Args:
+            name: Имя компонента
+            component: Экземпляр компонента
+            dependencies: Список зависимостей
+            
+        Returns:
+            bool: True если регистрация успешна
+        """
+        try:
+            if dependencies is None:
+                dependencies = []
+            
+            self.component_dependencies[name] = dependencies
+            self.component_instances[name] = component
+            
+            if hasattr(self.core_brain, 'components'):
+                self.core_brain.components[name] = component
+            
+            self.logger.info(f"✅ Компонент {name} зарегистрирован")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка регистрации {name}: {e}")
+            return False
+    
+    def get_component(self, name: str) -> Any:
+        """Получает компонент по имени."""
+        return self.component_instances.get(name)
+    
+    def get_initialization_status(self) -> Dict[str, Any]:
+        """
+        Возвращает статус инициализации компонентов.
+        
+        Returns:
+            Dict: Статус инициализации
+        """
+        total = len(self.component_factories)
+        initialized = len(self.initialized_components)
+        failed = len(self.failed_components)
+        
+        return {
+            'initialized': list(self.initialized_components),
+            'failed': list(self.failed_components),
+            'total_factories': total,
+            'success_count': initialized,
+            'failed_count': failed,
+            'success_rate': initialized / max(1, total),
+            'components': {
+                name: {
+                    'initialized': name in self.initialized_components,
+                    'instance': self.component_instances.get(name),
+                    'dependencies': self.component_dependencies.get(name, [])
+                }
+                for name in self.component_factories.keys()
+            }
+        }
+    
+    def retry_failed_components(self) -> Dict[str, bool]:
+        """
+        Повторяет инициализацию неудачных компонентов.
+        
+        Returns:
+            Dict: Результаты повторной инициализации
+        """
+        results = {}
+        
+        for component_name in list(self.failed_components):
+            if component_name not in self.component_factories:
+                continue
+            
+            try:
+                self.logger.info(f"Повторная инициализация: {component_name}")
+                
+                deps_ok, _ = self._check_dependencies(component_name)
+                if not deps_ok:
+                    self.logger.warning(f"⚠️ Зависимости не готовы для {component_name}")
+                    results[component_name] = False
+                    continue
+                
+                factory = self.component_factories[component_name]
+                component = factory()
+                
+                if component:
+                    self.initialized_components.add(component_name)
+                    self.failed_components.discard(component_name)
+                    self.component_instances[component_name] = component
+                    results[component_name] = True
+                    self.logger.info(f"✅ {component_name} инициализирован")
+                else:
+                    results[component_name] = False
+                    
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка повторной инициализации {component_name}: {e}")
+                results[component_name] = False
+        
+        return results
+    
+    def shutdown_components(self):
+        """Корректно завершает работу всех компонентов."""
+        self.logger.info("=" * 60)
+        self.logger.info("ЗАВЕРШЕНИЕ РАБОТЫ КОМПОНЕНТОВ")
+        self.logger.info("=" * 60)
+        
+        # Обратный порядок для корректного завершения
+        component_order = list(self.component_factories.keys())
+        
+        for component_name in reversed(component_order):
+            if component_name in self.initialized_components:
+                try:
+                    component = self.component_instances.get(component_name)
+                    if component:
+                        if hasattr(component, 'shutdown'):
+                            component.shutdown()
+                            self.logger.info(f"✅ {component_name} завершил работу")
+                        elif hasattr(component, 'stop'):
+                            component.stop()
+                            self.logger.info(f"✅ {component_name} остановлен")
+                except Exception as e:
+                    self.logger.error(f"❌ Ошибка завершения {component_name}: {e}")
+        
+        self.initialized_components.clear()
+        self.logger.info("✅ Все компоненты завершили работу")
+        self.logger.info("=" * 60)
+    
+    def get_component_health(self, component_name: str) -> Dict[str, Any]:
+        """
+        Возвращает информацию о здоровье компонента.
+        
+        Args:
+            component_name: Имя компонента
+            
+        Returns:
+            Dict: Информация о здоровье
+        """
+        component = self.component_instances.get(component_name)
+        
+        if component is None:
+            return {
+                'name': component_name,
+                'status': 'not_initialized',
+                'healthy': False
+            }
+        
+        health_info = {
+            'name': component_name,
+            'status': 'initialized',
+            'healthy': True,
+            'dependencies': self.component_dependencies.get(component_name, [])
+        }
+        
+        # Проверяем зависимости
+        for dep in health_info['dependencies']:
+            if dep not in self.initialized_components:
+                health_info['healthy'] = False
+                health_info['missing_dependency'] = dep
+                break
+        
+        # Проверяем состояние компонента
+        if hasattr(component, 'is_healthy'):
+            health_info['healthy'] = component.is_healthy()
+        elif hasattr(component, 'health_check'):
+            health_info['health_status'] = component.health_check()
+        
+        return health_info
+    
+    def get_all_component_health(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Возвращает информацию о здоровье всех компонентов.
+        
+        Returns:
+            Dict: Информация о здоровье всех компонентов
+        """
+        return {
+            name: self.get_component_health(name)
+            for name in self.component_factories.keys()
+        }
+
+
+# ============================================================================
+# Тестирование
+# ============================================================================
+
+if __name__ == "__main__":
+    """Тестирование ComponentInitializer."""
+    
+    print("=" * 60)
+    print("ТЕСТИРОВАНИЕ ComponentInitializer")
+    print("=" * 60)
+    
+    # Создаем mock CoreBrain для тестирования
+    class MockCoreBrain:
+        def __init__(self):
+            self.components = {}
+            self.cache_dir = './test_cache'
+    
+    mock_brain = MockCoreBrain()
+    initializer = ComponentInitializer(mock_brain)
+    
+    print(f"\n📦 Зарегистрировано фабрик: {len(initializer.component_factories)}")
+    print(f"📋 Компонентов в списке: {len(initializer.COMPONENT_LIST)}")
+    print(f"🔗 Зависимостей определено: {len(initializer.component_dependencies)}")
+    
+    print("\n✅ ComponentInitializer готов к работе")
+    print("=" * 60)
