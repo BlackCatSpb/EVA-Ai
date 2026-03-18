@@ -79,6 +79,7 @@ class MemoryManager:
             # Используем единый экземпляр из brain вместо создания нового
             if self.brain and hasattr(self.brain, 'hybrid_cache'):
                 self._hybrid_cache = self.brain.hybrid_cache
+                self.hybrid_cache = self.brain.hybrid_cache  # Also set for compatibility
                 logger.debug("Используем единый HybridTokenCache из brain")
             else:
                 # Fallback - создаем свой экземпляр если brain недоступен
@@ -88,6 +89,7 @@ class MemoryManager:
                         cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
                         brain=self.brain
                     )
+                    self.hybrid_cache = self._hybrid_cache  # Also set for compatibility
                     logger.info("Гибридный кэш успешно инициализирован")
                 except ImportError as e:
                     logger.error(f"Не удалось импортировать HybridTokenCache: {e}")

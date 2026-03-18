@@ -616,25 +616,6 @@ class HybridTokenCache:
         self.add_token(key, value)
     
     def get(self, key: str) -> Optional[Any]:
-        """
-        Получает элемент из кэша (метод совместимости).
-        
-        Args:
-            key: Ключ элемента
-            
-        Returns:
-            Значение элемента или None
-        """
-        token_data = self.get_token(key)
-        if token_data:
-            return token_data.get("data") if isinstance(token_data, dict) else token_data
-        return None
-    
-    def exists(self, key: str) -> bool:
-        """Проверяет наличие ключа в кэше."""
-        return key in self.memory_cache or bool(self._load_token_from_disk(key))
-    
-    def get(self, key: str) -> Optional[Any]:
         """Получает значение из кэша (KV-интерфейс)."""
         return self.get_token(key)
     
