@@ -1,267 +1,256 @@
 # CogniFlex — Выбор модели: анализ вариантов
 
-> Составлен: 2026-03-18
+> Обновлено: 2026-03-18
 
 ---
 
 ## Текущее состояние
 
-Сейчас система жёстко привязана к **ruGPT3Large** (`sberbank-ai/rugpt3large_based_on_gpt2`):
+Система жёстко привязана к **ruGPT3Large** (`sberbank-ai/rugpt3large_based_on_gpt2`):
 - ~800MB весов
 - Требует GPU для приемлемой скорости
 - Только русский язык
-- Архитектура GPT-2, контекст 1024 токена
+- Архитектура GPT-2, контекст **1024 токена**
+- Обучение отключено в конфиге
+
+В кодовой базе **уже есть заготовки**:
+- `cogniflex/mlearning/bitnet_model_manager.py` — стабы для BitNet 2B/3B
+- `cogniflex/mlearning/qwen_model_manager.py` — **полностью реализован** (0.8B–9B, 4-bit поддержка)
+- `cogniflex/mlearning/model_config.py` — устарел, только GPT-2/ruGPT-3
 
 ---
 
-## Анализ альтернатив
+## 1. Qwen3.5 (Alibaba) — рекомендован ✅
 
-### 1. BitNet b1.58 (Microsoft) — для CPU
+> Именно **Qwen3.5**, не Qwen3.
 
-**Что это**: 1.58-битные веса (ternary: -1, 0, 1), линейные слои без умножений с плавающей точкой.
+**HuggingFace IDs:**
+- `Qwen/Qwen3.5-0.8B` / `Qwen/Qwen3.5-0.8B-Instruct`
+- `Qwen/Qwen3.5-2B` / `Qwen/Qwen3.5-2B-Instruct`
+- `Qwen/Qwen3.5-4B` / `Qwen/Qwen3.5-4B-Instruct`
+- `Qwen/Qwen3.5-9B` / `Qwen/Qwen3.5-9B-Instruct`
+- `Qwen/Qwen3.5-27B`, `Qwen/Qwen3.5-35B-A3B` (MoE)
 
-**Модели**:
-- `microsoft/bitnet-b1.58-2B-4T` — 2B параметров, опубликован 2025
-- `microsoft/bitnet-b1.58-3B-4T` — 3B параметров
+**Дата выхода:** Март 2026
+**Контекст:** 262K токенов native, до 1M+ с RoPE/YaRN
+**Языки:** 201 язык/диалект, включая **русский**
+**Архитектура:** Gated Delta Networks + sparse MoE
 
-**Характеристики**:
-| Параметр | Значение |
-|---|---|
-| Размер весов | ~700MB (2B) / ~1GB (3B) |
-| RAM в инференсе | 2-3GB |
-| Скорость на CPU (Apple M) | ~10-15 tok/s |
-| Скорость на CPU (x86 AVX2) | ~5-10 tok/s |
-| Контекст | 4096 токенов |
-| Языки | Многоязычный (en-centric) |
+| Модель | FP16 | Q4 | RAM на CPU | Рекомендация |
+|---|---|---|---|---|
+| **0.8B** | 1.6 GB | 0.5 GB | 2 GB | IoT / мобильный |
+| **2B** | 4 GB | 1 GB | 3 GB | **CPU без GPU** ✅ |
+| **4B** | 8 GB | 2.5 GB | 5 GB | Баланс качество/скорость |
+| **9B** | 18 GB | 5 GB | 9 GB | GPU 8GB+ / RAM 16GB+ |
 
-**Плюсы**:
-- ✅ Работает на CPU без GPU — ключевое преимущество
-- ✅ Низкое потребление памяти
-- ✅ Простой инференс (llama.cpp / bitnet.cpp поддержка)
-- ✅ Открытый код и веса
+**Плюсы:**
+- ✅ **Уже реализован** в `qwen_model_manager.py` — только включить
+- ✅ Отличный русский (201 язык из обучения)
+- ✅ Огромный контекст (262K vs 1K у ruGPT3)
+- ✅ GGUF доступен — `ollama pull qwen3.5:2b`
+- ✅ Instruct-режим из коробки
 
-**Минусы**:
-- ❌ Не специализирован под русский язык
-- ❌ Качество ниже FP16 аналогов
-- ❌ Нет официального GGUF для llama.cpp (2025)
+**Минусы:**
+- ❌ 9B+ требует GPU или много времени на CPU
 
-**Вывод**: **Отличный вариант для CPU-только деплоя**. При хорошем русском fine-tune может заменить ruGPT3 на слабом железе.
+**Вывод:** **Приоритет #1 для замены ruGPT3.** Модель уже поддерживается в коде — нужно только снять запрет в конфиге.
 
 ---
 
-### 2. Qwen2.5 (Alibaba) — баланс качество/скорость
+## 2. Saiga (IlyaGusev) — лучший русский 🇷🇺
 
-**Модели**: `Qwen/Qwen2.5-1.5B-Instruct`, `Qwen2.5-3B-Instruct`, `Qwen2.5-7B-Instruct`
+**HuggingFace IDs:**
+- `IlyaGusev/saiga_llama3_8b` — Llama3 + русский SFT
+- `IlyaGusev/saiga_nemo_12b` — Mistral NeMo 12B
+- `IlyaGusev/saiga_llama3_8b_gguf` — GGUF вариант
 
-**Характеристики** (3B вариант):
-| Параметр | Значение |
-|---|---|
-| Размер весов | ~1.8GB (BF16) / ~0.9GB (Q4) |
-| RAM на CPU | 4-6GB |
-| Скорость CPU (M-series) | ~15-20 tok/s (Q4) |
-| Контекст | 32768 токенов |
-| Языки | 29 языков включая русский |
+**Контекст:** 8K–32K токенов
+**Языки:** Русский (специально обучен на русских диалогах)
 
-**Плюсы**:
-- ✅ Отличная поддержка русского языка (обучен на CulturaX RU)
-- ✅ Большой контекст (32K vs 1K у ruGPT3)
-- ✅ Chat / Instruct режим из коробки
-- ✅ GGUF доступен (ollama, llama.cpp)
+**Плюсы:**
+- ✅ **Лучшее качество русского** из всех открытых моделей
+- ✅ Специально обучен на русских разговорных данных
 - ✅ Активно поддерживается
 
-**Минусы**:
-- ❌ 7B версия требует GPU для нормальной скорости
-- ❌ 1.5B — качество значительно хуже
+**Минусы:**
+- ❌ 8B+ — нужен GPU или долго на CPU
 
-**Вывод**: **Лучший вариант для замены ruGPT3** при наличии 6+ GB RAM. Особенно 3B-instruct.
-
----
-
-### 3. Llama 3.2 / 3.1 (Meta) — производительность
-
-**Модели**: `meta-llama/Llama-3.2-1B-Instruct`, `3.2-3B-Instruct`, `3.1-8B-Instruct`
-
-**Характеристики** (3B вариант):
-| Параметр | Значение |
-|---|---|
-| Размер весов | ~1.8GB (BF16) / ~1.2GB (Q4) |
-| Контекст | 131072 токенов (!) |
-| Языки | Многоязычный, русский OK |
-
-**Плюсы**:
-- ✅ Огромный контекст
-- ✅ Хорошее качество для размера
-- ✅ Широкая экосистема (vLLM, ollama, llama.cpp)
-
-**Минусы**:
-- ❌ Русский хуже, чем у Qwen
-- ❌ Требует принятия Meta лицензии
+**Вывод:** Выбор при наличии GPU 8GB+, когда качество русского критично.
 
 ---
 
-### 4. Saiga (IlyaGusev) — русскоязычные instruct-модели
+## 3. Gemma 3 (Google DeepMind) — продакшн + мультимодальность
 
-**Что это**: Fine-tune Mistral / LLaMA под русский язык.
+**HuggingFace IDs:**
+- `google/gemma-3-1b-it` — 1B instruct
+- `google/gemma-3-4b-it` — 4B instruct
+- `google/gemma-3-12b-it` — 12B instruct
+- `google/gemma-3-27b-it` — 27B instruct
 
-**Модели**:
-- `IlyaGusev/saiga_llama3_8b` — Llama3 + русский SFT
-- `IlyaGusev/saiga_mistral_7b_lora` — Mistral + LoRA
-- `IlyaGusev/saiga_nemo_12b` — Mistral NeMo 12B
+**Дата выхода:** 2026
+**Контекст:** 128K токенов
+**Языки:** 140+ языков (русский заявлен)
+**Мультимодальность:** Изображения + текст во всех размерах
 
-**Плюсы**:
-- ✅ Лучшее качество на русском из открытых моделей
-- ✅ Специально обучен на русских диалогах
-- ✅ Активно развивается
+| Модель | BF16 | Q4 QAT | CPU |
+|---|---|---|---|
+| **1B** | 2 GB | 0.5 GB | ✅ отлично |
+| **4B** | 8 GB | 2.6 GB | ✅ хорошо |
+| **12B** | 24 GB | 6.6 GB | ⚠️ медленно |
+| **27B** | 54 GB | 14.1 GB | ❌ |
 
-**Минусы**:
-- ❌ 7B+ требует GPU или много времени на CPU
-- ❌ Нет малых вариантов (< 3B)
+**Плюсы:**
+- ✅ QAT-варианты — 3x меньше памяти без потери качества
+- ✅ Мультимодальность с 1B
+- ✅ llama.cpp / ollama / gemma.cpp поддержка
+- ✅ Долгосрочная поддержка Google
 
-**Вывод**: **Лучший выбор для русскоязычного качества** при наличии GPU.
+**Минусы:**
+- ❌ Русский язык документально не подтверждён (140 языков заявлено, оценки не опубликованы)
 
----
-
-### 5. RWKV-6 — для CPU без трансформеров
-
-**Что это**: RNN-архитектура с трансформерным качеством. Постоянное O(1) потребление памяти при инференсе.
-
-**Модели**:
-- `RWKV/v6-Finch-1B6` — 1.6B параметров
-- `RWKV/v6-Finch-3B` — 3B параметров
-
-**Плюсы**:
-- ✅ Постоянный memory footprint (нет KV-cache роста)
-- ✅ Быстрый на CPU
-- ✅ Хорошо для длинных последовательностей
-
-**Минусы**:
-- ❌ Нестандартная архитектура (нет llama.cpp поддержки)
-- ❌ Русский язык слабее
+**Вывод:** Хороший выбор если нужна мультимодальность или долгосрочная поддержка.
 
 ---
 
-### 6. Phi-4 mini / Phi-3.5 mini (Microsoft)
+## 4. GLM-4.7-Flash (Zhipu AI) — НЕ рекомендован ❌
 
-**Модели**: `microsoft/Phi-3.5-mini-instruct` (3.8B)
+**HuggingFace ID:** `zai-org/GLM-4.7-Flash`
+**Параметры:** 31B total / 3B active (MoE)
+**Дата выхода:** Январь 2026
+**Контекст:** 200K токенов (MLA)
 
-**Характеристики**:
-| Параметр | Значение |
-|---|---|
-| Размер весов | ~2.2GB (Q4) |
-| Контекст | 128K токенов |
-| Качество | Высокое для размера |
+| Формат | Размер | Примечание |
+|---|---|---|
+| BF16 | 60 GB | Нереалистично |
+| Q4_K_M | 15–20 GB | Минимум |
 
-**Плюсы**:
-- ✅ Высокое качество рассуждений для малого размера
-- ✅ Большой контекст
-- ✅ GGUF доступен
+**Проблемы:**
+- ❌ Требует GPU для нормальной скорости (MoE)
+- ❌ **Не оптимизирован под русский** — en-centric
+- ❌ Ориентирован на code generation, не диалог
+- ❌ Минимум 24 GB unified memory
 
-**Минусы**:
-- ❌ Слабый русский язык
-- ❌ Нужен fine-tune для русского
-
----
-
-## Сравнительная таблица
-
-| Модель | Размер | CPU viable | Русский | Контекст | Рекомендация |
-|---|---|---|---|---|---|
-| ruGPT3Large (текущий) | 800MB | ❌ медленно | ✅ натив | 1K | Заменить |
-| BitNet 2B | 700MB | ✅✅ | ⚠️ средне | 4K | CPU-only deploy |
-| Qwen2.5-3B | 1.8GB | ✅ | ✅ хорошо | 32K | **Рекомендован** |
-| Saiga Llama3 8B | 4.5GB | ❌ | ✅✅ | 8K | При наличии GPU |
-| Llama3.2-3B | 1.8GB | ✅ | ⚠️ средне | 128K | Альтернатива |
-| RWKV-6 3B | 1.7GB | ✅✅ | ⚠️ | ∞ | Для слабых машин |
-| Phi-3.5 mini | 2.2GB | ✅ | ❌ слабо | 128K | Только с fine-tune |
+**Вывод:** Не подходит для CogniFlex. Заточен под coding на мощном железе.
 
 ---
 
-## Рекомендуемая архитектура модельного слоя
+## 5. BitNet b1.58 (Microsoft) — экспериментальный ⚗️
+
+**HuggingFace IDs:**
+- `microsoft/bitnet-b1.58-2B-4T` — 2B, обучен на 4T токенах
+- `microsoft/bitnet-b1.58-2B-4T-gguf` — GGUF вариант
+- `QuantFactory/bitnet_b1_58-3B-GGUF` — community 3B
+
+**Архитектура:** 1.58-бит веса (тернарные: -1, 0, 1), без умножений FP
+**Дата выхода:** Апрель 2025
+**Контекст:** ~2K–4K токенов
+**Языки:** English-primary, **русский слабый**
+
+| Формат | Размер | Примечание |
+|---|---|---|
+| 1-bit native | 0.4 GB | Нужен bitnet.cpp |
+| GGUF (bitnet.cpp) | 0.5–0.8 GB | НЕ совместим с llama.cpp |
+
+**Актуальный статус (2026):**
+- ⚠️ **GGUF-формат НЕ совместим с llama.cpp** — требует отдельный `bitnet.cpp`
+- ⚠️ Критический баг на ARM Linux (Apple Silicon M1–M4 работает, x86 AVX2 работает)
+- ⚠️ Инференс-фреймворк в ранней стадии
+- ✅ Скорость на CPU: 40–48 tok/s — рекордная для класса
+- ✅ Заготовка `bitnet_model_manager.py` уже есть в коде
+
+**Когда использовать:** CPU-only деплой на слабом железе (RAM < 8GB), если сделать русскоязычный fine-tune.
+
+**Вывод:** Революционная архитектура, но **не для продакшна в 2026**. Экосистема незрелая, русский язык слабый. Вернуться когда появится зрелая llama.cpp поддержка.
+
+---
+
+## 6. SmolLM2 (HuggingFace) — микромодели
+
+**HuggingFace IDs:**
+- `HuggingFaceTB/SmolLM2-135M-Instruct`
+- `HuggingFaceTB/SmolLM2-360M-Instruct`
+- `HuggingFaceTB/SmolLM2-1.7B-Instruct`
+
+**Контекст:** 8K токенов
+**Языки:** English-primary, русский слабый
+
+| Модель | FP16 | Q4 | Применение |
+|---|---|---|---|
+| 135M | 0.3 GB | 0.1 GB | IoT / смартфоны |
+| 360M | 0.7 GB | 0.2 GB | Edge-устройства |
+| 1.7B | 3.4 GB | 0.8 GB | Лёгкие CPU |
+
+**Лицензия:** Apache 2.0
+**Вывод:** Полезны для тестирования пайплайна без весов модели. **Не для русского языка.**
+
+---
+
+## Итоговое сравнение
+
+| Модель | Размер (Q4) | CPU viable | Русский | Контекст | Статус | Приоритет |
+|---|---|---|---|---|---|---|
+| ruGPT3Large (текущий) | 800 MB | ⚠️ медленно | ✅ натив | 1K | Рабочий | Заменить |
+| **Qwen3.5-2B** | **1 GB** | **✅✅** | **✅ хорошо** | **262K** | **Продакшн** | **#1** |
+| **Qwen3.5-4B** | **2.5 GB** | **✅** | **✅ хорошо** | **262K** | **Продакшн** | **#2** |
+| Saiga-Llama3-8B | 4.5 GB | ❌ | ✅✅ лучший | 8K | Продакшн | При GPU |
+| Gemma3-1B | 0.5 GB | ✅✅ | ⚠️ не верифицирован | 128K | Продакшн | #3 |
+| Gemma3-4B | 2.6 GB | ✅ | ⚠️ | 128K | Продакшн | #4 |
+| BitNet-2B | 0.5 GB | ✅✅✅ | ❌ слабый | ~4K | Эксперимент | Backlog |
+| SmolLM2-1.7B | 0.8 GB | ✅✅ | ❌ | 8K | Продакшн | Тесты |
+| GLM-4.7-Flash | 15–20 GB | ❌ | ❌ | 200K | Продакшн | Не нужен |
+
+---
+
+## Рекомендуемая стратегия интеграции
 
 ```
 ModelManager (фасад)
-├── detect_hardware() → CPU/GPU/MPS profile
-└── load_best_model(hardware_profile)
-    ├── GPU (8GB+ VRAM) → Saiga-Llama3-8B или Qwen2.5-7B
-    ├── GPU (4-8GB VRAM) → Qwen2.5-3B или BitNet-3B
-    ├── CPU (16GB+ RAM) → Qwen2.5-3B Q4 через llama.cpp
-    ├── CPU (8-16GB RAM) → BitNet-2B или Qwen2.5-1.5B
-    └── CPU (< 8GB RAM) → ruGPT3 (текущий, минимальный)
+└── detect_hardware() → профиль CPU/GPU/MPS
+    ├── GPU 8GB+ VRAM    → Saiga-Llama3-8B (лучший русский)
+    ├── GPU 4-8GB VRAM   → Qwen3.5-4B Q4
+    ├── CPU Apple Silicon → Qwen3.5-2B Q4 (через llama-cpp-python)
+    ├── CPU x86 16GB+    → Qwen3.5-2B Q4
+    ├── CPU x86 8-16GB   → Qwen3.5-0.8B Q4 или Gemma3-1B
+    └── CPU < 8GB RAM    → ruGPT3 (fallback, текущий)
 ```
 
-### Реализация через llama.cpp / ollama
+### Фазы внедрения
 
-```python
-# Предлагаемый интерфейс бэкенда
-class ModelBackend(Protocol):
-    def generate(self, prompt: str, max_tokens: int, **kwargs) -> str: ...
-    def get_embeddings(self, text: str) -> list[float]: ...
-    @property
-    def context_length(self) -> int: ...
-    @property
-    def supports_streaming(self) -> bool: ...
+**Немедленно (Фаза 0):**
+1. Снять блокировку в `brain_config.json` → разрешить Qwen3.5
+2. Активировать `qwen_model_manager.py` (уже реализован)
+3. Тест с `Qwen/Qwen3.5-2B-Instruct` Q4
 
-class LlamaCppBackend(ModelBackend):
-    """Для BitNet, Qwen GGUF, Llama GGUF через llama-cpp-python"""
-
-class TransformersBackend(ModelBackend):
-    """Для HuggingFace моделей (текущий ruGPT3)"""
-
-class OllamaBackend(ModelBackend):
-    """Для моделей запущенных в Ollama (простейший деплой)"""
+**Краткосрочно (Фаза 1):**
+1. Добавить `hardware_detector.py` для автовыбора модели
+2. Добавить Gemma3 менеджер (для мультимодальности)
+3. Сделать `brain_config.json` поддерживающим несколько профилей:
+```json
+"model": {
+  "backend": "auto",
+  "profiles": {
+    "gpu_8gb":  { "name": "saiga_llama3_8b", "backend": "transformers" },
+    "gpu_4gb":  { "name": "qwen3.5-4b",      "backend": "llama_cpp" },
+    "cpu_16gb": { "name": "qwen3.5-2b",      "backend": "llama_cpp" },
+    "cpu_8gb":  { "name": "qwen3.5-0.8b",    "backend": "llama_cpp" },
+    "fallback": { "name": "rugpt3",           "backend": "transformers" }
+  }
+}
 ```
+
+**Среднесрочно (Фаза 2):**
+1. Дождаться зрелости BitNet llama.cpp интеграции
+2. Добавить русский fine-tune BitNet когда появится
+3. Интеграция SmolLM2 для тестовой среды без весов
 
 ---
 
-## Конкретные рекомендации для CogniFlex
+## Эмбеддинги (вместо отключённого SentenceTransformer)
 
-### Краткосрочно (сохранить ruGPT3 + добавить опцию)
+| Модель | Размер | CPU | Русский |
+|---|---|---|---|
+| `intfloat/multilingual-e5-small` | 117 MB | ✅ | ✅ хорошо |
+| `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 118 MB | ✅ | ✅ хорошо |
+| `BAAI/bge-m3` | 570 MB | ⚠️ медленно | ✅✅ отлично |
 
-1. Оставить ruGPT3 как дефолт для совместимости
-2. Добавить поддержку **Qwen2.5-3B** через llama-cpp-python (GGUF)
-3. Добавить переключение в `brain_config.json`:
-   ```json
-   "model": {
-     "backend": "transformers",
-     "name": "rugpt3",
-     "alternatives": {
-       "cpu_preferred": "qwen2.5-3b-q4",
-       "gpu_preferred": "saiga-llama3-8b"
-     }
-   }
-   ```
-
-### Долгосрочно (новая архитектура)
-
-1. Полностью заменить ruGPT3 на **Qwen2.5-3B** (русский + многоязычный + instruct)
-2. Для CPU-only режима — **BitNet 2B** когда появится русскоязычный fine-tune
-3. Для лучшего русского качества — **Saiga Llama3 8B** при наличии GPU 8GB+
-
-### Для эмбеддингов (вместо отключённого SentenceTransformer)
-
-- `intfloat/multilingual-e5-small` — 117MB, работает на CPU, хороший русский
-- `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` — 118MB, быстрый
-
----
-
-## Что нужно для интеграции BitNet
-
-1. Установить `bitnet.cpp` или использовать через llama.cpp (поддержка добавлена в 2025)
-2. Конвертировать модель в GGUF: `python convert_hf_to_gguf.py microsoft/bitnet-b1.58-2B-4T`
-3. Реализовать `BitNetBackend` в `cogniflex/mlearning/backends/bitnet_backend.py`
-4. Добавить автоопределение CPU capabilities (AVX2/AVX512 для оптимальной скорости)
-
-```python
-# cogniflex/mlearning/hardware_detector.py
-def get_optimal_backend() -> str:
-    if torch.cuda.is_available():
-        vram = torch.cuda.get_device_properties(0).total_memory / 1e9
-        if vram >= 8: return "saiga_8b"
-        if vram >= 4: return "qwen_3b_fp16"
-    if platform.processor() and "arm" in platform.processor().lower():
-        return "qwen_3b_q4"  # Apple Silicon
-    ram_gb = psutil.virtual_memory().total / 1e9
-    if ram_gb >= 16: return "qwen_3b_q4"
-    if ram_gb >= 8: return "bitnet_2b"
-    return "rugpt3"  # fallback
-```
+**Рекомендация:** `multilingual-e5-small` — минимальный размер при хорошем качестве.
