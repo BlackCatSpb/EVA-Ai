@@ -47,7 +47,8 @@ class TestResults:
         logger.info(f"Всего тестов: {total}")
         logger.info(f"✅ Пройдено: {self.passed}")
         logger.info(f"❌ Провалено: {self.failed}")
-        logger.info(".2f"
+        success_rate = (self.passed / total * 100) if total > 0 else 0
+        logger.info(f"Успешность: {success_rate:.2f}%")
         if self.errors:
             logger.info(f"\nОШИБКИ ({len(self.errors)}):")
             for error in self.errors:

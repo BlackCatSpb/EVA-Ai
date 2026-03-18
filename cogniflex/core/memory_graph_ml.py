@@ -208,18 +208,22 @@ class MemoryGraphML:
         try:
             kg = self.brain.knowledge_graph
             
-            # Простая эмбеддинг модель (в реальной системе - GNN или Node2Vec)
             if hasattr(kg, 'get_all_concepts'):
                 concepts = kg.get_all_concepts()
                 
                 for concept in concepts:
-                    node_id = concept.get('id') if isinstance(concept, dict) else str(concept)
-                    node_type = concept.get('type', 'unknown') if isinstance(concept, dict) else 'concept'
+                    node_id = str(concept.get('id') if isinstance(concept, dict) else concept)
+                    node_type = str(concept.get('type', 'unknown') if isinstance(concept, dict) else 'concept')
+                    description = str(concept.get('description', '') if isinstance(concept, dict) else '')
                     
-                    # Генерируем случайный вектор (в реальной системе - обученный)
-                    np.random.seed(hash(node_id) % 2**32)
-                    vector = np.random.randn(self.embedding_dim).astype(np.float32)
-                    vector = vector / np.linalg.norm(vector)  # Нормализация
+                    # Используем sentence-transformer для реальных embeddings
+                    if self._st_model is not None and description:
+                        try:
+                            vector = self._st_model.encode([description], convert_to_numpy=True, normalize_embeddings=True)[0]
+                        except Exception:
+                            vector = self._compute_fallback_embedding(node_id, description)
+                    else:
+                        vector = self._compute_fallback_embedding(node_id, description)
                     
                     self.embeddings[node_id] = GraphEmbedding(
                         node_id=node_id,
@@ -232,6 +236,21 @@ class MemoryGraphML:
             
         except Exception as e:
             logger.debug(f"Ошибка вычисления embeddings: {e}")
+    
+    def _compute_fallback_embedding(self, node_id: str, description: str) -> np.ndarray:
+        """Fallback вычисление embedding когда sentence-transformer недоступен"""
+        if description:
+            words = description.lower().split()
+            vectors = []
+            for word in words:
+                if word in self.embeddings:
+                    vectors.append(self.embeddings[word].vector)
+            if vectors:
+                return np.mean(vectors, axis=0)
+        
+        np.random.seed(hash(node_id) % 2**32)
+        vector = np.random.randn(self.embedding_dim).astype(np.float32)
+        return vector / np.linalg.norm(vector)
     
     def get_context_for_query(self, query: str, top_k: int = 5) -> Dict[str, Any]:
         """Получение релевантного контекста из графа для запроса"""
