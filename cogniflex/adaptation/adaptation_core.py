@@ -483,143 +483,122 @@ class AdaptationManager:
         self.stop()
         
         logger.info("AdaptationManager закрыт")
-
-def _extract_concept_from_query(self, query: str) -> Optional[str]:
-    """Извлекает концепт из запроса пользователя с использованием полноценной NLP обработки."""
-    # Проверяем кэш для этого запроса
-    query_hash = hashlib.md5(query.lower().encode()).hexdigest()
-    if not hasattr(self, '_concept_cache'):
-        self._concept_cache = {}
-    if query_hash in self._concept_cache:
-        return self._concept_cache[query_hash]
     
-    logger.debug(f"Анализ запроса для извлечения концептов: '{query}'")
-    
-    # 1. Проверяем доступность NLP-процессора
-    if self.brain and hasattr(self.brain, 'nlp_processor'):
-        try:
-            # Обрабатываем текст с помощью NLP-процессора
-            analysis = self.brain.nlp_processor.process_text(query)
-            
-            # 2. Извлекаем ключевые концепты из анализа
-            candidate_concepts = []
-            
-            # Добавляем именованные сущности
-            for entity in analysis.entities:
-                if entity["type"] in ["CONCEPT", "TERM", "ORG", "PRODUCT", "TECH", "SCI", "PHIL"]:
-                    candidate_concepts.append({
-                        "concept": entity["text"],
-                        "type": entity["type"],
-                        "score": entity["confidence"]
-                    })
-            
-            # Добавляем ключевые слова из анализа
-            for keyword in analysis.keywords:
-                if keyword["relevance"] > 0.6:
-                    candidate_concepts.append({
-                        "concept": keyword["text"],
-                        "type": "KEYWORD",
-                        "score": keyword["relevance"]
-                    })
-            
-            # 3. Проверяем концепты в графе знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph') and candidate_concepts:
-                valid_concepts = []
+    def _extract_concept_from_query(self, query: str) -> Optional[str]:
+        """Извлекает концепт из запроса пользователя с использованием полноценной NLP обработки."""
+        query_hash = hashlib.md5(query.lower().encode()).hexdigest()
+        if not hasattr(self, '_concept_cache'):
+            self._concept_cache = {}
+        if query_hash in self._concept_cache:
+            return self._concept_cache[query_hash]
+        
+        logger.debug(f"Анализ запроса для извлечения концептов: '{query}'")
+        
+        if self.brain and hasattr(self.brain, 'nlp_processor'):
+            try:
+                analysis = self.brain.nlp_processor.process_text(query)
                 
-                for concept_data in candidate_concepts:
-                    concept = concept_data["concept"]
-                    
-                    # Проверяем, существует ли концепт в графе знаний
-                    node = self.brain.knowledge_graph.get_node_by_name(concept)
-                    if node:
-                        valid_concepts.append({
-                            "concept": concept,
-                            "type": concept_data["type"],
-                            "score": concept_data["score"] * 1.2,  # Увеличиваем вес для концептов из графа
-                            "in_knowledge_graph": True
+                candidate_concepts = []
+                
+                for entity in analysis.entities:
+                    if entity["type"] in ["CONCEPT", "TERM", "ORG", "PRODUCT", "TECH", "SCI", "PHIL"]:
+                        candidate_concepts.append({
+                            "concept": entity["text"],
+                            "type": entity["type"],
+                            "score": entity["confidence"]
                         })
-                    else:
-                        # Проверяем похожие концепты
-                        similar_nodes = self.brain.knowledge_graph.find_similar_nodes(concept, threshold=0.75)
-                        if similar_nodes:
-                            # Берем наиболее похожий узел
-                            most_similar = max(similar_nodes, key=lambda x: x[1])
+                
+                for keyword in analysis.keywords:
+                    if keyword["relevance"] > 0.6:
+                        candidate_concepts.append({
+                            "concept": keyword["text"],
+                            "type": "KEYWORD",
+                            "score": keyword["relevance"]
+                        })
+                
+                if self.brain and hasattr(self.brain, 'knowledge_graph') and candidate_concepts:
+                    valid_concepts = []
+                    
+                    for concept_data in candidate_concepts:
+                        concept = concept_data["concept"]
+                        
+                        node = self.brain.knowledge_graph.get_node_by_name(concept)
+                        if node:
                             valid_concepts.append({
-                                "concept": most_similar[0],
+                                "concept": concept,
                                 "type": concept_data["type"],
-                                "score": concept_data["score"] * 0.8,  # Снижаем вес для похожих концептов
-                                "in_knowledge_graph": True,
-                                "similar_to": concept
+                                "score": concept_data["score"] * 1.2,
+                                "in_knowledge_graph": True
                             })
                         else:
-                            valid_concepts.append(concept_data)
+                            similar_nodes = self.brain.knowledge_graph.find_similar_nodes(concept, threshold=0.75)
+                            if similar_nodes:
+                                most_similar = max(similar_nodes, key=lambda x: x[1])
+                                valid_concepts.append({
+                                    "concept": most_similar[0],
+                                    "type": concept_data["type"],
+                                    "score": concept_data["score"] * 0.8,
+                                    "in_knowledge_graph": True,
+                                    "similar_to": concept
+                                })
+                            else:
+                                valid_concepts.append(concept_data)
+                    
+                    valid_concepts.sort(key=lambda x: x["score"], reverse=True)
+                    
+                    if valid_concepts:
+                        result = valid_concepts[0]["concept"].replace(" ", "_").lower()
+                        self._concept_cache[query_hash] = result
+                        return result
                 
-                # 4. Сортируем концепты по релевантности
-                valid_concepts.sort(key=lambda x: x["score"], reverse=True)
-                
-                # 5. Возвращаем наиболее релевантный концепт
-                if valid_concepts:
-                    result = valid_concepts[0]["concept"].replace(" ", "_").lower()
+            except Exception as e:
+                logger.error(f"Ошибка при NLP-анализе запроса: {e}")
+        
+        if self.brain and hasattr(self.brain, 'contradiction_manager'):
+            known_concepts = self.brain.contradiction_manager.get_known_concepts()
+            query_lower = query.lower()
+            
+            for concept in known_concepts:
+                normalized_concept = concept.replace("_", " ").lower()
+                if normalized_concept in query_lower:
+                    result = concept
                     self._concept_cache[query_hash] = result
                     return result
-            
-        except Exception as e:
-            logger.error(f"Ошибка при NLP-анализе запроса: {e}")
-    
-    # Резервные методы, если NLP-обработка недоступна
-    # Метод 1: Используем список известных концептов из системы
-    if self.brain and hasattr(self.brain, 'contradiction_manager'):
-        known_concepts = self.brain.contradiction_manager.get_known_concepts()
-        query_lower = query.lower()
         
-        for concept in known_concepts:
-            normalized_concept = concept.replace("_", " ").lower()
-            if normalized_concept in query_lower:
-                result = concept
-                self._concept_cache[query_hash] = result
-                return result
-    
-    # Метод 2: Используем простой анализ через spaCy, если он доступен
-    try:
-        import spacy
-        if not hasattr(self, 'nlp_spacy'):
-            try:
-                self.nlp_spacy = spacy.load("ru_core_news_sm")
-            except (ImportError, OSError):
+        try:
+            import spacy
+            if not hasattr(self, 'nlp_spacy'):
                 try:
-                    spacy.cli.download("ru_core_news_sm")
                     self.nlp_spacy = spacy.load("ru_core_news_sm")
-                except Exception:
-                    self.nlp_spacy = None
-        
-        if self.nlp_spacy:
-            doc = self.nlp_spacy(query)
-            # Ищем составные именные группы
-            noun_phrases = [chunk.text for chunk in doc.noun_chunks if len(chunk.text) > 3]
+                except (ImportError, OSError):
+                    try:
+                        spacy.cli.download("ru_core_news_sm")
+                        self.nlp_spacy = spacy.load("ru_core_news_sm")
+                    except Exception:
+                        self.nlp_spacy = None
             
-            # Проверяем наиболее вероятные кандидаты
-            if noun_phrases:
-                # Берем самую длинную фразу (вероятно, наиболее специфичный концепт)
-                candidate = max(noun_phrases, key=len)
-                result = candidate.replace(" ", "_").lower()
-                self._concept_cache[query_hash] = result
-                return result
-    except Exception as e:
-        logger.debug(f"Не удалось использовать spaCy для анализа: {e}")
-    
-    # Метод 3: Используем TF-IDF для выделения ключевых терминов
-    try:
-        if self.brain and hasattr(self.brain, 'nlp_processor'):
-            keywords = self.brain.nlp_processor.extract_keywords(query, top_n=3)
-            if keywords:
-                # Берем наиболее релевантное ключевое слово
-                result = keywords[0][0].replace(" ", "_").lower()
-                self._concept_cache[query_hash] = result
-                return result
-    except Exception as e:
-        logger.debug(f"Не удалось использовать TF-IDF анализ: {e}")
-    
-    # 4. Если все методы не сработали, возвращаем None
-    logger.debug(f"Не удалось определить концепт из запроса: '{query}'")
-    self._concept_cache[query_hash] = None
-    return None
+            if self.nlp_spacy:
+                doc = self.nlp_spacy(query)
+                noun_phrases = [chunk.text for chunk in doc.noun_chunks if len(chunk.text) > 3]
+                
+                if noun_phrases:
+                    candidate = max(noun_phrases, key=len)
+                    result = candidate.replace(" ", "_").lower()
+                    self._concept_cache[query_hash] = result
+                    return result
+        except Exception as e:
+            logger.debug(f"Не удалось использовать spaCy для анализа: {e}")
+        
+        try:
+            if self.brain and hasattr(self.brain, 'nlp_processor'):
+                keywords = self.brain.nlp_processor.extract_keywords(query, top_n=3)
+                if keywords:
+                    result = keywords[0][0].replace(" ", "_").lower()
+                    self._concept_cache[query_hash] = result
+                    return result
+        except Exception as e:
+            logger.debug(f"Не удалось использовать TF-IDF анализ: {e}")
+        
+        logger.debug(f"Не удалось определить концепт из запроса: '{query}'")
+        self._concept_cache[query_hash] = None
+        return None

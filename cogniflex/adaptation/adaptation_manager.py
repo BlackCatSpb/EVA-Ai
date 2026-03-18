@@ -13,61 +13,9 @@ from datetime import datetime
 from dataclasses import dataclass, field, asdict, is_dataclass
 from collections import defaultdict, deque
 
+from .adaptation_profiles import UserProfile, UserFeedback
+
 logger = logging.getLogger("cogniflex.adaptation")
-
-
-# ============================================================================
-# Классы данных
-# ============================================================================
-
-@dataclass
-class UserProfile:
-    """Профиль пользователя для персонализации взаимодействия."""
-    user_id: str
-    preferences: Dict[str, Any] = field(default_factory=dict)
-    interaction_history: List[Dict[str, Any]] = field(default_factory=list)
-    adaptation_level: float = 0.5
-    learning_style: str = "balanced"
-    knowledge_level: float = 0.5
-    response_preferences: Dict[str, float] = field(default_factory=lambda: {"formal": 0.5, "casual": 0.5})
-    cultural_profile: Dict[str, Any] = field(default_factory=dict)
-    last_updated: float = field(default_factory=time.time)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Конвертация в словарь для сериализации."""
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'UserProfile':
-        """Создание из словаря."""
-        valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in data.items() if k in valid_keys}
-        return cls(**filtered)
-
-
-@dataclass
-class UserFeedback:
-    """Запись обратной связи от пользователя."""
-    id: str
-    user_id: str
-    query: str
-    response: str
-    feedback_type: str  # positive, negative, neutral
-    feedback_text: str
-    timestamp: float
-    context: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Конвертация в словарь для сериализации."""
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'UserFeedback':
-        """Создание из словаря."""
-        valid_keys = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered = {k: v for k, v in data.items() if k in valid_keys}
-        return cls(**filtered)
 
 
 # ============================================================================
@@ -646,6 +594,7 @@ class AdaptationManager:
                 if f.metadata.get("sentiment", 0) > 0.6
             )
             
+            positive_ratio = 0.0
             if feedback_count > 0:
                 positive_ratio = positive_feedback / feedback_count
                 if positive_ratio < 0.4:
