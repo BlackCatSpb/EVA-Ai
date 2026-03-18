@@ -131,8 +131,8 @@ class BackgroundCoordinator:
     def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
         """Публикует событие в систему событий."""
         try:
-            if hasattr(self.brain, 'event_bus') and self.brain.event_bus:
-                self.brain.event_bus.emit(event_type, data)
+            if hasattr(self.brain, 'events') and self.brain.events:
+                self.brain.events.trigger(event_type, data)
                 logger.debug(f"Событие опубликовано: {event_type}")
         except Exception as e:
             logger.error(f"Ошибка публикации события {event_type}: {e}")
@@ -496,10 +496,10 @@ class BackgroundCoordinator:
                     self._job_pending[job_type_name] = False
 
         # Запускаем задачу в отдельном потоке
-        t = threading.Thread(target=self._run_job, args=(job, job_type_name, resource_class, req, _on_start, _on_done), daemon=True)
+        t = threading.Thread(target=self._run_job, args=(job, job_type_name, resource_class, req, context, _on_start, _on_done), daemon=True)
         t.start()
 
-    def _run_job(self, job, job_type_name: str, resource_class: str, req: Dict[str, Any], _on_start, _on_done):
+    def _run_job(self, job, job_type_name: str, resource_class: str, req: Dict[str, Any], context: Dict[str, Any], _on_start, _on_done):
         """Выполняет задачу с обработкой ошибок."""
         failed = False
         try:
@@ -739,16 +739,7 @@ class BackgroundCoordinator:
                 }
             }
         except Exception as e:
-            return {"status": "error", "message": str(e)}
-
-    def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
-        """Публикует событие в систему событий."""
-        try:
-            if hasattr(self.brain, 'events') and self.brain.events:
-                self.brain.events.trigger(event_type, data)
-                logger.debug(f"Событие опубликовано: {event_type}")
-        except Exception as e:
-            logger.error(f"Ошибка публикации события {event_type}: {e}")
+             return {"status": "error", "message": str(e)}
 
     # ---- Публичный доступ к таймлайну ----
     def get_timeline(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
