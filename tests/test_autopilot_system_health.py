@@ -39,6 +39,8 @@ class BrainStub:
     def __init__(self, cache_dir: str):
         self.cache_dir = cache_dir
         self.autopilot_cache = AutopilotCache(cache_dir)
+        self.initialized = True
+        self.running = True
 
 
 class ResourceManagerStub:
