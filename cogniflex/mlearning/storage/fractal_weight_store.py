@@ -47,6 +47,75 @@ class FractalWeightStore:
         else:
             self.metadata[key] = value
             
+    def save_to_disk(self, output_path: str, knowledge_graph: Optional[Dict[str, Any]] = None) -> bool:
+        """Сохраняет фрактальное хранилище на диск"""
+        try:
+            import pickle
+            import json
+            from pathlib import Path
+
+            out_dir = Path(output_path)
+            out_dir.mkdir(parents=True, exist_ok=True)
+
+            containers_file = out_dir / "containers.pkl"
+            with open(containers_file, 'wb') as f:
+                pickle.dump(self.containers, f)
+
+            metadata_file = out_dir / "metadata.json"
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(self.metadata, f, indent=2, ensure_ascii=False)
+
+            config_file = out_dir / "config.json"
+            config = {
+                "block_size": self.block_size,
+                "fractal_levels": self.fractal_levels,
+                "containers_per_group": self.containers_per_group,
+                "device": self.device,
+                "total_containers": len(self.containers)
+            }
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2)
+
+            return True
+
+        except Exception as e:
+            print(f"Ошибка сохранения: {e}")
+            return False
+
+    def update_hot_window(self, key: str) -> None:
+        """Update hot window with new access"""
+        self.hot_window[key] = time.time()
+        if len(self.hot_window) > 100:
+            for _ in range(10):
+                self.hot_window.popitem(last=False)
+
+    def get(self, key: str) -> Any:
+        """Get a stored value"""
+        if key in self.metadata:
+            value = self.metadata[key]
+            if isinstance(value, dict):
+                result = {}
+                for k, v in value.items():
+                    if isinstance(v, dict) and v.get('type') == 'tensor':
+                        result[k] = self.get_tensor_by_key(v['key'])
+                    else:
+                        result[k] = v
+                return result
+            return value
+        elif key in self.containers:
+            return self.get_tensor_by_key(key)
+        return None
+
+    def get_tensor_by_key(self, key: str) -> Optional[torch.Tensor]:
+        """Get a stored tensor"""
+        if key not in self.containers:
+            return None
+        container = self.containers[key]
+        data = torch.from_numpy(container.data)
+        if self.device == 'cuda':
+            data = data.cuda()
+        return data
+
     def store_tensor(self, key: str, tensor: torch.Tensor) -> None:
         """Store a tensor value"""
         data = tensor.detach().cpu().numpy()
@@ -60,51 +129,7 @@ class FractalWeightStore:
         )
         self.containers[key] = container
         self.update_hot_window(key)
-        
-    def get_tensor(self, key: str) -> Optional[torch.Tensor]:
-        """Get a stored tensor"""
-        if key not in self.containers:
-            return None
-        container = self.containers[key]
-        data = torch.from_numpy(container.data)
-        if self.device == 'cuda':
-            data = data.cuda()
-        return data
-    
-    def save_to_disk(self, output_path: str, knowledge_graph: Optional[Dict[str, Any]] = None) -> bool:
-        """Сохраняет фрактальное хранилище на диск"""
-        try:
-            import pickle
-            import json
-            from pathlib import Path
-            
-            out_dir = Path(output_path)
-            out_dir.mkdir(parents=True, exist_ok=True)
-            
-            containers_file = out_dir / "containers.pkl"
-            with open(containers_file, 'wb') as f:
-                pickle.dump(self.containers, f)
-            
-            metadata_file = out_dir / "metadata.json"
-            with open(metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(self.metadata, f, indent=2, ensure_ascii=False)
-            
-            config_file = out_dir / "config.json"
-            config = {
-                "block_size": self.block_size,
-                "fractal_levels": self.fractal_levels,
-                "containers_per_group": self.containers_per_group,
-                "device": self.device,
-                "total_containers": len(self.containers)
-            }
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2)
-            
-            return True
-            
-        except Exception as e:
-            print(f"Ошибка сохранения: {e}")
-            return False
+
         
     def update_hot_window(self, key: str) -> None:
         """Update hot window with new access"""
