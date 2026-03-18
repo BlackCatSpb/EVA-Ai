@@ -687,5 +687,8 @@ class OptimizedContradictionDetector:
 
 __all__ = [
     'Contradiction',
-    'OptimizedContradictionDetector'
+    'OptimizedContradictionDetector',
+    'ContradictionDetector'
 ]
+
+ContradictionDetector = OptimizedContradictionDetector
