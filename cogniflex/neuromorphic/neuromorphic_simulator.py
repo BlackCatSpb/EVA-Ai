@@ -5,11 +5,21 @@ import time
 import threading
 import queue
 import json
+import random
 import numpy as np
+from io import BytesIO
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger("cogniflex.neuromorphic")
+
+import base64
+try:
+    import matplotlib.pyplot as plt
+    MPL_AVAILABLE = True
+except Exception:
+    MPL_AVAILABLE = False
+    plt = None
 
 # Проверка наличия NEST
 NEST_AVAILABLE = False
@@ -177,6 +187,7 @@ class NeuromorphicSimulator:
         self.brain = brain
         self.fractal_store = fractal_store
         self.cache_dir = cache_dir or "cogniflex_neuromorphic_cache"
+        self.use_nest = NEST_AVAILABLE
 
         # Создаем директорию кэша
         os.makedirs(self.cache_dir, exist_ok=True)
