@@ -85,7 +85,7 @@ def migrate_to_optimized():
         return True
         
     except Exception as e:
-        logger.error(❌ Ошибка миграции: {e})
+        logger.error(f"ERROR: Ошибка миграции: {e}")
         import traceback
         traceback.print_exc()
         return False

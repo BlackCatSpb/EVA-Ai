@@ -107,7 +107,7 @@ def activate_max_cache():
         return True
         
     except Exception as e:
-        logger.error(❌ Ошибка активации: {e})
+        logger.error(f"ERROR: Ошибка активации: {e}")
         import traceback
         traceback.print_exc()
         return False

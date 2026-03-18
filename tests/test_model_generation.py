@@ -65,7 +65,7 @@ def test_model_generation():
                 print(f"  - {k}")
         
         if unexpected:
-            print("\nFirst 5 unexpected keys:
+            print("\nFirst 5 unexpected keys:")
             for k in list(unexpected)[:5]:
                 print(f"  - {k}")
         

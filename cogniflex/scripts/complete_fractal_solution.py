@@ -55,7 +55,7 @@ def cleanup_old_models():
                     logger.info(f"   ✅ Удалено")
                     
                 except Exception as e:
-                    logger.error(   ❌ Ошибка удаления {path}: {e})
+                    logger.error(f"   ERROR: Ошибка удаления {path}: {e}")
             else:
                 logger.info(f"   ⚪ Путь не найден: {path}")
         
@@ -248,7 +248,7 @@ def download_and_export_rugpt3_with_custom_tokenizer():
                 logger.info()
                 
             except Exception as e:
-                logger.error(   ❌ Ошибка: {e})
+                logger.error(f"   ERROR: Ошибка: {e}")
         
         # 5. Сохраняем модель временно для экспорта
         temp_model_dir = Path("out") / f"{model_name}_temp"
@@ -308,7 +308,7 @@ def download_and_export_rugpt3_with_custom_tokenizer():
                 shutil.rmtree(temp_model_dir)
                 logger.info(f"🧹 Временные файлы очищены")
             except Exception as e:
-                logger.error(⚠️ Ошибка очистки временных файлов: {e})
+                logger.error(f"WARNING: Ошибка очистки временных файлов: {e}")
             
             return True
         else:

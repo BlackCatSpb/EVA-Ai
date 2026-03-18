@@ -260,7 +260,6 @@ class TorchBatchAdapter:
             tensors = pinned
         return Batch(tensors=tensors, metas=metas)
 
-from __future__ import annotations
 
 import time
 import math
