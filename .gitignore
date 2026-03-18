@@ -61,11 +61,8 @@ tokenizer_cache/
 ethics_cache/
 cogniflex_gui_cache/
 
-# Test files
-tests/
-test_*.py
+# Test artifacts (not test source files)
 test_*.txt
-test_*.json
 test_*.pt
 test_*.safetensors
 test_model.pt
@@ -141,3 +138,19 @@ model.safetensors
 Thumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+
+# Local virtualenvs and backups
+.venv311_backup/
+*.backup/
+
+# Training data and outputs
+training_output/
+fractal_unified_text-generation/
+
+# GUI state / runtime caches
+cogniflex/gui/memory_cache/
+cogniflex/core/cogniflex_cache/autopilot/
+
+# Misc runtime artefacts
+cogniflex.log
+run.log

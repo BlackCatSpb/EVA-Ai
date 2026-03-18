@@ -1,4 +1,3 @@
-<<<<<<< C:/Users/black/OneDrive/Desktop/CogniFlex/brain_config.json
 {
   "hybrid_cache": {
     "hot_window_size_mb": 256,
@@ -55,61 +54,3 @@
     "performance_tracking": true
   }
 }
-=======
-{
-  "hybrid_cache": {
-    "hot_window_size_mb": 256,
-    "max_hot_tokens": 8192,
-    "gpu_acceleration": true,
-    "device": "cuda:0",
-    "ram_buffer_mb": 1024,
-    "ssd_cache_enabled": true,
-    "max_context_length": 1024,
-    "max_batch_size": 4,
-    "memory_check_interval": 5,
-    "aggressive_eviction": true,
-    "prefetch_enabled": true,
-    "gpu_memory_fraction": 0.4
-  },
-  "model": {
-    "name": "rugpt3",
-    "path": "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/fractal_rugpt_full.safetensors",
-    "vocab_size": 50257,
-    "max_length": 1024,
-    "device": "cuda:0"
-  },
-  "generation": {
-    "temperature": 0.7,
-    "top_p": 0.9,
-    "top_k": 50,
-    "max_new_tokens": 100,
-    "do_sample": true,
-    "pad_token_id": 50256
-  },
-  "optimization": {
-    "use_gpu": true,
-    "gpu_memory_fraction": 0.4,
-    "cpu_fallback": true,
-    "cache_responses": true,
-    "batch_processing": false
-  },
-  "learning": {
-    "enable_training": false,
-    "batch_size": 1,
-    "learning_rate": 0.0001,
-    "max_memory_mb": 256,
-    "training_disabled": true
-  },
-  "system": {
-    "disable_learning_threads": true,
-    "disable_background_training": true,
-    "max_concurrent_operations": 1
-  },
-  "logging": {
-    "level": "INFO",
-    "file": "cogniflex.log",
-    "console": true,
-    "performance_tracking": true
-  }
-}
->>>>>>> C:/Users/black/.windsurf/worktrees/CogniFlex/CogniFlex-81c8d36b/brain_config.json
