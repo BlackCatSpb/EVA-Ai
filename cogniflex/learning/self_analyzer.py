@@ -373,34 +373,12 @@ class SelfAnalyzer:
         
         logger.info("Модуль самоанализа закрыт")
     
-    def _models_ready(self) -> bool:
-        """Проверяет готовность всех необходимых моделей"""
-        if not self.brain or not hasattr(self.brain, 'model_manager'):
-            logger.warning("ModelManager недоступен")
-            return False
-            
-        required_models = ['analyzer', 'ethics', 'knowledge']
-        for model_id in required_models:
-            state = self.brain.model_manager.model_states.get(model_id)
-            if state == "loading":
-                logger.warning(f"Модель {model_id} ещё загружается")
-                return False
-            elif state == "error":
-                error = self.brain.model_manager.loading_errors.get(model_id, "недоступно")
-                logger.warning(f"Ошибка загрузки модели {model_id}: {error}")
-                return False
-            elif not state:
-                logger.warning(f"Модель {model_id} не загружена")
-                return False
-        return True
-        
     def start_learning_process(self):
         """Запускает процесс обучения."""
         if not self._check_ready():
             return False
             
         try:
-            # Не начинать обучение до готовности моделей
             if not self._models_ready():
                 logger.warning("Обучение отложено: модели ещё не загружены")
                 try:
@@ -409,7 +387,6 @@ class SelfAnalyzer:
                 except Exception:
                     pass
                 return False
-            # Пытаемся запустить обучение графа памяти
             if self.memory_graph_trainer:
                 return self.memory_graph_trainer.start_learning_process()
             elif hasattr(self.analyzer_core, 'start_learning_process'):
@@ -424,7 +401,6 @@ class SelfAnalyzer:
     def pause_learning_process(self):
         """Приостанавливает процесс обучения."""
         try:
-            # Пытаемся приостановить обучение графа памяти
             if self.memory_graph_trainer:
                 return self.memory_graph_trainer.pause_learning_process()
             elif hasattr(self.analyzer_core, 'pause_learning_process'):
@@ -436,20 +412,15 @@ class SelfAnalyzer:
             logger.error(f"Ошибка приостановки процесса обучения: {e}")
             return False
 
-    # ----------------------------
-    # Readiness helpers
-    # ----------------------------
     def _models_ready(self) -> bool:
         """Проверяет, загружена ли хотя бы одна ML-модель или фрактальное хранилище."""
         try:
             if not self.brain:
                 return False
-            # Проверяем fractal_ready - если активно, считаем что модели готовы
             if bool(getattr(self.brain, 'fractal_ready', False)):
                 return True
             if bool(getattr(self.brain, 'models_ready', False)):
                 return True
-            # Попробовать спросить у model_manager
             mm = getattr(self.brain, 'model_manager', None)
             if mm and hasattr(mm, 'models') and isinstance(mm.models, dict) and len(mm.models) > 0:
                 return True
