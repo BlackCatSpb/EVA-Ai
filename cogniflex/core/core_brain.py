@@ -402,16 +402,12 @@ class CoreBrain:
         self.query_logger.info(f"Disk usage: {disk.percent}%")
         
         # CUDA информация
-        try:
-            import torch
-            if torch.cuda.is_available():
-                self.query_logger.info(f"CUDA available: Yes")
-                self.query_logger.info(f"CUDA device count: {torch.cuda.device_count()}")
-                self.query_logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
-            else:
-                self.query_logger.info("CUDA available: No")
-        except ImportError:
-            self.query_logger.info("PyTorch not installed")
+        if torch.cuda.is_available():
+            self.query_logger.info(f"CUDA available: Yes")
+            self.query_logger.info(f"CUDA device count: {torch.cuda.device_count()}")
+            self.query_logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        else:
+            self.query_logger.info("CUDA available: No")
         
         self.query_logger.info("=" * 80)
         

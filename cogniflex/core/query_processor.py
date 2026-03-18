@@ -474,44 +474,26 @@ class QueryProcessor:
             Optional[str]: Сгенерированный ответ или None
         """
         try:
-            # Используем унифицированный метод process_query
-            if hasattr(self.brain, 'process_query'):
-                gen_context = {
-                    "nlp": nlp_info,
-                    "evidence": evidence,
-                    "concept": concept,
-                    "user_context": user_context
-                }
-                
-                result = self.brain.process_query(query, context=gen_context)
-                if result and isinstance(result, dict):
-                    return result.get('text', 'Ошибка обработки')
-                elif isinstance(result, str):
-                    return result
-                else:
-                    return "Ошибка обработки ответа"
-            
-            # Запасной вариант: используем старую логику, если GenerationCoordinator недоступен
-            if not self.brain.components.get("ml_unit"):
-                return "Извините, модуль генерации недоступен."
-            
-            # Формируем контекст для генерации
             gen_context = {
                 "nlp": nlp_info,
                 "evidence": evidence,
                 "concept": concept,
                 "user_context": user_context
             }
-
-            # Генерируем ответ
-            result = self.brain.process_query(query, context=gen_context)
-            if result and isinstance(result, dict):
-                return result.get('text', 'Ошибка обработки')
-            elif isinstance(result, str):
-                return result
-            else:
+            
+            if not self.brain.components.get("ml_unit"):
+                return "Извините, модуль генерации недоступен."
+            
+            if hasattr(self.brain, 'process_query'):
+                result = self.brain.process_query(query, context=gen_context)
+                if result and isinstance(result, dict):
+                    return result.get('text', 'Ошибка обработки')
+                elif isinstance(result, str):
+                    return result
                 return "Ошибка обработки ответа"
-                
+            
+            return "Извините, модуль генерации недоступен."
+            
         except Exception as e:
             logger.exception(f"Ошибка генерации ответа: {e}")
             return "Извините, произошла ошибка при генерации ответа. Пожалуйста, попробуйте еще раз."
