@@ -67,8 +67,7 @@
     "max_documents_per_batch": 2,
     "checkpoint_interval": 200,
     "max_retries": 2,
-    "low_memory_mode": true
-  },
+    "low_memory_mode": true,
     "backoff_seconds": 2.0,
     "use_hybrid_cache": true
   },
