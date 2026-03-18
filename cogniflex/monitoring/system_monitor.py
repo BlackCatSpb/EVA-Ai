@@ -8,6 +8,7 @@ import os
 import time
 import threading
 import logging
+import platform
 import psutil
 import json
 from typing import Dict, List, Any, Optional, Callable
@@ -246,7 +247,6 @@ class SystemMonitor:
                 memory = psutil.virtual_memory()
                 
                 # Определяем корневой диск для Windows и Unix
-                import platform
                 if platform.system() == 'Windows':
                     disk_path = 'C:\\'
                 else:
@@ -392,7 +392,7 @@ class SystemMonitor:
             self.metrics_collector.record_metric("system.memory_used_gb", memory.used / (1024**3))
 
             # Disk
-            disk = psutil.disk_usage('/')
+            disk = psutil.disk_usage('/') if platform.system() != 'Windows' else psutil.disk_usage('C:\\')
             self.metrics_collector.record_metric("system.disk_percent", disk.percent)
 
             # Network (если доступно)

@@ -168,7 +168,7 @@ class IntegratedWebSearchEngine(BaseComponent):
             # Обновляем статистику
             self.stats["searches_performed"] += 1
             
-            if result.get("success", False):
+            if result.get("status") == "completed":
                 results = result.get("results", [])
                 self.stats["results_found"] += len(results)
                 
@@ -178,7 +178,7 @@ class IntegratedWebSearchEngine(BaseComponent):
             # Публикуем событие поиска
             self._emit_event("web_search_engine.search_performed", {
                 'query_length': len(query),
-                'success': result.get("success", False),
+                'success': result.get("status") == "completed",
                 'results_count': len(result.get("results", [])),
                 'processing_time': time.time() - start_time
             })
