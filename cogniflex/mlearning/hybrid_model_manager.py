@@ -280,10 +280,10 @@ class HybridModelManager:
                 logger.info(f"Загружаем токенизатор из: {tokenizer_path}")
                 
                 # Импортируем локальный загрузчик
-                from cogniflex.mlearning.local_rugpt3_loader import Localrugpt3largeLoader
+                from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
                 
                 # Создаем загрузчик
-                loader = Localrugpt3largeLoader(storage_path=tokenizer_path)
+                loader = LocalRuGPT3Loader(storage_path=tokenizer_path)
                 tokenizer = loader.create_tokenizer()
                 
                 if tokenizer:
@@ -369,10 +369,10 @@ class HybridModelManager:
         """Загружает модель в окно"""
         try:
             # Импортируем локальный загрузчик
-            from cogniflex.mlearning.local_rugpt3_loader import Localrugpt3largeLoader
+            from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
             
             # Создаем загрузчик
-            loader = Localrugpt3largeLoader()
+            loader = LocalRuGPT3Loader()
             model = loader.create_model(device=device)
             
             if model:
