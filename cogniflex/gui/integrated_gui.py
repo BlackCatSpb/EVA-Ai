@@ -448,22 +448,68 @@ class IntegratedCogniFlexGUI:
     def update_metrics(self):
         """Обновление метрик системы."""
         try:
-            if not hasattr(self.integrator, 'get_system_stats'):
-                return
-
-            stats = self.integrator.get_system_stats()
-
+            stats = {}
+            health = {}
+            
+            # Пробуем получить stats от integrator
+            if hasattr(self, 'integrator') and self.integrator:
+                if hasattr(self.integrator, 'get_system_stats'):
+                    try:
+                        stats = self.integrator.get_system_stats() or {}
+                    except Exception:
+                        pass
+                health = stats.get('health', {})
+            
+            # Пробуем получить данные от brain если нет от integrator
+            if not stats and hasattr(self, 'brain') and self.brain:
+                brain = self.brain
+                # Компоненты
+                components_count = len(brain.components) if hasattr(brain, 'components') and brain.components else 0
+                health['components_count'] = components_count
+                health['status'] = getattr(brain, 'state', 'unknown')
+                
+                # Метрики
+                if hasattr(brain, 'metrics_collector'):
+                    try:
+                        mc = brain.metrics_collector
+                        stats['metrics'] = {
+                            'total_requests': getattr(mc, 'total_requests', 0),
+                            'successful_responses': getattr(mc, 'total_responses', 0)
+                        }
+                    except Exception:
+                        pass
+                
+                # Противоречия
+                if hasattr(brain, 'contradiction_manager'):
+                    try:
+                        cm = brain.contradiction_manager
+                        contradictions_count = len(getattr(cm, 'active_contradictions', []))
+                    except Exception:
+                        contradictions_count = 0
+                else:
+                    contradictions_count = 0
+                
+                # Обучение
+                if hasattr(brain, 'learning_manager'):
+                    try:
+                        lm = brain.learning_manager
+                        learning_count = len(getattr(lm, 'pending_opportunities', []))
+                    except Exception:
+                        learning_count = 0
+                else:
+                    learning_count = 0
+            
             # Обновляем метки
             metrics_map = {
-                'status': lambda: stats.get('health', {}).get('status', 'Неизвестен'),
-                'components': lambda: str(stats.get('health', {}).get('components_count', 0)),
+                'status': lambda: health.get('status', 'Неизвестен'),
+                'components': lambda: str(health.get('components_count', 0)),
                 'requests': lambda: str(stats.get('metrics', {}).get('total_requests', 0)),
                 'responses': lambda: str(stats.get('metrics', {}).get('successful_responses', 0)),
-                'avg_time': lambda: ".2f",
+                'avg_time': lambda: f"{stats.get('metrics', {}).get('avg_response_time', 0):.2f}" if stats.get('metrics', {}).get('avg_response_time') else "0.0",
                 'active': lambda: str(stats.get('active_requests', 0)),
                 'focus': lambda: "Активен" if stats.get('attention_focus') else "Нет",
-                'contradictions': lambda: str(len(self.integrator.contradiction_resolver.active_contradictions) if hasattr(self.integrator, 'contradiction_resolver') else 0),
-                'learning': lambda: str(len(self.integrator.learning_scheduler.pending_opportunities) if hasattr(self.integrator, 'learning_scheduler') else 0)
+                'contradictions': lambda: str(contradictions_count),
+                'learning': lambda: str(learning_count)
             }
 
             for key, getter in metrics_map.items():

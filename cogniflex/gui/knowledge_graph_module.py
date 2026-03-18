@@ -1311,52 +1311,94 @@ class KnowledgeGraphModule:
         self._update_graph_visualization()
 
     def _show_node_info(self, node_id):
-        """Показывает информацию об узле."""
+        """Показывает информацию об узле из реального knowledge_graph."""
         # Очищаем панель
         self._clear_info_panel()
         
         try:
-            # Получаем данные узла
-            node_data = self.graph.nodes[node_id]
+            # Пробуем получить данные из реального knowledge_graph
+            node_data = None
+            source = "local"
+            
+            if hasattr(self.gui, 'brain') and self.gui.brain:
+                brain = self.gui.brain
+                if hasattr(brain, 'knowledge_graph') and brain.knowledge_graph:
+                    kg = brain.knowledge_graph
+                    # Получаем узел из реального графа знаний
+                    try:
+                        node = kg.get_node(node_id)
+                        if node:
+                            node_data = {
+                                'label': node.name,
+                                'type': node.node_type,
+                                'domain': node.domain,
+                                'strength': node.strength,
+                                'description': node.description,
+                                'timestamp': getattr(node, 'timestamp', 0),
+                                'last_updated': getattr(node, 'last_updated', 0)
+                            }
+                            source = "knowledge_graph"
+                    except Exception as e:
+                        logger.debug(f"Не удалось получить узел из knowledge_graph: {e}")
+            
+            # Fallback на локальный граф
+            if not node_data and self.graph and node_id in self.graph.nodes:
+                node_data = self.graph.nodes[node_id]
+            
+            if not node_data:
+                self._show_error_in_info_panel(f"Узел {node_id} не найден")
+                return
             
             # Создаем фрейм для информации
             info_frame = ttk.Frame(self.info_content)
             info_frame.pack(fill=tk.X, padx=5, pady=5)
             
+            # Источник данных
+            ttk.Label(
+                info_frame, 
+                text=f"Источник: {source}", 
+                font=('Segoe UI', 8, 'italic'),
+                foreground="gray"
+            ).grid(row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+            
+            row = 1
+            
             # Название
-            ttk.Label(
-                info_frame, 
-                text="Название:", 
-                font=('Segoe UI', 9, 'bold')
-            ).grid(row=0, column=0, sticky=tk.W, padx=(0, 10), pady=2)
-            ttk.Label(
-                info_frame, 
-                text=node_data.get("label", node_id), 
-                font=('Segoe UI', 9)
-            ).grid(row=0, column=1, sticky=tk.W, pady=2)
+            if node_data.get('label'):
+                ttk.Label(info_frame, text="Название:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
+                ttk.Label(info_frame, text=node_data.get('label', 'N/A'), font=('Segoe UI', 9)).grid(row=row, column=1, sticky=tk.W, pady=2)
+                row += 1
             
             # Тип
-            ttk.Label(
-                info_frame, 
-                text="Тип:", 
-                font=('Segoe UI', 9, 'bold')
-            ).grid(row=1, column=0, sticky=tk.W, padx=(0, 10), pady=2)
-            ttk.Label(
-                info_frame, 
-                text=node_data.get("type", "N/A"), 
-                font=('Segoe UI', 9)
-            ).grid(row=1, column=1, sticky=tk.W, pady=2)
+            if node_data.get('type'):
+                ttk.Label(info_frame, text="Тип:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
+                ttk.Label(info_frame, text=node_data.get('type', 'N/A'), font=('Segoe UI', 9)).grid(row=row, column=1, sticky=tk.W, pady=2)
+                row += 1
             
             # Домен
-            ttk.Label(
-                info_frame, 
-                text="Домен:", 
-                font=('Segoe UI', 9, 'bold')
-            ).grid(row=2, column=0, sticky=tk.W, padx=(0, 10), pady=2)
-            ttk.Label(
-                info_frame, 
-                text=node_data.get("domain", "N/A"), 
-                font=('Segoe UI', 9)
+            if node_data.get('domain'):
+                ttk.Label(info_frame, text="Домен:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
+                ttk.Label(info_frame, text=node_data.get('domain', 'N/A'), font=('Segoe UI', 9)).grid(row=row, column=1, sticky=tk.W, pady=2)
+                row += 1
+            
+            # Сила
+            if node_data.get('strength') is not None:
+                ttk.Label(info_frame, text="Сила:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
+                ttk.Label(info_frame, text=f"{node_data.get('strength', 0):.2f}", font=('Segoe UI', 9)).grid(row=row, column=1, sticky=tk.W, pady=2)
+                row += 1
+            
+            # Описание
+            if node_data.get('description'):
+                ttk.Label(info_frame, text="Описание:", font=('Segoe UI', 9, 'bold')).grid(row=row, column=0, sticky=tk.W, padx=(0, 10), pady=2)
+                row += 1
+                desc_label = ttk.Label(info_frame, text=node_data.get('description', 'N/A')[:200], font=('Segoe UI', 9), wraplength=400)
+                desc_label.grid(row=row, column=0, columnspan=2, sticky=tk.W, pady=2)
+            
+            logger.debug(f"Показана информация об узле {node_id} из {source}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка отображения информации об узле: {e}")
+            self._show_error_in_info_panel(f"Ошибка: {str(e)}")
             ).grid(row=2, column=1, sticky=tk.W, pady=2)
             
             # Сила
