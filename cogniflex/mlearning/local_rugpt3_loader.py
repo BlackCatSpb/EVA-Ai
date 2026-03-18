@@ -38,8 +38,13 @@ except ImportError:
     TRANSFORMERS_AVAILABLE = False
     logger.warning("Transformers недоступен - загрузка моделей будет невозможна")
 
-class Localrugpt3largeLoader:
+class LocalRuGPT3Loader:
     """Локальный загрузчик ruGPT-3 Large из фрактального хранилища"""
+    
+    @property
+    def model_path(self) -> Optional[str]:
+        """Returns the storage path for backwards compatibility."""
+        return self.storage_path
     
     @staticmethod
     def _get_project_root() -> str:
@@ -564,7 +569,7 @@ def load_rugpt3_medium_local(storage_path: str = None,
     if storage_path is None:
         storage_path = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"
     
-    loader = Localrugpt3largeLoader(storage_path)
+    loader = LocalRuGPT3Loader(storage_path)
     return loader.load_model_and_tokenizer(device)
 
 if __name__ == "__main__":
