@@ -333,7 +333,7 @@ class FractalModelManager:
             "device": self.device,
             "model_type": "GPT-2" if self.initialized else "None",
             "total_parameters": 124000000,  # 124M для GPT-2
-            "model_name": self.config.get("model_name", "gpt2") if self.config else "gpt2"
+            "model_name": (self.config.get("model", {}) or {}).get("name", "gpt2") if self.config else "gpt2"
         }
     
     def is_ready(self) -> bool:
@@ -344,7 +344,7 @@ class FractalModelManager:
         """Возвращает статистику производительности"""
         return {
             "initialized": self.initialized,
-            "model_name": self.config.get("model_name", "gpt2") if self.config else "gpt2",
+            "model_name": (self.config.get("model", {}) or {}).get("name", "gpt2") if self.config else "gpt2",
             "device": str(self.device)
         }
     
@@ -432,7 +432,7 @@ class FractalModelManager:
         
         # Возвращаем информацию о текущей модели
         model_info = {
-            "name": self.config.get("model_name", "rugpt3large") if self.config else "rugpt3large",
+            "name": (self.config.get("model", {}) or {}).get("name", "rugpt3large") if self.config else "rugpt3large",
             "display_name": "ruGPT-3 Large (фрактальная)",
             "type": "text-generation",
             "status": "loaded" if self.model and self.tokenizer else "error",
