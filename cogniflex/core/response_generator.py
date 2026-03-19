@@ -176,8 +176,8 @@ class ResponseGenerator:
         
         for entity in ambiguous_entities:
             clarifications.append({
-                "term": entity.term,
-                "type": entity.entity_type,
+                "term": entity.text,
+                "type": entity.ambiguity_type.value,
                 "context": entity.context
             })
         

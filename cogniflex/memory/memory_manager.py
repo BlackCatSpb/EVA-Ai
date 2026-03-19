@@ -1140,8 +1140,8 @@ class MemoryManager:
         entities = self.entity_extractor.extract_ambiguous_terms(text)
         return [
             {
-                "term": e.term,
-                "type": e.entity_type,
+                "term": e.text,
+                "type": e.ambiguity_type.value,
                 "context": e.context,
                 "confidence": e.confidence
             }
