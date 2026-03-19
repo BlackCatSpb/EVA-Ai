@@ -125,7 +125,15 @@ class MemoryGraphML:
         self._st_model_name = self.config.get('st_model', 'paraphrase-multilingual-MiniLM-L12-v2')
         self._init_st_model()
         
+        # Graph property for external access compatibility
+        self._graph = self.embeddings
+        
         logger.info("MemoryGraphML инициализирован")
+    
+    @property
+    def graph(self):
+        """Property for external access to the graph structure."""
+        return self._graph
     
     def _init_st_model(self):
         """Инициализирует sentence-transformer для CPU embeddings."""
@@ -579,6 +587,9 @@ class MemoryGraphML:
                     **(metadata or {})
                 }
             )
+            
+            # Обновляем graph property
+            self._graph = self.embeddings
             
             # Добавляем связь с исходным запросом
             query_node_id = f"query_{hash(source_query) % 1000000}"
