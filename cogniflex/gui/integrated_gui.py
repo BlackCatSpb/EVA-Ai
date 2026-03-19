@@ -590,7 +590,8 @@ class IntegratedCogniFlexGUI:
                 stats = self.integrator.get_system_stats()
 
                 stats_text = "📊 Статистика системы CogniFlex\n\n"
-                stats_text += f"Статус: {stats.get('health', {}).get('status', 'Неизвестен')}\n"
+                stats_text += f"Статус: {stats.get('health', {}).get('status', 'Неизвестен')}"
+                stats_text += "\n"
                 stats_text += f"Компонентов: {stats.get('health', {}).get('components_count', 0)}\n"
                 stats_text += f"Всего запросов: {stats.get('metrics', {}).get('total_requests', 0)}\n"
                 stats_text += f"Успешных ответов: {stats.get('metrics', {}).get('successful_responses', 0)}\n"

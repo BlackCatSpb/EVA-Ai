@@ -52,7 +52,8 @@ class SettingsModule:
         
         self._create_general_settings_tab()
         self._create_system_settings_tab()
-        # ... other tabs ...
+        self._create_adaptation_settings_tab()
+        self._create_backup_settings_tab()
 
         self._create_settings_control_panel()
 
@@ -207,21 +208,69 @@ class SettingsModule:
 
     def _apply_settings(self):
         try:
-            # Проверяем существование секции 'gui' в настройках
             if 'gui' not in self.gui.settings:
                 self.gui.settings['gui'] = {}
-            
-            # GUI Settings
-            self.gui.settings["gui"]["theme"] = self.vars['theme'].get()
-            # ... get other vars
+            if 'system' not in self.gui.settings:
+                self.gui.settings['system'] = {}
+            if 'adaptation' not in self.gui.settings:
+                self.gui.settings['adaptation'] = {}
+            if 'backup' not in self.gui.settings:
+                self.gui.settings['backup'] = {}
 
-            # Save settings to file
-            self._save_settings_to_file()
+            self.gui.settings["gui"]["theme"] = self.vars.get('theme', tk.StringVar(value="light")).get()
             
-            # Apply settings
-            if hasattr(self.gui, '_create_styles'):
-                self.gui._create_styles() # Re-apply styles for theme change
-            # ... apply other settings ...
+            auto_update_interval = 5000
+            try:
+                auto_update_interval = int(self.vars.get('update_interval', tk.StringVar(value="5000")).get())
+            except (ValueError, TypeError):
+                auto_update_interval = 5000
+            self.gui.settings["gui"]["auto_update_interval"] = auto_update_interval
+            
+            log_level = self.vars.get('log_level', tk.StringVar(value="INFO")).get()
+            self.gui.settings["system"]["log_level"] = log_level
+
+            self.gui.settings["gui"]["theme"] = self.vars.get('theme', tk.StringVar(value="light")).get()
+            cache_dir = self.vars.get('cache_dir', tk.StringVar()).get()
+            if cache_dir:
+                self.gui.settings["system"]["cache_dir"] = cache_dir
+                self.gui.cache_dir = cache_dir
+            
+            adaptation_enabled = self.vars.get('adaptation_enabled', tk.BooleanVar(value=True)).get()
+            self.gui.settings["adaptation"]["enabled"] = adaptation_enabled
+            
+            adaptation_style = self.vars.get('adaptation_style', tk.StringVar(value="auto")).get()
+            self.gui.settings["adaptation"]["style"] = adaptation_style
+            
+            adaptation_threshold = 0.7
+            try:
+                adaptation_threshold = float(self.vars.get('adaptation_threshold', tk.StringVar(value="0.7")).get())
+            except (ValueError, TypeError):
+                adaptation_threshold = 0.7
+            self.gui.settings["adaptation"]["threshold"] = adaptation_threshold
+            
+            auto_learning = self.vars.get('auto_learning', tk.BooleanVar(value=True)).get()
+            self.gui.settings["adaptation"]["auto_learning"] = auto_learning
+            
+            auto_backup = self.vars.get('auto_backup', tk.BooleanVar(value=True)).get()
+            self.gui.settings["backup"]["auto_backup"] = auto_backup
+            
+            backup_interval = 24
+            try:
+                backup_interval = int(self.vars.get('backup_interval', tk.StringVar(value="24")).get())
+            except (ValueError, TypeError):
+                backup_interval = 24
+            self.gui.settings["backup"]["interval_hours"] = backup_interval
+            
+            backup_dir = self.vars.get('backup_dir', tk.StringVar()).get()
+            if backup_dir:
+                self.gui.settings["backup"]["directory"] = backup_dir
+
+            self._save_settings_to_file()
+
+            try:
+                self.gui._create_styles()
+            except Exception:
+                pass
 
             if hasattr(self.gui, 'show_toast'):
                 self.gui.show_toast("Настройки успешно применены", "success")
@@ -234,10 +283,17 @@ class SettingsModule:
     def _save_settings_to_file(self):
         settings_path = os.path.join(self.gui.cache_dir, "gui_settings.json")
         system_settings_path = os.path.join(self.gui.cache_dir, "system_settings.json")
+        adaptation_settings_path = os.path.join(self.gui.cache_dir, "adaptation_settings.json")
+        backup_settings_path = os.path.join(self.gui.cache_dir, "backup_settings.json")
         try:
-            with open(settings_path, "w") as f:
-                json.dump(self.gui.settings["gui"], f, indent=2)
-            with open(system_settings_path, "w") as f:
-                json.dump(self.gui.settings["system"], f, indent=2)
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(self.gui.settings.get("gui", {}), f, ensure_ascii=False, indent=2)
+            with open(system_settings_path, "w", encoding="utf-8") as f:
+                json.dump(self.gui.settings.get("system", {}), f, ensure_ascii=False, indent=2)
+            with open(adaptation_settings_path, "w", encoding="utf-8") as f:
+                json.dump(self.gui.settings.get("adaptation", {}), f, ensure_ascii=False, indent=2)
+            with open(backup_settings_path, "w", encoding="utf-8") as f:
+                json.dump(self.gui.settings.get("backup", {}), f, ensure_ascii=False, indent=2)
+            logger.info("Все настройки сохранены в файлы")
         except Exception as e:
             logger.error(f"Ошибка сохранения настроек в файлы: {e}")

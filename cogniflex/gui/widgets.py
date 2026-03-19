@@ -94,28 +94,74 @@ def create_secondary_label(parent, text, **kwargs):
     label = ttk.Label(parent, text=text, font=("Arial", 9), foreground="#666666", **kwargs)
     return label
 
-def show_notification(message: str, level: str = "info", 
+_toast_tk_root = None
+
+def _get_toast_root():
+    global _toast_tk_root
+    if _toast_tk_root is None:
+        try:
+            _toast_tk_root = tk.Tk()
+            _toast_tk_root.withdraw()
+            _toast_tk_root.attributes('-topmost', True)
+        except Exception:
+            _toast_tk_root = None
+    return _toast_tk_root
+
+def _show_toast_window(message: str, level: str = "info", duration: int = 5000):
+    try:
+        root = _get_toast_root()
+        if root is None:
+            return
+
+        colors = {
+            'info': ('#0078d7', 'white'),
+            'success': ('#28a745', 'white'),
+            'warning': ('#ffc107', 'black'),
+            'error': ('#dc3545', 'white')
+        }
+        bg_color, fg_color = colors.get(level, ('#333333', 'white'))
+
+        toast = tk.Toplevel(root)
+        toast.withdraw()
+        toast.overrideredirect(True)
+        toast.configure(bg=bg_color)
+        toast.attributes('-topmost', True)
+
+        label = tk.Label(toast, text=message, bg=bg_color, fg=fg_color,
+                        font=('Segoe UI', 10), wraplength=300, padx=15, pady=10)
+        label.pack()
+
+        toast.update_idletasks()
+        w = toast.winfo_width() or 300
+        h = toast.winfo_height() or 50
+        screen_w = root.winfo_screenwidth()
+        screen_h = root.winfo_screenheight()
+        x = screen_w - w - 20
+        y = screen_h - h - 60
+        toast.geometry(f"{w}x{h}+{x}+{y}")
+        toast.deiconify()
+
+        def destroy():
+            try:
+                toast.destroy()
+            except Exception:
+                pass
+
+        root.after(duration, destroy)
+    except Exception:
+        pass
+
+def show_notification(message: str, level: str = "info",
                      title: Optional[str] = None, duration: Optional[int] = None,
                      actions: Optional[List[Dict[str, Callable]]] = None, **kwargs):
-    """
-    Показывает уведомление в интерфейсе с анимацией и автоматическим исчезновением.
-    
-    Args:
-        message: Текст уведомления
-        level: Уровень уведомления (info, success, warning, error)
-        title: Заголовок уведомления
-        duration: Продолжительность отображения в миллисекундах
-        actions: Список действий (кнопок)
-    """
-    # Эта функция будет заменена на метод GUI, но оставлена для обратной совместимости
     logger.info(f"[{level.upper()}] {message}")
     if title:
         logger.info(f"  {title}")
     if actions:
         action_names = [action["text"] for action in actions]
-        logger.info(f"  Доступные действия: {', '.join(action_names)}")
+        logger.info(f"  Available actions: {', '.join(action_names)}")
+    _show_toast_window(message, level, duration or 5000)
 
 def show_toast(message: str, duration: int = 3000, **kwargs):
-    """Показывает всплывающее уведомление."""
-    # Заглушка для всплывающих уведомлений
     logger.info(f"[TOAST] {message}")
+    _show_toast_window(message, kwargs.get('level', 'info'), duration)

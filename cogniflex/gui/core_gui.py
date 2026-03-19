@@ -72,6 +72,7 @@ class CogniFlexGUI:
         self.dashboard_data = {}
         self.last_notification_times = {}
         self.gui_queue_job = None  # ID запланированного after для очереди GUI
+        self.active_notifications = []  # Активные уведомления
         
         # Добавляем логгирование для чата
         self.chat_logger = logging.getLogger("cogniflex.gui.chat")
@@ -436,7 +437,8 @@ class CogniFlexGUI:
         style.configure("TNotebook.Tab", padding=(10, 5), background=self.colors['card-bg'], foreground=self.colors['text'])
         style.map("TNotebook.Tab", background=[("selected", self.colors['primary'])], foreground=[("selected", "white")])
 
-        self.root.configure(bg=self.colors['bg'])
+        if self.root:
+            self.root.configure(bg=self.colors['bg'])
 
     def _create_interface(self):
         self.main_container = ttk.Frame(self.root)
@@ -730,7 +732,8 @@ class CogniFlexGUI:
             except Exception:
                 self.cache_stats = {}
             
-            self.timestamp_label.config(text=datetime.now().strftime("%H:%M:%S"))
+            if hasattr(self, 'timestamp_label') and self.timestamp_label:
+                self.timestamp_label.config(text=datetime.now().strftime("%H:%M:%S"))
             self._update_status_indicator()
             self._update_system_metrics()
             self._handle_notifications()
@@ -761,10 +764,13 @@ class CogniFlexGUI:
                 mem_val *= 100.0
         except Exception:
             mem_val = 0.0
-        self.cpu_label.config(text=f"{cpu_val:.1f}%")
-        self.memory_label.config(text=f"{mem_val:.1f}%")
+        if hasattr(self, 'cpu_label') and self.cpu_label:
+            self.cpu_label.config(text=f"{cpu_val:.1f}%")
+        if hasattr(self, 'memory_label') and self.memory_label:
+            self.memory_label.config(text=f"{mem_val:.1f}%")
         contradiction_stats = self.dashboard_data.get('contradiction_stats', {})
-        self.contradictions_label.config(text=str(contradiction_stats.get('total', 0)))
+        if hasattr(self, 'contradictions_label') and self.contradictions_label:
+            self.contradictions_label.config(text=str(contradiction_stats.get('total', 0)))
         # Обновляем метрики кэша и I/O из CoreBrain API (если доступны)
         try:
             hit_rate = float(self.cache_stats.get('hit_rate', 0.0)) * (100.0 if self.cache_stats.get('hit_rate', 0.0) <= 1.5 else 1.0)
@@ -830,8 +836,10 @@ class CogniFlexGUI:
                 self.chat_logger.info(f"Статус соединения изменился: {self._last_status} -> {status}")
             self._last_status = status
 
-            self.status_indicator.itemconfig("indicator", fill=color)
-            self.connection_status.config(text=status_text)
+            if hasattr(self, 'status_indicator') and self.status_indicator:
+                self.status_indicator.itemconfig("indicator", fill=color)
+            if hasattr(self, 'connection_status') and self.connection_status:
+                self.connection_status.config(text=status_text)
 
             # Дополнительная информация для отладки
             if not brain_active and self.brain:
@@ -841,8 +849,10 @@ class CogniFlexGUI:
 
         except Exception as e:
             # Fallback на disconnected при ошибке
-            self.status_indicator.itemconfig("indicator", fill=self.colors['danger'])
-            self.connection_status.config(text="Соединение: ошибка")
+            if hasattr(self, 'status_indicator') and self.status_indicator:
+                self.status_indicator.itemconfig("indicator", fill=self.colors['danger'])
+            if hasattr(self, 'connection_status') and self.connection_status:
+                self.connection_status.config(text="Соединение: ошибка")
             self.chat_logger.error(f"Ошибка проверки статуса соединения: {e}")
 
         # Обновляем компактный индикатор загрузки моделей
@@ -850,6 +860,8 @@ class CogniFlexGUI:
 
     def _update_model_loading_indicator(self):
         try:
+            if not hasattr(self, 'model_load_label') or not self.model_load_label:
+                return
             st = self.model_loading_state
             if not st.get("active"):
                 self.model_load_label.config(text="")

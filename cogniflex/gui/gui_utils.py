@@ -165,9 +165,8 @@ def show_learning_opportunities(gui, opportunities: list):
     if not opportunities:
         return
     
-    # Показываем уведомление только если GUI активен
     if gui.root and gui.running:
-        gui.gui_queue.put(lambda: gui.show_notification(
+        gui.gui_queue.put(lambda: show_notification(
             f"Обнаружено {len(opportunities)} возможностей для обучения",
             "info",
             actions=[
