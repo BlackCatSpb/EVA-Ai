@@ -14,10 +14,10 @@
     "gpu_memory_fraction": 0.4
   },
   "model": {
-    "name": "rugpt3",
-    "path": "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/fractal_rugpt_full.safetensors",
+    "name": "rugpt3_small_fractal",
+    "path": "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/fractal_rugpt_small.safetensors",
     "vocab_size": 50257,
-    "max_length": 1024,
+    "max_length": 10244,
     "device": "cuda:0"
   },
   "generation": {
@@ -36,16 +36,16 @@
     "batch_processing": false
   },
   "learning": {
-    "enable_training": false,
+    "enable_training": true,
     "batch_size": 1,
     "learning_rate": 0.0001,
     "max_memory_mb": 256,
-    "training_disabled": true
+    "training_disabled": false
   },
   "system": {
-    "disable_learning_threads": true,
-    "disable_background_training": true,
-    "max_concurrent_operations": 1
+    "disable_learning_threads": false,
+    "disable_background_training": false,
+    "max_concurrent_operations": 4
   },
   "logging": {
     "level": "INFO",
