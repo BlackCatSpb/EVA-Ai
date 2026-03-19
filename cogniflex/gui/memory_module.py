@@ -47,6 +47,7 @@ class MemoryModule:
         # Для отслеживания состояния
         self.is_refreshing = False
         self.last_update_time = 0
+        self._message_after_jobs = []
         
         logger.info("Модуль памяти инициализирован")
     
@@ -639,10 +640,12 @@ class MemoryModule:
             
         except Exception as e:
             logger.error(f"Ошибка обновления графика истории: {e}")
-            ax.clear()
-            ax.text(0.5, 0.5, f"Ошибка: {str(e)}", 
+            if ax is not None:
+                ax.clear()
+                ax.text(0.5, 0.5, f"Ошибка: {str(e)}",
                    ha='center', va='center', fontsize=12, color='red')
-            canvas.draw()
+            if canvas is not None:
+                canvas.draw()
 
     def _clear_cache(self):
         """Очищает кэш памяти."""
@@ -763,11 +766,16 @@ class MemoryModule:
                         
                         # Добавляем в дерево
                         for node in all_nodes:
+                            strength = node.get_strength_factor() if hasattr(node, 'get_strength_factor') else getattr(node, 'strength', 0.0)
+                            timestamp = getattr(node, 'timestamp', 0) or getattr(node, 'created_at', 0) or 0
+                            ts_str = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M") if timestamp else ''
                             self.nodes_tree.insert('', 'end', values=(
-                                node.name[:50] if node.name else '',
-                                node.node_type[:20] if node.node_type else '',
-                                node.domain[:20] if node.domain else '',
-                                f"{node.strength:.2f}" if node.strength else '0.00'
+                                str(node.id)[:50] if node.id else '',
+                                str(node.content)[:50] if getattr(node, 'content', None) else (str(node.name)[:50] if getattr(node, 'name', None) else ''),
+                                str(node.node_type)[:20] if node.node_type else '',
+                                str(node.domain)[:20] if node.domain else '',
+                                f"{strength:.2f}",
+                                ts_str
                             ))
                         
                         logger.debug(f"Загружено узлов: {len(all_nodes)}")
