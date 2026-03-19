@@ -625,8 +625,35 @@ class ComponentInitializer:
                     # Создаем компонент через фабрику
                     factory = self.component_factories[component_name]
                     component = factory()
-                    
+
                     if component is not None:
+                        # Set up event subscriptions if the component has the method
+                        if hasattr(component, 'setup_event_subscriptions'):
+                            try:
+                                component.setup_event_subscriptions()
+                                self.logger.debug(f"   └─ Event subscriptions set up for {component_name}")
+                            except Exception as e:
+                                self.logger.warning(f"   ⚠️ Failed to set up event subscriptions for {component_name}: {e}")
+                        elif hasattr(component, 'register_event_handlers'):
+                            try:
+                                component.register_event_handlers()
+                                self.logger.debug(f"   └─ Event handlers registered for {component_name}")
+                            except Exception as e:
+                                self.logger.warning(f"   ⚠️ Failed to register event handlers for {component_name}: {e}")
+                        # Publish component initialized event
+                        try:
+                            event_bus = getattr(self.core_brain, 'event_bus', None)
+                            if event_bus is not None:
+                                # Import here to avoid circular imports
+                                from cogniflex.core.event_bus import EventTypes, Event
+                                event = Event(
+                                    event_type=EventTypes.COMPONENT_INITIALIZED,
+                                    source=component_name,
+                                    data={'component_name': component_name}
+                                )
+                                event_bus.publish_sync(event)
+                        except Exception as e:
+                            self.logger.debug(f"   └─ Failed to publish COMPONENT_INITIALIZED event for {component_name}: {e}")
                         # Регистрируем успешно инициализированный компонент
                         self.initialized_components.add(component_name)
                         self.component_instances[component_name] = component
