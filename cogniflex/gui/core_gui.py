@@ -188,14 +188,18 @@ class CogniFlexGUI:
                     self.gui_queue.put(lambda: self._add_message("CogniFlex", result.get("text", "Ошибка обработки"), 0))
                 else:
                     self.gui_queue.put(lambda: self._add_message("CogniFlex", "Пустой ответ от системы", 0))
+                return {
+                    'status': 'ok',
+                    'response': result.get("text", result.get("response", "")) if isinstance(result, dict) else str(result)
+                }
             else:
                 # Fallback
                 self.gui_queue.put(lambda: self._add_message("CogniFlex", "Система обработки запросов недоступна", 0))
-            return {
-                'status': 'error',
-                'error': str(e),
-                'response': 'Произошла ошибка при обработке запроса.'
-            }
+                return {
+                    'status': 'error',
+                    'error': 'No brain available',
+                    'response': 'Система временно недоступна.'
+                }
 
         except Exception as e:
             logger.error(f"Ошибка fallback обработки: {e}")

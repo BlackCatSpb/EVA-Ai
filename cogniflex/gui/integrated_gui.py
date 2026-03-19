@@ -326,13 +326,24 @@ class IntegratedCogniFlexGUI:
     def handle_query_result(self, result: Dict[str, Any]):
         """Обработка результата запроса."""
         try:
-            # brain.process_query() returns dict with 'text' key
             if isinstance(result, dict):
-                if 'text' in result:
+                if 'response' in result:
+                    response = result.get('response', {})
+                    if isinstance(response, dict):
+                        response_text = response.get('text', str(response))
+                    else:
+                        response_text = str(response)
+                    self.add_to_chat("CogniFlex", response_text)
+                    self.update_status("Готов")
+                    proc_time = result.get('processing_time', 0)
+                    self.add_to_log(f"✅ Запрос обработан успешно за {proc_time:.2f} сек")
+                    return
+                elif 'text' in result:
                     response = result.get('text', 'Нет ответа')
                     self.add_to_chat("CogniFlex", response)
                     self.update_status("Готов")
-                    self.add_to_log(f"✅ Запрос обработан успешно за {result.get('processing_time', 0):.2f} сек")
+                    proc_time = result.get('processing_time', 0)
+                    self.add_to_log(f"✅ Запрос обработан успешно за {proc_time:.2f} сек")
                     return
                 elif result.get('status') == 'error':
                     error_msg = result.get('error', 'Неизвестная ошибка')
@@ -447,10 +458,11 @@ class IntegratedCogniFlexGUI:
 
     def update_metrics(self):
         """Обновление метрик системы."""
+        stats = {}
+        health = {}
+        contradictions_count = 0
+        learning_count = 0
         try:
-            stats = {}
-            health = {}
-            
             # Пробуем получить stats от integrator
             if hasattr(self, 'integrator') and self.integrator:
                 if hasattr(self.integrator, 'get_system_stats'):
