@@ -60,6 +60,11 @@ except ImportError:
     logger.warning("MLUnit недоступен, автоматическое обновление знаний ограничено")
     MLUnit = None
 
+try:
+    from cogniflex.knowledge.context_entity import EntityExtractor
+except ImportError:
+    EntityExtractor = None
+
 # Перечисления для типов узлов и связей
 class NodeType(Enum):
     CONCEPT = "concept"
@@ -523,6 +528,48 @@ class KnowledgeGraph:
                 logger.debug("Создан внутренний MLUnit")
             except Exception as e:
                 logger.warning(f"Не удалось создать MLUnit: {e}")
+        
+        self.entity_extractor = EntityExtractor() if EntityExtractor else None
+    
+    def add_ambiguity_metadata(self, node_id: str, ambiguity_info: Dict) -> bool:
+        """Add ambiguity metadata to a node."""
+        if node_id not in self.nodes:
+            return False
+        
+        node = self.nodes[node_id]
+        if hasattr(node, 'meta'):
+            node.meta['ambiguity'] = ambiguity_info
+        else:
+            node.meta = {'ambiguity': ambiguity_info}
+        
+        self._save_node_to_db(node)
+        return True
+    
+    def get_disambiguation_candidates(self, ambiguous_term: str) -> List[Dict]:
+        """Get possible disambiguations for an ambiguous term."""
+        candidates = []
+        
+        for node in self.nodes.values():
+            node_text = getattr(node, 'name', '') + ' ' + getattr(node, 'description', '')
+            if ambiguous_term.lower() in node_text.lower():
+                candidates.append({
+                    'node_id': getattr(node, 'id', ''),
+                    'name': getattr(node, 'name', ''),
+                    'description': getattr(node, 'description', ''),
+                    'type': getattr(node, 'node_type', '')
+                })
+        
+        return candidates
+    
+    def search_with_disambiguation(self, query: str, clarified_terms: Dict[str, str] = None) -> List:
+        """Search with clarified meanings."""
+        refined_query = query
+        
+        if clarified_terms:
+            for ambiguous, clarified in clarified_terms.items():
+                refined_query = refined_query.replace(ambiguous, clarified)
+        
+        return self.search_nodes(refined_query)
     
     def _init_db(self):
         """Инициализирует базу данных для графа знаний."""
@@ -1260,6 +1307,16 @@ class KnowledgeGraph:
                 spatial_info=spatial_info,
                 temporal_info=temporal_info
             )
+            
+            # Extract ambiguities if entity_extractor available
+            if self.entity_extractor:
+                full_text = f"{name} {description or ''}"
+                ambiguous_entities = self.entity_extractor.extract_ambiguous_terms(full_text)
+                if ambiguous_entities:
+                    node.meta['ambiguities'] = [
+                        {"term": e.term, "type": e.entity_type}
+                        for e in ambiguous_entities
+                    ]
             
             # Добавляем источник
             if source:
