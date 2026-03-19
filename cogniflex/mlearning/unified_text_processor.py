@@ -192,37 +192,16 @@ class UnifiedTextProcessor(BaseComponent):
         try:
             if SentenceTransformer is not None:
                 # Проверяем наличие локальных моделей
-                # HF Hub cache format uses models-- prefix
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                local_model_paths = [
-                    os.path.join(self.models_base_path, 'all-MiniLM-L6-v2'),
-                    os.path.join(self.models_base_path, 'embeddings', 'all-MiniLM-L6-v2'),
-                    os.path.join(self.models_base_path, 'sentence-transformers--all-MiniLM-L6-v2'),
-                    os.path.join(self.models_base_path, 'models--sentence-transformers--all-MiniLM-L6-v2'),
-                    os.path.join(project_root, 'models', 'embeddings', 'models--sentence-transformers--all-MiniLM-L6-v2'),
-                ]
-                
-                local_model_path = None
-                for path in local_model_paths:
-                    normalized_path = os.path.normpath(path)
-                    if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
-                        local_model_path = normalized_path
-                        break
-                
-                if local_model_path:
-                    logger.info(f"Загружаем локальную модель эмбеддингов из: {local_model_path}")
-                    try:
-                        self.embedding_model = SentenceTransformer(
-                            local_model_path,
-                            device='cpu',
-                            local_files_only=True
-                        )
-                        logger.info("Локальная модель эмбеддингов загружена успешно")
-                    except Exception as e:
-                        logger.warning(f"Ошибка загрузки локальной модели: {e}")
-                        self.embedding_model = None
-                else:
-                    logger.info("Локальная модель эмбеддингов не найдена, используем простые эмбеддинги")
+                # Use HuggingFace model name directly
+                logger.info(f"Загружаем модель эмбеддингов: {self.model_name}")
+                try:
+                    self.embedding_model = SentenceTransformer(
+                        self.model_name,
+                        device='cpu'
+                    )
+                    logger.info("Модель эмбеддингов загружена успешно")
+                except Exception as e:
+                    logger.warning(f"Ошибка загрузки модели эмбеддингов: {e}")
                     self.embedding_model = None
             else:
                 logger.warning("SentenceTransformer не доступен. Функции эмбеддингов отключены.")
@@ -249,26 +228,9 @@ class UnifiedTextProcessor(BaseComponent):
                 try:
                     device = "cuda" if self.use_gpu else "cpu"
                     if SentenceTransformer is not None:
-                        # Преобразуем имя модели в путь к локальной директории
-                        # Normalize paths for cross-platform compatibility
-                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                        if self.model_name == 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2':
-                            model_dir_name = 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2'
-                            embedding_model_path = os.path.join(self.models_base_path, model_dir_name)
-                            if not os.path.exists(embedding_model_path):
-                                embedding_model_path = os.path.join(project_root, 'models', 'embeddings', model_dir_name)
-                        else:
-                            embedding_model_path = os.path.join(self.models_base_path, self.model_name)
-                            if not os.path.exists(embedding_model_path):
-                                embedding_model_path = os.path.join(project_root, 'models', 'embeddings', self.model_name)
-                        
-                        embedding_model_path = os.path.normpath(embedding_model_path)
-                        if os.path.exists(embedding_model_path):
-                            self.embedder = SentenceTransformer(embedding_model_path, device=device)
-                            logger.info(f"Модель эмбеддингов '{self.model_name}' загружена локально с {device}")
-                        else:
-                            self.embedder = None
-                            logger.warning(f"Локальная модель эмбеддингов не найдена: {embedding_model_path}")
+                        # Use HuggingFace model name directly
+                        self.embedder = SentenceTransformer(self.model_name, device=device)
+                        logger.info(f"Модель эмбеддингов '{self.model_name}' загружена с {device}")
                     else:
                         self.embedder = None
                         logger.info("sentence_transformers не установлен; пропускаем загрузку embedder")
