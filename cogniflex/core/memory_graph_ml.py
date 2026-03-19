@@ -10,10 +10,13 @@ import json
 import logging
 import threading
 import numpy as np
-from typing import Dict, Any, Optional, List, Tuple, Set
+from typing import Dict, Any, Optional, List, Tuple, Set, TYPE_CHECKING
 from dataclasses import dataclass, field
 from collections import defaultdict
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from cogniflex.fractal.entity_fractal_store import EntityFractalStore
 
 # Torch imports for GPU-based embeddings
 try:
@@ -41,6 +44,30 @@ class GraphEmbedding:
     vector: np.ndarray
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class AmbiguousEntity:
+    """Сущность с неоднозначным значением"""
+    term: str
+    possible_meanings: List[str]
+    context: str
+    timestamp: float = field(default_factory=time.time)
+    clarification_history: List[Dict] = field(default_factory=list)
+    resolved_meaning: Optional[str] = None
+    confidence: float = 0.5
+
+
+@dataclass
+class ClarificationRequest:
+    """Запрос на уточнение значения сущности"""
+    entity_term: str
+    question: str
+    context: str
+    possible_meanings: List[str]
+    timestamp: float = field(default_factory=time.time)
+    answered: bool = False
+    selected_meaning: Optional[str] = None
 
 
 @dataclass
@@ -794,3 +821,138 @@ class MemoryGraphML:
                     logger.info(f"Накоплено {len(self.training_data)} обучающих выборок, готово к обучению")
         except Exception as e:
             logger.debug(f"Ошибка триггера обучения: {e}")
+
+    def add_ambiguous_entity(self, entity: AmbiguousEntity, query_context: str):
+        """Store extracted entity with its query context."""
+        try:
+            entity_id = f"entity_{hash(entity.term) % 1000000}_{int(time.time())}"
+            
+            self.embeddings[entity_id] = GraphEmbedding(
+                node_id=entity_id,
+                node_type='ambiguous_entity',
+                vector=self._compute_fallback_embedding(entity_id, entity.context),
+                metadata={
+                    'term': entity.term,
+                    'possible_meanings': entity.possible_meanings,
+                    'context': query_context,
+                    'resolved_meaning': entity.resolved_meaning,
+                    'confidence': entity.confidence,
+                    'clarification_history': entity.clarification_history,
+                    'timestamp': entity.timestamp
+                }
+            )
+            
+            self._link_entity_to_graph(entity_id, entity.term)
+            
+            if hasattr(self.brain, 'entity_fractal_store'):
+                self.brain.entity_fractal_store.store_entity(entity, query_context)
+            
+            logger.debug(f"Ambiguous entity added: {entity.term}")
+            
+        except Exception as e:
+            logger.error(f"Error adding ambiguous entity: {e}")
+    
+    def get_entity_history(self, entity_term: str) -> List[AmbiguousEntity]:
+        """Get history of how an entity was used/clarified."""
+        history = []
+        try:
+            for emb_id, embedding in self.embeddings.items():
+                if embedding.node_type == 'ambiguous_entity':
+                    if embedding.metadata.get('term', '').lower() == entity_term.lower():
+                        history.append(AmbiguousEntity(
+                            term=embedding.metadata.get('term', ''),
+                            possible_meanings=embedding.metadata.get('possible_meanings', []),
+                            context=embedding.metadata.get('context', ''),
+                            timestamp=embedding.metadata.get('timestamp', time.time()),
+                            clarification_history=embedding.metadata.get('clarification_history', []),
+                            resolved_meaning=embedding.metadata.get('resolved_meaning'),
+                            confidence=embedding.metadata.get('confidence', 0.5)
+                        ))
+            
+            history.sort(key=lambda x: x.timestamp, reverse=True)
+            
+        except Exception as e:
+            logger.debug(f"Error getting entity history: {e}")
+        
+        return history
+    
+    def store_clarification(self, request: ClarificationRequest, answer: str):
+        """Store clarification Q&A pair for learning."""
+        try:
+            request.answered = True
+            request.selected_meaning = answer
+            
+            entity_id = f"entity_{hash(request.entity_term) % 1000000}"
+            
+            if entity_id in self.embeddings:
+                self.embeddings[entity_id].metadata.setdefault('clarification_history', []).append({
+                    'question': request.question,
+                    'answer': answer,
+                    'timestamp': time.time()
+                })
+                
+                if not self.embeddings[entity_id].metadata.get('resolved_meaning'):
+                    self.embeddings[entity_id].metadata['resolved_meaning'] = answer
+                    self.embeddings[entity_id].metadata['confidence'] = 1.0
+            
+            if hasattr(self.brain, 'entity_fractal_store'):
+                self.brain.entity_fractal_store.update_clarification(
+                    request.entity_term, request.question, answer
+                )
+            
+            if hasattr(self.brain, 'knowledge_graph'):
+                self._link_clarification_to_graph(request.entity_term, answer)
+            
+            logger.debug(f"Clarification stored for: {request.entity_term}")
+            
+        except Exception as e:
+            logger.error(f"Error storing clarification: {e}")
+    
+    def _link_entity_to_graph(self, entity_id: str, entity_term: str):
+        """Link entity node to knowledge graph."""
+        try:
+            if not hasattr(self.brain, 'knowledge_graph'):
+                return
+            
+            kg = self.brain.knowledge_graph
+            
+            similar_nodes = kg.search_nodes(entity_term, limit=5)
+            for node in similar_nodes:
+                kg.add_edge(
+                    source_id=entity_id,
+                    target_id=node.id,
+                    relation_type='related_to',
+                    strength=0.6,
+                    meta={'link_type': 'entity_similarity'}
+                )
+            
+        except Exception as e:
+            logger.debug(f"Error linking entity to graph: {e}")
+    
+    def _link_clarification_to_graph(self, entity_term: str, resolved_meaning: str):
+        """Link clarification result to knowledge graph."""
+        try:
+            if not hasattr(self.brain, 'knowledge_graph'):
+                return
+            
+            kg = self.brain.knowledge_graph
+            
+            meaning_node_id = kg.add_node(
+                name=entity_term,
+                description=f"Clarified meaning: {resolved_meaning}",
+                node_type='entity',
+                meta={'clarification': True, 'resolved_meaning': resolved_meaning}
+            )
+            
+            entity_nodes = kg.search_nodes(entity_term, limit=1)
+            if entity_nodes:
+                kg.add_edge(
+                    source_id=meaning_node_id,
+                    target_id=entity_nodes[0].id,
+                    relation_type='clarifies',
+                    strength=1.0,
+                    meta={'clarification_result': True}
+                )
+            
+        except Exception as e:
+            logger.debug(f"Error linking clarification to graph: {e}")

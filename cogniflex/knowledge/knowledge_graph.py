@@ -7101,4 +7101,230 @@ class KnowledgeGraph:
                 "error": str(e)
             }
 
- 
+    def add_entity_node(self, entity_term: str, entity_type: str = "entity",
+                       clarification_status: Optional[str] = None,
+                       resolved_meaning: Optional[str] = None,
+                       context: Optional[str] = None) -> str:
+        """
+        Adds an entity node to the knowledge graph.
+        
+        Args:
+            entity_term: The entity term/phrase
+            entity_type: Type of entity (person, place, concept, etc.)
+            clarification_status: Status of entity clarification (ambiguous, clarified, resolved)
+            resolved_meaning: The resolved meaning if clarified
+            context: Query context where entity was found
+            
+        Returns:
+            str: ID of the created entity node
+        """
+        node_id = f"entity_{hash(entity_term) % 1000000}_{int(time.time())}"
+        
+        meta = {
+            "entity_type": entity_type,
+            "source": "entity_extraction",
+            "context": context
+        }
+        
+        description = f"Extracted entity: {entity_term}"
+        if resolved_meaning:
+            description = f"Entity '{entity_term}' resolved as: {resolved_meaning}"
+        
+        if clarification_status:
+            meta["clarification_status"] = clarification_status
+        
+        if resolved_meaning:
+            meta["resolved_meaning"] = resolved_meaning
+        
+        return self.add_node(
+            name=entity_term,
+            description=description,
+            node_type=NodeType.ENTITY.value,
+            domain="entities",
+            strength=0.8,
+            meta=meta
+        )
+    
+    def link_entity_to_clarification(self, entity_node_id: str, 
+                                    clarification_node_id: str,
+                                    question: str,
+                                    answer: str) -> str:
+        """
+        Links an entity node to its clarification.
+        
+        Args:
+            entity_node_id: ID of the entity node
+            clarification_node_id: ID of the clarification node
+            question: The clarification question
+            answer: The clarification answer
+            
+        Returns:
+            str: ID of the created edge
+        """
+        edge_id = self.add_edge(
+            source_id=entity_node_id,
+            target_id=clarification_node_id,
+            relation_type="clarified_by",
+            strength=1.0,
+            meta={
+                "question": question,
+                "answer": answer,
+                "timestamp": time.time()
+            }
+        )
+        
+        entity_node = self.get_node(entity_node_id)
+        if entity_node:
+            entity_node.meta["clarification_status"] = "resolved"
+            entity_node.meta["last_clarification"] = time.time()
+            self._update_node_in_db(entity_node)
+        
+        return edge_id
+    
+    def get_entity_relationships(self, entity_term: str) -> Dict[str, Any]:
+        """
+        Gets all relationships and clarifications for an entity.
+        
+        Args:
+            entity_term: The entity term to search for
+            
+        Returns:
+            Dict containing entity info and related nodes/edges
+        """
+        entities = self.search_nodes(entity_term, limit=10, node_types=["entity"])
+        
+        if not entities:
+            return {"error": "entity_not_found"}
+        
+        entity_node = entities[0]
+        related_nodes = self.get_related_nodes(entity_node.id, max_distance=2)
+        
+        clarifications = []
+        for edge in self.get_edges(entity_node.id, direction="both"):
+            if edge.relation_type == "clarified_by":
+                target = self.get_node(edge.target_id)
+                if target:
+                    clarifications.append({
+                        "node_id": target.id,
+                        "question": edge.meta.get("question"),
+                        "answer": edge.meta.get("answer"),
+                        "strength": edge.strength,
+                        "timestamp": edge.timestamp
+                    })
+        
+        return {
+            "entity": {
+                "id": entity_node.id,
+                "name": entity_node.name,
+                "type": entity_node.node_type,
+                "clarification_status": entity_node.meta.get("clarification_status"),
+                "resolved_meaning": entity_node.meta.get("resolved_meaning")
+            },
+            "related_concepts": [{"id": n.id, "name": n.name, "type": n.node_type} for n in related_nodes],
+            "clarifications": clarifications,
+            "total_relationships": len(related_nodes)
+        }
+    
+    def build_entity_relationship_graph(self, entities: List[str]) -> Dict[str, Any]:
+        """
+        Builds a relationship graph between extracted entities.
+        
+        Args:
+            entities: List of entity terms
+            
+        Returns:
+            Dict containing nodes and edges for visualization
+        """
+        entity_nodes = []
+        entity_edges = []
+        
+        for entity_term in entities:
+            nodes = self.search_nodes(entity_term, limit=1, node_types=["entity"])
+            if nodes:
+                entity_nodes.append({
+                    "id": nodes[0].id,
+                    "name": nodes[0].name,
+                    "type": "entity",
+                    "clarification_status": nodes[0].meta.get("clarification_status")
+                })
+                
+                related = self.get_related_nodes(nodes[0].id, max_distance=1)
+                for rel_node in related:
+                    if rel_node.node_type == "concept":
+                        entity_edges.append({
+                            "from": nodes[0].id,
+                            "to": rel_node.id,
+                            "label": "related_to",
+                            "strength": 0.7
+                        })
+        
+        for i, node1 in enumerate(entity_nodes):
+            for j, node2 in enumerate(entity_nodes):
+                if i >= j:
+                    continue
+                
+                shared_concepts = self._find_shared_concepts(node1["id"], node2["id"])
+                if shared_concepts:
+                    entity_edges.append({
+                        "from": node1["id"],
+                        "to": node2["id"],
+                        "label": f"shares_{len(shared_concepts)}_concepts",
+                        "strength": len(shared_concepts) / 10.0,
+                        "shared_concepts": shared_concepts
+                    })
+        
+        return {
+            "nodes": entity_nodes,
+            "edges": entity_edges
+        }
+    
+    def _find_shared_concepts(self, entity1_id: str, entity2_id: str) -> List[str]:
+        """
+        Finds concepts shared between two entities.
+        
+        Args:
+            entity1_id: First entity ID
+            entity2_id: Second entity ID
+            
+        Returns:
+            List of shared concept names
+        """
+        related1 = self.get_related_nodes(entity1_id, max_distance=1)
+        related2 = self.get_related_nodes(entity2_id, max_distance=1)
+        
+        concepts1 = {n.name for n in related1 if n.node_type == "concept"}
+        concepts2 = {n.name for n in related2 if n.node_type == "concept"}
+        
+        return list(concepts1 & concepts2)
+    
+    def get_ambiguous_entities(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Gets all entities with ambiguous status that need clarification.
+        
+        Args:
+            limit: Maximum number of results
+            
+        Returns:
+            List of ambiguous entities
+        """
+        ambiguous = []
+        
+        for node in self.nodes.values():
+            if node.node_type != NodeType.ENTITY.value:
+                continue
+            
+            status = node.meta.get("clarification_status")
+            if status in ["ambiguous", "needs_clarification"]:
+                ambiguous.append({
+                    "id": node.id,
+                    "name": node.name,
+                    "status": status,
+                    "possible_meanings": node.meta.get("possible_meanings", []),
+                    "context": node.meta.get("context"),
+                    "created": node.timestamp
+                })
+                
+                if len(ambiguous) >= limit:
+                    break
+        
+        return ambiguous
