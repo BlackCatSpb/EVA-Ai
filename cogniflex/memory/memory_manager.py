@@ -15,6 +15,11 @@ try:
 except Exception:
     psutil = None  # graceful fallback
 
+try:
+    from cogniflex.knowledge.context_entity import EntityExtractor
+except ImportError:
+    EntityExtractor = None
+
 
 logger = logging.getLogger("cogniflex.memory.manager")
 
@@ -47,10 +52,12 @@ class MemoryManager:
         self.user_profiles_file = os.path.join(self.cache_dir, "user_profiles.json")
         
         # Типы памяти
-        self.working_memory = []
-        self.semantic_memory = []
+        self.working_memory = {}
+        self.semantic_memory = {}
         self.episodic_memory = []
         self.hybrid_cache = None
+        
+        self.entity_extractor = EntityExtractor() if EntityExtractor else None
         
         # Замки для потокобезопасности
         self.memory_locks = {
@@ -502,9 +509,9 @@ class MemoryManager:
         
         with self.memory_locks[memory_type]:
             if memory_type == "working":
-                self.working_memory.append(memory_entry)
+                self.working_memory[memory_id] = memory_entry
             elif memory_type == "semantic":
-                self.semantic_memory.append(memory_entry)
+                self.semantic_memory[memory_id] = memory_entry
             elif memory_type == "episodic":
                 self.episodic_memory.append(memory_entry)
             else:
@@ -976,11 +983,11 @@ class MemoryManager:
                     }
                     if kind == "working":
                         with self.memory_locks["working"]:
-                            self.working_memory.append(entry)
+                            self.working_memory[nid] = entry
                             self._save_working_memory()
                     elif kind == "semantic":
                         with self.memory_locks["semantic"]:
-                            self.semantic_memory.append(entry)
+                            self.semantic_memory[nid] = entry
                             self._save_semantic_memory()
                     elif kind == "episodic":
                         with self.memory_locks["episodic"]:
@@ -1100,3 +1107,43 @@ class MemoryManager:
         except Exception:
             logger.debug("Не удалось прочитать manifest.jsonl", exc_info=True)
         return records, meta
+
+    def add_entity_extraction(self, memory_id: str, entities: List[Dict]) -> None:
+        """Extract and store entities from memory entry."""
+        if memory_id in self.working_memory:
+            self.working_memory[memory_id]["extracted_entities"] = entities
+            self._save_memory("working")
+    
+        if memory_id in self.semantic_memory:
+            self.semantic_memory[memory_id]["extracted_entities"] = entities
+            self._save_memory("semantic")
+
+    def search_memories_by_entity(self, entity_term: str) -> List[Dict]:
+        """Find memories containing extracted entity."""
+        results = []
+        
+        for mem_list in [self.working_memory, self.semantic_memory]:
+            for mem in mem_list.values():
+                entities = mem.get("extracted_entities", [])
+                for entity in entities:
+                    if entity_term.lower() in str(entity.get("term", "")).lower():
+                        results.append(mem)
+                        break
+        
+        return results
+
+    def extract_entities_from_text(self, text: str) -> List[Dict]:
+        """Extract ambiguous entities from text using EntityExtractor."""
+        if not self.entity_extractor:
+            return []
+        
+        entities = self.entity_extractor.extract_ambiguous_terms(text)
+        return [
+            {
+                "term": e.term,
+                "type": e.entity_type,
+                "context": e.context,
+                "confidence": e.confidence
+            }
+            for e in entities
+        ]
