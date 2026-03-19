@@ -45,6 +45,12 @@ except (ImportError, ModuleNotFoundError):
     EVENT_SYSTEM_AVAILABLE = False
     logger.warning("Система событий недоступна, инициализация будет упрощена")
 
+# Импорты для работы с сущностями и обнаружения неоднозначностей
+try:
+    from cogniflex.knowledge.context_entity import EntityExtractor
+except ImportError:
+    EntityExtractor = None
+
 # Импорты токенизатора
 try:
     from transformers import AutoTokenizer, PreTrainedTokenizer
@@ -136,6 +142,9 @@ class ResponseGenerator:
         self._initialized = False
         self._initializing = False
         
+        # Экстрактор сущностей для обнаружения неоднозначностей
+        self.entity_extractor = EntityExtractor() if EntityExtractor else None
+        
         logger.info("ResponseGenerator создан")
         
         # Отложенная инициализация компонентов, если доступна система отложенных команд
@@ -156,6 +165,49 @@ class ResponseGenerator:
             self._init_components()
         except Exception as e:
             logger.error(f"Ошибка отложенной инициализации: {e}", exc_info=True)
+    
+    def _detect_ambiguity_before_response(self, prompt: str) -> Dict:
+        """Check query for ambiguities before generating response."""
+        if not self.entity_extractor:
+            return {"needs_clarification": False, "clarifications": []}
+        
+        ambiguous_entities = self.entity_extractor.extract_ambiguous_terms(prompt)
+        clarifications = []
+        
+        for entity in ambiguous_entities:
+            clarifications.append({
+                "term": entity.term,
+                "type": entity.entity_type,
+                "context": entity.context
+            })
+        
+        return {
+            "needs_clarification": len(clarifications) > 0,
+            "clarifications": clarifications
+        }
+
+    def _generate_clarification_response(self, clarifications: List[Dict]) -> str:
+        """Generate response asking for clarification."""
+        if not clarifications:
+            return ""
+        
+        questions = []
+        for c in clarifications[:3]:
+            term = c.get("term", "")
+            q_type = c.get("type", "")
+            
+            if q_type == "vague_quantifier":
+                questions.append(f"Что именно означает '{term}' в данном контексте?")
+            elif q_type == "ambiguous_term":
+                questions.append(f"Пожалуйста, уточните, что вы имеете в виду под '{term}'?")
+            elif q_type == "implicit_reference":
+                questions.append(f"На что именно ссылается '{term}'?")
+            elif q_type == "relative_comparison":
+                questions.append(f"С чем именно вы сравниваете '{term}'?")
+            else:
+                questions.append(f"Уточните, пожалуйста, что означает '{term}'?")
+        
+        return "Для лучшего ответа, пожалуйста, уточните: " + "; ".join(questions)
     
     def _init_components(self) -> None:
         """Инициализирует компоненты из brain."""
@@ -393,6 +445,18 @@ class ResponseGenerator:
             RuntimeError: Если модель недоступна
         """
         start_time = time.time()
+        
+        # Check for ambiguities before generation
+        ambiguity_check = self._detect_ambiguity_before_response(prompt)
+        if ambiguity_check.get("needs_clarification"):
+            clarification_response = self._generate_clarification_response(
+                ambiguity_check.get("clarifications", [])
+            )
+            return {
+                "text": clarification_response,
+                "needs_clarification": True,
+                "clarifications": ambiguity_check.get("clarifications", [])
+            }
         
         try:
             # ПРИОРИТЕТ 1: Проверяем фрактальную модель
