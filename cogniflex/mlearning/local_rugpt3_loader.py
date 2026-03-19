@@ -474,8 +474,8 @@ class LocalRuGPT3Loader:
             if "rugpt3_large_fractal" in model_root_path:
                 # Если это путь к токенизатору ruGPT-3 Large, ищем веса в директории модели
                 possible_model_paths.extend([
-                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/pytorch_model.bin",
-                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model/pytorch_model.bin",
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "pytorch_model.bin"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model", "pytorch_model.bin"),
                 ])
             
             pytorch_bin_root = None
@@ -492,8 +492,8 @@ class LocalRuGPT3Loader:
             
             if "rugpt3_large_fractal" in model_root_path:
                 possible_config_paths.extend([
-                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/config.json",
-                    "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model/config.json",
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "config.json"),
+                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model", "config.json"),
                 ])
             
             model_config_root = None
@@ -567,7 +567,10 @@ def load_rugpt3_medium_local(storage_path: str = None,
     # Если путь не указан, используем путь к ruGPT-3 Large во фрактальном хранилище
     # Важно: модель находится в подпапке model/
     if storage_path is None:
-        storage_path = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model"
+        # Получаем корень проекта для абсолютного пути
+        from .local_rugpt3_loader import LocalRuGPT3Loader
+        project_root = LocalRuGPT3Loader._get_project_root()
+        storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
     
     loader = LocalRuGPT3Loader(storage_path)
     return loader.load_model_and_tokenizer(device)
