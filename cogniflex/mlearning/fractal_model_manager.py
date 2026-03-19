@@ -136,13 +136,15 @@ class FractalModelManager:
             
             # Пробуем путь к ruGPT-3 Large во фрактальном хранилище (абсолютные пути)
             storage_paths = [
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_medium_fractal"),
+                os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_small"),
                 os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_large"),
-                # Старые пути для совместимости
-                "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
-                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_large_fractal",
+                "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
+                "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
             ]
             
             storage_path = None
@@ -153,7 +155,7 @@ class FractalModelManager:
                     break
             
             if storage_path is None:
-                storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
+                storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
                 logger.warning(f"Модель не найдена, используем путь по умолчанию: {storage_path}")
             
             logger.info(f"Используем путь к хранилищу: {os.path.abspath(storage_path)}")
