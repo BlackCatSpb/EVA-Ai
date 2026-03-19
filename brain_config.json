@@ -14,10 +14,10 @@
     "gpu_memory_fraction": 0.4
   },
   "model": {
-    "name": "rugpt3_small_fractal",
-    "path": "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/fractal_rugpt_small.safetensors",
-    "vocab_size": 50257,
-    "max_length": 10244,
+    "name": "rugpt3small",
+    "path": "C:\\Users\\black\\OneDrive\\Desktop\\CogniFlex\\cogniflex\\core\\cogniflex_cache\\ml_unit\\fractal_storage\\models\\rugpt3_small_fractal",
+    "vocab_size": 50264,
+    "max_length": 2048,
     "device": "cuda:0"
   },
   "generation": {

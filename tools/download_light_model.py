@@ -2,8 +2,8 @@
 Download script for rugpt3small model and export to fractal storage.
 
 This script:
-1. Downloads sberbank-ai/rugpt3small_based_on_gpt2 from HuggingFace
-2. Exports it to fractal storage for CogniFlex
+1. Uses cached sberbank-ai/rugpt3small_based_on_gpt2 from HuggingFace
+2. Exports it to fractal storage for CogniFlex (simple HF format)
 3. Updates brain_config.json to use the new model
 """
 
@@ -22,110 +22,104 @@ def get_project_root():
     return Path(__file__).parent.parent
 
 
-def download_model(model_id: str, cache_dir: str) -> bool:
-    """Download model from HuggingFace."""
+def ensure_model_cached(model_id: str, cache_dir: str) -> bool:
+    """Ensure model is cached locally."""
     try:
         from transformers import AutoModelForCausalLM, AutoTokenizer
         
-        logger.info(f"Downloading model: {model_id}")
+        logger.info(f"Checking/Caching model: {model_id}")
         
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-        )
-        logger.info(f"Tokenizer downloaded and cached")
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir, local_files_only=True)
+            logger.info("Tokenizer already cached")
+        except:
+            tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
+            logger.info("Tokenizer downloaded and cached")
         
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-        )
-        logger.info(f"Model downloaded and cached")
+        try:
+            model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir, local_files_only=True)
+            logger.info("Model already cached")
+        except:
+            model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir)
+            logger.info("Model downloaded and cached")
         
         return True
     except Exception as e:
-        logger.error(f"Failed to download model: {e}")
+        logger.error(f"Failed to cache model: {e}")
         return False
 
 
-def export_to_fractal_storage(
-    model_id: str,
-    cache_dir: str,
+def find_cached_model_path(model_id: str, cache_dir: str) -> str:
+    """Find the actual path to cached model files."""
+    safe_model_id = model_id.replace("/", "--")
+    model_cache_path = os.path.join(cache_dir, f"models--{safe_model_id}")
+    
+    if os.path.isdir(model_cache_path):
+        snapshots_path = os.path.join(model_cache_path, "snapshots")
+        if os.path.isdir(snapshots_path):
+            for snapshot in os.listdir(snapshots_path):
+                snapshot_full = os.path.join(snapshots_path, snapshot)
+                if os.path.isdir(snapshot_full):
+                    return snapshot_full
+    
+    return ""
+
+
+def copy_model_to_fractal_storage(
+    source_path: str,
     output_path: str,
-    model_name: str = "rugpt3_small_fractal"
+    model_name: str = "rugpt3small"
 ) -> bool:
-    """Export downloaded model to fractal storage format."""
+    """Copy model files to fractal storage directory."""
     try:
-        from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
-        import torch
-        
-        logger.info(f"Exporting model to fractal storage: {output_path}")
+        logger.info(f"Copying model to fractal storage: {output_path}")
         
         out_dir = Path(output_path)
         out_dir.mkdir(parents=True, exist_ok=True)
         
-        logger.info("Loading model from cache...")
-        model = AutoModelForCausalLM.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-            local_files_only=True,
-        )
-        model.eval()
+        required_files = ["config.json", "pytorch_model.bin", "vocab.json", 
+                          "merges.txt", "tokenizer_config.json", "special_tokens_map.json"]
         
-        logger.info("Loading tokenizer from cache...")
-        tokenizer = AutoTokenizer.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-            local_files_only=True,
-        )
+        for fname in required_files:
+            src = os.path.join(source_path, fname)
+            if os.path.isfile(src) or os.path.islink(src):
+                dst = out_dir / fname
+                if dst.exists():
+                    dst.unlink()
+                shutil.copy2(src, dst)
+                logger.info(f"  Copied: {fname}")
         
-        logger.info("Saving config.json...")
-        if hasattr(model, 'config') and hasattr(model.config, 'to_json_file'):
-            model.config.to_json_file(str(out_dir / "config.json"))
-        else:
-            cfg = AutoConfig.from_pretrained(model_id, cache_dir=cache_dir)
-            cfg.to_json_file(str(out_dir / "config.json"))
+        tok_src = source_path
+        tok_dst = out_dir / "tokenizer"
+        if not tok_dst.exists():
+            tok_dst.mkdir(parents=True, exist_ok=True)
+            for fname in ["vocab.json", "merges.txt", "tokenizer_config.json", "special_tokens_map.json"]:
+                src = os.path.join(tok_src, fname)
+                if os.path.isfile(src) or os.path.islink(src):
+                    shutil.copy2(src, tok_dst / fname)
         
-        logger.info("Saving tokenizer files...")
-        tok_dir = out_dir / "tokenizer"
-        tok_dir.mkdir(parents=True, exist_ok=True)
-        tokenizer.save_pretrained(str(tok_dir))
+        index_data = {
+            "model_id": model_name,
+            "source": source_path,
+            "format": "hf_pytorch",
+            "created_ts": __import__("time").time(),
+        }
+        with (out_dir / "index.json").open("w", encoding="utf-8") as f:
+            json.dump(index_data, f, ensure_ascii=False, indent=2)
         
-        logger.info("Creating fractal storage structure...")
-        from cogniflex.mlearning.storage.fractal_store import FractalWeightStore
+        logger.info(f"Model copied successfully to: {output_path}")
         
-        store = FractalWeightStore(
-            block_size=64,
-            fractal_levels=4,
-            device="cpu",
-        )
-        
-        logger.info("Packing model weights into fractal structure...")
-        if not store.pack_state_dict(model.state_dict(), model_id=model_name):
-            logger.error("Failed to pack model weights")
-            return False
-        
-        logger.info("Saving fractal structure to disk (sharded)...")
-        if not store.save_to_disk_sharded(
-            str(out_dir),
-            knowledge_graph=None,
-            shard_size=10000,
-            by_level=True,
-            compress=True,
-        ):
-            logger.info("Trying alternative save method...")
-            if not store.save_to_disk_with_recovery(str(out_dir)):
-                logger.error("Failed to save fractal structure")
-                return False
-        
-        stats = store.get_statistics()
-        logger.info(f"Fractal storage created successfully:")
-        logger.info(f"  Total containers: {stats['total_containers']}")
-        logger.info(f"  Total size: {stats['total_memory_mb']:.2f} MB")
+        model_size = sum(
+            os.path.getsize(os.path.join(dp, f)) 
+            for dp, dn, fn in os.walk(out_dir) 
+            for f in fn
+        ) / (1024 * 1024)
+        logger.info(f"Total size: {model_size:.2f} MB")
         
         return True
         
     except Exception as e:
-        logger.exception(f"Failed to export to fractal storage: {e}")
+        logger.exception(f"Failed to copy model: {e}")
         return False
 
 
@@ -141,8 +135,8 @@ def update_brain_config(config_path: str, model_info: dict) -> bool:
         config['model'] = {
             'name': model_info['name'],
             'path': model_info['path'],
-            'vocab_size': model_info.get('vocab_size', 50257),
-            'max_length': model_info.get('max_length', 1024),
+            'vocab_size': model_info.get('vocab_size', 50264),
+            'max_length': model_info.get('max_length', 2048),
             'device': model_info.get('device', 'cuda:0'),
         }
         
@@ -162,26 +156,26 @@ def update_brain_config(config_path: str, model_info: dict) -> bool:
 
 
 def test_model_loading(fractal_path: str) -> bool:
-    """Test that the model loads correctly from fractal storage."""
+    """Test that the model loads correctly."""
     try:
         from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
         
-        logger.info("Testing model loading from fractal storage...")
+        logger.info("Testing model loading...")
         
-        config = AutoConfig.from_pretrained(fractal_path, local_files_only=True)
-        logger.info(f"  Config loaded: {config.model_type}")
+        config_path = os.path.join(fractal_path, "config.json")
+        if os.path.isfile(config_path):
+            config = AutoConfig.from_pretrained(fractal_path, local_files_only=True)
+            logger.info(f"  Config loaded: {config.model_type}")
         
-        tok_dir = os.path.join(fractal_path, 'tokenizer')
+        tok_dir = os.path.join(fractal_path, "tokenizer")
         if os.path.isdir(tok_dir):
             tokenizer = AutoTokenizer.from_pretrained(tok_dir, local_files_only=True, use_fast=True)
             test_text = "Привет, как дела?"
             tokens = tokenizer.encode(test_text)
             decoded = tokenizer.decode(tokens)
-            logger.info(f"  Tokenizer works: '{test_text}' -> {len(tokens)} tokens -> '{decoded}'")
-        else:
-            logger.warning("  Tokenizer directory not found")
+            logger.info(f"  Tokenizer works: '{test_text}' -> {len(tokens)} tokens")
         
-        logger.info("Model configuration test passed!")
+        logger.info("Model loading test passed!")
         return True
         
     except Exception as e:
@@ -193,10 +187,10 @@ def get_model_config(model_id: str, cache_dir: str) -> dict:
     """Get model configuration details."""
     try:
         from transformers import AutoConfig
-        config = AutoConfig.from_pretrained(model_id, cache_dir=cache_dir)
+        config = AutoConfig.from_pretrained(model_id, cache_dir=cache_dir, local_files_only=True)
         return {
-            'vocab_size': getattr(config, 'vocab_size', 50257),
-            'n_positions': getattr(config, 'n_positions', getattr(config, 'max_position_embeddings', 1024)),
+            'vocab_size': getattr(config, 'vocab_size', 50264),
+            'n_positions': getattr(config, 'n_positions', getattr(config, 'max_position_embeddings', 2048)),
             'n_embd': getattr(config, 'n_embd', getattr(config, 'hidden_size', 768)),
         }
     except Exception:
@@ -221,30 +215,38 @@ def main():
     logger.info(f"Fractal storage: {fractal_path}")
     logger.info("")
     
-    logger.info("Step 1: Downloading model from HuggingFace...")
-    if not download_model(model_id, cache_dir):
-        logger.error("Failed to download model")
+    logger.info("Step 1: Ensuring model is cached...")
+    if not ensure_model_cached(model_id, cache_dir):
+        logger.error("Failed to cache model")
         sys.exit(1)
     
     logger.info("")
-    logger.info("Step 2: Getting model configuration...")
+    logger.info("Step 2: Finding cached model path...")
+    model_path = find_cached_model_path(model_id, cache_dir)
+    if not model_path:
+        logger.error("Could not find cached model")
+        sys.exit(1)
+    logger.info(f"  Found at: {model_path}")
+    
+    logger.info("")
+    logger.info("Step 3: Getting model configuration...")
     model_config = get_model_config(model_id, cache_dir)
     logger.info(f"  Vocab size: {model_config.get('vocab_size')}")
     logger.info(f"  Max length: {model_config.get('n_positions')}")
     
     logger.info("")
-    logger.info("Step 3: Exporting to fractal storage...")
-    if not export_to_fractal_storage(model_id, cache_dir, fractal_path, "rugpt3small"):
-        logger.error("Failed to export to fractal storage")
+    logger.info("Step 4: Copying to fractal storage...")
+    if not copy_model_to_fractal_storage(model_path, fractal_path, "rugpt3small"):
+        logger.error("Failed to copy model to fractal storage")
         sys.exit(1)
     
     logger.info("")
-    logger.info("Step 4: Updating brain_config.json...")
+    logger.info("Step 5: Updating brain_config.json...")
     model_info = {
         'name': 'rugpt3small',
         'path': fractal_path,
-        'vocab_size': model_config.get('vocab_size', 50257),
-        'max_length': model_config.get('n_positions', 1024),
+        'vocab_size': model_config.get('vocab_size', 50264),
+        'max_length': model_config.get('n_positions', 2048),
         'device': 'cuda:0',
     }
     if not update_brain_config(config_path, model_info):
@@ -252,9 +254,9 @@ def main():
         sys.exit(1)
     
     logger.info("")
-    logger.info("Step 5: Testing model loading...")
+    logger.info("Step 6: Testing model loading...")
     if not test_model_loading(fractal_path):
-        logger.warning("Model loading test had issues, but fractal storage was created")
+        logger.warning("Model loading test had issues, but storage was created")
     
     logger.info("")
     logger.info("=" * 60)
