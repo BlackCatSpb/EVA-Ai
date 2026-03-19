@@ -19,22 +19,44 @@ try:
     from .integrated_gui import IntegratedCogniFlexGUI, create_integrated_gui
     from .core_gui import CogniFlexGUI
     
-    # Псевдоним для совместимости
+    from .chat_module import ChatModule
+    from .memory_module import MemoryModule
+    from .knowledge_graph_module import KnowledgeGraphModule
+    from .contradiction_module import ContradictionModule
+    from .analytics_module import AnalyticsModule
+    from .learning_module import LearningModule
+    from .neuromorphic_module import NeuromorphicModule
+    from .settings_module import SettingsModule
+    from .base_gui import BaseGUI
+    from .gui_factory import GUIFactory
+    from .window_manager import WindowManager
+    from .theme_manager import ThemeManager
+    
     MainWindow = CogniFlexGUI
     
 except ImportError as e:
     logging.warning(f"Не удалось импортировать компоненты GUI: {e}")
     
-    # Заглушка на случай ошибки импорта
     class MainWindow:
         def __init__(self, *args, **kwargs):
             logging.warning("Используется заглушка MainWindow из-за ошибки импорта")
 
-# Экспорт для обратной совместимости
 __all__ = [
     'IntegratedCogniFlexGUI',
     'create_integrated_gui',
     'CogniFlexGUI',
     'MainWindow',
-    'create_gui'
+    'create_gui',
+    'ChatModule',
+    'MemoryModule',
+    'KnowledgeGraphModule',
+    'ContradictionModule',
+    'AnalyticsModule',
+    'LearningModule',
+    'NeuromorphicModule',
+    'SettingsModule',
+    'BaseGUI',
+    'GUIFactory',
+    'WindowManager',
+    'ThemeManager'
 ]
