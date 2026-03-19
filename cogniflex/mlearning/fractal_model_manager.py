@@ -124,7 +124,7 @@ class FractalModelManager:
                 else:
                     device = "cpu"
                     logger.info("CUDA недоступна, используем CPU")
-                logger.info("Используем CPU для предотвращения ошибок памяти GPU")
+                    logger.info("Используем CPU для предотвращения ошибок памяти GPU")
             
             # Загружаем модель и токенизатор локально
             import os
@@ -426,14 +426,14 @@ class FractalModelManager:
         
         # Возвращаем информацию о текущей модели
         model_info = {
-            "name": self.model_name if hasattr(self, 'model_name') else "rugpt3large",
+            "name": self.config.get("model_name", "rugpt3large") if self.config else "rugpt3large",
             "display_name": "ruGPT-3 Large (фрактальная)",
             "type": "text-generation",
             "status": "loaded" if self.model and self.tokenizer else "error",
             "device": str(self.device) if hasattr(self, 'device') else "unknown",
             "initialized": self.initialized,
             "has_fractal_support": True,
-            "model_path": getattr(self, 'storage_path', None),
+            "model_path": self.model_path,
             "description": "Фрактальная модель ruGPT-3 Large для генерации текста"
         }
         
