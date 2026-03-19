@@ -20,6 +20,13 @@ except ImportError:
     get_connection = None
     execute_query = None
 
+try:
+    from cogniflex.knowledge.context_entity import EntityExtractor, AmbiguousEntity, AmbiguityType
+except ImportError:
+    EntityExtractor = None
+    AmbiguousEntity = None
+    AmbiguityType = None
+
 from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
@@ -305,6 +312,7 @@ class OptimizedContradictionDetector:
         self.initialized = False
         self.contradictions: Dict[str, Contradiction] = {}
         self.storage_path: Optional[str] = None
+        self._entity_extractor = EntityExtractor() if EntityExtractor else None
         self._init_storage()
         self.initialized = True
         logger.info("OptimizedContradictionDetector инициализирован")
@@ -610,6 +618,138 @@ class OptimizedContradictionDetector:
         except Exception as e:
             logger.error(f"Ошибка обнаружения противоречия для концепта {concept}: {e}", exc_info=True)
             return None
+    
+    def detect_with_context(self, query: str, response: str, context: Optional[Dict[str, Any]] = None) -> Tuple[List[Dict[str, Any]], List[str], List[Dict[str, Any]]]:
+        """
+        Enhanced contradiction detection with context extraction.
+        Returns: (contradictions, clarifications_needed, ambiguities)
+        """
+        contradictions = []
+        clarifications_needed = []
+        ambiguities = []
+        
+        if not self._entity_extractor:
+            logger.warning("EntityExtractor not available, falling back to basic detection")
+            return contradictions, clarifications_needed, ambiguities
+        
+        try:
+            query_entities = self._entity_extractor.extract_ambiguous_terms(query)
+            response_entities = self._entity_extractor.extract_ambiguous_terms(response)
+            
+            for entity in query_entities:
+                if entity.needs_clarification:
+                    resolved_in_response = False
+                    for resp_entity in response_entities:
+                        if resp_entity.text.lower() == entity.text.lower():
+                            resolved_in_response = True
+                            break
+                    
+                    if not resolved_in_response:
+                        ambiguities.append({
+                            "term": entity.text,
+                            "type": entity.ambiguity_type.value if hasattr(entity.ambiguity_type, 'value') else str(entity.ambiguity_type),
+                            "context": entity.context,
+                            "possible_meanings": entity.possible_meanings,
+                            "confidence": entity.confidence,
+                            "refinement_suggestion": entity.refinement_suggestion
+                        })
+                        clarification = self.generate_clarification_for_contradiction({
+                            "term": entity.text,
+                            "type": entity.ambiguity_type.value if hasattr(entity.ambiguity_type, 'value') else str(entity.ambiguity_type),
+                            "context": entity.context
+                        })
+                        if clarification:
+                            clarifications_needed.append(clarification)
+            
+            logger.debug(f"detect_with_context: found {len(ambiguities)} ambiguities, {len(clarifications_needed)} clarifications")
+        except Exception as e:
+            logger.error(f"Error in detect_with_context: {e}", exc_info=True)
+        
+        return contradictions, clarifications_needed, ambiguities
+    
+    def detect_ambiguity_conflicts(self, query: str, response: str) -> List[Dict[str, Any]]:
+        """
+        Extract ambiguous terms from query and response.
+        Check if response addresses the ambiguous terms.
+        Return list of unresolved ambiguities.
+        """
+        unresolved = []
+        
+        if not self._entity_extractor:
+            logger.warning("EntityExtractor not available")
+            return unresolved
+        
+        try:
+            query_entities = self._entity_extractor.extract_ambiguous_terms(query)
+            response_entities = self._entity_extractor.extract_ambiguous_terms(response)
+            
+            response_terms = {e.text.lower() for e in response_entities}
+            
+            for entity in query_entities:
+                if entity.needs_clarification and entity.text.lower() not in response_terms:
+                    unresolved.append({
+                        "term": entity.text,
+                        "ambiguity_type": entity.ambiguity_type.value if hasattr(entity.ambiguity_type, 'value') else str(entity.ambiguity_type),
+                        "context": entity.context,
+                        "possible_meanings": entity.possible_meanings,
+                        "refinement_suggestion": entity.refinement_suggestion,
+                        "confidence": entity.confidence
+                    })
+        except Exception as e:
+            logger.error(f"Error in detect_ambiguity_conflicts: {e}", exc_info=True)
+        
+        return unresolved
+    
+    def generate_clarification_for_contradiction(self, contradiction: Dict[str, Any]) -> str:
+        """
+        Generate specific clarification questions for contradictions.
+        Example: "Вы сказали X противоречит Y, но не уточнили что именно означает X"
+        """
+        term = contradiction.get("term", "")
+        term_type = contradiction.get("type", "unknown")
+        context = contradiction.get("context", "")
+        
+        templates = {
+            "vague_adjective": f"Вы использовали '{term}', но не уточнили степень. Что именно вы имеете в виду?",
+            "vague_quantifier": f"Вы сказали '{term}', но не указали точное количество. Сколько именно?",
+            "pronoun_reference": f"На что ссылается '{term}' в контексте '{context}'?",
+            "demonstrative_reference": f"Что именно означает '{term}' в '{context}'?",
+            "comparative_term": f"Вы упомянули '{term}', но не указали с чем сравниваете. По отношению к чему?",
+            "implicit_subject": f"Что именно вы имеете в виду под '{term}' в '{context}'?",
+            "temporal_vagueness": f"Когда именно происходит '{term}' в '{context}'?",
+            "spatial_vagueness": f"Где именно находится '{term}' в '{context}'?"
+        }
+        
+        return templates.get(term_type, f"Пожалуйста, уточните что вы имеете в виду под '{term}'")
+    
+    def find_contradictions(self, text: str, context: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Find contradictions in text with ambiguity detection.
+        Enhanced version that includes context entity extraction.
+        """
+        contradictions_found = []
+        
+        if not self._entity_extractor:
+            logger.warning("EntityExtractor not available for find_contradictions")
+            return contradictions_found
+        
+        try:
+            ambiguous_entities = self._entity_extractor.extract_ambiguous_terms(text)
+            
+            for entity in ambiguous_entities:
+                if entity.needs_clarification and entity.confidence > 0.5:
+                    contradictions_found.append({
+                        "type": "ambiguity_conflict",
+                        "term": entity.text,
+                        "ambiguity_type": entity.ambiguity_type.value if hasattr(entity.ambiguity_type, 'value') else str(entity.ambiguity_type),
+                        "context": entity.context,
+                        "severity": "medium" if entity.confidence > 0.7 else "low",
+                        "possible_meanings": entity.possible_meanings
+                    })
+        except Exception as e:
+            logger.error(f"Error in find_contradictions: {e}", exc_info=True)
+        
+        return contradictions_found
     
     def get_active_contradictions(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Возвращает активные (неразрешенные) противоречия."""
