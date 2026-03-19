@@ -134,18 +134,15 @@ class FractalModelManager:
             project_root = _get_project_root()
             logger.info(f"Корень проекта: {project_root}")
             
-            # Пробуем путь к ruGPT-3 Large во фрактальном хранилище (абсолютные пути)
+            # Пробуем путь к ruGPT-3 Small во фрактальном хранилище (абсолютные пути)
             storage_paths = [
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
                 os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
                 os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal"),
                 os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
                 os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model"),
-                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_large_fractal"),
-                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_medium_fractal"),
+                os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal"),
                 os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_small"),
-                os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_large"),
                 "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
                 "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
             ]

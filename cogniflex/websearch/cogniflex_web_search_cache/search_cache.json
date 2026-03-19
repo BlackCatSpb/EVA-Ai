@@ -3350,7 +3350,7 @@
     ]
   },
   "16497fa0c8e13ce8fab874d959db91b9": {
-    "timestamp": 1773805820.954898,
+    "timestamp": 1773954023.021165,
     "results": [
       {
         "title": "Информация о Тест",
@@ -3359,7 +3359,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773805820.9486115,
+        "timestamp": 1773954019.4371657,
         "query": "Тест"
       },
       {
@@ -3369,7 +3369,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773805820.9486206,
+        "timestamp": 1773954019.4371736,
         "query": "Тест"
       },
       {
@@ -3379,7 +3379,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773805820.9480402,
+        "timestamp": 1773954019.4392872,
         "query": "Тест"
       }
     ]
@@ -3455,7 +3455,7 @@
     ]
   },
   "ff4221c812ae81d9042d4399676f2218": {
-    "timestamp": 1773855008.6075485,
+    "timestamp": 1773950372.088814,
     "results": [
       {
         "title": "Информация о Тест генерации текста",
@@ -3464,7 +3464,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773855006.9492087,
+        "timestamp": 1773950370.9617517,
         "query": "Тест генерации текста"
       },
       {
@@ -3474,7 +3474,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773855006.9499252,
+        "timestamp": 1773950370.9617596,
         "query": "Тест генерации текста"
       },
       {
@@ -3484,7 +3484,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773855006.9810352,
+        "timestamp": 1773950370.964092,
         "query": "Тест генерации текста"
       }
     ]
@@ -3731,6 +3731,41 @@
         "content": null,
         "timestamp": 1773947482.5348094,
         "query": "Привет! Как дела?"
+      }
+    ]
+  },
+  "8ec8101371d9174f2d8d207a15a4396a": {
+    "timestamp": 1773955888.635249,
+    "results": [
+      {
+        "title": "Информация о Test query",
+        "url": "https://example.com/search?q=Test%20query",
+        "snippet": "Это базовая информация о Test query. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773955887.4953728,
+        "query": "Test query"
+      },
+      {
+        "title": "Информация о Test query",
+        "url": "https://example.com/search?q=Test%20query",
+        "snippet": "Это базовая информация о Test query. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773955887.4953802,
+        "query": "Test query"
+      },
+      {
+        "title": "Информация о Test query",
+        "url": "https://example.com/search?q=Test%20query",
+        "snippet": "Это базовая информация о Test query. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773955887.496192,
+        "query": "Test query"
       }
     ]
   }
