@@ -93,16 +93,17 @@ class FractalModelManager:
             # Используем локальный загрузчик ruGPT-3 Medium
             from .local_rugpt3_loader import load_rugpt3_medium_local
             
-            model_name = "sberbank-ai/rugpt3large_based_on_gpt2"
+            model_name = "sberbank-ai/rugpt3small_based_on_gpt2"
             logger.info(f"Начальный model_name: {model_name}")
             
-            if self.config and "model_name" in self.config:
-                config_model_name = self.config["model_name"]
-                logger.info(f"Из конфига получено model_name: '{config_model_name}'")
+            if self.config:
+                model_cfg = self.config.get("model", {}) if isinstance(self.config, dict) else {}
+                config_model_name = model_cfg.get("name", "") if model_cfg else ""
+                logger.info(f"Из конфига получено model name: '{config_model_name}'")
                 logger.info(f"Тип config_model_name: {type(config_model_name)}")
-                if config_model_name == "rugpt3large":
-                    model_name = "sberbank-ai/rugpt3large_based_on_gpt2"
-                    logger.info(f"Установлен medium model_name: {model_name}")
+                if config_model_name == "rugpt3small":
+                    model_name = "sberbank-ai/rugpt3small_based_on_gpt2"
+                    logger.info(f"Установлен small model_name: {model_name}")
                 elif config_model_name == "rugpt3large":
                     model_name = "sberbank-ai/rugpt3large_based_on_gpt2"
                     logger.info(f"Установлен large model_name: {model_name}")
@@ -110,7 +111,7 @@ class FractalModelManager:
                     model_name = config_model_name
                     logger.info(f"Использован config model_name: {model_name}")
             else:
-                logger.info("Конфиг не найден или не содержит model_name")
+                logger.info("Конфиг не найден или не содержит model.name")
             
             logger.info(f"Финальная модель для загрузки: '{model_name}'")
             

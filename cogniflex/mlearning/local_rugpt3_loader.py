@@ -564,11 +564,12 @@ class LocalRuGPT3Loader:
 def load_rugpt3_medium_local(storage_path: str = None, 
                             device: str = "auto") -> Tuple[Optional[Any], Optional[Any]]:
     """Удобная функция для загрузки ruGPT-3 Medium/Large"""
+    from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
+    
     # Если путь не указан, используем путь к ruGPT-3 Large во фрактальном хранилище
     # Важно: модель находится в подпапке model/
     if storage_path is None:
         # Получаем корень проекта для абсолютного пути
-        from .local_rugpt3_loader import LocalRuGPT3Loader
         project_root = LocalRuGPT3Loader._get_project_root()
         storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
     
