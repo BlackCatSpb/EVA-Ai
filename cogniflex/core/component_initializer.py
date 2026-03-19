@@ -265,6 +265,8 @@ class ComponentInitializer:
                 if hybrid_cache:
                     text_processor.hybrid_cache = hybrid_cache
                     self.logger.info("   └─ Гибридный кэш подключен")
+                text_processor.initialize()
+                text_processor._setup_component()
                 self.core_brain.text_processor = text_processor
                 self.logger.info("✅ TextProcessor создан")
                 return text_processor
