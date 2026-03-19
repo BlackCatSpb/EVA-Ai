@@ -42,6 +42,10 @@ class SettingsModule:
             widget.destroy()
         self._create_settings_interface()
         logger.info("Модуль настроек активирован")
+    
+    def deactivate(self):
+        """Деактивирует модуль настроек."""
+        logger.info("Модуль настроек деактивирован")
 
     def _create_settings_interface(self):
         self.settings_frame = ttk.Frame(self.gui.content_area)

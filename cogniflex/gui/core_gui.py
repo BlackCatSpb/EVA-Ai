@@ -706,7 +706,8 @@ class CogniFlexGUI:
 
         if not self.running: return
         self._update_interface()
-        self.update_job = self.root.after(self.settings.get("gui", {}).get("auto_update_interval", 5000), self._schedule_update)
+        if self.root:
+            self.update_job = self.root.after(self.settings.get("gui", {}).get("auto_update_interval", 5000), self._schedule_update)
 
     def _update_interface(self):
         if not self.root or not self.running: return
@@ -1195,6 +1196,8 @@ class CogniFlexGUI:
             toast.configure(bg=bg_color)
             
             # Размещение в правом нижнем углу
+            if not self.root:
+                return
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
             
@@ -1211,7 +1214,8 @@ class CogniFlexGUI:
             toast.geometry(f"{width}x{height}+{x}+{y}")
             
             # Автоматическое закрытие
-            self.root.after(int(duration * 1000), toast.destroy)
+            if self.root:
+                self.root.after(int(duration * 1000), toast.destroy)
             
         except Exception as e:
             logger.debug(f"Ошибка создания toast окна: {e}")
