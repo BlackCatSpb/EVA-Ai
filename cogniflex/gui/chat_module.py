@@ -1268,21 +1268,26 @@ class ChatModule:
                     
                     self.message_history = list(loaded)
                     
-                    # Восстановление в интерфейсе
                     self._suppress_history_append = True
                     try:
                         for msg in loaded:
-                            sender = msg.get("sender", msg.get("role", "user"))
-                            content = msg.get("message", msg.get("content", ""))
-                            msg_type = msg.get("type", "text")
+                            if not isinstance(msg, dict):
+                                continue
+                            sender = msg.get("sender", "Unknown")
+                            message = msg.get("message", "")
+                            msg_type = msg.get("type", "system")
                             timestamp = msg.get("timestamp")
-                            self._add_message(
-                                sender,
-                                content,
-                                msg_type,
-                                timestamp=timestamp,
-                                process_formatting=False
-                            )
+                            extras = msg.get("extras")
+                            
+                            if message:
+                                self._add_message(
+                                    sender,
+                                    message,
+                                    msg_type,
+                                    timestamp=timestamp,
+                                    process_formatting=False,
+                                    extras=extras
+                                )
                     finally:
                         self._suppress_history_append = False
                         
@@ -1403,10 +1408,12 @@ class ChatModule:
         if self.message_history and self.history_index < len(self.message_history) - 1:
             self.history_index += 1
             msg = self.message_history[-(self.history_index + 1)]
-            if msg["type"] == "user":
-                self.input_text.delete("1.0", tk.END)
-                self.input_text.insert("1.0", msg["message"])
-                return "break"
+            if isinstance(msg, dict) and msg.get("type") == "user":
+                msg_text = msg.get("message", "")
+                if msg_text:
+                    self.input_text.delete("1.0", tk.END)
+                    self.input_text.insert("1.0", msg_text)
+                    return "break"
     
     def _on_history_down(self, event):
         """Обработка стрелки вниз (история)."""
@@ -1414,9 +1421,11 @@ class ChatModule:
             self.history_index -= 1
             if self.history_index >= 0:
                 msg = self.message_history[-(self.history_index + 1)]
-                if msg["type"] == "user":
-                    self.input_text.delete("1.0", tk.END)
-                    self.input_text.insert("1.0", msg["message"])
+                if isinstance(msg, dict) and msg.get("type") == "user":
+                    msg_text = msg.get("message", "")
+                    if msg_text:
+                        self.input_text.delete("1.0", tk.END)
+                        self.input_text.insert("1.0", msg_text)
             else:
                 self.input_text.delete("1.0", tk.END)
             return "break"
