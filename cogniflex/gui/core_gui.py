@@ -1472,10 +1472,10 @@ class CogniFlexGUI:
             elif msg_type == "error":
                 messagebox.showerror("Ошибка", message)
 
-def create_gui(brain=None, cache_dir: str = None):
+def create_gui(brain=None, cache_dir: str = None, integrator=None):
     """Создает и возвращает экземпляр GUI с подробным логгированием."""
     logger.info("Создание экземпляра GUI")
-    gui = CogniFlexGUI(brain, cache_dir)
+    gui = CogniFlexGUI(brain, integrator=integrator, cache_dir=cache_dir)
     
     # Создаем главное окно ПЕРЕД инициализацией интерфейса
     try:
