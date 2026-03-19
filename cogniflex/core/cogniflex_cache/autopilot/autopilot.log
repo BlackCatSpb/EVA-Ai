@@ -3646,3 +3646,27 @@ RuntimeError: boom
 2026-03-18 20:40:40,741 [INFO] BackgroundCoordinator stopped
 2026-03-18 20:40:54,331 [INFO] BackgroundCoordinator stopped
 2026-03-18 20:40:54,357 [INFO] BackgroundCoordinator stopped
+2026-03-19 20:39:04,733 [INFO] BackgroundCoordinator подписан на события системы
+2026-03-19 20:39:04,734 [WARNING] Неполная интеграция с системой событий: 10
+2026-03-19 21:41:14,390 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 21:41:14,403 [INFO] BackgroundCoordinator started
+2026-03-19 21:41:51,273 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:41:51,274 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:41:51,783 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:41:51,784 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:45:21,257 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 21:45:21,268 [INFO] BackgroundCoordinator started
+2026-03-19 21:48:27,453 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:48:27,455 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:48:28,537 [INFO] BackgroundCoordinator stopped
+2026-03-19 21:48:28,538 [INFO] BackgroundCoordinator stopped
+2026-03-19 22:08:21,380 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:08:21,387 [INFO] BackgroundCoordinator started
+2026-03-19 22:09:21,856 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:09:21,863 [INFO] BackgroundCoordinator started
+2026-03-19 22:09:59,967 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:09:59,978 [INFO] BackgroundCoordinator started
+2026-03-19 22:10:38,717 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:10:38,727 [INFO] BackgroundCoordinator started
+2026-03-19 22:11:22,516 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:11:22,525 [INFO] BackgroundCoordinator started

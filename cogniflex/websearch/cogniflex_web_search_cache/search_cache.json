@@ -1,6 +1,6 @@
 {
   "5797a339206d7d7d5aeb2903d7114867": {
-    "timestamp": 1773779146.99391,
+    "timestamp": 1773945993.1518834,
     "results": [
       {
         "title": "Информация о Привет!",
@@ -9,7 +9,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773779146.2549798,
+        "timestamp": 1773945992.03189,
         "query": "Привет!"
       },
       {
@@ -19,7 +19,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773779146.2549918,
+        "timestamp": 1773945992.0318964,
         "query": "Привет!"
       },
       {
@@ -29,7 +29,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773779146.2577727,
+        "timestamp": 1773945992.033244,
         "query": "Привет!"
       }
     ]
@@ -3696,6 +3696,41 @@
         "content": null,
         "timestamp": 1773779673.6308942,
         "query": "Расскажи о погоде"
+      }
+    ]
+  },
+  "066c3845e98317e7fb2891716a5ffce3": {
+    "timestamp": 1773947483.812011,
+    "results": [
+      {
+        "title": "Информация о Привет! Как дела?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D0%B0%D0%BA%20%D0%B4%D0%B5%D0%BB%D0%B0%3F",
+        "snippet": "Это базовая информация о Привет! Как дела?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773947482.5326593,
+        "query": "Привет! Как дела?"
+      },
+      {
+        "title": "Информация о Привет! Как дела?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D0%B0%D0%BA%20%D0%B4%D0%B5%D0%BB%D0%B0%3F",
+        "snippet": "Это базовая информация о Привет! Как дела?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773947482.5326738,
+        "query": "Привет! Как дела?"
+      },
+      {
+        "title": "Информация о Привет! Как дела?",
+        "url": "https://example.com/search?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82%21%20%D0%9A%D0%B0%D0%BA%20%D0%B4%D0%B5%D0%BB%D0%B0%3F",
+        "snippet": "Это базовая информация о Привет! Как дела?. Для получения актуальных данных рекомендуется использовать веб-поиск.",
+        "source": "local_fallback",
+        "relevance_score": 0.5,
+        "content": null,
+        "timestamp": 1773947482.5348094,
+        "query": "Привет! Как дела?"
       }
     ]
   }

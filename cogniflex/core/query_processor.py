@@ -135,6 +135,7 @@ class QueryProcessor:
                     result["source"] = "knowledge_graph+ml_unit"
                     result["evidence"] = evidence
                     result["metrics"] = {"time": time.time() - start_time}
+                    self._store_insight(query, response, nlp_info, concept)
                 else:
                     # Фолбэк: короткий ответ из узлов KG
                     result = self._build_response_from_nodes(result, nodes, start_time)
@@ -156,6 +157,10 @@ class QueryProcessor:
             response = self._generate_response(query, evidence, nlp_info, concept, user_context)
             result["response"] = response
             result["source"] = "ml_unit" if response else "none"
+
+            # 5a) Store insight for autonomous learning
+            if response:
+                self._store_insight(query, response, nlp_info, concept)
 
             # 6) Этическая проверка
             if response:
@@ -616,6 +621,30 @@ class QueryProcessor:
                     logger.debug(f"Ошибка прямого вызова emit_metrics: {e}")
         except (AttributeError, TypeError, RuntimeError) as e:
             logger.debug(f"Ошибка в _emit_metrics: {e}")
+
+    def _store_insight(self, query: str, response: str, nlp_info: Dict, concept: Optional[str]):
+        """Stores query/response insights in fractal memory for autonomous learning."""
+        try:
+            if not hasattr(self.brain, 'memory_graph_ml') or not self.brain.memory_graph_ml:
+                return
+            
+            mgml = self.brain.memory_graph_ml
+            
+            insight_text = f"Query: {query}\nResponse: {response}"
+            if concept:
+                insight_text += f"\nConcept: {concept}"
+            
+            metadata = {
+                'entities': nlp_info.get('entities', []),
+                'keywords': nlp_info.get('keywords', []),
+                'concept': concept
+            }
+            
+            mgml.add_insight(insight_text, query, metadata)
+            logger.debug(f"Stored insight from query: {query[:50]}...")
+            
+        except Exception as e:
+            logger.debug(f"Error storing insight: {e}")
 
     def __del__(self):
         try:
