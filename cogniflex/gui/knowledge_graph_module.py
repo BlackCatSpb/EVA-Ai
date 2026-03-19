@@ -1860,7 +1860,11 @@ class KnowledgeGraphModule:
             
             # Добавляем историю
             if self.gui.brain and hasattr(self.gui.brain, 'knowledge_graph'):
-                history = self.gui.brain.knowledge_graph.get_node_history(node_id)
+                node = self.gui.brain.knowledge_graph.get_node(node_id)
+                if node:
+                    history = node.history if hasattr(node, 'history') else []
+                else:
+                    history = []
                 for entry in history:
                     timestamp = datetime.fromtimestamp(entry["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
                     history_text.config(state=tk.NORMAL)
