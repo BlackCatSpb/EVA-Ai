@@ -3675,3 +3675,6 @@ RuntimeError: boom
 2026-03-19 22:36:45,906 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
 2026-03-19 22:36:45,911 [INFO] BackgroundCoordinator started
 2026-03-19 22:37:48,952 [INFO] BackgroundCoordinator stopped
+2026-03-19 22:49:15,169 [INFO] BackgroundCoordinator: система еще не запущена, ожидаю...
+2026-03-19 22:49:15,176 [INFO] BackgroundCoordinator started
+2026-03-19 22:50:24,200 [INFO] BackgroundCoordinator stopped
