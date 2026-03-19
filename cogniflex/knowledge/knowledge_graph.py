@@ -1245,17 +1245,18 @@ class KnowledgeGraph:
         except Exception as e:
             logger.error(f"Ошибка очистки кэша: {e}", exc_info=True)
     
-    def add_node(self, name: str, description: str, node_type: str = "fact", 
+    def add_node(self, name: str = None, description: str = None, node_type: str = "fact", 
                 domain: str = "general", strength: float = 0.5,
                 meta: Optional[Dict] = None, spatial_info: Optional[Dict] = None,
                 temporal_info: Optional[Dict] = None, user_id: Optional[str] = None,
-                source: Optional[str] = None) -> str:
+                source: Optional[str] = None,
+                node_id: Optional[str] = None, metadata: Optional[Dict] = None) -> str:
         """
         Добавляет новый узел в граф знаний.
         
         Args:
-            name: Название узла
-            description: Описание узла
+            name: Название узла (can also be passed as positional arg)
+            description: Описание узла (can also be passed as positional arg)
             node_type: Тип узла
             domain: Домен знаний
             strength: Сила знания
@@ -1264,12 +1265,22 @@ class KnowledgeGraph:
             temporal_info: Временная информация
             user_id: ID пользователя
             source: Источник информации
+            node_id: Опциональный ID узла (генерируется автоматически если не указан)
+            metadata: Алиас для meta (для обратной совместимости)
             
         Returns:
             str: ID добавленного узла
         """
+        if description is None:
+            description = ""
+        if meta is None and metadata is not None:
+            meta = metadata
+        if meta is None:
+            meta = {}
+            
         start_time = time.time()
-        node_id = f"node_{int(time.time())}_{hashlib.md5(name.encode()).hexdigest()[:8]}"
+        if node_id is None:
+            node_id = f"node_{int(time.time())}_{hashlib.md5((name or '').encode()).hexdigest()[:8]}"
         
         try:
             # Проверяем на дубликаты
