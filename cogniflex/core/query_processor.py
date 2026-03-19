@@ -12,6 +12,13 @@ except (ImportError, ModuleNotFoundError, RuntimeError):
     torch = None  # type: ignore
     TORCH_AVAILABLE = False
 
+try:
+    from cogniflex.knowledge.context_entity import EntityExtractor
+    from cogniflex.knowledge.ambiguity_resolver import AmbiguityResolver
+except ImportError:
+    EntityExtractor = None
+    AmbiguityResolver = None
+
 # Настройка логгера для этого модуля
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -55,6 +62,9 @@ class QueryProcessor:
                 self._own_executor = True
         except (AttributeError, TypeError, RuntimeError, OSError) as e:
             logger.debug(f"Ошибка инициализации executor: {e}")
+
+        self.entity_extractor = EntityExtractor() if EntityExtractor else None
+        self.ambiguity_resolver = AmbiguityResolver() if AmbiguityResolver else None
 
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через конвейер обработки.
@@ -195,6 +205,10 @@ class QueryProcessor:
             except (AttributeError, TypeError, ValueError) as e:
                 logger.debug(f"Ошибка обновления метрик в конце process_query: {e}")
 
+            ambiguity_info = self._detect_ambiguity(query, nlp_info)
+            if ambiguity_info.get("has_ambiguities"):
+                result["ambiguities"] = ambiguity_info
+
             return result
 
         except Exception as e:
@@ -288,6 +302,28 @@ class QueryProcessor:
             logger.debug(f"Ошибка при попытке доступа к ml_unit в _process_nlp: {e}")
 
         return nlp_info
+
+    def _detect_ambiguity(self, query: str, nlp_result: Dict) -> Dict:
+        """Detect ambiguous terms in query and return clarification info."""
+        if not self.entity_extractor:
+            return {"has_ambiguities": False, "clarifications": []}
+        
+        ambiguous = self.entity_extractor.extract_ambiguous_terms(query)
+        clarifications = []
+        
+        for entity in ambiguous:
+            if self.ambiguity_resolver:
+                clarification = self.ambiguity_resolver.generate_clarification(entity, query)
+                clarifications.append({
+                    "term": entity.term,
+                    "question": clarification.question if hasattr(clarification, 'question') else None,
+                    "possible_meanings": entity.possible_meanings
+                })
+        
+        return {
+            "has_ambiguities": len(clarifications) > 0,
+            "clarifications": clarifications
+        }
 
     def _extract_concept(self, query: str) -> Optional[str]:
         """Извлекает ключевой концепт из запроса.
