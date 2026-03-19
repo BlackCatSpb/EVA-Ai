@@ -770,6 +770,10 @@ class ResponseGenerator:
     
     def shutdown(self) -> None:
         """Останавливает генератор."""
+        if getattr(self, '_shutdown_event', None) and self._shutdown_event.is_set():
+            logger.debug("ResponseGenerator уже завершает работу")
+            return
+        
         # Останавливаем фоновые процессы
         if self._thread_pool:
             self._shutdown_event.set()

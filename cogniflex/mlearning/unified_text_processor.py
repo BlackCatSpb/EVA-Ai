@@ -192,17 +192,21 @@ class UnifiedTextProcessor(BaseComponent):
         try:
             if SentenceTransformer is not None:
                 # Проверяем наличие локальных моделей
-                # Правильный путь для локальной модели
+                # HF Hub cache format uses models-- prefix
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 local_model_paths = [
                     os.path.join(self.models_base_path, 'all-MiniLM-L6-v2'),
                     os.path.join(self.models_base_path, 'embeddings', 'all-MiniLM-L6-v2'),
                     os.path.join(self.models_base_path, 'sentence-transformers--all-MiniLM-L6-v2'),
+                    os.path.join(self.models_base_path, 'models--sentence-transformers--all-MiniLM-L6-v2'),
+                    os.path.join(project_root, 'models', 'embeddings', 'models--sentence-transformers--all-MiniLM-L6-v2'),
                 ]
                 
                 local_model_path = None
                 for path in local_model_paths:
-                    if os.path.exists(path) and os.path.isdir(path):
-                        local_model_path = path
+                    normalized_path = os.path.normpath(path)
+                    if os.path.exists(normalized_path) and os.path.isdir(normalized_path):
+                        local_model_path = normalized_path
                         break
                 
                 if local_model_path:
@@ -246,11 +250,19 @@ class UnifiedTextProcessor(BaseComponent):
                     device = "cuda" if self.use_gpu else "cpu"
                     if SentenceTransformer is not None:
                         # Преобразуем имя модели в путь к локальной директории
+                        # Normalize paths for cross-platform compatibility
+                        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                         if self.model_name == 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2':
-                            embedding_model_path = os.path.join(self.models_base_path, 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2')
+                            model_dir_name = 'models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2'
+                            embedding_model_path = os.path.join(self.models_base_path, model_dir_name)
+                            if not os.path.exists(embedding_model_path):
+                                embedding_model_path = os.path.join(project_root, 'models', 'embeddings', model_dir_name)
                         else:
                             embedding_model_path = os.path.join(self.models_base_path, self.model_name)
+                            if not os.path.exists(embedding_model_path):
+                                embedding_model_path = os.path.join(project_root, 'models', 'embeddings', self.model_name)
                         
+                        embedding_model_path = os.path.normpath(embedding_model_path)
                         if os.path.exists(embedding_model_path):
                             self.embedder = SentenceTransformer(embedding_model_path, device=device)
                             logger.info(f"Модель эмбеддингов '{self.model_name}' загружена локально с {device}")

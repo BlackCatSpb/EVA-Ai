@@ -133,6 +133,8 @@ class CoreBrain:
         self.module_control: Dict[str, Dict[str, Any]] = {}
         self.initialized = False
         self.running = False
+        self._shutting_down = False
+        self._shutdown_lock = threading.Lock()
         self.status_queue = queue.Queue()
         self.deferred_commands = []
         
@@ -1111,9 +1113,15 @@ class CoreBrain:
     
     def stop(self):
         """Останавливает все компоненты системы."""
-        if not self.running:
-            self.query_logger.debug("Попытка остановки уже остановленной системы")
-            return
+        with self._shutdown_lock:
+            if self._shutting_down:
+                self.query_logger.debug("Система уже завершает работу")
+                return
+            if not self.running:
+                self.query_logger.debug("Попытка остановки уже остановленной системы")
+                return
+            
+            self._shutting_down = True
         
         stop_time = time.time()
         self.query_logger.info("Остановка ядра CogniFlex...")

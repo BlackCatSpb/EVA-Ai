@@ -859,6 +859,10 @@ class ComponentInitializer:
     
     def shutdown_components(self):
         """Корректно завершает работу всех компонентов."""
+        if getattr(self, '_shutdown_complete', False):
+            self.logger.debug("Компоненты уже завершили работу")
+            return
+        
         self.logger.info("=" * 60)
         self.logger.info("ЗАВЕРШЕНИЕ РАБОТЫ КОМПОНЕНТОВ")
         self.logger.info("=" * 60)
@@ -881,6 +885,7 @@ class ComponentInitializer:
                     self.logger.error(f"❌ Ошибка завершения {component_name}: {e}")
         
         self.initialized_components.clear()
+        self._shutdown_complete = True
         self.logger.info("✅ Все компоненты завершили работу")
         self.logger.info("=" * 60)
     

@@ -159,6 +159,9 @@ class BackgroundCoordinator:
 
     def stop(self) -> None:
         with self._lock:
+            if not self._running:
+                logger.debug("BackgroundCoordinator уже остановлен")
+                return
             self._running = False
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=3.0)
