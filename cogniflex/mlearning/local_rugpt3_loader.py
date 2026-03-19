@@ -460,6 +460,9 @@ class LocalRuGPT3Loader:
             if device == "auto":
                 device = "cuda" if torch.cuda.is_available() else "cpu"
             
+            # Получаем корень проекта
+            project_root = self._get_project_root()
+            
             # Проверяем наличие локальных весов модели
             # Для ruGPT-3 Large во фрактальном хранилище
             model_root_path = self.storage_path
