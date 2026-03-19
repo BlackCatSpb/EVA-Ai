@@ -1769,7 +1769,7 @@ class ChatModule:
                                 except Exception:
                                     pass
                         if hasattr(mgml, 'patterns') and mgml.patterns:
-                            graph_patterns = list(mgml.patterns.keys())[-3:]
+                            graph_patterns = [p.pattern_id for p in mgml.patterns][-3:]
             except Exception as e:
                 logger.debug(f"Ошибка получения данных из MemoryGraphML: {e}")
             
@@ -2232,20 +2232,17 @@ class ChatModule:
         try:
             integrator = None
             bi = getattr(self.gui, 'brain', None)
-            # Проверяем, есть ли уже инициализированный knowledge_integrator
-            integrator = getattr(bi, 'knowledge_integrator', None) if bi else None
-            
-            if integrator is None and bi:
-                # Создаем новый только если не существует
+            if bi:
+                integrator = getattr(bi, 'knowledge_integrator', None)
+
+            if integrator is None:
                 integrator = KnowledgeIntegrator(brain=bi)
-                # Сохраняем для повторного использования
-                bi.knowledge_integrator = integrator
-                logger.debug("Создан новый KnowledgeIntegrator и сохранен в brain")
-            elif integrator is None:
-                # Создаем без brain если его нет
-                integrator = KnowledgeIntegrator(brain=bi)
-                logger.debug("Создан новый KnowledgeIntegrator без brain")
-            
+                if bi:
+                    bi.knowledge_integrator = integrator
+                    logger.debug("Создан новый KnowledgeIntegrator и сохранен в brain")
+                else:
+                    logger.debug("Создан новый KnowledgeIntegrator без brain")
+
             integrator.integrate_knowledge(concept, depth=1)
             
         except Exception as e:
