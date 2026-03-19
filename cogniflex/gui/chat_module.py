@@ -1272,11 +1272,15 @@ class ChatModule:
                     self._suppress_history_append = True
                     try:
                         for msg in loaded:
+                            sender = msg.get("sender", msg.get("role", "user"))
+                            content = msg.get("message", msg.get("content", ""))
+                            msg_type = msg.get("type", "text")
+                            timestamp = msg.get("timestamp")
                             self._add_message(
-                                msg["sender"],
-                                msg["message"],
-                                msg["type"],
-                                timestamp=msg["timestamp"],
+                                sender,
+                                content,
+                                msg_type,
+                                timestamp=timestamp,
                                 process_formatting=False
                             )
                     finally:
