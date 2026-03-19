@@ -153,6 +153,142 @@ class TestEntityExtractor:
         entities = extractor.extract_ambiguous_terms(text)
         assert len(entities) <= 3
 
+    def test_detect_russian_vague_quantifier_mnogo(self):
+        entities = self.extractor.detect_russian_vague_quantifiers("много людей пришло")
+        assert len(entities) >= 1
+        assert entities[0].text == "много"
+        assert entities[0].ambiguity_type == AmbiguityType.VAGUE_QUANTIFIER
+
+    def test_detect_russian_vague_quantifier_malo(self):
+        entities = self.extractor.detect_russian_vague_quantifiers("мало человек осталось")
+        assert len(entities) >= 1
+        assert entities[0].text == "мало"
+
+    def test_detect_russian_vague_quantifier_neskolko(self):
+        entities = self.extractor.detect_russian_vague_quantifiers("несколько человек участвовало")
+        assert len(entities) >= 1
+        assert entities[0].text == "несколько"
+
+    def test_detect_russian_vague_quantifier_bolshinstvo(self):
+        entities = self.extractor.detect_russian_vague_quantifiers("большинство людей согласны")
+        assert len(entities) >= 1
+        assert entities[0].text == "большинство"
+
+    def test_detect_russian_vague_quantifier_malenkoe(self):
+        entities = self.extractor.detect_russian_vague_quantifiers("немного людей пришло")
+        assert len(entities) >= 1
+        assert entities[0].text == "немного"
+
+    def test_identify_russian_implicit_reference_eto(self):
+        entities = self.extractor.identify_russian_implicit_references("это работает хорошо")
+        found = [e for e in entities if e.text == "это"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.DEMONSTRATIVE_REFERENCE
+
+    def test_identify_russian_implicit_reference_oni(self):
+        entities = self.extractor.identify_russian_implicit_references("они обработали данные")
+        found = [e for e in entities if e.text == "они"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.PRONOUN_REFERENCE
+
+    def test_identify_russian_implicit_reference_on(self):
+        entities = self.extractor.identify_russian_implicit_references("он сделал работу")
+        found = [e for e in entities if e.text == "он"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.PRONOUN_REFERENCE
+
+    def test_identify_russian_implicit_reference_etot(self):
+        entities = self.extractor.identify_russian_implicit_references("этот проект важен")
+        found = [e for e in entities if e.text == "этот"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.DEMONSTRATIVE_REFERENCE
+
+    def test_identify_russian_implicit_reference_tot(self):
+        entities = self.extractor.identify_russian_implicit_references("тот документ нужен")
+        found = [e for e in entities if e.text == "тот"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.DEMONSTRATIVE_REFERENCE
+
+    def test_analyze_russian_relative_terms_bystree_chem(self):
+        entities = self.extractor.analyze_russian_relative_terms("быстрее чем раньше")
+        assert len(entities) >= 1
+        assert entities[0].ambiguity_type == AmbiguityType.COMPARATIVE_TERM
+
+    def test_analyze_russian_relative_terms_luchshe(self):
+        entities = self.extractor.analyze_russian_relative_terms("лучше чем вчера")
+        assert len(entities) >= 1
+
+    def test_analyze_russian_relative_terms_bolshe(self):
+        entities = self.extractor.analyze_russian_relative_terms("больше чем обычно")
+        assert len(entities) >= 1
+
+    def test_analyze_russian_relative_terms_menshe(self):
+        entities = self.extractor.analyze_russian_relative_terms("меньше чем в прошлый раз")
+        assert len(entities) >= 1
+
+    def test_analyze_russian_relative_terms_vyshe(self):
+        entities = self.extractor.analyze_russian_relative_terms("выше чем раньше")
+        assert len(entities) >= 1
+
+    def test_analyze_russian_relative_terms_nizhe(self):
+        entities = self.extractor.analyze_russian_relative_terms("ниже чем ожидалось")
+        assert len(entities) >= 1
+
+    def test_detect_russian_vague_adjectives_yarkiy(self):
+        entities = self.extractor._detect_russian_vague_adjectives("яркий свет")
+        found = [e for e in entities if e.text == "яркий"]
+        assert len(found) >= 1
+        assert found[0].ambiguity_type == AmbiguityType.VAGUE_ADJECTIVE
+
+    def test_detect_russian_vague_adjectives_tusklый(self):
+        entities = self.extractor._detect_russian_vague_adjectives("тусклый свет")
+        found = [e for e in entities if e.text == "тусклый"]
+        assert len(found) >= 1
+
+    def test_detect_russian_vague_adjectives_gromkiy(self):
+        entities = self.extractor._detect_russian_vague_adjectives("громкий звук")
+        found = [e for e in entities if e.text == "громкий"]
+        assert len(found) >= 1
+
+    def test_detect_russian_vague_adjectives_tikhiy(self):
+        entities = self.extractor._detect_russian_vague_adjectives("тихий звук")
+        found = [e for e in entities if e.text == "тихий"]
+        assert len(found) >= 1
+
+    def test_detect_russian_vague_adjectives_bystriy(self):
+        entities = self.extractor._detect_russian_vague_adjectives("быстрый процесс")
+        found = [e for e in entities if e.text == "быстрый"]
+        assert len(found) >= 1
+
+    def test_detect_russian_vague_adjectives_medlenniy(self):
+        entities = self.extractor._detect_russian_vague_adjectives("медленный процесс")
+        found = [e for e in entities if e.text == "медленный"]
+        assert len(found) >= 1
+
+    def test_extract_ambiguous_terms_russian_yarkiy_svet(self):
+        entities = self.extractor.extract_ambiguous_terms("яркий свет")
+        entity_texts = [e.text for e in entities]
+        assert "яркий" in entity_texts
+
+    def test_extract_ambiguous_terms_russian_mnogo_lyudey(self):
+        entities = self.extractor.extract_ambiguous_terms("много людей пришло")
+        entity_texts = [e.text for e in entities]
+        assert "много" in entity_texts
+
+    def test_extract_ambiguous_terms_russian_bystree_chem(self):
+        entities = self.extractor.extract_ambiguous_terms("быстрее чем раньше")
+        entity_texts = [e.text for e in entities]
+        found_comparative = any(e.ambiguity_type == AmbiguityType.COMPARATIVE_TERM for e in entities)
+        assert found_comparative
+
+    def test_extract_ambiguous_terms_russian_complex(self):
+        text = "много людей думают, что эта система работает быстрее чем раньше"
+        entities = self.extractor.extract_ambiguous_terms(text)
+        assert len(entities) >= 2
+        types = {e.ambiguity_type for e in entities}
+        assert AmbiguityType.VAGUE_QUANTIFIER in types or AmbiguityType.VAGUE_ADJECTIVE in types
+        assert AmbiguityType.COMPARATIVE_TERM in types or AmbiguityType.DEMONSTRATIVE_REFERENCE in types
+
 
 class TestAmbiguityResolver:
     def setup_method(self):

@@ -78,6 +78,71 @@ class RefinementQuery:
 
 
 class EntityExtractor:
+    AMBIGUOUS_PATTERNS = {
+        'vague_quantifier': [
+            r'\b(много|мало|несколько|немного|большинство|меньшинство)\b.*?\b(людей|человек|раз|случаев|раз)?',
+            r'\b(много|мало|несколько)\b',
+        ],
+        'relative_comparison': [
+            r'(быстрее|медленнее|лучше|хуже|больше|меньше|выше|ниже)\s*чем\s*',
+            r'(так|более|менее)\s+(быстро|медленно|хорошо|плохо)',
+        ],
+        'implicit_reference': [
+            r'\b(это|то|этот|тот|оно|они|их|его|её)\b',
+        ],
+        'ambiguous_term': [
+            r'\b(яркий|тусклый|громкий|тихий|быстрый|медленный)\s+\w+',
+            r'\b(\w+)\s+(свет|звук|система|процесс|работа)\b',
+        ],
+    }
+
+    RUSSIAN_VAGUE_ADJECTIVES = {
+        "яркий", "тусклый", "громкий", "тихий", "быстрый", "медленный",
+        "большой", "малый", "маленький", "огромный", "крошечный",
+        "хороший", "плохой", "отличный", "ужасный", "прекрасный",
+        "сильный", "слабый", "мощный",
+        "важный", "значительный", "незначительный", "главный",
+        "тяжёлый", "лёгкий", "тёмный", "светлый",
+        "высокий", "низкий", "длинный", "короткий",
+        "чистый", "грязный", "ясный", "туманный",
+        "богатый", "бедный", "состоятельный",
+        "лёгкий", "трудный", "простой", "сложный",
+        "старый", "новый", "молодой", "древний", "современный",
+        "похожий", "разный", "одинаковый", "подобный",
+        "близкий", "далёкий", "далеко", "близко",
+        "мокрый", "сухой", "влажный", "сухой",
+        "спелый", "зелёный", "зрелый",
+        "безопасный", "опасный", "рискованный", "надёжный"
+    }
+
+    RUSSIAN_VAGUE_QUANTIFIERS = {
+        "много": ["десятки", "сотни", "тысячи", "конкретное число"],
+        "мало": ["несколько", "единицы", "конкретное число"],
+        "несколько": ["три", "четыре", "пять", "конкретное число"],
+        "немного": ["чуть-чуть", "незначительное количество", "конкретное число"],
+        "большинство": ["более 50%", "60%", "70%", "конкретный процент"],
+        "меньшинство": ["менее 50%", "40%", "30%", "конкретный процент"],
+        "некоторые": ["несколько", "часть", "конкретное количество"],
+        "многие": ["много", "значительная часть", "конкретное число"],
+        "немногие": ["мало", "небольшая часть", "конкретное число"],
+    }
+
+    RUSSIAN_DEMONSTRATIVES = {
+        "это", "то", "этот", "тот", "та", "такой", "такая", "такое", "такие"
+    }
+
+    RUSSIAN_PRONOUNS = {
+        "он", "она", "оно", "они", "их", "его", "её", "ей", "им",
+        "я", "мы", "вы", "ты",
+        "который", "которая", "которое", "которые", "кто", "что", "чей"
+    }
+
+    RUSSIAN_COMPARATIVE_PATTERNS = [
+        (r"\b(быстрее|медленнее|лучше|хуже|больше|меньше|выше|ниже|сильнее|слабее)\s+чем\s+(\w+)", "comparative_value"),
+        (r"\b(более|менее)\s+(быстро|медленно|хорошо|плохо|сильно|слабо)", "comparative_adverb"),
+        (r"\b(такой|такая|такое)\s+как\s+(\w+)", "comparison_like"),
+    ]
+
     VAGUE_ADJECTIVES = {
         "bright", "dark", "big", "small", "large", "huge", "tiny",
         "fast", "slow", "quick", "rapid", "gradual", "sudden",
@@ -170,6 +235,10 @@ class EntityExtractor:
         entities.extend(self.identify_implicit_references(query))
         entities.extend(self.analyze_relative_terms(query))
         entities.extend(self._detect_vague_adjectives(query))
+        entities.extend(self.detect_russian_vague_quantifiers(query))
+        entities.extend(self.identify_russian_implicit_references(query))
+        entities.extend(self.analyze_russian_relative_terms(query))
+        entities.extend(self._detect_russian_vague_adjectives(query))
         entities = self._deduplicate_entities(entities)
         entities.sort(key=lambda e: (e.confidence, e.start_pos), reverse=True)
         return entities[:self.max_entities]
@@ -262,14 +331,10 @@ class EntityExtractor:
 
     def _is_referring_expression(self, text: str, start: int, end: int) -> bool:
         if end >= len(text):
-            return False
+            return True
         remaining = text[end:].strip()
         if remaining and remaining[0] in '.,!?;:)':
             return False
-        if start > 0:
-            preceding = text[:start].strip()
-            if preceding and not preceding[-1] in '.!?':
-                return False
         return True
 
     def _get_referent_suggestions(self, text: str, pronoun: str, pos: int) -> List[str]:
@@ -362,3 +427,150 @@ class EntityExtractor:
                 seen.add(key)
                 unique.append(e)
         return unique
+
+    def detect_russian_vague_quantifiers(self, text: str) -> List[AmbiguousEntity]:
+        entities = []
+        text_lower = text.lower()
+        for quantifier, expansions in self.RUSSIAN_VAGUE_QUANTIFIERS.items():
+            pattern = r'\b' + re.escape(quantifier) + r'\b'
+            for match in re.finditer(pattern, text_lower):
+                entity = AmbiguousEntity(
+                    text=match.group(),
+                    ambiguity_type=AmbiguityType.VAGUE_QUANTIFIER,
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    possible_meanings=expansions,
+                    confidence=0.7,
+                    context=self._get_context_window(text, match.start(), match.end()),
+                    needs_clarification=True,
+                    refinement_suggestion=f"Уточните точное количество вместо '{match.group()}'"
+                )
+                entities.append(entity)
+        return entities
+
+    def identify_russian_implicit_references(self, text: str) -> List[AmbiguousEntity]:
+        entities = []
+        text_lower = text.lower()
+        all_demonstratives = set(self.RUSSIAN_DEMONSTRATIVES) | set(self.RUSSIAN_PRONOUNS)
+        for demonstrative in all_demonstratives:
+            pattern = r'\b' + re.escape(demonstrative) + r'\b'
+            for match in re.finditer(pattern, text_lower):
+                if self._is_referring_expression(text, match.start(), match.end()):
+                    ambiguity_type = AmbiguityType.DEMONSTRATIVE_REFERENCE
+                    if demonstrative in self.RUSSIAN_PRONOUNS:
+                        ambiguity_type = AmbiguityType.PRONOUN_REFERENCE
+                    entity = AmbiguousEntity(
+                        text=match.group(),
+                        ambiguity_type=ambiguity_type,
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        possible_meanings=self._get_russian_referent_suggestions(match.group()),
+                        confidence=0.6,
+                        context=self._get_context_window(text, match.start(), match.end()),
+                        needs_clarification=True,
+                        refinement_suggestion=f"Замените '{match.group()}' конкретным названием"
+                    )
+                    entities.append(entity)
+        return entities
+
+    def analyze_russian_relative_terms(self, text: str) -> List[AmbiguousEntity]:
+        entities = []
+        text_lower = text.lower()
+        for pattern, term_type in self.RUSSIAN_COMPARATIVE_PATTERNS:
+            for match in re.finditer(pattern, text_lower, re.IGNORECASE):
+                comparative_word = match.group(1) if match.lastindex and match.lastindex >= 1 else match.group()
+                entity = AmbiguousEntity(
+                    text=match.group(),
+                    ambiguity_type=AmbiguityType.COMPARATIVE_TERM,
+                    start_pos=match.start(),
+                    end_pos=match.end(),
+                    possible_meanings=self._expand_russian_comparative(comparative_word),
+                    confidence=0.65,
+                    context=self._get_context_window(text, match.start(), match.end()),
+                    needs_clarification=True,
+                    refinement_suggestion=f"Укажите конкретную базу для сравнения '{match.group()}'"
+                )
+                entities.append(entity)
+        return entities
+
+    def _detect_russian_vague_adjectives(self, text: str) -> List[AmbiguousEntity]:
+        entities = []
+        text_lower = text.lower()
+        for adj in self.RUSSIAN_VAGUE_ADJECTIVES:
+            pattern = r'\b' + re.escape(adj) + r'\b'
+            for match in re.finditer(pattern, text_lower):
+                if not self._is_intensified(text, match.start(), match.end()):
+                    entity = AmbiguousEntity(
+                        text=match.group(),
+                        ambiguity_type=AmbiguityType.VAGUE_ADJECTIVE,
+                        start_pos=match.start(),
+                        end_pos=match.end(),
+                        possible_meanings=self._get_russian_adjective_degrees(adj),
+                        confidence=0.5,
+                        context=self._get_context_window(text, match.start(), match.end()),
+                        needs_clarification=True,
+                        refinement_suggestion=f"Уточните степень для '{match.group()}'"
+                    )
+                    entities.append(entity)
+        return entities
+
+    def _get_russian_referent_suggestions(self, pronoun: str) -> List[str]:
+        suggestions = {
+            "это": ["упомянутый объект", "предыдущая тема", "текущий предмет"],
+            "то": ["тот объект", "другая тема", "упомянутое"],
+            "этот": ["этот объект", "данный элемент", "текущий предмет"],
+            "тот": ["тот объект", "другой элемент", "упомянутый предмет"],
+            "он": ["человек", "пользователь", "упомянутый человек"],
+            "она": ["человек", "пользователь", "упомянутый человек"],
+            "оно": ["система", "процесс", "результат"],
+            "они": ["люди", "пользователи", "упомянутые элементы"],
+            "его": ["упомянутый объект", "его часть", "его атрибут"],
+            "её": ["упомянутый объект", "её часть", "её атрибут"],
+            "их": ["упомянутые объекты", "их части", "их атрибуты"],
+        }
+        return suggestions.get(pronoun.lower(), ["конкретный объект", "уточните предмет"])
+
+    def _expand_russian_comparative(self, comparative: str) -> List[str]:
+        expansions = {
+            "быстрее": ["в 2 раза быстрее", "на 50% быстрее", "конкретное уменьшение времени"],
+            "медленнее": ["в 2 раза медленнее", "на 50% медленнее", "конкретное увеличение времени"],
+            "лучше": ["улучшение на 10%", "значительное улучшение", "качественно лучше"],
+            "хуже": ["ухудшение на 10%", "значительно хуже", "качественно хуже"],
+            "больше": ["на 10% больше", "в 2 раза больше", "конкретное количество"],
+            "меньше": ["на 10% меньше", "в 2 раза меньше", "конкретное количество"],
+            "выше": ["выше на X единиц", "значительно выше", "конкретное значение"],
+            "ниже": ["ниже на X единиц", "значительно ниже", "конкретное значение"],
+            "сильнее": ["на 20% сильнее", "значительно сильнее", "конкретное значение силы"],
+            "слабее": ["на 20% слабее", "значительно слабее", "конкретное значение силы"],
+        }
+        return expansions.get(comparative.lower(), [f"конкретное значение для {comparative}"])
+
+    def _get_russian_adjective_degrees(self, adj: str) -> List[str]:
+        degrees = {
+            "яркий": ["интенсивность 80-100%", "интенсивность 50-80%", "конкретное значение яркости"],
+            "тусклый": ["интенсивность 0-20%", "интенсивность 20-40%", "конкретное значение яркости"],
+            "громкий": ["уровень >80 дБ", "уровень 60-80 дБ", "конкретное значение громкости"],
+            "тихий": ["уровень <30 дБ", "уровень 30-50 дБ", "конкретное значение громкости"],
+            "быстрый": [">100 км/ч", ">10x от базы", "конкретное значение скорости"],
+            "медленный": ["<10 км/ч", "<50% от базы", "конкретное значение скорости"],
+            "большой": ["размеры >1м", "размеры >10м", "конкретный размер"],
+            "малый": ["размеры <10см", "размеры <1м", "конкретный размер"],
+            "маленький": ["размеры <10см", "размеры <1м", "конкретный размер"],
+            "огромный": ["размеры >10м", "значительно больше", "конкретный размер"],
+            "хороший": ["оценка 8-10/10", "соответствует критериям", "конкретный показатель качества"],
+            "плохой": ["оценка 0-3/10", "не соответствует критериям", "конкретный недостаток"],
+            "сильный": [">80% мощности", "конкретное значение силы", "высокая корреляция"],
+            "слабый": ["<20% мощности", "конкретное значение силы", "низкая корреляция"],
+            "высокий": [">1000 м", ">100 единиц", "конкретное значение"],
+            "низкий": ["<100 м", "<10 единиц", "конкретное значение"],
+            "длинный": [">1 час", ">10 км", "конкретная длина"],
+            "короткий": ["<1 минута", "<100 м", "конкретная длина"],
+            "старый": [">50 лет", ">10 лет", "конкретный возраст или версия"],
+            "новый": ["<1 год", "<6 месяцев", "конкретная дата выпуска"],
+            "молодой": ["<30 лет", "конкретный возраст", "моложе X лет"],
+            "тёмный": ["яркость 0-20%", "яркость 20-40%", "конкретный уровень темноты"],
+            "светлый": ["яркость 80-100%", "яркость 60-80%", "конкретный уровень освещения"],
+            "чистый": ["100% чистота", "конкретный показатель чистоты", "класс чистоты"],
+            "грязный": ["требует очистки", "конкретный уровень загрязнения", "класс загрязнения"],
+        }
+        return degrees.get(adj, [f"степень {adj}", f"конкретное измерение {adj}"])
