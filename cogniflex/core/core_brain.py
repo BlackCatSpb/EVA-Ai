@@ -98,12 +98,12 @@ class CoreBrain:
         try:
             from .event_system import EventSystem
             self.events = EventSystem()
-            self.query_logger.info("Событийная система инициализирована")
+            self.query_logger.debug("Событийная система инициализирована")
             
             # Централизованный транспорт метрик через событийную шину
             try:
                 self.events.subscribe('metrics', self._on_metrics_event)
-                self.query_logger.info("Подписка на события 'metrics' зарегистрирована")
+                self.query_logger.debug("Подписка на события 'metrics' зарегистрирована")
             except Exception:
                 pass
         except ImportError:
@@ -119,7 +119,7 @@ class CoreBrain:
             else:
                 self.query_logger.debug(f"Конфигурация: {config}")
         else:
-            self.query_logger.info("Конфигурация не предоставлена, используется конфигурация по умолчанию")
+            self.query_logger.debug("Конфигурация не предоставлена, используется конфигурация по умолчанию")
         
         self.config = config or {}
         self.components: Dict[str, Any] = {}
@@ -146,16 +146,15 @@ class CoreBrain:
         try:
             from .deferred_command_system import DeferredCommandSystem
             self.deferred_system = DeferredCommandSystem(self, max_workers=6)
-            self.query_logger.info("Система отложенных команд инициализирована")
+            self.query_logger.debug("Система отложенных команд инициализирована")
         except ImportError as e:
             self.deferred_system = None
             self.query_logger.warning(f"Система отложенных команд недоступна: {e}")
         
         # Настройка директории кэша
         self.cache_dir = os.path.join(os.path.dirname(__file__), "cogniflex_cache")
-        self.query_logger.info(f"Путь к кэшу: {self.cache_dir}")
         os.makedirs(self.cache_dir, exist_ok=True)
-        self.query_logger.info(f"Директория кэша {'создана' if not os.path.exists(self.cache_dir) else 'уже существует'}")
+        self.query_logger.debug(f"Путь к кэшу: {self.cache_dir}")
         
         # Применяем контекст-ориентированную политику при необходимости
         try:
@@ -164,7 +163,7 @@ class CoreBrain:
                 try:
                     from .context_first_policy import ContextFirstPolicy
                     ContextFirstPolicy(self).apply()
-                    self.query_logger.info("ContextFirstPolicy применена (mode=context_first)")
+                    self.query_logger.debug("ContextFirstPolicy применена (mode=context_first)")
                 except Exception as e:
                     self.query_logger.warning(f"Не удалось применить ContextFirstPolicy: {e}")
         except Exception:
@@ -174,7 +173,7 @@ class CoreBrain:
         try:
             from .config_manager import ConfigManager
             self.config_manager = ConfigManager()
-            self.query_logger.info("Менеджер конфигурации инициализирован")
+            self.query_logger.debug("Менеджер конфигурации инициализирован")
         except ImportError:
             self.config_manager = None
             self.query_logger.warning("Менеджер конфигурации недоступен")
@@ -182,7 +181,7 @@ class CoreBrain:
         try:
             from .system_state import SystemStateManager, SystemState
             self.state_manager = SystemStateManager()
-            self.query_logger.info("Менеджер состояния системы инициализирован")
+            self.query_logger.debug("Менеджер состояния системы инициализирован")
             self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
         except ImportError:
             self.state_manager = None
@@ -191,7 +190,7 @@ class CoreBrain:
         try:
             from .resource_manager import ResourceManager
             self.resource_manager = ResourceManager(self.config_manager)
-            self.query_logger.info("Менеджер ресурсов инициализирован")
+            self.query_logger.debug("Менеджер ресурсов инициализирован")
         except ImportError:
             self.resource_manager = None
             self.query_logger.warning("Менеджер ресурсов недоступен")
@@ -200,7 +199,7 @@ class CoreBrain:
         try:
             from cogniflex.learning.self_analyzer import SelfAnalyzer
             self.self_analyzer = SelfAnalyzer(brain=self, cache_dir=self.cache_dir)
-            self.query_logger.info("Модуль самоанализа инициализирован")
+            self.query_logger.debug("Модуль самоанализа инициализирован")
         except ImportError as e:
             self.self_analyzer = None
             self.query_logger.warning(f"Модуль самоанализа недоступен: {e}")
@@ -209,7 +208,7 @@ class CoreBrain:
         try:
             from .system_metrics import SystemMetricsManager
             self.metrics_manager = SystemMetricsManager()
-            self.query_logger.info("Менеджер системных метрик инициализирован")
+            self.query_logger.debug("Менеджер системных метрик инициализирован")
         except ImportError:
             class SystemMetricsManager:
                 def __init__(self): self.metrics = {"error_rate": 0.0}
@@ -226,7 +225,7 @@ class CoreBrain:
             from .enhanced_self_learning import EnhancedSelfLearningSystem
             self.enhanced_learning = EnhancedSelfLearningSystem(self, config=self.config.get('learning', {}))
             if self.enhanced_learning.start():
-                self.query_logger.info("EnhancedSelfLearningSystem инициализирована и запущена")
+                self.query_logger.debug("EnhancedSelfLearningSystem инициализирована и запущена")
             else:
                 self.query_logger.warning("Не удалось запустить EnhancedSelfLearningSystem")
                 self.enhanced_learning = None
@@ -239,7 +238,7 @@ class CoreBrain:
             from .memory_graph_ml import MemoryGraphML
             self.memory_graph_ml = MemoryGraphML(self, config=self.config.get('memory_graph_ml', {}))
             if self.memory_graph_ml.initialize():
-                self.query_logger.info("MemoryGraphML инициализирован")
+                self.query_logger.debug("MemoryGraphML инициализирован")
             else:
                 self.query_logger.warning("Не удалось инициализировать MemoryGraphML")
         except ImportError as e:
@@ -250,7 +249,7 @@ class CoreBrain:
         try:
             from .self_learning_system import initialize_self_learning
             if initialize_self_learning(self):
-                self.query_logger.info("Система самообучения инициализирована (legacy)")
+                self.query_logger.debug("Система самообучения инициализирована (legacy)")
             else:
                 self.query_logger.warning("Не удалось инициализировать систему самообучения (legacy)")
         except ImportError as e:
@@ -265,13 +264,13 @@ class CoreBrain:
         self.query_processor = QueryProcessor(self) if QueryProcessor else None
         if self.query_processor:
             self.components['query_processor'] = self.query_processor
-            self.query_logger.info("Процессор запросов инициализирован и зарегистрирован в components")
+            self.query_logger.debug("Процессор запросов инициализирован и зарегистрирован в components")
         
         # Инициализация инициализатора компонентов
         try:
             from .component_initializer import ComponentInitializer
             self.component_initializer = ComponentInitializer(self)
-            self.query_logger.info("Инициализатор компонентов инициализирован")
+            self.query_logger.debug("Инициализатор компонентов инициализирован")
         except ImportError as e:
             self.component_initializer = None
             self.query_logger.warning(f"Ошибка импорта инициализатора компонентов: {e}")
@@ -285,7 +284,7 @@ class CoreBrain:
             from ..memory.hybrid_token_cache import get_shared_cache
             self.token_cache = get_shared_cache(self, "default")
             self.hybrid_cache = self.token_cache
-            self.query_logger.info("Гибридный кэш токенов инициализирован (синглтон)")
+            self.query_logger.debug("Гибридный кэш токенов инициализирован (синглтон)")
             if hasattr(self.token_cache, 'get_cache_stats'):
                 cache_stats = self.token_cache.get_cache_stats()
         except ImportError as e:
@@ -299,17 +298,17 @@ class CoreBrain:
             # Указываем правильный путь к модели
             model_path = "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model"
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
-            self.query_logger.info("FractalModelManager инициализирован с путем: {}".format(model_path))
+            self.query_logger.debug("FractalModelManager инициализирован с путем: {}".format(model_path))
         except (ImportError, Exception) as e:
-            self.query_logger.error(f"Ошибка инициализации FractalModelManager: {e}", exc_info=True)
+            self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
-        self.query_logger.info(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
+        self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
         
         # Логируем завершение инициализации
-        self.query_logger.info("CogniFlexCore инициализирован")
-        logger.info("CogniFlexCore инициализирован")
+        self.query_logger.debug("CogniFlexCore инициализирован")
+        logger.debug("CogniFlexCore инициализирован")
         
         # Подготовка автопилота (фоновый координатор)
         try:
@@ -329,7 +328,7 @@ class CoreBrain:
             # Регистрируем BackgroundCoordinator как компонент
             if hasattr(self, 'components'):
                 self.components['background_coordinator'] = self.background
-                self.query_logger.info("BackgroundCoordinator зарегистрирован как компонент")
+                self.query_logger.debug("BackgroundCoordinator зарегистрирован как компонент")
                 
         except Exception as e:
             logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
@@ -343,76 +342,58 @@ class CoreBrain:
         Returns:
             bool: True если инициализация успешна, False в противном случае
         """
-        self.query_logger.info("=" * 60)
-        self.query_logger.info("Инициализация менеджера памяти (MemoryManager)...")
-        self.query_logger.info("=" * 60)
-        
         try:
-            # Проверяем, есть ли component_initializer
             if not self.component_initializer:
-                self.query_logger.error("ComponentInitializer недоступен")
+                self.query_logger.warning("ComponentInitializer недоступен")
                 return False
             
-            # Проверяем, инициализирован ли уже memory_manager
             if hasattr(self, 'memory_manager') and self.memory_manager is not None:
-                self.query_logger.info("MemoryManager уже инициализирован")
                 return True
             
-            # Пробуем получить memory_manager из component_initializer
             if hasattr(self.component_initializer, 'memory_manager'):
                 self.memory_manager = self.component_initializer.memory_manager
                 self.components['memory_manager'] = self.memory_manager
-                self.query_logger.info("MemoryManager получен из component_initializer")
                 
-                # Если есть метод initialize, вызываем его
                 if hasattr(self.memory_manager, 'initialize'):
-                    self.query_logger.info("Вызов memory_manager.initialize()...")
-                    init_result = self.memory_manager.initialize()
-                    self.query_logger.info(f"Результат инициализации MemoryManager: {init_result}")
-                    return init_result
+                    return self.memory_manager.initialize()
                 
-                self.query_logger.info("MemoryManager успешно инициализирован")
                 return True
             else:
-                self.query_logger.error("memory_manager не найден в component_initializer")
+                self.query_logger.warning("memory_manager не найден в component_initializer")
                 return False
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка инициализации MemoryManager: {e}", exc_info=True)
+            self.query_logger.error(f"Ошибка инициализации MemoryManager: {e}")
             return False
     
     def _initialize_detailed_logging(self):
         """Включает детальное логгирование для всех компонентов."""
-        self.query_logger.info("=" * 80)
-        self.query_logger.info("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
-        self.query_logger.info("=" * 80)
+        self.query_logger.debug("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
         
-        # Логируем информацию о системе
-        self.query_logger.info(f"Python version: {sys.version}")
-        self.query_logger.info(f"Platform: {sys.platform}")
-        self.query_logger.info(f"CPU count: {os.cpu_count()}")
+        # Логируем информацию о системе (debug level)
+        self.query_logger.debug(f"Python version: {sys.version}")
+        self.query_logger.debug(f"Platform: {sys.platform}")
+        self.query_logger.debug(f"CPU count: {os.cpu_count()}")
         
         # Информация о памяти
         mem = psutil.virtual_memory()
-        self.query_logger.info(f"Total RAM: {mem.total / (1024**3):.2f} GB")
-        self.query_logger.info(f"Available RAM: {mem.available / (1024**3):.2f} GB")
-        self.query_logger.info(f"RAM usage: {mem.percent}%")
+        self.query_logger.debug(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+        self.query_logger.debug(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+        self.query_logger.debug(f"RAM usage: {mem.percent}%")
         
         # Информация о диске
         disk = psutil.disk_usage('.')
-        self.query_logger.info(f"Total disk: {disk.total / (1024**3):.2f} GB")
-        self.query_logger.info(f"Free disk: {disk.free / (1024**3):.2f} GB")
-        self.query_logger.info(f"Disk usage: {disk.percent}%")
+        self.query_logger.debug(f"Total disk: {disk.total / (1024**3):.2f} GB")
+        self.query_logger.debug(f"Free disk: {disk.free / (1024**3):.2f} GB")
+        self.query_logger.debug(f"Disk usage: {disk.percent}%")
         
         # CUDA информация
         if torch.cuda.is_available():
-            self.query_logger.info(f"CUDA available: Yes")
-            self.query_logger.info(f"CUDA device count: {torch.cuda.device_count()}")
-            self.query_logger.info(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+            self.query_logger.debug(f"CUDA available: Yes")
+            self.query_logger.debug(f"CUDA device count: {torch.cuda.device_count()}")
+            self.query_logger.debug(f"CUDA device name: {torch.cuda.get_device_name(0)}")
         else:
-            self.query_logger.info("CUDA available: No")
-        
-        self.query_logger.info("=" * 80)
+            self.query_logger.debug("CUDA available: No")
         
         return True
     
@@ -423,9 +404,7 @@ class CoreBrain:
         self._initialize_detailed_logging()
         
         start_time = time.time()
-        self.query_logger.info("=" * 60)
         self.query_logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ ЯДРА COGNIFLEX")
-        self.query_logger.info("=" * 60)
         
         try:
             # Обновляем состояние системы
@@ -435,14 +414,14 @@ class CoreBrain:
             # Запускаем мониторинг ресурсов
             if self.resource_manager:
                 self.resource_manager.start_monitoring()
-                self.query_logger.info("Мониторинг ресурсов запущен")
+                self.query_logger.debug("Мониторинг ресурсов запущен")
             
             # Начало отслеживания метрик
             self.metrics_manager.start_tracking()
             self.query_logger.debug("Отслеживание системных метрик запущено")
             
             # Инициализация компонентов
-            self.query_logger.info("Запуск инициализации компонентов системы...")
+            self.query_logger.debug("Запуск инициализации компонентов системы...")
             init_start = time.time()
             
             if self.component_initializer:
@@ -456,20 +435,20 @@ class CoreBrain:
                 self.query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
             
             # Явная инициализация MemoryManager
-            self.query_logger.info("Вызов _initialize_memory_manager()...")
+            self.query_logger.debug("Вызов _initialize_memory_manager()...")
             if not self._initialize_memory_manager():
                 self.query_logger.warning("Не удалось инициализировать MemoryManager, продолжаем без него")
             
             # Устанавливаем ссылки на компоненты после инициализации
             if 'model_manager' in self.components:
                 self.model_manager = self.components['model_manager']
-                self.query_logger.info("model_manager подключен к brain")
+                self.query_logger.debug("model_manager подключен к brain")
                 if self.events:
                     self.events.trigger('model_manager_ready', self.model_manager)
             
             if 'text_processor' in self.components:
                 self.text_processor = self.components['text_processor']
-                self.query_logger.info("text_processor подключен к brain")
+                self.query_logger.debug("text_processor подключен к brain")
             
             # Обновляем ResponseGenerator с новыми компонентами
             if hasattr(self, 'response_generator') and self.response_generator:
@@ -480,7 +459,7 @@ class CoreBrain:
                     self.response_generator.token_streamer = self.text_processor
                 if hasattr(self.text_processor, 'hybrid_cache'):
                     self.response_generator.hybrid_cache = self.text_processor.hybrid_cache
-                self.query_logger.info("ResponseGenerator обновлен с компонентами")
+                self.query_logger.debug("ResponseGenerator обновлен с компонентами")
             
             # Уведомляем о готовности других компонентов
             if self.events:
@@ -490,80 +469,55 @@ class CoreBrain:
             
             # Инициализация фрактальной модели из хранилища
             if self.fractal_model_manager:
-                self.query_logger.info("Загрузка фрактальной модели...")
-                self.query_logger.info(f"  FractalModelManager: {id(self.fractal_model_manager)}")
-                self.query_logger.info(f"  Тип менеджера: {type(self.fractal_model_manager).__name__}")
+                self.query_logger.debug("Загрузка фрактальной модели...")
                 
                 # Check if model_path attribute exists
                 if hasattr(self.fractal_model_manager, 'model_path'):
-                    self.query_logger.info(f"  Путь к модели: {self.fractal_model_manager.model_path}")
-                    # Check if model_path exists before checking file existence
                     if self.fractal_model_manager.model_path:
                         # Проверяем существование директории модели
                         model_dir = self.fractal_model_manager.model_path
-                        # Конвертируем в абсолютный путь если относительный
                         if not os.path.isabs(model_dir):
                             model_dir = os.path.abspath(model_dir)
                         model_exists = os.path.exists(model_dir)
-                        self.query_logger.info(f"  Директория модели существует: {model_exists}")
                         
                         if model_exists:
-                            # Дополнительная проверка наличия файлов модели
                             model_files = ['pytorch_model.bin', 'config.json', 'vocab.json']
-                            files_found = []
-                            for file_name in model_files:
-                                file_path = os.path.join(model_dir, file_name)
-                                if os.path.exists(file_path):
-                                    files_found.append(file_name)
-                            
-                            self.query_logger.info(f"  Найдены файлы модели: {files_found}")
-                            
-                            if len(files_found) >= 2:  # Хотя бы config и vocab
-                                self.query_logger.info("  Структура модели корректна")
+                            files_found = [f for f in model_files if os.path.exists(os.path.join(model_dir, f))]
+                            if len(files_found) >= 2:
+                                self.query_logger.debug("  Структура модели корректна")
                             else:
                                 self.query_logger.warning(f"  Неполная структура модели, найдены только: {files_found}")
                         else:
                             self.query_logger.warning(f"  Директория модели не существует: {model_dir}")
-                    else:
-                        self.query_logger.warning("  Путь к модели не установлен (None)")
-                else:
-                    self.query_logger.info("  model_path атрибут отсутствует (нормально для EnhancedRuGPT3ModelManager)")
 
             try:
-                # Проверяем статус инициализации через свойство initialized
                 if hasattr(self.fractal_model_manager, 'initialized'):
                     if self.fractal_model_manager.initialized:
-                        self.query_logger.info("  Фрактальная модель уже инициализирована")
                         fractal_init_result = True
-                        self.fractal_ready = True  # Устанавливаем флаг готовности
-                        self.query_logger.info("Фрактальная модель успешно загружена и активирована")
+                        self.fractal_ready = True
                         if self.events:
                             self.events.trigger('fractal_model_ready', self.fractal_model_manager)
                     else:
-                        self.query_logger.warning("  Фрактальная модель не инициализирована")
                         fractal_init_result = False
                 else:
-                    # Если нет свойства initialized, пробуем вызвать метод initialize()
                     fractal_init_result = self.fractal_model_manager.initialize()
-                    self.query_logger.info(f"  Результат инициализации: {fractal_init_result}")
 
-                if fractal_init_result and not self.fractal_ready:  # Проверяем, что флаг еще не установлен
+                if fractal_init_result and not self.fractal_ready:
                     self.fractal_ready = True
-                    self.query_logger.info("Фрактальная модель успешно загружена и активирована")
+                    self.query_logger.debug("Фрактальная модель успешно загружена и активирована")
                     if self.events:
                         self.events.trigger('fractal_model_ready', self.fractal_model_manager)
                 elif not fractal_init_result:
-                    self.query_logger.warning("Не удалось загрузить фрактальную модель")
+                    self.query_logger.debug("Не удалось загрузить фрактальную модель")
                     self.fractal_ready = False
             except Exception as e:
-                self.query_logger.error(f"Исключение при инициализации фрактальной модели: {e}", exc_info=True)
-                self.query_logger.warning("FractalModelManager недоступен")
+                self.query_logger.debug(f"Исключение при инициализации фрактальной модели: {e}")
                 self.fractal_ready = False
             
             # Инициализация координатора генерации - единая точка входа
             try:
                 self.generation_coordinator = initialize_generation_coordinator(self)
-                self.query_logger.info("Координатор генерации инициализирован как единая точка входа")
+                self.query_logger.debug("Координатор генерации инициализирован как единая точка входа")
                 self.components['generation_coordinator'] = self.generation_coordinator
                 
                 coordinator_status = self.generation_coordinator.get_status()

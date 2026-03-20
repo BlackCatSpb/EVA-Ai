@@ -275,8 +275,13 @@ class CogniFlexGUI:
         """Инициализирует модули GUI с улучшенной обработкой ошибок и приоритетом chat модуля."""
         logger.debug("DEBUG: _init_modules() вызван!")
         if not self.content_area:
-            logger.error("Попытка инициализации модулей до создания интерфейса")
-            return
+            logger.warning("Контентная область не создана, создаём базовую")
+            if self.root:
+                self.content_area = ttk.Frame(self.root)
+                self.content_area.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+            else:
+                logger.error("Невозможно инициализировать модули: root окно не создано")
+                return
         
         logger.debug(f"DEBUG: Начинаем инициализацию модулей GUI")
         logger.info("Начинаем инициализацию модулей GUI")

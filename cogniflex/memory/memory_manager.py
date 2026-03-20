@@ -20,6 +20,19 @@ try:
 except ImportError:
     EntityExtractor = None
 
+try:
+    from cogniflex.core.base_component import ComponentState
+except ImportError:
+    class ComponentState:
+        UNINITIALIZED = "uninitialized"
+        INITIALIZING = "initializing"
+        READY = "ready"
+        STARTING = "starting"
+        RUNNING = "running"
+        STOPPING = "stopping"
+        STOPPED = "stopped"
+        ERROR = "error"
+
 
 logger = logging.getLogger("cogniflex.memory.manager")
 
@@ -108,31 +121,30 @@ class MemoryManager:
                 
         return self._hybrid_cache
         
-    def get_state(self) -> Tuple[str, Optional[str]]:
+    def get_state(self) -> ComponentState:
         """
         Возвращает текущее состояние менеджера памяти
         Returns:
-            Tuple[str, Optional[str]]: (состояние, сообщение об ошибке)
+            ComponentState: состояние компонента
         """
         if not self.initialized:
             if self.error:
-                return "error", f"Ошибка инициализации: {self.error}"
-            return "initializing", None
+                return ComponentState.ERROR
+            return ComponentState.INITIALIZING
             
         if not self.running:
-            return "stopped", None
+            return ComponentState.STOPPED
             
-        # Проверяем доступность основных компонентов
         try:
             if not os.path.exists(self.working_memory_file):
-                return "error", "Файл рабочей памяти недоступен"
+                return ComponentState.ERROR
                 
             if not self.knowledge_graph or not getattr(self.knowledge_graph, 'is_initialized', False):
-                return "error", "Граф знаний не инициализирован"
+                return ComponentState.ERROR
                 
-            return "ready", None
-        except Exception as e:
-            return "error", f"Ошибка проверки состояния: {str(e)}"
+            return ComponentState.READY
+        except Exception:
+            return ComponentState.ERROR
     
     def _init_hybrid_cache(self):
         """Инициализирует гибридный кэш для токенизации и других операций."""
