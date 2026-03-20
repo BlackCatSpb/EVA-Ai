@@ -995,28 +995,9 @@ class ReasoningEngine:
         """Финализация ответа"""
         logger.debug("Финализация ответа...")
         
-        # Собираем все инсайты в финальный ответ
-        synthesis_step = self._get_step_by_phase(dialogue, ReasoningPhase.SYNTHESIS)
-        
-        if synthesis_step and synthesis_step.result:
-            insights = synthesis_step.result.get('insights', [])
-            
-            # Формируем ответ из инсайтов - фильтруем пустые и короткие ответы
-            if insights:
-                # Фильтруем: убираем пустые ответы и ответы короче 10 символов
-                answers = [i.get('answer', '') for i in insights 
-                          if i.get('answer') and len(i.get('answer', '')) > 10]
-                if answers:
-                    final_answer = ' '.join(answers)
-                else:
-                    # Пробуем прямой вызов генерации если внутренний диалог не дал результатов
-                    final_answer = self._direct_generate(dialogue.original_query)
-            else:
-                # Пробуем прямой вызов генерации
-                final_answer = self._direct_generate(dialogue.original_query)
-        else:
-            # Пробуем прямой вызов генерации
-            final_answer = self._direct_generate(dialogue.original_query)
+        # Всегда используем прямой вызов генерации для формирования ответа
+        # Это предотвращает включение мета-вопросов в ответ
+        final_answer = self._direct_generate(dialogue.original_query)
         
         # Вычисляем общую уверенность
         confidence = self._calculate_overall_confidence(dialogue)
