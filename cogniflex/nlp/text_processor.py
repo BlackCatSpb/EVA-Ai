@@ -46,7 +46,7 @@ class TextProcessor:
             # Используем абсолютный путь от текущей рабочей директории
             # ВАЖНО: модель находится в models/rugpt3_small_fractal/model/, не в tokenizers/
             current_dir = os.getcwd()
-            self.tokenizer_path = os.path.join(current_dir, "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model")
+            self.tokenizer_path = os.path.join(current_dir, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
         elif os.path.isdir(model_name):
             # Если model_name - это путь к директории, используем его напрямую
             self.tokenizer_path = model_name
