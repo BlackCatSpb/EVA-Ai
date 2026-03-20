@@ -25,7 +25,7 @@ def cleanup_old_models():
         
         # Пути для очистки
         cleanup_paths = [
-            "out/rugpt3_large_fractal",
+            "out/rugpt3_small_fractal",
             "out/rugpt3_simple_fractal", 
             "cogniflex_cache/ml_unit/fractal_storage/models/trained_rugpt_russian",
             "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models",

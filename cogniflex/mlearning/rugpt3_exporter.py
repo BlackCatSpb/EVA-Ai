@@ -19,7 +19,7 @@ class RuGPTExporter:
     
     def __init__(
         self,
-        source_model_path: str = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_large_fractal/model",
+        source_model_path: str = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
         output_path: str = "cogniflex_cache/models/exported_rugpt3"
     ):
         self.source_model_path = source_model_path

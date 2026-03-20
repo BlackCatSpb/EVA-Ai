@@ -150,7 +150,7 @@ class MLUnit:
             
             # Используем правильную директорию с моделью и токенизатором
             project_root = _get_project_root()
-            model_dir = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_large_fractal", "model")
+            model_dir = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
             
             self.text_processor = TextProcessor(
                 model_name=model_dir,  # Используем полный путь к директории
