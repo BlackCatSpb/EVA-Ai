@@ -436,9 +436,13 @@ class MLUnit:
         try:
             from cogniflex.mlearning.training_orchestrator import TrainingOrchestrator
             
+            batch_size = 1
+            if self.brain and hasattr(self.brain, 'config'):
+                batch_size = self.brain.config.get("learning", {}).get("batch_size", 1)
+            
             self.training_orchestrator = TrainingOrchestrator(
                 brain=self.brain,
-                batch_size=32,
+                batch_size=batch_size,
                 overlap_tokens=16
             )
             

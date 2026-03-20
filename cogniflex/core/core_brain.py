@@ -297,7 +297,7 @@ class CoreBrain:
         try:
             from ..mlearning.fractal_model_manager import FractalModelManager
             # Указываем правильный путь к модели
-            model_path = "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model"
+            model_path = "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model"
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
             self.query_logger.info("FractalModelManager инициализирован с путем: {}".format(model_path))
         except (ImportError, Exception) as e:
@@ -1040,7 +1040,7 @@ class CoreBrain:
                         
                         result = component.start()
                         component_time = time.time() - component_start
-                        if result:
+                        if result is not False:
                             self.query_logger.info(f"Компонент {name} запущен за {component_time:.4f} сек")
                             components_started += 1
                         else:
