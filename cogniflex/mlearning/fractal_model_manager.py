@@ -442,5 +442,5 @@ class FractalModelManager:
         
         # Возвращаем только одну модель - ruGPT-3 Large
         return {
-            "rugpt3large_fractal": model_info
+            "rugpt3_small_fractal": model_info
         }

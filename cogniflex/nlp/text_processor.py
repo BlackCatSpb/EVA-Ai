@@ -23,7 +23,7 @@ class TextProcessor:
     """
     
     def __init__(self, 
-                 model_name: str = "rugpt3large_fractal",
+                 model_name: str = "rugpt3_small_fractal",
                  **tokenizer_kwargs):
         """Инициализация процессора текста.
         
@@ -42,7 +42,7 @@ class TextProcessor:
         }
         
         # Определяем путь к локальному токенизатору
-        if model_name == "rugpt3large_fractal":
+        if model_name == "rugpt3_small_fractal":
             # Используем абсолютный путь от текущей рабочей директории
             # ВАЖНО: модель находится в models/rugpt3_small_fractal/model/, не в tokenizers/
             current_dir = os.getcwd()

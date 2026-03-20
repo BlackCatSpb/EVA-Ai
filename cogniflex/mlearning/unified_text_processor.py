@@ -155,7 +155,7 @@ class UnifiedTextProcessor(BaseComponent):
             # Создаем локальный токенизатор
             try:
                 from cogniflex.nlp.text_processor import TextProcessor
-                self.tokenizer = TextProcessor(model_name="rugpt3large_fractal")
+                self.tokenizer = TextProcessor(model_name="rugpt3_small_fractal")
                 logger.info("Локальный токенизатор создан успешно")
             except Exception as e:
                 logger.warning(f"Не удалось создать локальный токенизатор: {e}")

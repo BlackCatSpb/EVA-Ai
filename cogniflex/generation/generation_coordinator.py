@@ -59,7 +59,6 @@ class GenerationCoordinator:
                 'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
                 'cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal',
                 'cogniflex/mlearning/cogniflex_models/fractal_unified_text-generation',
-                'cogniflex/mlearning/cogniflex_models/rugpt3_large',
             ]
             
             local_model_path = None
@@ -82,9 +81,9 @@ class GenerationCoordinator:
             )
             logger.info(f"Токенизатор успешно загружен из: {local_model_path}")
             
-            # Обновляем имя модели для соответствия ruGPT-3 Large
-            if 'rugpt3_large' in local_model_path:
-                self.model_name = 'sberbank-ai/rugpt3large_based_on_gpt2'
+            # Обновляем имя модели для соответствия ruGPT-3 Small
+            if 'rugpt3_small' in local_model_path:
+                self.model_name = 'sberbank-ai/rugpt3small_based_on_gpt2'
                 logger.info(f"Обновлено имя модели на: {self.model_name}")
             
         except Exception as e:
@@ -169,7 +168,7 @@ class GenerationCoordinator:
             local_model_paths = [
                 'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
                 'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
-                'cogniflex/mlearning/cogniflex_models/rugpt3_large',
+                'cogniflex/mlearning/cogniflex_models/rugpt3_small',
             ]
             
             local_model_path = None
