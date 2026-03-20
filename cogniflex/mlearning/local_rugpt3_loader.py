@@ -311,10 +311,15 @@ class LocalRuGPT3Loader:
             project_root = self._get_project_root()
             
             # Проверяем наличие файлов токенизатора
-            # Для ruGPT-3 Large во фрактальном хранилище
+            # Для ruGPT-3 Small во фрактальном хранилище
+            # Важно: storage_path может содержать /model, но vocab.json находится в корне rugpt3_small_fractal/
             tokenizer_path = self.storage_path
             
-            # Возможные пути к vocab.json - используем корень проекта
+            # Если путь заканчивается на /model, используем родительскую директорию
+            if tokenizer_path.endswith(os.path.join("model")) or tokenizer_path.endswith("model"):
+                tokenizer_path = os.path.dirname(tokenizer_path)
+            
+            # Возможные пути к vocab.json
             possible_vocab_paths = [
                 os.path.join(tokenizer_path, "vocab.json"),  # В корневой директории (приоритет)
                 os.path.join(tokenizer_path, "tokenizer", "vocab.json"),  # В поддиректории tokenizer
@@ -474,10 +479,9 @@ class LocalRuGPT3Loader:
             
             # Дополнительные проверки для фрактального хранилища
             if "rugpt3_small_fractal" in model_root_path:
-                # Если это путь к токенизатору ruGPT-3 Large, ищем веса в директории модели
                 possible_model_paths.extend([
-                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "pytorch_model.bin"),
-                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model", "pytorch_model.bin"),
+                    os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "pytorch_model.bin"),
+                    os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model", "pytorch_model.bin"),
                 ])
             
             pytorch_bin_root = None
@@ -494,8 +498,8 @@ class LocalRuGPT3Loader:
             
             if "rugpt3_small_fractal" in model_root_path:
                 possible_config_paths.extend([
-                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "config.json"),
-                    os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model", "config.json"),
+                    os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "config.json"),
+                    os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model", "config.json"),
                 ])
             
             model_config_root = None
@@ -573,7 +577,7 @@ def load_rugpt3_medium_local(storage_path: str = None,
     if storage_path is None:
         # Получаем корень проекта для абсолютного пути
         project_root = LocalRuGPT3Loader._get_project_root()
-        storage_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+        storage_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
     
     loader = LocalRuGPT3Loader(storage_path)
     return loader.load_model_and_tokenizer(device)
