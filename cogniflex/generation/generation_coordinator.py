@@ -53,11 +53,9 @@ class GenerationCoordinator:
             # Проверяем наличие ruGPT-3 Large во фрактальном хранилище
             # ВАЖНО: модель находится в models/rugpt3_small_fractal/model/
             possible_paths = [
-                # Основной путь к ruGPT-3 Large токенизатору
-                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
-                # Fallback для обратной совместимости
-                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
-                'cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal',
+                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
+                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
+                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal',
                 'cogniflex/mlearning/cogniflex_models/fractal_unified_text-generation',
             ]
             
@@ -166,8 +164,8 @@ class GenerationCoordinator:
         try:
             # Сначала пробуем загрузить локальные веса ruGPT-3 Large
             local_model_paths = [
-                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
-                'cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
+                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
+                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
                 'cogniflex/mlearning/cogniflex_models/rugpt3_small',
             ]
             

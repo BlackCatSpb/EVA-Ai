@@ -125,7 +125,7 @@ class HybridModelManager:
             with self._lock:
                 # Регистрируем основную модель по умолчанию
                 project_root = _get_project_root()
-                model_dir = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+                model_dir = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
                 success = self.register_model(
                     model_name="rugpt3_small_fractal",
                     model_path=model_dir,
@@ -144,9 +144,9 @@ class HybridModelManager:
                         logger.warning("Не удалось загрузить токенизатор, пробуем альтернативные пути...")
                         # Пробуем альтернативные пути - важно: модель в подпапке model/
                         alt_paths = [
-                            "cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
-                            "cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
-                            "cogniflex_cache/ml_unit/fractal_storage/tokenizer/rugpt3_small_fractal"
+                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
+                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
+                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizer/rugpt3_small_fractal"
                         ]
                         
                         for alt_path in alt_paths:
