@@ -43,10 +43,11 @@ class TextProcessor:
         
         # Определяем путь к локальному токенизатору
         if model_name == "rugpt3_small_fractal":
-            # Используем абсолютный путь от текущей рабочей директории
-            # ВАЖНО: модель находится в models/rugpt3_small_fractal/model/, не в tokenizers/
-            current_dir = os.getcwd()
-            self.tokenizer_path = os.path.join(current_dir, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+            # Используем функцию определения корня проекта вместо os.getcwd()
+            from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
+            project_root = LocalRuGPT3Loader._get_project_root()
+            # ВАЖНО: vocab.json находится в models/rugpt3_small_fractal/, НЕ в model/
+            self.tokenizer_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal")
         elif os.path.isdir(model_name):
             # Если model_name - это путь к директории, используем его напрямую
             self.tokenizer_path = model_name
