@@ -395,28 +395,26 @@ class MLUnit:
                     else:
                         md = getattr(self.model_manager, 'model_metadata', {}) or {}
                         models = list(md.values()) if isinstance(md, dict) else (md or [])
-                 except Exception:
-                     models = []
-                 logger.info(f"Доступно моделей: {len(models)}")
-             
-             # Проверяем токенизацию
-             if self.text_processor:
-                 test_text = "Это тестовый текст для проверки токенизации."
-                 # Используем метод encode вместо process_text
-                 try:
-                     if torch is not None:
-                         encoded = self.text_processor.encode(test_text)
-                         input_ids = encoded.get('input_ids', torch.tensor([]))
-                         if isinstance(input_ids, list):
-                             tokens_count = len(input_ids)
-                         else:
-                             tokens_count = input_ids.numel()
-                     else:
-                         # Fallback если torch недоступен
-                         tokens_count = 0
-                     logger.info(f"Тестовая токенизация успешна. Токенов: {tokens_count}")
-                 except Exception as e:
-                     logger.error(f"Ошибка при проверке токенизатора: {e}")
+                except Exception:
+                    models = []
+                logger.info(f"Доступно моделей: {len(models)}")
+            
+            # Проверяем токенизацию
+            if self.text_processor:
+                test_text = "Это тестовый текст для проверки токенизации."
+                try:
+                    if torch is not None:
+                        encoded = self.text_processor.encode(test_text)
+                        input_ids = encoded.get('input_ids', torch.tensor([]))
+                        if isinstance(input_ids, list):
+                            tokens_count = len(input_ids)
+                        else:
+                            tokens_count = input_ids.numel()
+                    else:
+                        tokens_count = 0
+                    logger.info(f"Тестовая токенизация успешна. Токенов: {tokens_count}")
+                except Exception as e:
+                    logger.error(f"Ошибка при проверке токенизатора: {e}")
             
             # Проверяем генерацию ответа
             if self.response_generator:
