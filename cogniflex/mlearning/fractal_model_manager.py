@@ -241,22 +241,19 @@ class FractalModelManager:
             return "Модель не инициализирована. ML компоненты недоступны."
         
         try:
-            # Добавляем системный промпт для улучшения качества
-            system_prompt = "Ответь на вопрос по теме, кратко и по существу: "
-            
-            # Комбинируем промпт и запрос
-            full_query = system_prompt + query
+            # Улучшенный системный промпт с прямыми инструкциями
+            system_prompt = "Вопрос: " + query + "\nОтвет:"
             
             # Ограничиваем max_tokens для скорости
-            max_tokens = min(max_tokens, 200)
+            max_tokens = min(max_tokens, 150)
             
             # Токенизируем запрос с правильным attention_mask
             inputs = self.tokenizer(
-                full_query,
+                system_prompt,
                 return_tensors="pt",
                 padding=False,  # Отключаем padding для генерации
                 truncation=True,
-                max_length=2048,  # Увеличено с 1024
+                max_length=1024,  # Увеличено с 1024
                 return_attention_mask=True
             )
             
@@ -264,7 +261,7 @@ class FractalModelManager:
             device = next(self.model.parameters()).device if self.model else "cpu"
             inputs = {k: v.to(device) for k, v in inputs.items()}
             
-            # Генерируем с улучшенными параметрами
+            # Генерируем с улучшенными параметрами для предотвращения повторений
             with torch.no_grad():
                 # Используем переданные параметры или значения по умолчанию
                 generation_params = {
@@ -272,17 +269,15 @@ class FractalModelManager:
                     'attention_mask': inputs['attention_mask'],
                     'max_new_tokens': max_tokens,  # Используем max_new_tokens вместо max_length
                     'num_return_sequences': 1,
-                    'do_sample': kwargs.get('do_sample', True),
-                    'temperature': kwargs.get('temperature', 0.7),  # Увеличим для разнообразия
-                    'top_p': kwargs.get('top_p', 0.9),
-                    'top_k': kwargs.get('top_k', 50),
+                    'do_sample': kwargs.get('do_sample', False),  # Greedy для стабильности
+                    'temperature': kwargs.get('temperature', 0.8),
+                    'top_p': kwargs.get('top_p', 0.95),
+                    'top_k': kwargs.get('top_k', 40),
                     'pad_token_id': self.tokenizer.eos_token_id,
                     'use_cache': True,
+                    'no_repeat_ngram_size': 3,  # Предотвращает повторения
+                    'repetition_penalty': 1.2,  # Дополнительная защита от повторений
                 }
-                
-                # Добавляем no_repeat_ngram_size если указано
-                if 'no_repeat_ngram_size' in kwargs:
-                    generation_params['no_repeat_ngram_size'] = kwargs['no_repeat_ngram_size']
                 
                 outputs = self.model.generate(**generation_params)
             
@@ -300,7 +295,7 @@ class FractalModelManager:
             
             # Если ответ пустой или слишком короткий, возвращаем заглушку
             if len(response) < 3:
-                return "Понимаю ваш вопрос."
+                return "Извините, не удалось сформировать ответ. Попробуйте переформулировать вопрос."
             
             # Ограничиваем длину ответа
             if len(response) > 500:
