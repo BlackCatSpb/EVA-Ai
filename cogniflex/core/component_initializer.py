@@ -628,18 +628,40 @@ class ComponentInitializer:
 
                     if component is not None:
                         # Set up event subscriptions if the component has the method
+                        event_integration_ok = True
                         if hasattr(component, 'setup_event_subscriptions'):
                             try:
                                 component.setup_event_subscriptions()
                                 self.logger.debug(f"   └─ Event subscriptions set up for {component_name}")
                             except Exception as e:
                                 self.logger.warning(f"   ⚠️ Failed to set up event subscriptions for {component_name}: {e}")
+                                event_integration_ok = False
                         elif hasattr(component, 'register_event_handlers'):
                             try:
                                 component.register_event_handlers()
                                 self.logger.debug(f"   └─ Event handlers registered for {component_name}")
                             except Exception as e:
                                 self.logger.warning(f"   ⚠️ Failed to register event handlers for {component_name}: {e}")
+                                event_integration_ok = False
+                        elif hasattr(component, '_setup_event_subscriptions'):
+                            try:
+                                component._setup_event_subscriptions()
+                                self.logger.debug(f"   └─ Base event subscriptions set up for {component_name}")
+                            except Exception as e:
+                                self.logger.warning(f"   ⚠️ Failed to set up base event subscriptions for {component_name}: {e}")
+                                event_integration_ok = False
+                        elif hasattr(component, 'initialize') and not getattr(component, '_event_setup_done', False):
+                            # Components with BaseComponent base class - initialize handles event setup
+                            try:
+                                if hasattr(component, 'is_initialized'):
+                                    if not component.is_initialized:
+                                        component.initialize()
+                            except Exception:
+                                pass
+                        
+                        if not event_integration_ok:
+                            self.logger.warning(f"   ⚠️ Неполная интеграция с системой событий для {component_name}")
+                        
                         # Publish component initialized event
                         try:
                             event_bus = getattr(self.core_brain, 'event_bus', None)

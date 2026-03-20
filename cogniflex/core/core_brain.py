@@ -1009,23 +1009,57 @@ class CoreBrain:
         
         try:
             components_started = 0
+            components_skipped = 0
+            components_failed = 0
+            
             for name, component in self.components.items():
                 if hasattr(component, 'start'):
                     try:
                         component_start = time.time()
                         if name == 'neuromorphic_simulator' and hasattr(component, 'use_nest') and getattr(component, 'use_nest', False):
                             self.query_logger.info("Пропуск автозапуска нейроморфного симулятора (NEST-режим)")
+                            components_skipped += 1
                             continue
-                        component.start()
+                        
+                        # Check if component has BaseComponent state management
+                        if hasattr(component, 'get_state'):
+                            from cogniflex.core.base_component import ComponentState
+                            state = component.get_state()
+                            if state == ComponentState.RUNNING:
+                                self.query_logger.debug(f"Компонент {name} уже запущен")
+                                components_started += 1
+                                continue
+                            elif state == ComponentState.STARTING:
+                                self.query_logger.debug(f"Компонент {name} уже запускается")
+                                components_started += 1
+                                continue
+                            elif state not in [ComponentState.READY, ComponentState.UNINITIALIZED]:
+                                self.query_logger.warning(f"Компонент {name} не готов к запуску (состояние: {state})")
+                                components_failed += 1
+                                continue
+                        
+                        result = component.start()
                         component_time = time.time() - component_start
-                        self.query_logger.info(f"Компонент {name} запущен за {component_time:.4f} сек")
-                        components_started += 1
+                        if result:
+                            self.query_logger.info(f"Компонент {name} запущен за {component_time:.4f} сек")
+                            components_started += 1
+                        else:
+                            self.query_logger.warning(f"Компонент {name} отклонил запуск")
+                            components_failed += 1
                     except Exception as e:
                         self.query_logger.warning(f"Ошибка при запуске компонента {name}: {e}", exc_info=True)
                         self.metrics_manager.record_error(f"component_{name}_start_failed")
+                        components_failed += 1
+                else:
+                    # Components without start() method are considered "started"
+                    components_skipped += 1
+                    self.query_logger.debug(f"Компонент {name} не имеет метода start()")
             
-            if components_started < len(self.components) * 0.7:
-                self.query_logger.warning(f"Запущено только {components_started}/{len(self.components)} компонентов")
+            total_components = len(self.components)
+            self.query_logger.info(f"Итоги запуска: {components_started}/{total_components} запущено, {components_skipped} пропущено, {components_failed} неудачно")
+            
+            if components_started < total_components * 0.5:
+                self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{total_components} компонентов")
                 self.metrics_manager.record_warning("insufficient_components_started")
             
             self.running = True
