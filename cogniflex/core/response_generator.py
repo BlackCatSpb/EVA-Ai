@@ -645,10 +645,12 @@ class ResponseGenerator:
     def _prepare_generation_kwargs(self, kwargs: Dict) -> Dict[str, Any]:
         """Подготавливает параметры генерации."""
         return {
-            "max_length": kwargs.get('max_length', 300),
-            "temperature": kwargs.get('temperature', 0.7),
-            "top_p": kwargs.get('top_p', 0.9),
-            "do_sample": True,
+            "max_length": kwargs.get('max_length', 200),
+            "temperature": kwargs.get('temperature', 0.8),
+            "top_p": kwargs.get('top_p', 0.95),
+            "do_sample": False,
+            "repetition_penalty": 2.0,
+            "no_repeat_ngram_size": 3,
             "pad_token_id": getattr(self.tokenizer, 'eos_token_id', None)
         }
     
