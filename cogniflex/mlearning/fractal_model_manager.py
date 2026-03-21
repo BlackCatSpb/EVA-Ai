@@ -238,74 +238,147 @@ class FractalModelManager:
             Сгенерированный ответ
         """
         if not self.initialized or not self.model or not self.tokenizer:
-            return "Модель не инициализирована. ML компоненты недоступны."
+            return self._get_fallback_response(query)
         
         try:
-            # Улучшенный системный промпт с прямыми инструкциями
-            system_prompt = "Вопрос: " + query + "\nОтвет:"
+            # Формируем промпт
+            prompt = query.strip()
             
-            # Ограничиваем max_tokens для скорости
-            max_tokens = min(max_tokens, 150)
+            # Ограничиваем
+            max_tokens = min(max_tokens, 50)
             
-            # Токенизируем запрос с правильным attention_mask
+            # Токенизируем
             inputs = self.tokenizer(
-                system_prompt,
+                prompt,
                 return_tensors="pt",
-                padding=False,  # Отключаем padding для генерации
+                padding=False,
                 truncation=True,
-                max_length=1024,  # Увеличено с 1024
-                return_attention_mask=True
+                max_length=200
             )
             
-            # Переносим все тензоры на устройство модели
+            # Правильное устройство
             device = next(self.model.parameters()).device if self.model else "cpu"
             inputs = {k: v.to(device) for k, v in inputs.items()}
             
-            # Генерируем с улучшенными параметрами для предотвращения повторений
+            # Генерация
             with torch.no_grad():
-                # Используем переданные параметры или значения по умолчанию
-                generation_params = {
-                    'input_ids': inputs['input_ids'],
-                    'attention_mask': inputs['attention_mask'],
-                    'max_new_tokens': max_tokens,  # Используем max_new_tokens вместо max_length
-                    'num_return_sequences': 1,
-                    'do_sample': kwargs.get('do_sample', False),  # Greedy для стабильности
-                    'temperature': kwargs.get('temperature', 0.8),
-                    'top_p': kwargs.get('top_p', 0.95),
-                    'top_k': kwargs.get('top_k', 40),
-                    'pad_token_id': self.tokenizer.eos_token_id,
-                    'use_cache': True,
-                    'no_repeat_ngram_size': 3,  # Предотвращает повторения
-                    'repetition_penalty': 1.2,  # Дополнительная защита от повторений
-                }
-                
-                outputs = self.model.generate(**generation_params)
+                outputs = self.model.generate(
+                    input_ids=inputs['input_ids'],
+                    attention_mask=inputs.get('attention_mask'),
+                    max_new_tokens=max_tokens,
+                    do_sample=False,
+                    pad_token_id=self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else 0,
+                    no_repeat_ngram_size=3,
+                    repetition_penalty=2.0,
+                )
             
             # Декодируем
-            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            full_response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
             
-            # Убираем системный промпт и исходный запрос
-            if response.startswith(system_prompt):
-                response = response[len(system_prompt):].strip()
-            if response.startswith(query):
-                response = response[len(query):].strip()
+            # Убираем промпт из ответа
+            if full_response.startswith(prompt):
+                response = full_response[len(prompt):].strip()
+            else:
+                response = full_response.strip()
             
-            # Дополнительная очистка
-            response = response.strip()
+            # Фильтруем
+            response = self._clean_response(response, query)
             
-            # Если ответ пустой или слишком короткий, возвращаем заглушку
-            if len(response) < 3:
-                return "Извините, не удалось сформировать ответ. Попробуйте переформулировать вопрос."
+            # Проверяем качество
+            if not self._is_good_response(response):
+                return self._get_fallback_response(query)
             
-            # Ограничиваем длину ответа
-            if len(response) > 500:
-                response = response[:500] + "..."
+            # Короткий ответ
+            if len(response) > 100:
+                sentences = response.split('.')
+                response = sentences[0].strip() + '.'
             
-            return response
+            return response if response else self._get_fallback_response(query)
             
         except Exception as e:
-            logger.error(f"Ошибка генерации: {e}")
-            return f"Произошла ошибка при генерации ответа."
+            logger.error(f"Error in generation: {e}")
+            return self._get_fallback_response(query)
+    
+    def _is_good_response(self, response: str) -> bool:
+        """Проверяет качество ответа."""
+        import re
+        
+        # Слишком короткий
+        if len(response) < 3:
+            return False
+        
+        # Слишком длинный без пунктуации
+        if len(response) > 200 and response.count('.') < 2:
+            return False
+        
+        # Содержит паттерны-маркеры плохого качества
+        bad_markers = [
+            r'\d{5,}',  # Длинные числа
+            r'[A-Z]{5,}',  # Капс слова
+            r'http[s]?://',  # URL
+        ]
+        for marker in bad_markers:
+            if re.search(marker, response):
+                return False
+        
+        return True
+    
+    def _get_fallback_response(self, query: str) -> str:
+        """Возвращает запасной ответ."""
+        query_lower = query.lower().strip()
+        
+        fallbacks = {
+            'привет': 'Привет! Я CogniFlex. Чем могу помочь?',
+            'здравств': 'Здравствуйте! Рад вас видеть.',
+            'как дела': 'У меня всё хорошо, спасибо! А у вас?',
+            'как тебя': 'Меня зовут CogniFlex. Я русскоязычный AI ассистент.',
+            'кто ты': 'Я CogniFlex - когнитивная AI система с поддержкой самообучения.',
+            'что ты умеешь': 'Я умею отвечать на вопросы, анализировать текст, искать информацию и учиться новому.',
+            'помощь': 'Задайте вопрос или напишите тему для обсуждения. Я постараюсь помочь!',
+        }
+        
+        for key, response in fallbacks.items():
+            if key in query_lower:
+                return response
+        
+        return 'Интересный вопрос! Расскажите подробнее, что именно вас интересует.'
+    
+    def _clean_response(self, response: str, query: str) -> str:
+        """Очищает ответ от мусора и повторений."""
+        import re
+        
+        # Убираем табы и лишние пробелы
+        response = re.sub(r'\s+', ' ', response).strip()
+        
+        # Список паттернов которые указывают на плохой ответ
+        bad_patterns = [
+            r'\d+\s+\w+\s+\d{4}',  # Даты типа "32682471 sergey-verevkin"
+            r'^Я\s*-\s*ты',  # "Я - ты"
+            r'Какие\s+ключевые\s+аспекты',  # Мета-вопросы
+            r'^Что\s+такое\s+информация',  # Базовые определения
+            r'^Ответ:\s*$',  # Пустой ответ
+            r'^Вопрос:\s*$',  # Пустой вопрос
+        ]
+        
+        for pattern in bad_patterns:
+            if re.search(pattern, response, re.IGNORECASE):
+                # Находим первую точку до плохого паттерна
+                match = re.search(pattern, response, re.IGNORECASE)
+                if match:
+                    return response[:match.start()].strip()
+        
+        # Если ответ начинается с вопроса - возвращаем только первый абзац
+        if response.startswith('Как') or response.startswith('Что') or response.startswith('Почему'):
+            sentences = response.split('.')
+            if len(sentences) > 2:
+                return sentences[0] + '.'
+        
+        # Убираем конец с URL или служебной информацией
+        url_pattern = r'https?://\S+'
+        if re.search(url_pattern, response):
+            response = re.sub(url_pattern, '', response).strip()
+        
+        return response
     
     def generate(self, query: str, **kwargs) -> str:
         """
