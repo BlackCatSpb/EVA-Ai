@@ -96,6 +96,8 @@ class ChatModule:
         self.pending_requests = set()
         self.request_queue = queue.Queue()
         self.processing_thread = None
+        self.stop_event = threading.Event()
+        self._status_updater_id = None
         
         # Инициализация флага рассуждений
         if not hasattr(self.gui, 'reasoning_active'):
