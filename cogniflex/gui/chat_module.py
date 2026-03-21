@@ -99,6 +99,10 @@ class ChatModule:
         self.stop_event = threading.Event()
         self._status_updater_id = None
         self.formatting_pattern = re.compile(r'\*\*(.*?)\*\*|__(.*?)__|_(.*?)_|`(.*?)`')
+        self.markdown_link_pattern = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
+        self.url_pattern = re.compile(r'https?://\S+')
+        self.emoji_pattern = re.compile(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]')
+        self.image_pattern = re.compile(r'\.(?:jpg|jpeg|png|gif|bmp|webp)', re.IGNORECASE)
         
         # Инициализация флага рассуждений
         if not hasattr(self.gui, 'reasoning_active'):
