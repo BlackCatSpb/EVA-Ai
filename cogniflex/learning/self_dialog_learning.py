@@ -1,917 +1,860 @@
-"""
-Self-Dialog Learning System for CogniFlex
-Uses existing managers to analyze system responses without training.
+"""Система самообучения через самодиалог для CogniFlex.
+
+Этот модуль реализует механизм самообучения системы через создание
+внутреннего диалога между различными аспектами системы (AI assistant,
+critic, learner, etc.) для выявления пробелов в знаниях и их заполнения.
 """
 import logging
 import time
 import threading
+import queue
 import json
-import random
-import re
-import os
-from typing import Dict, Any, Optional, List
+from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
-from ..core.base_component import BaseComponent
+logger = logging.getLogger("cogniflex.self_dialog_learning")
 
-try:
-    from .curiosity_engine import CuriosityEngine
-except ImportError:
-    CuriosityEngine = None
+class DialogRole(Enum):
+    """Роли участников самодиалога."""
+    ASSISTANT = "assistant"
+    CRITIC = "critic"
+    LEARNER = "learner"
+    TEACHER = "teacher"
+    OBSERVER = "observer"
 
-logger = logging.getLogger("cogniflex.self_dialog")
-
-
-class DialogState(Enum):
-    IDLE = "idle"
-    GENERATING = "generating"
-    ANALYZING = "analyzing"
-    STORING = "storing"
-    COMPLETED = "completed"
-
+class LearningType(Enum):
+    """Типы обучения."""
+    EXPANSION = "expansion"
+    REFINEMENT = "refinement"
+    UPDATING = "updating"
+    INTEGRATION = "integration"
 
 @dataclass
 class DialogTurn:
-    """Single turn in self-dialog."""
-    turn_id: str
-    timestamp: float
-    role: str
+    """Один ход в самодиалоге."""
+    role: DialogRole
     content: str
-    analysis_results: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class LearningInsight:
-    """Insight extracted from self-dialog."""
-    insight_id: str
     timestamp: float
-    topic: str
-    category: str
-    content: str
-    source_turn: str
-    confidence: float
     metadata: Dict[str, Any] = field(default_factory=dict)
-
+    quality_score: float = 0.0
 
 @dataclass
-class DialogCycle:
-    """Complete self-dialog cycle."""
-    cycle_id: str
+class SelfDialog:
+    """Полный самодиалог системы с самим собой."""
+    id: str
     topic: str
-    turns: List[DialogTurn] = field(default_factory=list)
-    ethics_passed: bool = True
-    contradictions_found: int = 0
-    facts_verified: int = 0
-    quality_score: float = 0.0
-    insights: List[LearningInsight] = field(default_factory=list)
+    turns: List[DialogTurn]
+    start_time: float
+    end_time: Optional[float] = None
+    outcome: Optional[str] = None
+    learning_type: Optional[LearningType] = None
+    knowledge_gaps: List[str] = field(default_factory=list)
+    actions_taken: List[str] = field(default_factory=list)
 
-
-class SelfDialogLearningSystem(BaseComponent):
+class SelfDialogLearningSystem:
     """
-    Self-Dialog Learning System - analyzes own responses through existing managers.
+    Система самообучения через самодиалог.
     
-    No training loops. No model fine-tuning. Only analysis and insight storage.
+    Основные функции:
+    1. Мониторинг взаимодействий с пользователем
+    2. Создание самодиалогов для анализа и обучения
+    3. Выявление пробелов в знаниях
+    4. Генерация обучающих сценариев
+    5. Обновление базы знаний
+    6. Автоматическое выполнение возможностей для обучения
     """
     
     def __init__(self, brain=None, config: Optional[Dict[str, Any]] = None):
         """
-        Initialize SelfDialogLearningSystem.
+        Инициализирует систему самообучения.
         
         Args:
-            brain: Reference to CoreBrain
-            config: Configuration options
+            brain: Ссылка на ядро CogniFlex
+            config: Конфигурация системы
         """
-        super().__init__(brain, config, name="SelfDialogLearningSystem")
+        self.brain = brain
+        self.config = config or {}
         
-        cfg = config or {}
-        self.cycle_interval = cfg.get("cycle_interval", 300)
-        self.cycles_per_session = cfg.get("cycles_per_session", 3)
-        self.topics = cfg.get("topics", self._default_topics())
-        self.enabled_managers = cfg.get("enabled_managers", [
-            "ethics", "contradiction", "websearch", "analytics"
-        ])
-        self.min_quality_threshold = cfg.get("min_quality_threshold", 0.5)
-        self.max_insights_per_cycle = cfg.get("max_insights_per_cycle", 10)
-        self.enabled = cfg.get("enabled", True)
+        self.enabled = self.config.get("enabled", True)
+        self.auto_dialog_interval = self.config.get("auto_dialog_interval", 300)
+        self.auto_learning_interval = self.config.get("auto_learning_interval", 60)
+        self.max_dialog_turns = self.config.get("max_dialog_turns", 10)
+        self.min_quality_threshold = self.config.get("min_quality_threshold", 0.6)
+        self.auto_execute_enabled = self.config.get("auto_execute_enabled", True)
         
-        self._ethics_framework = None
-        self._contradiction_manager = None
-        self._web_search_engine = None
-        self._analytics_manager = None
-        self._memory_manager = None
-        self._model_manager = None
-        self._knowledge_graph = None
+        self.dialog_queue = queue.Queue()
+        self.active_dialogs: Dict[str, SelfDialog] = {}
+        self.dialog_history: List[SelfDialog] = []
+        self.max_history_size = self.config.get("max_history_size", 100)
         
-        self._dialog_state = DialogState.IDLE
-        self._current_cycle: Optional[DialogCycle] = None
-        self._dialog_history: List[DialogCycle] = []
-        self._insights: List[LearningInsight] = []
+        self.running = False
+        self.stop_event = threading.Event()
+        self.last_learning_check = 0
         
-        self._learning_thread: Optional[threading.Thread] = None
-        self._stop_event = threading.Event()
-        self._pause_event = threading.Event()
+        self.learning_callbacks: List[Callable] = []
         
-        self._stats = {
-            "total_cycles": 0,
-            "total_turns": 0,
-            "total_insights": 0,
-            "cycles_with_contradictions": 0,
-            "cycles_with_ethics_violations": 0,
-            "average_quality_score": 0.0,
-            "last_cycle_time": 0.0
+        self.stats = {
+            "total_dialogs": 0,
+            "successful_learning": 0,
+            "knowledge_gaps_identified": 0,
+            "actions_taken": 0,
+            "opportunities_executed": 0,
+            "opportunities_found": 0
         }
         
-        # Curiosity Engine
-        self._curiosity_engine = CuriosityEngine(brain, config) if CuriosityEngine else None
-        
-        # Online Knowledge Access reference
-        self._online_knowledge = getattr(brain, 'online_knowledge', None)
-        
-        logger.info("SelfDialogLearningSystem initialized")
+        logger.info("SelfDialogLearningSystem инициализирована")
     
-    def _default_topics(self) -> List[str]:
-        """Default topics for self-dialog."""
-        return [
-            "philosophy and consciousness",
-            "scientific method and discovery",
-            "ethical decision making",
-            "creativity and problem solving",
-            "knowledge and understanding",
-            "language and communication",
-            "logic and reasoning",
-            "history and human experience"
-        ]
-    
-    def _do_initialize(self) -> bool:
-        """Initialize managers from brain."""
-        if not self.brain:
-            logger.warning("No brain reference, managers will be lazy-loaded")
-            return True
+    def start(self):
+        """Запускает систему самообучения."""
+        if self.running:
+            logger.warning("Система самообучения уже запущена")
+            return False
         
-        self._model_manager = getattr(self.brain, 'fractal_model_manager', None) or \
-                              getattr(self.brain, 'model_manager', None)
-        self._memory_manager = getattr(self.brain, 'memory_manager', None)
-        self._knowledge_graph = getattr(self.brain, 'knowledge_graph', None)
-        self._ethics_framework = getattr(self.brain, 'ethics_framework', None)
-        self._contradiction_manager = getattr(self.brain, 'contradiction_manager', None)
-        self._web_search_engine = getattr(self.brain, 'web_search_engine', None)
-        self._analytics_manager = getattr(self.brain, 'analytics_manager', None)
-        
-        logger.info("SelfDialogLearningSystem managers initialized")
-        return True
-    
-    def _do_start(self) -> bool:
-        """Start self-dialog learning."""
         if not self.enabled:
-            logger.info("SelfDialogLearning disabled")
-            return True
+            logger.info("Система самообучения отключена в конфигурации")
+            return False
         
-        self._stop_event.clear()
-        self._learning_thread = threading.Thread(
-            target=self._learning_loop,
+        self.running = True
+        self.stop_event.clear()
+        
+        self.worker_thread = threading.Thread(
+            target=self._worker_loop,
             daemon=True,
-            name="SelfDialogLearningThread"
+            name="SelfDialogLearning"
         )
-        self._learning_thread.start()
+        self.worker_thread.start()
         
-        try:
-            self.run_curiosity_cycle()
-        except Exception as e:
-            logger.debug(f"Initial curiosity cycle failed: {e}")
-        
-        logger.info(f"SelfDialogLearning started (interval={self.cycle_interval}s)")
+        logger.info("Система самообучения запущена")
         return True
     
-    def _do_stop(self) -> bool:
-        """Stop self-dialog cycle."""
-        self._stop_event.set()
-        self._pause_event.set()
+    def stop(self):
+        """Останавливает систему самообучения."""
+        if not self.running:
+            return
         
-        if self._learning_thread and self._learning_thread.is_alive():
-            self._learning_thread.join(timeout=10)
+        self.running = False
+        self.stop_event.set()
         
-        logger.info("SelfDialogLearningSystem stopped")
-        return True
+        if hasattr(self, 'worker_thread') and self.worker_thread.is_alive():
+            self.worker_thread.join(timeout=5.0)
+        
+        logger.info("Система самообучения остановлена")
     
-    def _learning_loop(self):
-        """Main learning loop running in background."""
-        logger.info("Self-dialog learning loop started")
+    def _worker_loop(self):
+        """Основной рабочий цикл системы."""
+        logger.info("Рабочий цикл самообучения запущен")
         
-        while not self._stop_event.is_set():
+        while not self.stop_event.is_set():
             try:
-                if self._pause_event.wait(timeout=self.cycle_interval):
-                    break
-                
-                self.run_self_dialog_cycle()
-                
-            except Exception as e:
-                logger.error(f"Error in learning loop: {e}")
-                time.sleep(60)
-        
-        logger.info("Self-dialog learning loop ended")
-    
-    def run_self_dialog_cycle(self, topic: Optional[str] = None) -> DialogCycle:
-        """
-        Execute a complete self-dialog cycle.
-        
-        Flow:
-            1. Select topic
-            2. Generate question via model
-            3. Generate response via model
-            4. Check ethics (EthicsFramework)
-            5. Check contradictions (ContradictionManager)
-            6. Verify facts (WebSearchEngine)
-            7. Analyze quality (AnalyticsManager)
-            8. Store insights in memory
-        
-        Args:
-            topic: Specific topic or None for random
-        
-        Returns:
-            DialogCycle: Complete cycle with all analysis results
-        """
-        cycle_id = f"cycle_{int(time.time())}_{self._stats['total_cycles']}"
-        topic = topic or random.choice(self.topics)
-        
-        self._dialog_state = DialogState.GENERATING
-        cycle = DialogCycle(cycle_id=cycle_id, topic=topic)
-        
-        logger.info(f"Starting self-dialog cycle {cycle_id} on topic: {topic}")
-        
-        try:
-            question = self.generate_question(topic)
-            cycle.turns.append(DialogTurn(
-                turn_id=f"{cycle_id}_q1",
-                timestamp=time.time(),
-                role="system",
-                content=question
-            ))
-            
-            response = self.generate_response(question, topic)
-            response_turn = DialogTurn(
-                turn_id=f"{cycle_id}_r1",
-                timestamp=time.time(),
-                role="system",
-                content=response
-            )
-            
-            self._dialog_state = DialogState.ANALYZING
-            response_turn.analysis_results = self._analyze_response(question, response)
-            
-            cycle.turns.append(response_turn)
-            
-            cycle.ethics_passed = response_turn.analysis_results.get("ethics_passed", True)
-            cycle.contradictions_found = response_turn.analysis_results.get("contradictions_count", 0)
-            cycle.facts_verified = response_turn.analysis_results.get("facts_verified", 0)
-            cycle.quality_score = response_turn.analysis_results.get("quality_score", 0.0)
-            
-            follow_up = self._generate_follow_up(question, response)
-            cycle.turns.append(DialogTurn(
-                turn_id=f"{cycle_id}_f1",
-                timestamp=time.time(),
-                role="analyst",
-                content=follow_up
-            ))
-            
-            self._dialog_state = DialogState.STORING
-            insights = self._extract_insights(cycle)
-            cycle.insights = insights
-            
-            for insight in insights:
-                self.store_learning_insight(insight)
-            
-            self._update_learning_stats(cycle)
-            
-            self._dialog_state = DialogState.COMPLETED
-            self._dialog_history.append(cycle)
-            
-            logger.info(
-                f"Cycle {cycle_id} completed: "
-                f"ethics={cycle.ethics_passed}, "
-                f"contradictions={cycle.contradictions_found}, "
-                f"quality={cycle.quality_score:.2f}, "
-                f"insights={len(insights)}"
-            )
-            
-            return cycle
-            
-        except Exception as e:
-            logger.error(f"Error in cycle {cycle_id}: {e}")
-            self._dialog_state = DialogState.IDLE
-            raise
-    
-    def generate_question(self, topic: str) -> str:
-        """
-        Generate self-dialog question.
-        
-        Args:
-            topic: Topic to generate question about
-        
-        Returns:
-            str: Generated question
-        """
-        if self._model_manager:
-            try:
-                prompt = f"Generate a thoughtful question about {topic}. The question should be philosophical or analytical in nature."
-                
-                if hasattr(self._model_manager, 'generate'):
-                    result = self._model_manager.generate(
-                        prompt,
-                        max_length=100,
-                        temperature=0.8,
-                        top_p=0.9
-                    )
-                    if result:
-                        return result.strip()
-                elif hasattr(self._model_manager, 'get_model_for_task'):
+                try:
+                    task = self.dialog_queue.get(timeout=1)
+                    self._process_task(task)
+                except queue.Empty:
                     pass
                 
-            except Exception as e:
-                logger.warning(f"Model-based question generation failed: {e}")
-        
-        return f"What is your understanding of {topic}?"
-    
-    def generate_response(self, question: str, topic: str) -> str:
-        """
-        Generate response via fractal_model_manager.
-        
-        Args:
-            question: The question to respond to
-            topic: Topic context
-        
-        Returns:
-            str: Generated response
-        """
-        if self._model_manager:
-            try:
-                prompt = f"Question: {question}\n\nProvide a thoughtful, nuanced response that considers multiple perspectives."
+                if self.auto_execute_enabled:
+                    self._check_and_execute_learning_opportunities()
                 
-                if hasattr(self._model_manager, 'generate'):
-                    result = self._model_manager.generate(
-                        prompt,
-                        max_length=300,
-                        temperature=0.7,
-                        top_p=0.9
-                    )
-                    if result:
-                        return result.strip()
-                elif hasattr(self._model_manager, 'get_model_for_task'):
-                    pass
+                time.sleep(0.1)
                 
             except Exception as e:
-                logger.warning(f"Model-based response generation failed: {e}")
+                logger.error(f"Ошибка в рабочем цикле самообучения: {e}")
+                time.sleep(5)
         
-        return "I need to develop my understanding of this topic further."
+        logger.info("Рабочий цикл самообучения завершен")
     
-    def store_learning_insight(self, insight: LearningInsight) -> bool:
-        """
-        Store learning insight in memory/knowledge graph.
+    def _check_and_execute_learning_opportunities(self):
+        """Проверяет и автоматически выполняет возможности для обучения."""
+        current_time = time.time()
+        if current_time - self.last_learning_check < self.auto_learning_interval:
+            return
         
-        Args:
-            insight: LearningInsight to store
-        
-        Returns:
-            bool: Success status
-        """
-        try:
-            insight_data = {
-                "insight_id": insight.insight_id,
-                "timestamp": insight.timestamp,
-                "topic": insight.topic,
-                "category": insight.category,
-                "content": insight.content,
-                "source_turn": insight.source_turn,
-                "confidence": insight.confidence,
-                "metadata": insight.metadata
-            }
-            
-            if self._memory_manager:
-                if hasattr(self._memory_manager, 'add_memory'):
-                    self._memory_manager.add_memory(
-                        "episodic",
-                        insight.content,
-                        {
-                            "type": "learning_insight",
-                            "category": insight.category,
-                            "topic": insight.topic,
-                            "confidence": insight.confidence,
-                            "source_turn": insight.source_turn,
-                            "insight_id": insight.insight_id,
-                            **insight.metadata
-                        }
-                    )
-                elif hasattr(self._memory_manager, 'add'):
-                    self._memory_manager.add("insights", insight_data)
-            
-            if self._knowledge_graph:
-                if hasattr(self._knowledge_graph, 'add_insight'):
-                    self._knowledge_graph.add_insight(insight_data)
-                elif hasattr(self._knowledge_graph, 'add_node'):
-                    self._knowledge_graph.add_node(
-                        insight.insight_id,
-                        node_type="learning_insight",
-                        **insight_data
-                    )
-            
-            self._save_insight_to_file(insight_data)
-            
-            self._insights.append(insight)
-            self._stats["total_insights"] += 1
-            
-            logger.debug(f"Stored insight {insight.insight_id}: {insight.category}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to store insight: {e}")
-            return False
-    
-    def _analyze_response(self, question: str, response: str) -> Dict[str, Any]:
-        """
-        Analyze response through all enabled managers.
-        
-        Args:
-            question: Original question
-            response: Generated response
-        
-        Returns:
-            Dict with analysis results from all managers
-        """
-        results = {
-            "ethics_passed": True,
-            "ethics_violations": [],
-            "ethics_score": 1.0,
-            "contradictions_count": 0,
-            "contradictions": [],
-            "facts_verified": 0,
-            "facts_unverified": [],
-            "quality_score": 0.0,
-            "quality_metrics": {},
-            "manager_status": {}
-        }
-        
-        if "ethics" in self.enabled_managers:
-            ethics_result = self._check_ethics(response)
-            results["ethics_passed"] = ethics_result.get("approved", True)
-            results["ethics_violations"] = ethics_result.get("violations", [])
-            results["ethics_score"] = ethics_result.get("overall_score", 1.0)
-            results["manager_status"]["ethics"] = "success"
-        
-        if "contradiction" in self.enabled_managers:
-            contradiction_result = self._detect_contradictions(response)
-            results["contradictions_count"] = len(contradiction_result)
-            results["contradictions"] = contradiction_result
-            results["manager_status"]["contradiction"] = "success"
-        
-        if "websearch" in self.enabled_managers:
-            web_result = self._verify_facts(response)
-            results["facts_verified"] = web_result.get("verified_count", 0)
-            results["facts_unverified"] = web_result.get("unverified_claims", [])
-            results["manager_status"]["websearch"] = "success"
-        
-        if "analytics" in self.enabled_managers:
-            quality_result = self._analyze_quality(response)
-            results["quality_score"] = quality_result.get("overall_score", 0.0)
-            results["quality_metrics"] = quality_result
-            results["manager_status"]["analytics"] = "success"
-        
-        return results
-    
-    def _check_ethics(self, text: str) -> Dict[str, Any]:
-        """
-        Placeholder for ethics check via EthicsFramework.
-        
-        Args:
-            text: Text to check
-        
-        Returns:
-            Dict with ethics analysis results
-        """
-        if self._ethics_framework:
-            try:
-                if hasattr(self._ethics_framework, 'analyze_content'):
-                    analysis = self._ethics_framework.analyze_content(text, {})
-                    return {
-                        "approved": analysis.overall_score >= 0.8,
-                        "violations": analysis.violations,
-                        "overall_score": analysis.overall_score
-                    }
-                elif hasattr(self._ethics_framework, 'analyze_request'):
-                    return self._ethics_framework.analyze_request(text, {})
-            except Exception as e:
-                logger.warning(f"Ethics framework check failed: {e}")
-        
-        return {"approved": True, "violations": [], "overall_score": 1.0}
-    
-    def _detect_contradictions(self, text: str) -> List[Dict[str, Any]]:
-        """
-        Placeholder for contradiction detection via ContradictionManager.
-        
-        Args:
-            text: Text to analyze
-        
-        Returns:
-            List of detected contradictions
-        """
-        if self._contradiction_manager:
-            try:
-                contradictions = self._contradiction_manager.detect_contradictions(text)
-                formatted = []
-                for c in contradictions:
-                    if isinstance(c, dict):
-                        formatted.append({
-                            "id": c.get("id", ""),
-                            "type": c.get("type", "unknown"),
-                            "description": c.get("description", ""),
-                            "severity": c.get("divergence_level", 0.0),
-                            "concepts": c.get("concepts", [])
-                        })
-                return formatted
-            except Exception as e:
-                logger.warning(f"Contradiction detection failed: {e}")
-        
-        return []
-    
-    def _verify_facts(self, text: str) -> Dict[str, Any]:
-        """
-        Placeholder for fact verification via WebSearchEngine.
-        
-        Args:
-            text: Text containing claims to verify
-        
-        Returns:
-            Dict with verification results
-        """
-        if self._web_search_engine:
-            try:
-                claims = self._extract_factual_claims(text)
-                verified_count = 0
-                unverified_claims = []
-                verification_results = []
-                
-                for claim in claims[:5]:
-                    result = self._web_search_engine.search(claim, max_results=3)
-                    if result.get("status") == "completed":
-                        search_results = result.get("results", [])
-                        if search_results and len(search_results) > 0:
-                            verified_count += 1
-                            sources = []
-                            for r in search_results[:2]:
-                                if isinstance(r, dict):
-                                    sources.append(r.get("url", ""))
-                                elif hasattr(r, 'url'):
-                                    sources.append(r.url)
-                            verification_results.append({
-                                "claim": claim,
-                                "verified": True,
-                                "sources": sources
-                            })
-                        else:
-                            unverified_claims.append(claim)
-                            verification_results.append({
-                                "claim": claim,
-                                "verified": False,
-                                "sources": []
-                            })
-                
-                return {
-                    "verified_count": verified_count,
-                    "unverified_claims": unverified_claims,
-                    "claims": verification_results
-                }
-            except Exception as e:
-                logger.warning(f"Fact verification failed: {e}")
-        
-        return {"verified_count": 0, "unverified_claims": [], "claims": []}
-    
-    def _analyze_quality(self, text: str) -> Dict[str, Any]:
-        """
-        Placeholder for quality analysis.
-        
-        Args:
-            text: Text to analyze
-        
-        Returns:
-            Dict with quality metrics
-        """
-        if self._analytics_manager:
-            try:
-                insights = self._analytics_manager.get_learning_insights()
-                return {
-                    "overall_score": 0.8,
-                    "metrics": insights,
-                    "source": "analytics_manager"
-                }
-            except Exception as e:
-                logger.warning(f"Analytics manager quality analysis failed: {e}")
-        
-        return self._direct_quality_analysis(text)
-    
-    def _direct_quality_analysis(self, text: str) -> Dict[str, Any]:
-        """Perform direct quality analysis."""
-        words = len(text.split())
-        sentences = len(re.split(r'[.!?]+', text))
-        avg_sentence_length = words / max(sentences, 1)
-        
-        complex_words = len([w for w in text.split() if len(w) > 6])
-        complexity_ratio = complex_words / max(words, 1)
-        
-        coherence_indicators = len(re.findall(
-            r'\b(this|that|these|those|therefore|however|furthermore)\b',
-            text, re.I
-        ))
-        
-        scores = []
-        if 10 <= words <= 500:
-            scores.append(0.8)
-        elif words > 500:
-            scores.append(0.6)
-        else:
-            scores.append(0.4)
-        
-        if 10 <= avg_sentence_length <= 25:
-            scores.append(0.8)
-        else:
-            scores.append(0.5)
-        
-        scores.append(min(complexity_ratio * 2, 1.0))
-        scores.append(min(coherence_indicators * 0.1, 0.3))
-        
-        overall = sum(scores) / len(scores)
-        
-        return {
-            "overall_score": overall,
-            "word_count": words,
-            "sentence_count": sentences,
-            "avg_sentence_length": avg_sentence_length,
-            "complexity_ratio": complexity_ratio,
-            "coherence_indicators": coherence_indicators,
-            "source": "direct_analysis"
-        }
-    
-    def _extract_factual_claims(self, text: str) -> List[str]:
-        """Extract potential factual claims from text."""
-        patterns = [
-            r'\b(is|are|was|were|has|have|will|can|does|do)\s+[^\.!?]+',
-            r'\b\d+\s+(people|years|meters|kilograms|percent|%)\b',
-            r'\b(because|therefore|thus|hence|consequently)\b[^\.!?]+'
-        ]
-        
-        claims = []
-        for pattern in patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            claims.extend(matches)
-        
-        return list(dict.fromkeys(claims))[:10]
-    
-    def _generate_follow_up(self, question: str, response: str) -> str:
-        """Generate analytical follow-up based on response analysis."""
-        return f"Analysis: I observe that my response engaged with the question about this topic. The key points were examined from multiple angles."
-    
-    def _extract_insights(self, cycle: DialogCycle) -> List[LearningInsight]:
-        """Extract insights from a completed cycle."""
-        insights = []
-        
-        for turn in cycle.turns:
-            if turn.role != "system":
-                continue
-            
-            if turn.analysis_results.get("ethics_violations"):
-                for violation in turn.analysis_results["ethics_violations"]:
-                    insights.append(LearningInsight(
-                        insight_id=f"insight_{int(time.time())}_{len(insights)}",
-                        timestamp=time.time(),
-                        topic=cycle.topic,
-                        category="ethics",
-                        content=f"Ethics concern: {violation.get('description', 'Unknown violation')}",
-                        source_turn=turn.turn_id,
-                        confidence=violation.get("severity", 0.5),
-                        metadata={"violation_id": violation.get("id")}
-                    ))
-            
-            if turn.analysis_results.get("contradictions"):
-                for contradiction in turn.analysis_results["contradictions"]:
-                    insights.append(LearningInsight(
-                        insight_id=f"insight_{int(time.time())}_{len(insights)}",
-                        timestamp=time.time(),
-                        topic=cycle.topic,
-                        category="contradiction",
-                        content=f"Internal contradiction detected: {contradiction.get('description', 'Unknown')}",
-                        source_turn=turn.turn_id,
-                        confidence=contradiction.get("severity", 0.5),
-                        metadata={"contradiction_id": contradiction.get("id")}
-                    ))
-            
-            quality_score = turn.analysis_results.get("quality_score", 0.0)
-            if quality_score < self.min_quality_threshold:
-                insights.append(LearningInsight(
-                    insight_id=f"insight_{int(time.time())}_{len(insights)}",
-                    timestamp=time.time(),
-                    topic=cycle.topic,
-                    category="quality",
-                    content=f"Quality improvement needed: score {quality_score:.2f} below threshold {self.min_quality_threshold}",
-                    source_turn=turn.turn_id,
-                    confidence=0.8,
-                    metadata={"quality_score": quality_score}
-                ))
-        
-        return insights[:self.max_insights_per_cycle]
-    
-    def _update_learning_stats(self, cycle: DialogCycle):
-        """Update system statistics."""
-        self._stats["total_cycles"] += 1
-        self._stats["total_turns"] += len(cycle.turns)
-        self._stats["last_cycle_time"] = time.time()
-        
-        if cycle.contradictions_found > 0:
-            self._stats["cycles_with_contradictions"] += 1
-        
-        if not cycle.ethics_passed:
-            self._stats["cycles_with_ethics_violations"] += 1
-        
-        n = self._stats["total_cycles"]
-        old_avg = self._stats["average_quality_score"]
-        new_score = cycle.quality_score
-        self._stats["average_quality_score"] = (old_avg * (n - 1) + new_score) / n
-    
-    def _save_insight_to_file(self, insight_data: Dict[str, Any]) -> bool:
-        """Save insight to JSON file."""
-        try:
-            cache_dir = getattr(self._model_manager, 'cache_dir', './cache') if self._model_manager else './cache'
-            insights_dir = os.path.join(cache_dir, 'self_dialog_insights')
-            os.makedirs(insights_dir, exist_ok=True)
-            
-            filename = f"{insight_data['insight_id']}.json"
-            filepath = os.path.join(insights_dir, filename)
-            
-            with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(insight_data, f, ensure_ascii=False, indent=2)
-            
-            return True
-        except Exception as e:
-            logger.error(f"Failed to save insight to file: {e}")
-            return False
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get system statistics."""
-        return {**self._stats}
-    
-    def get_dialog_history(self) -> List[DialogCycle]:
-        """Get dialog history."""
-        return self._dialog_history
-    
-    def get_insights(self) -> List[LearningInsight]:
-        """Get all stored insights."""
-        return self._insights
-    
-    def pause(self):
-        """Pause the learning cycle."""
-        self._pause_event.set()
-    
-    def resume(self):
-        """Resume the learning cycle."""
-        self._pause_event.clear()
-    
-    def run_curiosity_cycle(self) -> Dict[str, Any]:
-        """
-        Run a curiosity-driven self-learning cycle.
-        This is the main entry point for autonomous learning.
-        """
-        results = {
-            'cycles_run': 0,
-            'topics_learned': [],
-            'insights_stored': 0,
-            'entities_explored': 0
-        }
-        
-        if not self.enabled:
-            logger.debug("Self-dialog learning disabled")
-            return results
+        self.last_learning_check = current_time
         
         try:
-            recent_context = self._get_recent_context()
+            opportunities = self._get_learning_opportunities()
             
-            curiosity_triggers = self._curiosity_engine.detect_curiosity_triggers(recent_context)
-            
-            for trigger in curiosity_triggers[:3]:
-                topic = trigger.topic
-                
-                gap_score = self._curiosity_engine.assess_knowledge_gap(topic)
-                
-                if gap_score > 0.4:
-                    learned = self._learn_about_topic(topic)
-                    if learned:
-                        results['topics_learned'].append(topic)
-                        results['entities_explored'] += 1
-                    
-                    cycle = self.run_self_dialog_cycle(topic)
-                    if cycle.insights:
-                        results['insights_stored'] += len(cycle.insights)
-                    
-                    results['cycles_run'] += 1
-            
-            for topic in results['topics_learned']:
-                self._curiosity_engine.trigger_self_learning(topic)
-        
-        except Exception as e:
-            logger.error(f"Curiosity cycle error: {e}")
-        
-        return results
-
-    def _learn_about_topic(self, topic: str) -> bool:
-        """
-        Learn about a topic using online knowledge sources.
-        """
-        try:
-            if hasattr(self, '_online_knowledge') and self._online_knowledge:
-                result = self._online_knowledge.learn_about_entity(topic)
-                if result and result.get('verified'):
-                    self._store_knowledge(topic, result)
-                    return True
-            
-            if self._web_search_engine:
-                search_results = self._web_search_engine.search(topic, limit=3)
-                if search_results:
-                    knowledge = self._extract_knowledge_from_results(search_results)
-                    if knowledge:
-                        self._store_knowledge(topic, knowledge)
-                        return True
-                    
-        except Exception as e:
-            logger.debug(f"Learn about topic failed: {e}")
-        
-        return False
-
-    def _extract_knowledge_from_results(self, search_results):
-        """Extract knowledge from search results."""
-        try:
-            if not search_results:
-                return None
-            
-            summaries = []
-            for result in search_results:
-                if isinstance(result, dict):
-                    title = result.get('title', '')
-                    snippet = result.get('snippet', '')
-                    if title or snippet:
-                        summaries.append(f"{title}: {snippet}")
-            
-            if summaries:
-                return {
-                    'knowledge': ' '.join(summaries),
-                    'source': 'web_search',
-                    'confidence': 0.6
-                }
-        except Exception as e:
-            logger.debug(f"Extract knowledge failed: {e}")
-        
-        return None
-
-    def _store_knowledge(self, topic: str, knowledge: Dict):
-        """Store learned knowledge to memory and knowledge graph."""
-        try:
-            content = knowledge.get('knowledge', '') or knowledge.get('summary', '')
-            if not content:
+            if not opportunities:
                 return
             
-            if self._knowledge_graph:
-                self._knowledge_graph.add_concept(
-                    id=f"curiosity_{hash(topic)}",
-                    name=topic,
-                    description=content[:500],
-                    strength=knowledge.get('confidence', 0.7),
-                    domain="self_learned"
-                )
+            self.stats["opportunities_found"] += len(opportunities)
+            logger.info(f"Найдено {len(opportunities)} возможностей для обучения")
             
-            if self._memory_manager:
-                self._memory_manager.add_memory(
-                    memory_type="semantic",
-                    content=f"Изучено: {topic}. {content}",
+            for opportunity in opportunities:
+                self._execute_learning_opportunity(opportunity)
+                
+        except Exception as e:
+            logger.error(f"Ошибка при проверке возможностей для обучения: {e}")
+    
+    def _get_learning_opportunities(self) -> List[Dict[str, Any]]:
+        """Получает невыполненные возможности для обучения."""
+        if not self.brain:
+            return []
+        
+        opportunities = []
+        
+        if hasattr(self.brain, 'self_analyzer') and self.brain.self_analyzer:
+            try:
+                opportunities = self.brain.self_analyzer.get_learning_opportunities(
+                    executed=False,
+                    min_priority=0.3,
+                    limit=10
+                )
+            except Exception as e:
+                logger.debug(f"Ошибка получения возможностей от self_analyzer: {e}")
+        
+        if not opportunities and hasattr(self.brain, 'analyzer_core') and self.brain.analyzer_core:
+            try:
+                opportunities = self.brain.analyzer_core.get_learning_opportunities(
+                    executed=False,
+                    min_priority=0.3,
+                    limit=10
+                )
+            except Exception as e:
+                logger.debug(f"Ошибка получения возможностей от analyzer_core: {e}")
+        
+        if hasattr(self.brain, 'learning_opportunity_manager') and self.brain.learning_opportunity_manager:
+            try:
+                ml_opportunities = self.brain.learning_opportunity_manager.get_learning_opportunities(
+                    status='pending',
+                    limit=10
+                )
+                if ml_opportunities:
+                    opportunities.extend(ml_opportunities)
+            except Exception as e:
+                logger.debug(f"Ошибка получения возможностей от learning_opportunity_manager: {e}")
+        
+        real_opportunities = [
+            op for op in opportunities 
+            if isinstance(op, dict) and op.get('id') is not None and not op.get('executed', False)
+        ]
+        
+        return real_opportunities
+    
+    def _execute_learning_opportunity(self, opportunity: Dict[str, Any]):
+        """Выполняет возможность для обучения."""
+        try:
+            opportunity_id = opportunity.get('id')
+            concept = opportunity.get('concept', 'unknown')
+            opportunity_type = opportunity.get('opportunity_type', 'expansion')
+            priority = opportunity.get('priority', 0.5)
+            domain = opportunity.get('domain', 'general')
+            
+            logger.info(f"Выполняется обучение: {concept} (тип: {opportunity_type}, приоритет: {priority:.2f})")
+            
+            learned_content = self._perform_learning(concept, opportunity_type, domain, opportunity)
+            
+            self._mark_opportunity_executed(opportunity_id, learned_content)
+            
+            self.stats["opportunities_executed"] += 1
+            self.stats["successful_learning"] += 1
+            
+            logger.info(f"Обучение завершено: {concept}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка выполнения возможности обучения: {e}")
+    
+    def _perform_learning(self, concept: str, opportunity_type: str, domain: str, 
+                         opportunity: Dict[str, Any]) -> Dict[str, Any]:
+        """Выполняет процесс обучения для концепта."""
+        result = {
+            "concept": concept,
+            "type": opportunity_type,
+            "domain": domain,
+            "learned": True,
+            "timestamp": time.time()
+        }
+        
+        if opportunity_type == "expansion":
+            result["content"] = self._learn_expansion(concept, domain, opportunity)
+        elif opportunity_type == "refinement":
+            result["content"] = self._learn_refinement(concept, domain, opportunity)
+        elif opportunity_type == "updating":
+            result["content"] = self._learn_updating(concept, domain, opportunity)
+        elif opportunity_type == "integration":
+            result["content"] = self._learn_integration(concept, domain, opportunity)
+        else:
+            result["content"] = self._learn_generic(concept, domain, opportunity)
+            result["learned"] = True
+        
+        self._store_learned_content(result)
+        
+        return result
+    
+    def _learn_expansion(self, concept: str, domain: str, opportunity: Dict[str, Any]) -> str:
+        """Расширяет знания по концепту."""
+        suggested_actions = opportunity.get('suggested_actions', [])
+        
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+            try:
+                self.brain.knowledge_graph.add_node(
+                    concept,
+                    node_type="learned_knowledge",
+                    domain=domain,
                     metadata={
-                        'type': 'curiosity_learned',
-                        'topic': topic,
-                        'source': knowledge.get('source', 'online'),
-                        'timestamp': time.time()
+                        "learned_at": time.time(),
+                        "type": "expansion",
+                        "source": "self_dialog_learning"
                     }
                 )
-            
-            logger.debug(f"Stored knowledge about: {topic}")
+                logger.debug(f"Добавлен узел знаний: {concept}")
+            except Exception as e:
+                logger.debug(f"Ошибка добавления узла: {e}")
         
-        except Exception as e:
-            logger.debug(f"Store knowledge failed: {e}")
-
-    def _get_recent_context(self) -> str:
-        """Get context from recent conversations for curiosity triggers."""
-        context_parts = []
+        learning_text = f"Расширение знаний: {concept}"
+        if suggested_actions:
+            learning_text += f". Действия: {'; '.join(suggested_actions[:2])}"
         
-        if self._memory_manager:
+        return learning_text
+    
+    def _learn_refinement(self, concept: str, domain: str, opportunity: Dict[str, Any]) -> str:
+        """Уточняет существующие знания."""
+        evidence = opportunity.get('evidence', [])
+        
+        refinement_text = f"Уточнение знаний: {concept}"
+        if evidence:
+            refinement_text += f". Основание: {'; '.join(evidence[:2])}"
+        
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
             try:
-                recent = self._memory_manager.get_recent(limit=5)
-                for mem in recent:
-                    content = mem.get('content', '') if isinstance(mem, dict) else str(mem)
-                    if content:
-                        context_parts.append(content)
-            except:
+                self.brain.knowledge_graph.update_node(
+                    concept,
+                    metadata={
+                        "refined_at": time.time(),
+                        "type": "refinement",
+                        "source": "self_dialog_learning",
+                        "evidence": evidence
+                    }
+                )
+            except Exception:
                 pass
         
-        return ' '.join(context_parts) if context_parts else "Что нового в мире?"
+        return refinement_text
+    
+    def _learn_updating(self, concept: str, domain: str, opportunity: Dict[str, Any]) -> str:
+        """Обновляет устаревшие знания."""
+        suggested_actions = opportunity.get('suggested_actions', [])
+        
+        update_text = f"Обновление знаний: {concept}"
+        if suggested_actions:
+            update_text += f". Необходимые действия: {'; '.join(suggested_actions[:2])}"
+        
+        if self.brain:
+            if hasattr(self.brain, 'adaptation_manager') and self.brain.adaptation_manager:
+                try:
+                    self.brain.adaptation_manager.update_adaptation(
+                        concept,
+                        {"updated": True, "updated_at": time.time()}
+                    )
+                except Exception:
+                    pass
+            
+            if hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    self.brain.knowledge_graph.update_node(
+                        concept,
+                        metadata={
+                            "updated_at": time.time(),
+                            "type": "updating",
+                            "source": "self_dialog_learning"
+                        }
+                    )
+                except Exception:
+                    pass
+        
+        return update_text
+    
+    def _learn_integration(self, concept: str, domain: str, opportunity: Dict[str, Any]) -> str:
+        """Интегрирует новые знания."""
+        evidence = opportunity.get('evidence', [])
+        
+        integration_text = f"Интеграция знаний: {concept}"
+        if evidence:
+            integration_text += f". Связи: {'; '.join(evidence[:2])}"
+        
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+            try:
+                self.brain.knowledge_graph.add_node(
+                    concept,
+                    node_type="integrated_knowledge",
+                    domain=domain,
+                    metadata={
+                        "integrated_at": time.time(),
+                        "type": "integration",
+                        "source": "self_dialog_learning",
+                        "evidence": evidence
+                    }
+                )
+            except Exception:
+                pass
+        
+        return integration_text
+    
+    def _learn_generic(self, concept: str, domain: str, opportunity: Dict[str, Any]) -> str:
+        """Общее обучение."""
+        suggested_actions = opportunity.get('suggested_actions', [])
+        
+        learning_text = f"Изучение концепта: {concept}"
+        if suggested_actions:
+            learning_text += f". Выполнено: {'; '.join(suggested_actions[:3])}"
+        
+        return learning_text
+    
+    def _store_learned_content(self, result: Dict[str, Any]):
+        """Сохраняет изученный контент."""
+        if not self.brain:
+            return
+        
+        try:
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                try:
+                    self.brain.memory_manager.store(
+                        f"learned_{result['concept']}",
+                        {
+                            **result,
+                            "stored_at": time.time(),
+                            "source": "self_dialog_learning"
+                        }
+                    )
+                except Exception:
+                    pass
+                    
+        except Exception as e:
+            logger.debug(f"Ошибка сохранения изученного контента: {e}")
+    
+    def _mark_opportunity_executed(self, opportunity_id: str, result: Dict[str, Any]):
+        """Отмечает возможность как выполненную."""
+        if not self.brain or not opportunity_id:
+            return
+        
+        try:
+            if hasattr(self.brain, 'self_analyzer') and self.brain.self_analyzer:
+                if hasattr(self.brain.self_analyzer, 'analyzer_core') and self.brain.self_analyzer.analyzer_core:
+                    self._mark_in_analyzer_core(opportunity_id, result)
+                elif hasattr(self.brain.self_analyzer, 'learning_opportunity_manager'):
+                    self._mark_in_learning_manager(opportunity_id, result)
+            
+            elif hasattr(self.brain, 'analyzer_core') and self.brain.analyzer_core:
+                self._mark_in_analyzer_core(opportunity_id, result)
+            
+            elif hasattr(self.brain, 'learning_opportunity_manager'):
+                self._mark_in_learning_manager(opportunity_id, result)
+                
+        except Exception as e:
+            logger.debug(f"Ошибка отметки выполненной возможности: {e}")
+    
+    def _mark_in_analyzer_core(self, opportunity_id: str, result: Dict[str, Any]):
+        """Отмечает возможность как выполненную в analyzer_core."""
+        try:
+            conn = self.brain.analyzer_core._get_db_connection() if hasattr(self.brain.analyzer_core, '_get_db_connection') else None
+            if conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    UPDATE learning_opportunities 
+                    SET executed = 1, execution = ?, last_updated = ?
+                    WHERE id = ?
+                ''', (json.dumps(result), time.time(), opportunity_id))
+                conn.commit()
+                conn.close()
+        except Exception:
+            pass
+    
+    def _mark_in_learning_manager(self, opportunity_id: str, result: Dict[str, Any]):
+        """Отмечает возможность как выполненную в learning_opportunity_manager."""
+        try:
+            if hasattr(self.brain.learning_opportunity_manager, 'execute_learning_opportunity'):
+                self.brain.learning_opportunity_manager.execute_learning_opportunity(opportunity_id)
+        except Exception:
+            pass
+    
+    def _process_task(self, task: Dict[str, Any]):
+        """Обрабатывает задачу из очереди."""
+        task_type = task.get("type")
+        
+        if task_type == "create_dialog":
+            self._create_self_dialog(task.get("topic"), task.get("context"))
+        elif task_type == "analyze_interaction":
+            self._analyze_interaction(task.get("query"), task.get("response"), task.get("feedback"))
+        elif task_type == "trigger_learning":
+            self._trigger_learning(task.get("gap"))
+    
+    def create_dialog(self, topic: str, context: Optional[Dict[str, Any]] = None):
+        """
+        Создает новый самодиалог.
+        
+        Args:
+            topic: Тема диалога
+            context: Дополнительный контекст
+        """
+        self.dialog_queue.put({
+            "type": "create_dialog",
+            "topic": topic,
+            "context": context
+        })
+    
+    def _create_self_dialog(self, topic: str, context: Optional[Dict[str, Any]] = None):
+        """Внутренний метод создания самодиалога."""
+        dialog_id = f"dialog_{int(time.time() * 1000)}"
+        
+        dialog = SelfDialog(
+            id=dialog_id,
+            topic=topic,
+            turns=[],
+            start_time=time.time()
+        )
+        
+        self.active_dialogs[dialog_id] = dialog
+        
+        try:
+            self._run_dialog(dialog, context)
+        except Exception as e:
+            logger.error(f"Ошибка выполнения самодиалога {dialog_id}: {e}")
+            dialog.outcome = f"error: {str(e)}"
+        
+        dialog.end_time = time.time()
+        
+        self._finalize_dialog(dialog)
+        
+        self.stats["total_dialogs"] += 1
+    
+    def _run_dialog(self, dialog: SelfDialog, context: Optional[Dict[str, Any]] = None):
+        """Выполняет самодиалог."""
+        assistant_prompt = self._generate_assistant_prompt(dialog.topic, context)
+        
+        turn_count = 0
+        while turn_count < self.max_dialog_turns and len(dialog.turns) < self.max_dialog_turns:
+            turn_count += 1
+            
+            if turn_count == 1:
+                role = DialogRole.ASSISTANT
+                content = self._simulate_assistant_response(assistant_prompt)
+            elif turn_count == 2:
+                role = DialogRole.CRITIC
+                content = self._simulate_critic_response(dialog.turns, dialog.topic)
+            elif turn_count == 3:
+                role = DialogRole.LEARNER
+                content = self._simulate_learner_response(dialog.turns, dialog.topic)
+            elif turn_count == 4:
+                role = DialogRole.TEACHER
+                content = self._simulate_teacher_response(dialog.turns, dialog.topic)
+            else:
+                role = DialogRole.OBSERVER
+                content = self._simulate_observer_response(dialog.turns, dialog.topic)
+            
+            turn = DialogTurn(
+                role=role,
+                content=content,
+                timestamp=time.time()
+            )
+            turn.quality_score = self._assess_turn_quality(turn, dialog)
+            
+            dialog.turns.append(turn)
+            
+            if self._should_end_dialog(dialog):
+                break
+        
+        self._analyze_dialog_outcome(dialog)
+    
+    def _generate_assistant_prompt(self, topic: str, context: Optional[Dict[str, Any]]) -> str:
+        """Генерирует промпт для первого хода ассистента."""
+        prompt = f"Тема: {topic}\n"
+        
+        if context:
+            if "user_query" in context:
+                prompt += f"Вопрос пользователя: {context['user_query']}\n"
+            if "system_response" in context:
+                prompt += f"Ответ системы: {context['system_response']}\n"
+            if "knowledge_gaps" in context:
+                prompt += f"Известные пробелы: {', '.join(context['knowledge_gaps'])}\n"
+        
+        prompt += "\nСистема анализирует эту тему..."
+        return prompt
+    
+    def _simulate_assistant_response(self, prompt: str) -> str:
+        """Симулирует ответ ассистента."""
+        if self.brain and hasattr(self.brain, 'process_query'):
+            try:
+                response = self.brain.process_query(f"Объясни: {prompt}")
+                return response[:500] if len(response) > 500 else response
+            except Exception as e:
+                logger.debug(f"Не удалось получить ответ от brain: {e}")
+        
+        topic_match = prompt.split("Тема:")[1].split("\n")[0].strip() if "Тема:" in prompt else "тему"
+        return f"初步分析 {topic_match}: система исследует базовые аспекты проблемы."
+    
+    def _simulate_critic_response(self, turns: List[DialogTurn], topic: str) -> str:
+        """Симулирует ответ критика."""
+        if not turns:
+            return "Нет данных для критики."
+        
+        last_content = turns[-1].content if turns else ""
+        gaps = self._identify_knowledge_gaps(last_content, topic)
+        
+        gaps_text = "; ".join(gaps) if gaps else "не выявлены"
+        return f"Критический анализ: выявлены следующие пробелы в знаниях: {gaps_text}."
+    
+    def _simulate_learner_response(self, turns: List[DialogTurn], topic: str) -> str:
+        """Симулирует ответ обучающегося."""
+        gaps = self._identify_knowledge_gaps("", topic)
+        
+        if gaps:
+            actions = [f"Изучить: {gap}" for gap in gaps[:3]]
+            return f"План обучения: {'; '.join(actions)}."
+        
+        return "Обучение: текущие знания достаточны для данной темы."
+    
+    def _simulate_teacher_response(self, turns: List[DialogTurn], topic: str) -> str:
+        """Симулирует ответ учителя."""
+        critic_feedback = ""
+        learner_plan = ""
+        
+        for turn in turns:
+            if turn.role == DialogRole.CRITIC:
+                critic_feedback = turn.content
+            elif turn.role == DialogRole.LEARNER:
+                learner_plan = turn.content
+        
+        gaps = self._identify_knowledge_gaps("", topic)
+        
+        if gaps:
+            recommendations = [f"Рекомендация: углубить знания в области {gap}" for gap in gaps[:2]]
+            return f"Наставление: {'; '.join(recommendations)}."
+        
+        return "Текущий уровень знаний соответствует требованиям."
+    
+    def _simulate_observer_response(self, turns: List[DialogTurn], topic: str) -> str:
+        """Симулирует ответ наблюдателя."""
+        avg_quality = sum(t.quality_score for t in turns) / len(turns) if turns else 0
+        
+        if avg_quality >= self.min_quality_threshold:
+            outcome = "положительный"
+        elif avg_quality >= 0.4:
+            outcome = "нейтральный"
+        else:
+            outcome = "требует улучшения"
+        
+        gaps = self._identify_knowledge_gaps("", topic)
+        
+        return f"Наблюдение: общий исход диалога {outcome}. Требуется работа над {len(gaps)} аспектами."
+    
+    def _identify_knowledge_gaps(self, content: str, topic: str) -> List[str]:
+        """Выявляет пробелы в знаниях."""
+        gaps = []
+        
+        topic_lower = topic.lower()
+        
+        if "анализ" in topic_lower or "analysis" in topic_lower:
+            gaps.append("методы анализа данных")
+        if "обучение" in topic_lower or "learning" in topic_lower:
+            gaps.append("алгоритмы машинного обучения")
+        if "знание" in topic_lower or "knowledge" in topic_lower:
+            gaps.append("управление знаниями")
+        if any(word in topic_lower for word in ["когнитив", "cognitive", "мышление", "thinking"]):
+            gaps.append("когнитивные функции")
+        
+        if not gaps:
+            gaps.append("общие концепции предметной области")
+        
+        self.stats["knowledge_gaps_identified"] += len(gaps)
+        
+        return gaps
+    
+    def _assess_turn_quality(self, turn: DialogTurn, dialog: SelfDialog) -> float:
+        """Оценивает качество хода диалога."""
+        score = 0.5
+        
+        if len(turn.content) > 50:
+            score += 0.1
+        
+        if any(word in turn.content.lower() for word in ["анализ", "проблем", "решени", "вывод"]):
+            score += 0.2
+        
+        if turn.role == DialogRole.CRITIC and "пробел" in turn.content.lower():
+            score += 0.1
+        
+        if turn.role == DialogRole.LEARNER and ("изучить" in turn.content.lower() or "план" in turn.content.lower()):
+            score += 0.1
+        
+        return min(1.0, max(0.0, score))
+    
+    def _should_end_dialog(self, dialog: SelfDialog) -> bool:
+        """Определяет, нужно ли завершить диалог."""
+        if len(dialog.turns) >= self.max_dialog_turns:
+            return True
+        
+        if len(dialog.turns) >= 4:
+            observer_turns = [t for t in dialog.turns if t.role == DialogRole.OBSERVER]
+            if observer_turns and observer_turns[-1].quality_score >= self.min_quality_threshold:
+                return True
+        
+        return False
+    
+    def _analyze_dialog_outcome(self, dialog: SelfDialog):
+        """Анализирует исход диалога."""
+        if not dialog.turns:
+            dialog.outcome = "no_content"
+            dialog.learning_type = None
+            return
+        
+        avg_quality = sum(t.quality_score for t in dialog.turns) / len(dialog.turns)
+        
+        if avg_quality >= self.min_quality_threshold:
+            dialog.outcome = "successful"
+            
+            if avg_quality >= 0.8:
+                dialog.learning_type = LearningType.REFINEMENT
+            else:
+                dialog.learning_type = LearningType.EXPANSION
+        else:
+            dialog.outcome = "needs_improvement"
+            dialog.learning_type = LearningType.UPDATING
+        
+        gaps = []
+        for turn in dialog.turns:
+            if turn.role == DialogRole.CRITIC:
+                gap_text = turn.content
+                if "пробелы" in gap_text.lower():
+                    gap_start = gap_text.lower().find(":") + 1
+                    gap_end = gap_text.find(".")
+                    if gap_start > 0 and gap_end > gap_start:
+                        gap_content = gap_text[gap_start:gap_end].strip()
+                        gaps = [g.strip() for g in gap_content.split(";") if g.strip()]
+        
+        dialog.knowledge_gaps = gaps
+        
+        actions = []
+        for turn in dialog.turns:
+            if turn.role == DialogRole.LEARNER:
+                if "план" in turn.content.lower():
+                    actions.append("Создан план обучения")
+                if "изучить" in turn.content.lower():
+                    actions.append("Инициировано изучение нового материала")
+            elif turn.role == DialogRole.TEACHER:
+                if "рекомендац" in turn.content.lower():
+                    actions.append("Даны рекомендации по улучшению")
+        
+        dialog.actions_taken = actions
+        
+        if dialog.outcome == "successful":
+            self.stats["successful_learning"] += 1
+        
+        self.stats["actions_taken"] += len(actions)
+    
+    def _finalize_dialog(self, dialog: SelfDialog):
+        """Финализирует диалог и выполняет действия."""
+        if dialog.id in self.active_dialogs:
+            del self.active_dialogs[dialog.id]
+        
+        self.dialog_history.append(dialog)
+        
+        if len(self.dialog_history) > self.max_history_size:
+            self.dialog_history = self.dialog_history[-self.max_history_size:]
+        
+        for gap in dialog.knowledge_gaps:
+            self._trigger_learning(gap)
+        
+        for callback in self.learning_callbacks:
+            try:
+                callback(dialog)
+            except Exception as e:
+                logger.error(f"Ошибка в callback обучения: {e}")
+        
+        logger.info(f"Самодиалог завершен: {dialog.id}, исход: {dialog.outcome}")
+    
+    def _trigger_learning(self, gap: str):
+        """Запускает процесс обучения для указанного пробела."""
+        if not self.brain:
+            return
+        
+        try:
+            if hasattr(self.brain, 'analyzer_core') and self.brain.analyzer_core:
+                self.brain.analyzer_core.add_learning_opportunity(
+                    concept=gap,
+                    opportunity_type="expansion",
+                    priority=0.7,
+                    domain="self_dialog_learning",
+                    evidence=[f"Выявлено в самодиалоге: {gap}"],
+                    suggested_actions=[f"Изучить {gap}", "Обновить связанные знания"]
+                )
+                logger.info(f"Добавлена возможность обучения: {gap}")
+        except Exception as e:
+            logger.error(f"Ошибка добавления возможности обучения: {e}")
+    
+    def analyze_interaction(self, query: str, response: str, feedback: Optional[Dict[str, Any]] = None):
+        """
+        Анализирует взаимодействие с пользователем.
+        
+        Args:
+            query: Запрос пользователя
+            response: Ответ системы
+            feedback: Обратная связь (опционально)
+        """
+        self.dialog_queue.put({
+            "type": "analyze_interaction",
+            "query": query,
+            "response": response,
+            "feedback": feedback
+        })
+    
+    def _analyze_interaction(self, query: str, response: str, feedback: Optional[Dict[str, Any]] = None):
+        """Внутренний метод анализа взаимодействия."""
+        is_negative = False
+        
+        if feedback:
+            if feedback.get("rating", 5) < 3:
+                is_negative = True
+            if feedback.get("corrected", False):
+                is_negative = True
+        
+        if is_negative:
+            self.create_dialog(
+                topic=f"Улучшение ответа на: {query[:50]}",
+                context={
+                    "user_query": query,
+                    "system_response": response,
+                    "feedback": feedback
+                }
+            )
+    
+    def register_learning_callback(self, callback: Callable):
+        """Регистрирует callback для завершения обучения."""
+        self.learning_callbacks.append(callback)
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Возвращает статистику системы."""
+        return {
+            **self.stats,
+            "active_dialogs": len(self.active_dialogs),
+            "total_history": len(self.dialog_history),
+            "queue_size": self.dialog_queue.qsize()
+        }
+    
+    def get_recent_learning(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Возвращает недавние результаты обучения."""
+        recent = self.dialog_history[-limit:] if self.dialog_history else []
+        return [
+            {
+                "id": d.id,
+                "topic": d.topic,
+                "outcome": d.outcome,
+                "learning_type": d.learning_type.value if d.learning_type else None,
+                "gaps": d.knowledge_gaps,
+                "actions": d.actions_taken,
+                "duration": d.end_time - d.start_time if d.end_time else 0
+            }
+            for d in recent
+        ]
+    
+    def get_knowledge_gaps_summary(self) -> List[Dict[str, Any]]:
+        """Возвращает сводку пробелов в знаниях."""
+        all_gaps: Dict[str, int] = {}
+        
+        for dialog in self.dialog_history:
+            for gap in dialog.knowledge_gaps:
+                all_gaps[gap] = all_gaps.get(gap, 0) + 1
+        
+        return [
+            {"gap": gap, "count": count}
+            for gap, count in sorted(all_gaps.items(), key=lambda x: x[1], reverse=True)
+        ]

@@ -961,12 +961,6 @@ class CogniFlexGUI:
         if serious_contradictions > 0:
             self.show_toast(f"Обнаружено {serious_contradictions} серьезных противоречий!", "warning", key="serious_contradictions")
 
-        opportunities = self.dashboard_data.get('learning_opportunities', [])
-        # Count only unexecuted opportunities for "new" notification
-        new_opportunities = [op for op in opportunities if not op.get('executed', False)]
-        if len(new_opportunities) > 0:
-            self.show_toast(f"Найдено {len(new_opportunities)} новых возможностей для обучения.", "info", key="learning_opportunities")
-
     def _process_gui_queue(self):
         # Если GUI остановлен или окно уничтожено – не продолжаем
         if not self.running or not self.root:

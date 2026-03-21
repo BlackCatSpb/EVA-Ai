@@ -42,7 +42,9 @@
   },
   "self_dialog_learning": {
     "enabled": true,
-    "cycle_interval": 300,
+    "auto_execute_enabled": true,
+    "auto_learning_interval": 60,
+    "auto_dialog_interval": 300,
     "cycles_per_session": 3,
     "min_quality_threshold": 0.5,
     "topics": [
