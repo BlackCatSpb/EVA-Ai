@@ -6,6 +6,7 @@
 import logging
 import time
 import os
+import re
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
@@ -170,6 +171,8 @@ class IntegratedWebSearchEngine(BaseComponent):
             
             if result.get("status") == "completed":
                 results = result.get("results", [])
+                results = self._filter_results(results)
+                result["results"] = results
                 self.stats["results_found"] += len(results)
                 
                 # Сохраняем в кэш
@@ -207,6 +210,8 @@ class IntegratedWebSearchEngine(BaseComponent):
                 "timestamp": datetime.now().isoformat()
             }
             results.append(result)
+        
+        results = self._filter_results(results)
         
         return {
             "success": True,
@@ -343,3 +348,39 @@ class IntegratedWebSearchEngine(BaseComponent):
             logger.info(f"Сохранено {len(self.search_cache)} записей в кэше поиска")
         except Exception as e:
             logger.error(f"Ошибка сохранения кэша поиска: {e}")
+    
+    def _filter_search_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove URLs, HTML artifacts, limit length from search result"""
+        filtered = result.copy()
+        
+        # Remove URL from result to prevent loop
+        if 'url' in filtered:
+            del filtered['url']
+        
+        # Clean snippet from HTML artifacts
+        if 'snippet' in filtered:
+            snippet = filtered['snippet']
+            # Remove HTML tags
+            snippet = re.sub(r'<[^>]+>', '', snippet)
+            # Remove URLs
+            snippet = re.sub(r'https?://\S+', '', snippet)
+            # Remove extra whitespace
+            snippet = re.sub(r'\s+', ' ', snippet).strip()
+            # Limit length
+            if len(snippet) > 200:
+                snippet = snippet[:200] + '...'
+            filtered['snippet'] = snippet
+        
+        # Clean title
+        if 'title' in filtered:
+            title = filtered['title']
+            title = re.sub(r'<[^>]+>', '', title)
+            if len(title) > 100:
+                title = title[:100] + '...'
+            filtered['title'] = title
+        
+        return filtered
+    
+    def _filter_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter all results to remove URLs and HTML artifacts"""
+        return [self._filter_search_result(r) for r in results]

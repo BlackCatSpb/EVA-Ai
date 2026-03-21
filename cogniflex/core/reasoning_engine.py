@@ -70,6 +70,8 @@ class ReasoningEngine:
     6. Рефлексия и самокоррекция
     """
     
+    MAX_REASONING_STEPS = 3
+    
     def __init__(self, brain=None, config: Optional[Dict] = None):
         """
         Инициализация движка рассуждений
@@ -133,6 +135,10 @@ class ReasoningEngine:
             # Фаза 1: Начальный анализ
             if self.enabled_phases[ReasoningPhase.INITIAL_ANALYSIS]:
                 self._initial_analysis(dialogue, query, context)
+            
+            if len(dialogue.steps) >= self.MAX_REASONING_STEPS:
+                logger.warning("Max reasoning steps reached, stopping")
+                return self._finalize_answer(dialogue, start_time)
             
             # Фаза 2: Извлечение из памяти
             if self.enabled_phases[ReasoningPhase.MEMORY_RETRIEVAL]:
@@ -732,39 +738,18 @@ class ReasoningEngine:
         return context
 
     def _synthesize_answer(self, dialogue: InternalDialogue):
-        """Синтез ответа через внутренний диалог"""
-        logger.debug("Синтез ответа через внутренний диалог...")
+        """Skip internal generation to prevent loop"""
+        logger.debug("Синтез ответа (skip internal generation)...")
         
-        # Собираем всю информацию из предыдущих шагов
-        context = self._gather_context(dialogue)
-        
-        # Формируем внутренние вопросы
-        internal_questions = self._generate_internal_questions(dialogue, context)
-        
-        insights = []
-        
-        # Проводим внутренний диалог
-        for question in internal_questions:
-            answer = self._ask_internal(question, context, dialogue)
-            insights.append({
-                'question': question,
-                'answer': answer,
-                'timestamp': time.time()
-            })
-        
-        dialogue.insights = [i['answer'] for i in insights]
-        
-        step = ReasoningStep(
+        dialogue.steps.append(ReasoningStep(
             phase=ReasoningPhase.SYNTHESIS,
             query=dialogue.original_query,
-            result={'insights': insights, 'context': context},
+            result={'synthesized': True, 'skipped': True},
             timestamp=time.time(),
-            confidence=self._calculate_synthesis_confidence(insights),
-            metadata={'insight_count': len(insights)}
-        )
-        dialogue.steps.append(step)
+            confidence=0.8
+        ))
         
-        logger.debug(f"Синтез завершен: {len(insights)} инсайтов")
+        logger.debug("Синтез завершен (пропущен)")
     
     def _generate_internal_questions(self, dialogue: InternalDialogue, context: Dict) -> List[str]:
         """Генерация внутренних вопросов на основе контекста и данных из графа памяти"""
@@ -999,8 +984,20 @@ class ReasoningEngine:
         # Это предотвращает включение мета-вопросов в ответ
         final_answer = self._direct_generate(dialogue.original_query)
         
+        # Limit answer length to prevent loops
+        if len(final_answer) > 500:
+            final_answer = final_answer[:500]
+        
         # Вычисляем общую уверенность
         confidence = self._calculate_overall_confidence(dialogue)
+        
+        # Ограничиваем длину ответа для предотвращения петель
+        if len(final_answer) > 500:
+            sentences = final_answer.rstrip().split('.')
+            if len(sentences) > 2:
+                final_answer = '.'.join(sentences[:3]) + '.'
+            else:
+                final_answer = final_answer[:500]
         
         processing_time = time.time() - start_time
         

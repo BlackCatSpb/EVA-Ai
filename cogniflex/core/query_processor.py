@@ -119,7 +119,25 @@ class QueryProcessor:
                     try:
                         web_results = self.brain.components["web_search_engine"].search(query, max_results=3)
                         if isinstance(web_results, list):
-                            evidence.extend(web_results)
+                            # Фильтруем web результаты - убираем мусор
+                            for result in web_results:
+                                if isinstance(result, dict):
+                                    # Фильтруем snippet если есть
+                                    if 'snippet' in result:
+                                        snippet = result['snippet']
+                                        # Убираем URL, HTML артефакты
+                                        snippet = re.sub(r'https?://\S+', '', snippet)
+                                        snippet = re.sub(r'<[^>]+>', '', snippet)
+                                        snippet = re.sub(r'\s+', ' ', snippet).strip()
+                                        # Проверяем минимальную длину
+                                        if len(snippet) > 30:
+                                            result['snippet'] = snippet[:200]  # Ограничиваем длину
+                                        else:
+                                            result['snippet'] = ''
+                                    # Убираем весь result если он пустой
+                                    if not any(result.values()):
+                                        continue
+                                evidence.append(result)
                         elif web_results is not None:
                             evidence.append(web_results)
                     except Exception as e:
