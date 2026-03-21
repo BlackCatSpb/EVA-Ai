@@ -225,6 +225,32 @@ class FractalModelManager:
             logger.error(f"Ошибка инициализации модели: {e}")
             self.initialized = False
     
+    def _create_conversational_prompt(self, query: str) -> str:
+        """
+        Creates a well-formatted conversational prompt.
+        
+        Russian conversational assistant style:
+        - Answer briefly and directly
+        - Be helpful and friendly
+        - Stay on topic
+        """
+        query = query.strip()
+        
+        prompts = {
+            'greeting': ['привет', 'здравствуй', 'добрый день', 'hello', 'hi'],
+            'question': ['кто', 'что', 'как', 'почему', 'зачем', 'where', 'who', 'what', 'how', 'why'],
+            'help': ['помощь', 'help', 'помоги', 'подскажи'],
+        }
+        
+        query_lower = query.lower()
+        
+        if any(g in query_lower for g in prompts['greeting']):
+            return f"Привет! Я CogniFlex, русскоязычный AI ассистент. {query}\n"
+        elif any(h in query_lower for h in prompts['help']):
+            return f"Я помогу! {query}\n"
+        else:
+            return f"Вопрос: {query}\nОтвет на русском языке, кратко и по делу:\n"
+    
     def generate_response(self, query: str, max_tokens: int = 512, **kwargs) -> str:
         """
         Генерирует ответ с использованием модели.
@@ -241,8 +267,8 @@ class FractalModelManager:
             return self._get_fallback_response(query)
         
         try:
-            # Формируем промпт
-            prompt = query.strip()
+            # Используем conversational промпт
+            prompt = self._create_conversational_prompt(query)
             
             # Ограничиваем
             max_tokens = min(max_tokens, 50)
@@ -328,20 +354,23 @@ class FractalModelManager:
         query_lower = query.lower().strip()
         
         fallbacks = {
-            'привет': 'Привет! Я CogniFlex. Чем могу помочь?',
-            'здравств': 'Здравствуйте! Рад вас видеть.',
-            'как дела': 'У меня всё хорошо, спасибо! А у вас?',
-            'как тебя': 'Меня зовут CogniFlex. Я русскоязычный AI ассистент.',
-            'кто ты': 'Я CogniFlex - когнитивная AI система с поддержкой самообучения.',
-            'что ты умеешь': 'Я умею отвечать на вопросы, анализировать текст, искать информацию и учиться новому.',
-            'помощь': 'Задайте вопрос или напишите тему для обсуждения. Я постараюсь помочь!',
+            'привет': 'Привет! Я CogniFlex, рад общению. Что хотите обсудить?',
+            'здравств': 'Здравствуйте! Чем могу помочь?',
+            'как дела': 'Спасибо, что спрашиваете! У меня всё хорошо, готов помогать.',
+            'как тебя': 'Меня зовут CogniFlex. Я ваш AI ассистент.',
+            'кто ты': 'Я CogniFlex - когнитивная AI система. Я умею отвечать на вопросы, анализировать и учиться.',
+            'что ты умеешь': 'Я умею: отвечать на вопросы, анализировать тексты, искать информацию, помогать с идеями.',
+            'помощь': 'Я к вашим услугам! Просто напишите вопрос или тему для обсуждения.',
+            'спасибо': 'Пожалуйста! Если нужна ещё помощь - обращайтесь.',
+            'пока': 'До свидания! Рад был помочь.',
+            'до свидан': 'Пока! Обращайтесь ещё.',
         }
         
         for key, response in fallbacks.items():
             if key in query_lower:
                 return response
         
-        return 'Интересный вопрос! Расскажите подробнее, что именно вас интересует.'
+        return 'Интересная мысль! Расскажите подробнее.'
     
     def _clean_response(self, response: str, query: str) -> str:
         """Очищает ответ от мусора и повторений."""

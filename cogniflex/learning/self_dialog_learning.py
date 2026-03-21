@@ -162,9 +162,9 @@ class SelfDialogLearningSystem(BaseComponent):
         return True
     
     def _do_start(self) -> bool:
-        """Start self-dialog cycle."""
+        """Start self-dialog learning."""
         if not self.enabled:
-            logger.info("SelfDialogLearningSystem disabled in config")
+            logger.info("SelfDialogLearning disabled")
             return True
         
         self._stop_event.clear()
@@ -174,7 +174,13 @@ class SelfDialogLearningSystem(BaseComponent):
             name="SelfDialogLearningThread"
         )
         self._learning_thread.start()
-        logger.info(f"SelfDialogLearningSystem started with interval={self.cycle_interval}s")
+        
+        try:
+            self.run_curiosity_cycle()
+        except Exception as e:
+            logger.debug(f"Initial curiosity cycle failed: {e}")
+        
+        logger.info(f"SelfDialogLearning started (interval={self.cycle_interval}s)")
         return True
     
     def _do_stop(self) -> bool:
@@ -767,27 +773,145 @@ class SelfDialogLearningSystem(BaseComponent):
         self._pause_event.clear()
     
     def run_curiosity_cycle(self) -> Dict[str, Any]:
-        """Run a curiosity-driven self-learning cycle."""
-        if not self._curiosity_engine:
-            return {'triggers': 0, 'learned': 0, 'error': 'CuriosityEngine not available'}
-        
-        triggers = self._curiosity_engine.detect_curiosity_triggers(
-            "Что я знаю о мире?"
-        )
-        
+        """
+        Run a curiosity-driven self-learning cycle.
+        This is the main entry point for autonomous learning.
+        """
         results = {
-            'triggers': len(triggers),
-            'learned': 0
+            'cycles_run': 0,
+            'topics_learned': [],
+            'insights_stored': 0,
+            'entities_explored': 0
         }
         
-        for trigger in triggers[:3]:
-            topic = trigger.topic
-            gap_score = self._curiosity_engine.assess_knowledge_gap(topic)
+        if not self.enabled:
+            logger.debug("Self-dialog learning disabled")
+            return results
+        
+        try:
+            recent_context = self._get_recent_context()
             
-            if gap_score > 0.5:
-                if self._online_knowledge:
-                    knowledge = self._online_knowledge.learn_about_entity(topic)
-                    if knowledge.get('verified'):
-                        results['learned'] += 1
+            curiosity_triggers = self._curiosity_engine.detect_curiosity_triggers(recent_context)
+            
+            for trigger in curiosity_triggers[:3]:
+                topic = trigger.topic
+                
+                gap_score = self._curiosity_engine.assess_knowledge_gap(topic)
+                
+                if gap_score > 0.4:
+                    learned = self._learn_about_topic(topic)
+                    if learned:
+                        results['topics_learned'].append(topic)
+                        results['entities_explored'] += 1
+                    
+                    cycle = self.run_self_dialog_cycle(topic)
+                    if cycle.insights:
+                        results['insights_stored'] += len(cycle.insights)
+                    
+                    results['cycles_run'] += 1
+            
+            for topic in results['topics_learned']:
+                self._curiosity_engine.trigger_self_learning(topic)
+        
+        except Exception as e:
+            logger.error(f"Curiosity cycle error: {e}")
         
         return results
+
+    def _learn_about_topic(self, topic: str) -> bool:
+        """
+        Learn about a topic using online knowledge sources.
+        """
+        try:
+            if hasattr(self, '_online_knowledge') and self._online_knowledge:
+                result = self._online_knowledge.learn_about_entity(topic)
+                if result and result.get('verified'):
+                    self._store_knowledge(topic, result)
+                    return True
+            
+            if self._web_search_engine:
+                search_results = self._web_search_engine.search(topic, limit=3)
+                if search_results:
+                    knowledge = self._extract_knowledge_from_results(search_results)
+                    if knowledge:
+                        self._store_knowledge(topic, knowledge)
+                        return True
+                    
+        except Exception as e:
+            logger.debug(f"Learn about topic failed: {e}")
+        
+        return False
+
+    def _extract_knowledge_from_results(self, search_results):
+        """Extract knowledge from search results."""
+        try:
+            if not search_results:
+                return None
+            
+            summaries = []
+            for result in search_results:
+                if isinstance(result, dict):
+                    title = result.get('title', '')
+                    snippet = result.get('snippet', '')
+                    if title or snippet:
+                        summaries.append(f"{title}: {snippet}")
+            
+            if summaries:
+                return {
+                    'knowledge': ' '.join(summaries),
+                    'source': 'web_search',
+                    'confidence': 0.6
+                }
+        except Exception as e:
+            logger.debug(f"Extract knowledge failed: {e}")
+        
+        return None
+
+    def _store_knowledge(self, topic: str, knowledge: Dict):
+        """Store learned knowledge to memory and knowledge graph."""
+        try:
+            content = knowledge.get('knowledge', '') or knowledge.get('summary', '')
+            if not content:
+                return
+            
+            if self._knowledge_graph:
+                self._knowledge_graph.add_concept(
+                    id=f"curiosity_{hash(topic)}",
+                    name=topic,
+                    description=content[:500],
+                    strength=knowledge.get('confidence', 0.7),
+                    domain="self_learned"
+                )
+            
+            if self._memory_manager:
+                self._memory_manager.add_memory(
+                    memory_type="semantic",
+                    content=f"Изучено: {topic}. {content}",
+                    metadata={
+                        'type': 'curiosity_learned',
+                        'topic': topic,
+                        'source': knowledge.get('source', 'online'),
+                        'timestamp': time.time()
+                    }
+                )
+            
+            logger.debug(f"Stored knowledge about: {topic}")
+        
+        except Exception as e:
+            logger.debug(f"Store knowledge failed: {e}")
+
+    def _get_recent_context(self) -> str:
+        """Get context from recent conversations for curiosity triggers."""
+        context_parts = []
+        
+        if self._memory_manager:
+            try:
+                recent = self._memory_manager.get_recent(limit=5)
+                for mem in recent:
+                    content = mem.get('content', '') if isinstance(mem, dict) else str(mem)
+                    if content:
+                        context_parts.append(content)
+            except:
+                pass
+        
+        return ' '.join(context_parts) if context_parts else "Что нового в мире?"
