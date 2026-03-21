@@ -36,15 +36,29 @@
     "batch_processing": false
   },
   "learning": {
-    "enable_training": true,
-    "batch_size": 1,
-    "learning_rate": 0.0001,
-    "max_memory_mb": 256,
-    "training_disabled": false
+    "enable_training": false,
+    "training_disabled": true,
+    "disable_background_training": true
+  },
+  "self_dialog_learning": {
+    "enabled": true,
+    "cycle_interval": 300,
+    "cycles_per_session": 3,
+    "min_quality_threshold": 0.5,
+    "topics": [
+      "philosophy and consciousness",
+      "scientific method",
+      "ethical decision making",
+      "creativity and problem solving",
+      "knowledge and understanding",
+      "language and communication",
+      "logic and reasoning",
+      "history and human experience"
+    ]
   },
   "system": {
-    "disable_learning_threads": false,
-    "disable_background_training": false,
+    "disable_learning_threads": true,
+    "disable_background_training": true,
     "max_concurrent_operations": 4
   },
   "logging": {

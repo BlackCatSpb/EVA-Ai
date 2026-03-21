@@ -204,6 +204,10 @@ class EnhancedSelfLearningSystem:
     
     def start(self) -> bool:
         """Запуск системы самообучения"""
+        if self.config.get('training_disabled', True):
+            logger.info("EnhancedSelfLearningSystem отключена через конфигурацию")
+            return True
+        
         if self.is_active:
             logger.warning("EnhancedSelfLearningSystem уже активна")
             return True
@@ -407,6 +411,10 @@ class EnhancedSelfLearningSystem:
     def _perform_training_session(self, forced: bool = False, 
                                    custom_epochs: Optional[int] = None) -> bool:
         """Выполнение сессии обучения с эпохами"""
+        if self.config.get('training_disabled', True):
+            logger.info("Training disabled, skipping training session")
+            return True
+        
         session_id = f"session_{int(time.time() * 1000)}"
         
         self.current_session = TrainingSession(

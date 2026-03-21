@@ -35,6 +35,11 @@ try:
 except Exception:
     QueryProcessor = None  # Will be checked at runtime
 
+try:
+    from cogniflex.learning.self_dialog_learning import SelfDialogLearningSystem
+except ImportError:
+    SelfDialogLearningSystem = None
+
 # Глобальный импорт/фолбэк для SystemState, чтобы использовать его в методах класса
 try:
     from .system_state import SystemState  # Enum с состояниями системы
@@ -244,6 +249,21 @@ class CoreBrain:
         except ImportError as e:
             self.query_logger.warning(f"MemoryGraphML недоступен: {e}")
             self.memory_graph_ml = None
+        
+        # Self-Dialog Learning System
+        try:
+            if SelfDialogLearningSystem:
+                self.self_dialog_learning = SelfDialogLearningSystem(
+                    brain=self,
+                    config=self.config.get('self_dialog_learning', {})
+                )
+                self.query_logger.info("SelfDialogLearningSystem initialized")
+            else:
+                self.self_dialog_learning = None
+                self.query_logger.debug("SelfDialogLearningSystem not available")
+        except Exception as e:
+            self.self_dialog_learning = None
+            self.query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
         
         # Инициализация системы самообучения (устаревшая, для совместимости)
         try:
@@ -559,6 +579,14 @@ class CoreBrain:
             
             # Настраиваем умное вытеснение кэша токенов
             self.setup_smart_cache_eviction()
+            
+            # Start SelfDialogLearningSystem if enabled
+            if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                try:
+                    self.self_dialog_learning.start()
+                    self.query_logger.info("SelfDialogLearningSystem started")
+                except Exception as e:
+                    self.query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
             
             return True
             

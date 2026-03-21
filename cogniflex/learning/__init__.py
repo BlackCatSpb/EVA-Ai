@@ -4,6 +4,7 @@ from .learning_opportunity_manager import LearningOpportunityManager
 from .learning_opportunity import LearningOpportunity
 from .learning_manager import LearningManager
 from .self_analyzer import SelfAnalyzer
+from .self_dialog_learning import SelfDialogLearningSystem
 
 __all__ = [
     'LearningScheduler',
@@ -11,5 +12,6 @@ __all__ = [
     'SelfAnalyzer',
     'AnalyzerCore',
     'LearningOpportunityManager',
-    'LearningOpportunity'
+    'LearningOpportunity',
+    'SelfDialogLearningSystem'
 ]

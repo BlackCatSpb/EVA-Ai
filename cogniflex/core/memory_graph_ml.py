@@ -824,6 +824,8 @@ class MemoryGraphML:
     
     def _trigger_training_if_needed(self):
         """Триггерит обучение если накопилось достаточно данных"""
+        if self.config.get('training_disabled', True):
+            return
         try:
             min_samples = self.config.get('min_training_samples', 100)
             if len(self.training_data) >= min_samples:
