@@ -67,12 +67,7 @@ except ImportError as e:
     logger.error(f"Не удалось импортировать torch: {e}")
     torch = None
 
-# Пытаемся импортировать ModelManager
-try:
-    from cogniflex.mlearning.model_manager import ModelManager
-except ImportError as e:
-    logger.error(f"Не удалось импортировать ModelManager: {e}")
-    ModelManager = None
+ModelManager = None
 
 class MLUnit:
     """
@@ -181,9 +176,13 @@ class MLUnit:
             elif hasattr(self.brain, 'fractal_model_manager') and self.brain.fractal_model_manager is not None:
                 self.model_manager = self.brain.fractal_model_manager
                 logger.info(f"Используется существующий fractal_model_manager из CoreBrain: {type(self.model_manager).__name__}")
-            elif ModelManager is not None:
-                # Fallback: создаем новый ModelManager только если нет существующего
-                self.model_manager = ModelManager(
+            else:
+                try:
+                    from cogniflex.mlearning.model_manager import ModelManager as _ModelManager
+                except ImportError as e:
+                    logger.error(f"Не удалось импортировать ModelManager: {e}")
+                    return False
+                self.model_manager = _ModelManager(
                     brain=self.brain,
                     cache_dir=os.path.join(self.cache_dir, "fractal_storage"),
                     model_dir=os.path.join(self.cache_dir, "fractal_storage", "models"),
@@ -191,13 +190,9 @@ class MLUnit:
                 )
                 logger.warning("Создан новый ModelManager (fallback), так как в CoreBrain не найден model_manager")
                 
-                # Регистрируем ModelManager в CoreBrain
                 if hasattr(self.brain, 'register_component'):
                     self.brain.register_component('model_manager', self.model_manager)
                     logger.info("ModelManager зарегистрирован в CoreBrain")
-            else:
-                logger.error("ModelManager недоступен")
-                return False
             
             # Проверяем инициализацию текстового процессора и токенизатора
             if not hasattr(self, 'text_processor') or self.text_processor is None:
