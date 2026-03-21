@@ -1770,6 +1770,53 @@ class CoreBrain:
         
         return status
     
+    def debug_message(self, message: str) -> str:
+        """
+        Debug communication bridge - receive commands and return responses.
+        Use this for direct system interaction and debugging.
+        
+        Commands:
+        - "status" - Return system status
+        - "health" - Return health check
+        - "test" - Test response
+        - "memory" - Return memory stats
+        - Or any message will be echoed back
+        
+        Args:
+            message: Debug command or message
+            
+        Returns:
+            Debug response string
+        """
+        msg = message.strip().lower()
+        
+        if msg == "status":
+            return f"Status: fractal_ready={self.fractal_ready}, model={type(self.fractal_model_manager).__name__ if self.fractal_model_manager else None}"
+        
+        elif msg == "health":
+            health = {
+                'fractal_ready': self.fractal_ready,
+                'model': self.fractal_model_manager.initialized if self.fractal_model_manager else False,
+                'learning': hasattr(self, 'self_dialog_learning') and self.self_dialog_learning is not None
+            }
+            return f"Health: {health}"
+        
+        elif msg == "test":
+            if self.fractal_model_manager:
+                return self.fractal_model_manager.generate_response("Привет", max_tokens=30)
+            return "Model not available"
+        
+        elif msg == "memory":
+            if hasattr(self, 'memory_manager') and self.memory_manager:
+                try:
+                    return f"Memory: initialized={getattr(self.memory_manager, 'initialized', False)}"
+                except:
+                    return "Memory manager error"
+            return "Memory manager not available"
+        
+        else:
+            return f"[DEBUG] Received: '{message}'. System ready. Commands: status, health, test, memory"
+    
     def _ensure_module_entry(self, name: str) -> Dict[str, Any]:
         """Гарантирует запись о модуле в реестре управления."""
         if name not in self.module_control:
