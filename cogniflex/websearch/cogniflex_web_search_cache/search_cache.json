@@ -3245,7 +3245,7 @@
     ]
   },
   "d6eba760e1c07f61468a510e573bd7bb": {
-    "timestamp": 1773766602.9435642,
+    "timestamp": 1774023242.1212912,
     "results": [
       {
         "title": "Информация о Тест генерации",
@@ -3254,7 +3254,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773766602.1738465,
+        "timestamp": 1774023240.9420805,
         "query": "Тест генерации"
       },
       {
@@ -3264,7 +3264,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773766602.1738565,
+        "timestamp": 1774023240.9420877,
         "query": "Тест генерации"
       },
       {
@@ -3274,7 +3274,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773766602.1765864,
+        "timestamp": 1774023240.9440796,
         "query": "Тест генерации"
       }
     ]
@@ -3490,7 +3490,7 @@
     ]
   },
   "87c507c7015ae00a65974ff82515b5f2": {
-    "timestamp": 1773768374.03371,
+    "timestamp": 1774028009.9176104,
     "results": [
       {
         "title": "Информация о Расскажи о себе",
@@ -3499,7 +3499,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773768373.3707924,
+        "timestamp": 1774028008.6695335,
         "query": "Расскажи о себе"
       },
       {
@@ -3509,7 +3509,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773768373.3707964,
+        "timestamp": 1774028008.6695545,
         "query": "Расскажи о себе"
       },
       {
@@ -3519,7 +3519,7 @@
         "source": "local_fallback",
         "relevance_score": 0.5,
         "content": null,
-        "timestamp": 1773768373.3720462,
+        "timestamp": 1774028008.6722963,
         "query": "Расскажи о себе"
       }
     ]

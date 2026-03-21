@@ -40,6 +40,11 @@ try:
 except ImportError:
     SelfDialogLearningSystem = None
 
+try:
+    from cogniflex.knowledge.online_knowledge import OnlineKnowledgeAccess
+except ImportError:
+    OnlineKnowledgeAccess = None
+
 # Глобальный импорт/фолбэк для SystemState, чтобы использовать его в методах класса
 try:
     from .system_state import SystemState  # Enum с состояниями системы
@@ -264,6 +269,20 @@ class CoreBrain:
         except Exception as e:
             self.self_dialog_learning = None
             self.query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
+        
+        # Online Knowledge Access
+        try:
+            if OnlineKnowledgeAccess:
+                self.online_knowledge = OnlineKnowledgeAccess(
+                    brain=self,
+                    config=self.config.get('online_knowledge', {})
+                )
+                self.query_logger.debug("OnlineKnowledgeAccess initialized")
+            else:
+                self.online_knowledge = None
+        except Exception as e:
+            self.online_knowledge = None
+            self.query_logger.debug(f"OnlineKnowledgeAccess initialization failed: {e}")
         
         # Инициализация системы самообучения (устаревшая, для совместимости)
         try:

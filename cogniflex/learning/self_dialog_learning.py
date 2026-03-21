@@ -15,6 +15,11 @@ from enum import Enum
 
 from ..core.base_component import BaseComponent
 
+try:
+    from .curiosity_engine import CuriosityEngine
+except ImportError:
+    CuriosityEngine = None
+
 logger = logging.getLogger("cogniflex.self_dialog")
 
 
@@ -116,6 +121,12 @@ class SelfDialogLearningSystem(BaseComponent):
             "average_quality_score": 0.0,
             "last_cycle_time": 0.0
         }
+        
+        # Curiosity Engine
+        self._curiosity_engine = CuriosityEngine(brain, config) if CuriosityEngine else None
+        
+        # Online Knowledge Access reference
+        self._online_knowledge = getattr(brain, 'online_knowledge', None)
         
         logger.info("SelfDialogLearningSystem initialized")
     
@@ -370,10 +381,22 @@ class SelfDialogLearningSystem(BaseComponent):
             }
             
             if self._memory_manager:
-                if hasattr(self._memory_manager, 'add_to_episodic'):
-                    self._memory_manager.add_to_episodic(insight_data)
-                elif hasattr(self._memory_manager, 'store'):
-                    self._memory_manager.store("insights", insight.insight_id, insight_data)
+                if hasattr(self._memory_manager, 'add_memory'):
+                    self._memory_manager.add_memory(
+                        "episodic",
+                        insight.content,
+                        {
+                            "type": "learning_insight",
+                            "category": insight.category,
+                            "topic": insight.topic,
+                            "confidence": insight.confidence,
+                            "source_turn": insight.source_turn,
+                            "insight_id": insight.insight_id,
+                            **insight.metadata
+                        }
+                    )
+                elif hasattr(self._memory_manager, 'add'):
+                    self._memory_manager.add("insights", insight_data)
             
             if self._knowledge_graph:
                 if hasattr(self._knowledge_graph, 'add_insight'):
@@ -524,12 +547,18 @@ class SelfDialogLearningSystem(BaseComponent):
                     result = self._web_search_engine.search(claim, max_results=3)
                     if result.get("status") == "completed":
                         search_results = result.get("results", [])
-                        if search_results:
+                        if search_results and len(search_results) > 0:
                             verified_count += 1
+                            sources = []
+                            for r in search_results[:2]:
+                                if isinstance(r, dict):
+                                    sources.append(r.get("url", ""))
+                                elif hasattr(r, 'url'):
+                                    sources.append(r.url)
                             verification_results.append({
                                 "claim": claim,
                                 "verified": True,
-                                "sources": [r.url for r in search_results[:2]] if hasattr(search_results[0], 'url') else []
+                                "sources": sources
                             })
                         else:
                             unverified_claims.append(claim)
@@ -736,3 +765,29 @@ class SelfDialogLearningSystem(BaseComponent):
     def resume(self):
         """Resume the learning cycle."""
         self._pause_event.clear()
+    
+    def run_curiosity_cycle(self) -> Dict[str, Any]:
+        """Run a curiosity-driven self-learning cycle."""
+        if not self._curiosity_engine:
+            return {'triggers': 0, 'learned': 0, 'error': 'CuriosityEngine not available'}
+        
+        triggers = self._curiosity_engine.detect_curiosity_triggers(
+            "Что я знаю о мире?"
+        )
+        
+        results = {
+            'triggers': len(triggers),
+            'learned': 0
+        }
+        
+        for trigger in triggers[:3]:
+            topic = trigger.topic
+            gap_score = self._curiosity_engine.assess_knowledge_gap(topic)
+            
+            if gap_score > 0.5:
+                if self._online_knowledge:
+                    knowledge = self._online_knowledge.learn_about_entity(topic)
+                    if knowledge.get('verified'):
+                        results['learned'] += 1
+        
+        return results

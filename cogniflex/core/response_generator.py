@@ -51,6 +51,11 @@ try:
 except ImportError:
     EntityExtractor = None
 
+try:
+    from cogniflex.learning.knowledge_awareness import KnowledgeAwareness
+except ImportError:
+    KnowledgeAwareness = None
+
 # Импорты токенизатора
 try:
     from transformers import AutoTokenizer, PreTrainedTokenizer
@@ -144,6 +149,15 @@ class ResponseGenerator:
         
         # Экстрактор сущностей для обнаружения неоднозначностей
         self.entity_extractor = EntityExtractor() if EntityExtractor else None
+        
+        # Knowledge Awareness
+        try:
+            if KnowledgeAwareness:
+                self.knowledge_awareness = KnowledgeAwareness(brain)
+            else:
+                self.knowledge_awareness = None
+        except Exception:
+            self.knowledge_awareness = None
         
         logger.info("ResponseGenerator создан")
         
@@ -767,6 +781,15 @@ class ResponseGenerator:
             self.tokenizer is not None and
             (self.model_manager is not None or self.hybrid_cache is not None)
         )
+    
+    def mark_response_type(self, text: str, is_verified: bool = False, source: str = ""):
+        """Mark response text as verified or generated."""
+        if self.knowledge_awareness:
+            if is_verified:
+                self.knowledge_awareness.mark_verified(text, source)
+            else:
+                confidence = getattr(self, '_last_confidence', 0.7)
+                self.knowledge_awareness.mark_generated(text, confidence)
     
     def shutdown(self) -> None:
         """Останавливает генератор."""

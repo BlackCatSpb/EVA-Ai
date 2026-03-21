@@ -16,7 +16,6 @@ def create_gui(brain=None, **kwargs):
     return _create_gui(brain=brain, **kwargs)
 
 try:
-    from .integrated_gui import IntegratedCogniFlexGUI, create_integrated_gui
     from .core_gui import CogniFlexGUI
     
     from .chat_module import ChatModule
@@ -28,9 +27,6 @@ try:
     from .neuromorphic_module import NeuromorphicModule
     from .settings_module import SettingsModule
     from .base_gui import BaseGUI
-    from .gui_factory import GUIFactory
-    from .window_manager import WindowManager
-    from .theme_manager import ThemeManager
     
     MainWindow = CogniFlexGUI
     
@@ -42,8 +38,6 @@ except ImportError as e:
             logging.warning("Используется заглушка MainWindow из-за ошибки импорта")
 
 __all__ = [
-    'IntegratedCogniFlexGUI',
-    'create_integrated_gui',
     'CogniFlexGUI',
     'MainWindow',
     'create_gui',
@@ -56,7 +50,4 @@ __all__ = [
     'NeuromorphicModule',
     'SettingsModule',
     'BaseGUI',
-    'GUIFactory',
-    'WindowManager',
-    'ThemeManager'
 ]

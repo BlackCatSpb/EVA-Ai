@@ -86,7 +86,6 @@ class ChatModule:
         self.input_text = None
         self.send_button = None
         self.import_button = None
-        self.self_dialog_button = None
         
         # Контекстное меню
         self.context_menu = None
@@ -96,45 +95,6 @@ class ChatModule:
         self.history_index = -1
         self.pending_requests = set()
         self.request_queue = queue.Queue()
-        
-        # Фоновая обработка
-        self.processing_thread = None
-        self.stop_event = threading.Event()
-        
-        # Паттерны для форматирования
-        self.url_pattern = re.compile(r'(https?://[^\s]+)')
-        self.markdown_link_pattern = re.compile(r'\[([^\]]+)\]\((https?://[^\s)]+)\)')
-        self.formatting_pattern = re.compile(r'\*\*(.*?)\*\*|__(.*?)__|_(.*?)_|`(.*?)`')
-        self.emoji_pattern = re.compile(r'[:;=][-o*]?[)D\]\(\[/\\|Pp]')
-        self.image_pattern = re.compile(r'!\[.*?\]\((https?://[^\s]+)\)')
-        
-        # Индикаторы
-        self.typing_indicator = None
-        self.typing_active = False
-        self.typing_text = "CogniFlex печатает..."
-        
-        # Статус-бар
-        self.status_frame = None
-        self.cpu_label = None
-        self.mem_label = None
-        self._status_updater_id = None
-        
-        # Индикатор готовности ML
-        self.ml_status_canvas = None
-        self.ml_status_label = None
-        self._ml_ready_cached = False
-        
-        # Черновик текста
-        self._draft_text = ""
-        self._suppress_history_append = False
-        
-        # Пайплайн импорта
-        self._import_pipeline = None
-        
-        # Автодиалог
-        self.self_dialog_active = False
-        self.self_dialog_thread = None
-        self.self_dialog_stop = threading.Event()
         
         # Инициализация флага рассуждений
         if not hasattr(self.gui, 'reasoning_active'):
@@ -167,7 +127,6 @@ class ChatModule:
         """Деактивирует модуль чата."""
         # Останавливаем фоновые процессы
         self._stop_processing_thread()
-        self._stop_self_dialog()
         
         # Отменяем обновление статуса
         self._cancel_status_update()
@@ -241,16 +200,6 @@ class ChatModule:
         if self.processing_thread.is_alive():
             self.processing_thread.join(timeout=2.0)
         logger.debug("Фоновый поток обработки запросов чата остановлен")
-    
-    def _stop_self_dialog(self):
-        """Останавливает автодиалог."""
-        try:
-            if self.self_dialog_active:
-                self.self_dialog_stop.set()
-                if self.self_dialog_thread and self.self_dialog_thread.is_alive():
-                    self.self_dialog_thread.join(timeout=2.0)
-        except (AttributeError, RuntimeError, threading.ThreadError):
-            pass
     
     def _cancel_status_update(self):
         """Отменяет периодическое обновление статуса."""
@@ -686,14 +635,6 @@ class ChatModule:
         )
         self.import_button.pack(side=tk.RIGHT, padx=(5, 0))
         
-        # Кнопка автодиалога
-        self.self_dialog_button = ttk.Button(
-            self.input_frame,
-            text="Автодиалог",
-            command=self._toggle_self_dialog
-        )
-        self.self_dialog_button.pack(side=tk.RIGHT, padx=(5, 0))
-        
         # Кнопка отправки
         self.send_button = ttk.Button(
             self.input_frame,
@@ -1121,10 +1062,6 @@ class ChatModule:
             if self.send_button and self.send_button.winfo_exists():
                 state = tk.NORMAL if is_ready else tk.DISABLED
                 self.send_button.config(state=state)
-            
-            if self.self_dialog_button and self.self_dialog_button.winfo_exists():
-                state = tk.NORMAL if is_ready else tk.DISABLED
-                self.self_dialog_button.config(state=state)
                 
         except (AttributeError, TypeError, RuntimeError, tk.TclError):
             pass
@@ -1716,228 +1653,6 @@ class ChatModule:
                 
         except (tk.TclError, Exception) as e:
             logger.error(f"Ошибка удаления последнего сообщения: {e}", exc_info=True)
-    
-    # =========================================================================
-    # Автодиалог
-    # =========================================================================
-    
-    def _toggle_self_dialog(self):
-        """Переключает режим автодиалога."""
-        try:
-            if not self.self_dialog_active:
-                # Запуск
-                if not getattr(self.gui, 'brain', None):
-                    self._add_message("CogniFlex", 
-                        "Невозможно запустить автодиалог: ядро недоступно.", "system")
-                    return
-                
-                self.self_dialog_active = True
-                self.self_dialog_stop.clear()
-                
-                if self.self_dialog_button:
-                    self.self_dialog_button.config(text="Стоп автодиалога")
-                
-                self.self_dialog_thread = threading.Thread(
-                    target=self._self_dialog_loop, 
-                    name="SelfDialog", 
-                    daemon=True)
-                self.self_dialog_thread.start()
-                
-                self._add_message("CogniFlex", "Автодиалог запущен.", "system")
-            else:
-                # Остановка
-                self._stop_self_dialog()
-                self._add_message("CogniFlex", "Автодиалог остановлен.", "system")
-                
-        except Exception as e:
-            logger.error(f"Ошибка переключения автодиалога: {e}", exc_info=True)
-            self._add_message("CogniFlex", f"Ошибка автодиалога: {str(e)}", "system")
-    
-    def _self_dialog_loop(self):
-        """Фоновая петля автодиалога с использованием данных из MemoryGraphML."""
-        try:
-            # Получаем данные из MemoryGraphML для генерации релевантных вопросов
-            ml_entities = []
-            graph_patterns = []
-            
-            # Пробуем получить данные из MemoryGraphML
-            try:
-                if hasattr(self.gui, 'brain') and self.gui.brain:
-                    brain = self.gui.brain
-                    if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
-                        mgml = brain.memory_graph_ml
-                        if hasattr(mgml, 'embeddings') and mgml.embeddings:
-                            # Получаем последние сущности из графа
-                            recent_embeddings = list(mgml.embeddings.items())[-5:]
-                            for k, v in recent_embeddings:
-                                try:
-                                    # Handle both dict and object formats
-                                    if isinstance(v, dict):
-                                        metadata = v.get('metadata', {})
-                                    else:
-                                        metadata = getattr(v, 'metadata', {})
-                                    ml_entities.append({
-                                        'name': metadata.get('insight', metadata.get('source_query', 'unknown'))[:100]
-                                    })
-                                except Exception:
-                                    pass
-                        if hasattr(mgml, 'patterns') and mgml.patterns:
-                            graph_patterns = [p.pattern_id for p in mgml.patterns][-3:]
-            except Exception as e:
-                logger.debug(f"Ошибка получения данных из MemoryGraphML: {e}")
-            
-            # Формируем стартовые вопросы на основе данных из графа
-            starters = []
-            
-            if ml_entities:
-                # Используем найденные сущности
-                for entity in ml_entities[:3]:
-                    starters.append(f"Что ты знаешь о '{entity.get('name', 'этой теме')}'?")
-            
-            if graph_patterns:
-                starters.append(f"Как применются паттерны {graph_patterns[0]} в нашей работе?")
-            
-            # Fallback темы если нет данных
-            if not starters:
-                starters = [
-                    "Привет! Давай обсудим преимущества и недостатки различных моделей языковых моделей.",
-                    "Начнем с приветствия: как ты оцениваешь важность качества данных при обучении моделей?",
-                    "Предлагаю тему: как улучшить устойчивость моделей к некорректным входным данным?",
-                ]
-            
-            current_prompt = random.choice(starters)
-            
-            while not self.self_dialog_stop.is_set():
-                # Сообщение пользователя
-                self.gui.gui_queue.put(
-                    lambda p=current_prompt: self._add_message("Вы", p, "user"))
-                
-                # Ответ модели
-                response_obj, processing_time = self._generate_response_obj(current_prompt)
-                
-                # Форматирование
-                text, tokens, sentiment, reasoning, contradictions, contradiction_flag, metadata = \
-                    self._extract_response_fields(response_obj, fallback_input=current_prompt)
-                
-                display_text = _fix_mojibake(text).strip() if text and str(text).strip() \
-                    else "Извините, система не смогла сформировать ответ."
-                
-                analytics_lines = self._build_analytics_lines(
-                    tokens, sentiment, contradictions, processing_time)
-                
-                self.gui.gui_queue.put(
-                    lambda r=reasoning: self._set_reasoning_content(r, auto_expand=True))
-                
-                final_message = display_text + "\n" + "\n".join(analytics_lines) \
-                    if analytics_lines else display_text
-                
-                self.gui.gui_queue.put(
-                    lambda m=final_message: self._add_message("CogniFlex", m, "system"))
-                
-                # Следующий вопрос
-                current_prompt = self._make_followup_prompt(
-                    text if isinstance(text, str) else display_text,
-                    seed_topic=starters[0])
-                
-                # Пауза
-                for _ in range(10):
-                    if self.self_dialog_stop.is_set():
-                        break
-                    time.sleep(0.1)
-                    
-        except Exception as e:
-            logger.error(f"Ошибка в автодиалоге: {e}", exc_info=True)
-        finally:
-            self._finalize_self_dialog()
-    
-    def _finalize_self_dialog(self):
-        """Завершает автодиалог."""
-        def _finalize_btn():
-            self.self_dialog_active = False
-            if self.self_dialog_button:
-                self.self_dialog_button.config(text="Автодиалог")
-        
-        try:
-            if hasattr(self.gui, 'root') and self.gui.root:
-                self.gui.root.after(0, _finalize_btn)
-            else:
-                _finalize_btn()
-        except (AttributeError, RuntimeError, tk.TclError):
-            try:
-                _finalize_btn()
-            except (AttributeError, RuntimeError, tk.TclError):
-                pass
-    
-    def _make_followup_prompt(self, reply_text: str, seed_topic: str = "") -> str:
-        """Формирует следующий вопрос по теме с использованием данных из MemoryGraphML."""
-        try:
-            # Пробуем получить данные из MemoryGraphML для генерации более релевантных вопросов
-            graph_context = None
-            
-            try:
-                if hasattr(self.gui, 'brain') and self.gui.brain:
-                    brain = self.gui.brain
-                    if hasattr(brain, 'memory_graph_ml') and brain.memory_graph_ml:
-                        mgml = brain.memory_graph_ml
-                        if hasattr(mgml, 'embeddings') and mgml.embeddings:
-                            # Получаем последние данные из графа
-                            recent = list(mgml.embeddings.items())
-                            if recent:
-                                # Извлекаем ключевую информацию из последних записей
-                                last_entry = recent[-1][1]
-                                if isinstance(last_entry, dict):
-                                    last_meta = last_entry.get('metadata', {})
-                                else:
-                                    last_meta = getattr(last_entry, 'metadata', {})
-                                graph_context = {
-                                    'last_insight': last_meta.get('insight', ''),
-                                    'last_query': last_meta.get('source_query', ''),
-                                    'total_entities': len(recent)
-                                }
-            except Exception as e:
-                logger.debug(f"Ошибка получения контекста из MemoryGraphML: {e}")
-            
-            base = _fix_mojibake(reply_text or "").strip()
-            if not base:
-                return seed_topic or "Продолжим: уточни сильные и слабые стороны подхода?"
-            
-            sentences = re.split(r"(?<=[.!?])\s+", base)
-            first = sentences[0] if sentences else base
-            
-            # Очистка
-            clean = re.sub(r"[#*`\[\]()>]", "", first).strip()
-            
-            # Ключевые слова
-            words = clean.split()
-            keywords = [w for w in words if len(w) > 4 and w[0].isupper() or len(w) > 6]
-            
-            # Шаблоны - приоритет для данных из графа
-            if graph_context and graph_context.get('total_entities', 0) > 0:
-                templates = [
-                    f"Как эти знания связаны с предыдущим рассуждением о '{graph_context.get('last_query', 'теме')[:50]}'?",
-                    f"Какие новые паттерны мы можем выделить из этого ответа?",
-                    f"Как можно улучшить качество рассуждений на основе этих данных?",
-                    "Какие пробелы в знаниях нужно заполнить?",
-                ]
-            elif keywords:
-                templates = [
-                    f"Как {random.choice(keywords).lower()} влияет на результат?",
-                    f"Что можно сказать о {random.choice(keywords).lower()}?",
-                    f"Расскажи подробнее о {random.choice(keywords).lower()}.",
-                    f"Какие аспекты {random.choice(keywords).lower()} важны?",
-                ]
-            else:
-                templates = [
-                    "Какие еще детали стоит учесть?",
-                    "Что еще важно обсудить по этой теме?",
-                    "Какие компромиссы здесь существуют?",
-                    "Какие метрики релевантны?",
-                ]
-            
-            return random.choice(templates)
-            
-        except (AttributeError, TypeError, ValueError, IndexError):
-            return seed_topic or "Продолжим: какие метрики и компромиссы важны здесь?"
     
     # =========================================================================
     # Импорт документов

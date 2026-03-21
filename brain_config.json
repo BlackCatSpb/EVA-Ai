@@ -66,5 +66,19 @@
     "file": "cogniflex.log",
     "console": true,
     "performance_tracking": true
+  },
+  "online_knowledge": {
+    "enabled": true,
+    "cache_ttl": 3600,
+    "wikipedia_lang": "ru"
+  },
+  "curiosity_engine": {
+    "enabled": true,
+    "curiosity_interval": 600,
+    "unknown_entity_threshold": 0.3,
+    "gap_confidence_threshold": 0.5
+  },
+  "knowledge_awareness": {
+    "enabled": true
   }
 }

@@ -319,15 +319,9 @@ class CogniFlexGUI:
             except Exception as e:
                 logger.critical(f"Не удалось инициализировать ChatModule даже через fallback: {e}")
 
-        # Теперь инициализируем остальные модули
+        # Теперь инициализируем только необходимые модули
         module_map = {
-            "analytics": ("cogniflex.gui.analytics_module", "AnalyticsModule"),
-            "knowledge": ("cogniflex.gui.knowledge_graph_module", "KnowledgeGraphModule"), 
-            "contradictions": ("cogniflex.gui.contradiction_module", "ContradictionModule"),
             "memory": ("cogniflex.gui.memory_module", "MemoryModule"),
-            "learning": ("cogniflex.gui.learning_module", "LearningModule"),
-            "settings": ("cogniflex.gui.settings_module", "SettingsModule"),
-            "neuromorphic": ("cogniflex.gui.neuromorphic_module", "NeuromorphicModule"),
         }
 
         for name, (module_path, class_name) in module_map.items():
@@ -335,33 +329,19 @@ class CogniFlexGUI:
                 logger.info(f"Инициализация модуля: {name}")
                 module = __import__(module_path, fromlist=[None])
                 
-                logger.debug(f"DEBUG: Модуль {name}, путь {module_path}, класс {class_name}")
-                logger.debug(f"DEBUG: Модуль импортирован: {module is not None}")
-                logger.debug(f"DEBUG: Класс {class_name} существует: {hasattr(module, class_name)}")
-                
-                # Проверяем, что класс существует
                 if not hasattr(module, class_name):
                     logger.warning(f"Класс {class_name} не найден в модуле {module_path}")
-                    logger.warning(f"Доступные классы в модуле: {[attr for attr in dir(module) if attr.endswith('Module')]}")
                     continue
 
                 module_class = getattr(module, class_name)
-                logger.debug(f"DEBUG: Класс {class_name} получен: {module_class is not None}")
-                
                 instance = module_class(self)
-                logger.debug(f"DEBUG: Экземпляр {class_name} создан: {instance is not None}")
-                
                 setattr(self, f"{name}_module", instance)
-                logger.debug(f"DEBUG: Атрибут {name}_module установлен: {hasattr(self, f'{name}_module')}")
-                
                 logger.info(f"✅ Модуль '{name}' инициализирован успешно")
 
             except ImportError as e:
-                logger.error(f"Не удалось импортировать модуль '{name}': {e}", exc_info=True)
-                logger.debug(f"DEBUG: ImportError при инициализации {name}: {e}")
+                logger.error(f"Не удалось импортировать модуль '{name}': {e}")
             except Exception as e:
-                logger.error(f"Ошибка инициализации модуля '{name}': {e}", exc_info=True)
-                logger.debug(f"DEBUG: Exception при инициализации {name}: {e}")
+                logger.error(f"Ошибка инициализации модуля '{name}': {e}")
 
         # Финальная проверка chat модуля
         if not hasattr(self, 'chat_module') or self.chat_module is None:
@@ -464,24 +444,17 @@ class CogniFlexGUI:
 
 
     def _create_notebook(self):
-        """Создаёт Notebook с вкладками для навигации между модулями."""
+        """Создаёт Notebook с 3 вкладками: Чат, Память, Система."""
         self.notebook = ttk.Notebook(self.main_container)
         self.notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
         
-        # Привязываем событие переключения вкладок
         self.notebook.bind('<<NotebookTabChanged>>', self._on_tab_changed)
         
-        # Создаём фреймы для каждой вкладки
         self.tabs = {}
         tab_names = [
             ("chat", "Чат"),
-            ("analytics", "Аналитика"),
-            ("knowledge", "Граф знаний"),
-            ("contradictions", "Противоречия"),
             ("memory", "Память"),
-            ("learning", "Обучение"),
-            ("neuromorphic", "Нейроморфика"),
-            ("settings", "Настройки")
+            ("system", "Система")
         ]
         
         for tab_id, tab_title in tab_names:
@@ -489,10 +462,7 @@ class CogniFlexGUI:
             self.notebook.add(frame, text=tab_title)
             self.tabs[tab_id] = frame
         
-        # content_area будет указывать на активную вкладку
         self.content_area = self.tabs.get("chat")
-        
-        # Отслеживание порядка вкладок для индексации
         self.tab_order = [tab_id for tab_id, _ in tab_names]
 
     def _on_tab_changed(self, event):
@@ -555,22 +525,18 @@ class CogniFlexGUI:
     def _switch_view(self, view_id: str):
         logger.debug(f"Переключение на представление: {view_id}")
         
-        # Проверяем, что вкладка существует
         if not self.tabs or view_id not in self.tabs:
             logger.warning(f"Попытка переключения на несуществующую вкладку: {view_id}")
             return
 
-        # Обновляем content_area на соответствующий фрейм вкладки
         self.content_area = self.tabs[view_id]
         
-        # Переключаем вкладку в Notebook
         try:
             tab_index = self.tab_order.index(view_id)
             self.notebook.select(tab_index)
         except (ValueError, IndexError) as e:
             logger.warning(f"Не удалось переключить вкладку {view_id}: {e}")
 
-        # Деактивируем предыдущий модуль, чтобы отменить таймеры/задания
         try:
             prev_view = getattr(self, "current_view", None)
             if prev_view and prev_view != view_id:
@@ -579,19 +545,26 @@ class CogniFlexGUI:
                     try:
                         prev_module.deactivate()
                     except Exception:
-                        # Безопасно игнорируем любые ошибки деактивации
                         pass
         except Exception:
             pass
 
-        # Очищаем фрейм вкладки
         for widget in self.content_area.winfo_children():
             widget.destroy()
 
-        # Активируем модуль
+        if view_id == "memory":
+            self.memory_tab_instance = MemoryTab(self)
+            self.memory_tab_instance.activate()
+            self.current_view = view_id
+            return
+        elif view_id == "system":
+            self.system_tab_instance = SystemTab(self)
+            self.system_tab_instance.activate()
+            self.current_view = view_id
+            return
+        
         module = getattr(self, f"{view_id}_module", None)
         if module and hasattr(module, 'activate'):
-            # Логируем активацию модуля
             self.chat_logger.info(f"Активация модуля: {view_id}")
             module.activate()
         else:
@@ -1496,6 +1469,195 @@ class CogniFlexGUI:
                 messagebox.showwarning("Предупреждение", message)
             elif msg_type == "error":
                 messagebox.showerror("Ошибка", message)
+
+
+class MemoryTab:
+    """Упрощённый модуль отображения памяти - learned entities и статистика."""
+    
+    def __init__(self, gui):
+        self.gui = gui
+        self.frame = None
+        self.entity_list = None
+        self.stats_label = None
+        self.curiosity_label = None
+        self._after_jobs = []
+    
+    def activate(self):
+        """Активирует вкладку памяти с упрощённым отображением."""
+        self.frame = self.gui.content_area
+        
+        title_label = ttk.Label(self.frame, text="Память системы", font=("Segoe UI", 14, "bold"))
+        title_label.pack(pady=(10, 5))
+        
+        stats_frame = ttk.LabelFrame(self.frame, text="Статистика знаний")
+        stats_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.stats_label = ttk.Label(stats_frame, text="Загрузка...")
+        self.stats_label.pack(pady=10, padx=10)
+        
+        curiosity_frame = ttk.LabelFrame(self.frame, text="Триггеры любопытства")
+        curiosity_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.curiosity_label = ttk.Label(curiosity_frame, text="Загрузка...", wraplength=500)
+        self.curiosity_label.pack(pady=10, padx=10)
+        
+        entities_frame = ttk.LabelFrame(self.frame, text="Недавние изученные сущности")
+        entities_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        scrollbar = ttk.Scrollbar(entities_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.entity_list = tk.Listbox(entities_frame, yscrollcommand=scrollbar.set, height=15)
+        self.entity_list.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        scrollbar.config(command=self.entity_list.yview)
+        
+        self.update()
+    
+    def deactivate(self):
+        """Деактивирует вкладку памяти."""
+        for job_id in self._after_jobs:
+            try:
+                if self.gui.root:
+                    self.gui.root.after_cancel(job_id)
+            except Exception:
+                pass
+        self._after_jobs.clear()
+    
+    def update(self):
+        """Обновляет данные памяти."""
+        try:
+            verified = 0
+            generated = 0
+            entities = []
+            
+            if self.gui.brain and hasattr(self.gui.brain, 'memory_manager'):
+                mm = self.gui.brain.memory_manager
+                if hasattr(mm, 'get_stats'):
+                    stats = mm.get_stats()
+                    verified = stats.get('verified_entities', 0)
+                    generated = stats.get('generated_entities', 0)
+                if hasattr(mm, 'get_recent_entities'):
+                    entities = mm.get_recent_entities(limit=20)
+            
+            self.stats_label.config(text=f"Подтверждённые: {verified} | Сгенерированные: {generated}")
+            
+            curiosity_triggers = []
+            if self.gui.brain and hasattr(self.gui.brain, 'get_curiosity_triggers'):
+                curiosity_triggers = self.gui.brain.get_curiosity_triggers()[:5]
+            
+            if curiosity_triggers:
+                trigger_text = "\n".join([f"• {t}" for t in curiosity_triggers])
+                self.curiosity_label.config(text=trigger_text)
+            else:
+                self.curiosity_label.config(text="Нет активных триггеров")
+            
+            self.entity_list.delete(0, tk.END)
+            for entity in entities:
+                self.entity_list.insert(tk.END, entity)
+            
+            job_id = self.gui.root.after(5000, self.update) if self.gui.root else None
+            if job_id:
+                self._after_jobs.append(job_id)
+        except Exception as e:
+            logger.debug(f"MemoryTab update error: {e}")
+
+
+class SystemTab:
+    """Упрощённый модуль отображения системного статуса и здоровья."""
+    
+    def __init__(self, gui):
+        self.gui = gui
+        self.frame = None
+        self.status_label = None
+        self.health_label = None
+        self._after_jobs = []
+    
+    def activate(self):
+        """Активирует вкладку системы с упрощённым отображением."""
+        self.frame = self.gui.content_area
+        
+        title_label = ttk.Label(self.frame, text="Система", font=("Segoe UI", 14, "bold"))
+        title_label.pack(pady=(10, 5))
+        
+        status_frame = ttk.LabelFrame(self.frame, text="Статус")
+        status_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.status_label = ttk.Label(status_frame, text="Загрузка...", wraplength=500)
+        self.status_label.pack(pady=10, padx=10)
+        
+        health_frame = ttk.LabelFrame(self.frame, text="Здоровье системы")
+        health_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.health_label = ttk.Label(health_frame, text="Загрузка...", wraplength=500)
+        self.health_label.pack(pady=10, padx=10)
+        
+        metrics_frame = ttk.LabelFrame(self.frame, text="Метрики")
+        metrics_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        self.metrics_text = tk.Text(metrics_frame, height=10, state=tk.DISABLED)
+        self.metrics_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.update()
+    
+    def deactivate(self):
+        """Деактивирует вкладку системы."""
+        for job_id in self._after_jobs:
+            try:
+                if self.gui.root:
+                    self.gui.root.after_cancel(job_id)
+            except Exception:
+                pass
+        self._after_jobs.clear()
+    
+    def update(self):
+        """Обновляет данные системы."""
+        try:
+            status = "Неизвестно"
+            components = 0
+            if self.gui.brain:
+                if hasattr(self.gui.brain, 'running') and self.gui.brain.running:
+                    status = "Активен"
+                if hasattr(self.gui.brain, 'components'):
+                    components = len(self.gui.brain.components) if self.gui.brain.components else 0
+            
+            self.status_label.config(text=f"Статус: {status}\nКомпоненты: {components}")
+            
+            health_data = {}
+            if self.gui.integrator and hasattr(self.gui.integrator, 'get_system_health'):
+                health_data = self.gui.integrator.get_system_health()
+            elif self.gui.brain and hasattr(self.gui.brain, 'get_system_health'):
+                health_data = self.gui.brain.get_system_health()
+            
+            health_text = f"Общее: {health_data.get('overall', 'N/A')}"
+            if 'issues' in health_data and health_data['issues']:
+                health_text += f"\nПроблемы: {len(health_data['issues'])}"
+            self.health_label.config(text=health_text)
+            
+            self.metrics_text.config(state=tk.NORMAL)
+            self.metrics_text.delete(1.0, tk.END)
+            
+            dash_data = {}
+            if self.gui.integrator and hasattr(self.gui.integrator, 'get_system_stats'):
+                dash_data = self.gui.integrator.get_system_stats()
+            
+            metrics = dash_data.get('metrics', {})
+            cache_stats = dash_data.get('cache_stats', {})
+            
+            lines = [
+                f"CPU: {metrics.get('cpu_usage', 0):.1f}%",
+                f"Memory: {metrics.get('memory_usage', 0):.1f}%",
+                f"Cache Hit Rate: {cache_stats.get('hit_rate', 0):.1%}",
+                f"Cache Utilization: {cache_stats.get('cache_utilization_percent', 0):.1f}%",
+            ]
+            self.metrics_text.insert(tk.END, "\n".join(lines))
+            self.metrics_text.config(state=tk.DISABLED)
+            
+            job_id = self.gui.root.after(5000, self.update) if self.gui.root else None
+            if job_id:
+                self._after_jobs.append(job_id)
+        except Exception as e:
+            logger.debug(f"SystemTab update error: {e}")
+
 
 def create_gui(brain=None, cache_dir: str = None, integrator=None):
     """Создает и возвращает экземпляр GUI с подробным логгированием."""

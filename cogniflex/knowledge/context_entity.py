@@ -574,3 +574,214 @@ class EntityExtractor:
             "грязный": ["требует очистки", "конкретный уровень загрязнения", "класс загрязнения"],
         }
         return degrees.get(adj, [f"степень {adj}", f"конкретное измерение {adj}"])
+
+    def extract_entities(self, text: str, entity_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+        """
+        Extract named entities from text and return structured Entity objects.
+        
+        Args:
+            text: Text to extract entities from
+            entity_types: Optional list of entity types to look for (e.g., ['person', 'organization'])
+        
+        Returns:
+            List of structured entity dictionaries with type, value, position, and context
+        """
+        entities = []
+        patterns = {
+            'person': r'\b([A-Z][a-z]+ [A-Z][a-z]+)\b',
+            'organization': r'\b([A-Z][a-z]+(?: Company|Corp|Ltd|Inc|Group|Institute|University))\b',
+            'location': r'\b([A-Z][a-z]+(?: City|Town|Country|State|Region))\b',
+            'date': r'\b(\d{1,2}[./-]\d{1,2}[./-]\d{2,4})\b',
+            'number': r'\b(\d+(?:,\d{3})*(?:\.\d+)?)\b',
+            'email': r'\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b',
+            'url': r'\b(https?://[^\s]+)\b',
+        }
+        
+        type_names = {
+            'person': 'PERSON',
+            'organization': 'ORG',
+            'location': 'LOC',
+            'date': 'DATE',
+            'number': 'NUM',
+            'email': 'EMAIL',
+            'url': 'URL',
+        }
+        
+        for etype, pattern in patterns.items():
+            if entity_types and etype not in entity_types:
+                continue
+            
+            for match in re.finditer(pattern, text):
+                entity = {
+                    'type': type_names.get(etype, etype.upper()),
+                    'text': match.group(),
+                    'start': match.start(),
+                    'end': match.end(),
+                    'context': self._get_context_window(text, match.start(), match.end(), window=40),
+                    'confidence': 0.8,
+                    'source': 'pattern_matching'
+                }
+                entities.append(entity)
+        
+        entities.sort(key=lambda e: (e['start'], e['type']))
+        return entities
+    
+    def extract_relationships(self, text: str, entities: Optional[List[Dict]] = None) -> List[Dict[str, Any]]:
+        """
+        Find relationships between entities in text.
+        
+        Args:
+            text: Text to analyze
+            entities: Optional pre-extracted entities (will extract if not provided)
+        
+        Returns:
+            List of relationship dictionaries with subject, predicate, object
+        """
+        if entities is None:
+            entities = self.extract_entities(text)
+        
+        relationships = []
+        relation_patterns = [
+            (r'(\w+)\s+(is|are|was|were|seems?|appears?)\s+(\w+)', 'attribution'),
+            (r'(\w+)\s+(works?\s+(?:at|in|for)|serves?\s+(?:as|in)|leads?|manages?)\s+(\w+)', 'employment'),
+            (r'(\w+)\s+(founded?|created?|established?|built?)\s+(\w+)', 'creation'),
+            (r'(\w+)\s+(located?\s+(?:in|at|near)|situated?\s+in)\s+(\w+)', 'location'),
+            (r'(\w+)\s+(loves?|hates?|likes?|prefers?)\s+(\w+)', 'preference'),
+            (r'(\w+)\s+(said?|stated?|claimed?|reported?|announced?)\s+(?:that\s+)?(\w+)', 'statement'),
+        ]
+        
+        for pattern, rel_type in relation_patterns:
+            for match in re.finditer(pattern, text, re.IGNORECASE):
+                if match.lastindex and match.lastindex >= 2:
+                    subject = match.group(1).strip()
+                    predicate = match.group(2).strip()
+                    obj = match.group(3).strip()
+                    
+                    subject_entity = self._find_entity_for_text(subject, entities)
+                    object_entity = self._find_entity_for_text(obj, entities)
+                    
+                    relationships.append({
+                        'type': rel_type,
+                        'subject': subject,
+                        'subject_type': subject_entity.get('type') if subject_entity else 'UNKNOWN',
+                        'predicate': predicate,
+                        'object': obj,
+                        'object_type': object_entity.get('type') if object_entity else 'UNKNOWN',
+                        'confidence': 0.7,
+                        'raw_match': match.group()
+                    })
+        
+        return relationships
+    
+    def get_entity_context(self, text: str, entity_text: str, window: int = 100) -> Dict[str, Any]:
+        """
+        Get surrounding context for a specific entity.
+        
+        Args:
+            text: Full text
+            entity_text: The entity text to find context for
+            window: Number of characters before/after to include
+        
+        Returns:
+            Dictionary with entity, before, after, and full context
+        """
+        pos = text.find(entity_text)
+        if pos == -1:
+            return {
+                'entity': entity_text,
+                'before': '',
+                'after': '',
+                'full_context': text,
+                'found': False
+            }
+        
+        before_start = max(0, pos - window)
+        after_end = min(len(text), pos + len(entity_text) + window)
+        
+        return {
+            'entity': entity_text,
+            'position': pos,
+            'before': text[before_start:pos],
+            'after': text[pos + len(entity_text):after_end],
+            'full_context': text[before_start:after_end],
+            'found': True,
+            'has_more_before': before_start > 0,
+            'has_more_after': after_end < len(text)
+        }
+    
+    def _find_entity_for_text(self, text: str, entities: List[Dict]) -> Optional[Dict]:
+        """Find entity match for given text."""
+        for entity in entities:
+            if entity.get('text', '').lower() == text.lower():
+                return entity
+            if text.lower() in entity.get('text', '').lower():
+                return entity
+        return None
+    
+    def extract_concepts(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Extract key concepts from text using noun phrase patterns.
+        
+        Args:
+            text: Text to extract concepts from
+        
+        Returns:
+            List of concept dictionaries with text, frequency, and position
+        """
+        concept_patterns = [
+            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:is|are|was|were|refers? to|means?|involves?)\s+',
+            r'\bthe\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b',
+            r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+concept\b',
+        ]
+        
+        concepts = []
+        seen = {}
+        
+        for pattern in concept_patterns:
+            for match in re.finditer(pattern, text):
+                concept_text = match.group(1) if match.lastindex else match.group()
+                if concept_text.lower() not in seen:
+                    seen[concept_text.lower()] = True
+                    concepts.append({
+                        'text': concept_text,
+                        'start': match.start(),
+                        'end': match.end(),
+                        'frequency': 1,
+                        'context': self._get_context_window(text, match.start(), match.end())
+                    })
+                else:
+                    for c in concepts:
+                        if c['text'].lower() == concept_text.lower():
+                            c['frequency'] += 1
+                            break
+        
+        concepts.sort(key=lambda c: (c['frequency'], c['start']), reverse=True)
+        return concepts
+    
+    def analyze_sentiment_context(self, text: str) -> Dict[str, Any]:
+        """
+        Analyze sentiment around entities in text.
+        
+        Args:
+            text: Text to analyze
+        
+        Returns:
+            Dictionary with sentiment indicators and entity sentiments
+        """
+        positive_words = {'good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic', 'love', 'best', 'positive', 'success', 'хорош', 'отличн', 'прекрасн'}
+        negative_words = {'bad', 'terrible', 'awful', 'horrible', 'worst', 'hate', 'poor', 'negative', 'fail', 'плох', 'ужасн', 'отрицательн'}
+        
+        words = text.lower().split()
+        positive_count = sum(1 for w in words if any(p in w for p in positive_words))
+        negative_count = sum(1 for w in words if any(n in w for n in negative_words))
+        
+        total = positive_count + negative_count
+        sentiment_score = (positive_count - negative_count) / max(total, 1)
+        
+        return {
+            'overall_sentiment': 'positive' if sentiment_score > 0.1 else ('negative' if sentiment_score < -0.1 else 'neutral'),
+            'sentiment_score': sentiment_score,
+            'positive_indicators': positive_count,
+            'negative_indicators': negative_count,
+            'polarity': 'mixed' if (positive_count > 0 and negative_count > 0) else ('positive' if positive_count > 0 else ('negative' if negative_count > 0 else 'neutral'))
+        }
