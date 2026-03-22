@@ -343,30 +343,18 @@ class CoreBrain:
             self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
         
-        # Инициализация QwenModelManager как предпочтительной модели
+        # Инициализация QwenModelManager как предпочтительной модели (LAZY LOADING)
+        # Модель загружается только при первом запросе, не блокирует запуск
+        self.qwen_model_manager = None
+        self.qwen_ready = False
+        self._qwen_config = None
         try:
             model_config = self.config.get('model', {})
             if model_config.get('type') == 'qwen' or model_config.get('name', '').startswith('qwen'):
-                from ..mlearning.qwen_model_manager import QwenModelManager
-                
-                qwen_device = model_config.get('device', 'cuda')
-                qwen_quant = model_config.get('quantization') == 'int8'
-                
-                self.qwen_model_manager = QwenModelManager(
-                    model_size=model_config.get('name', 'qwen3.5-2b'),
-                    device=qwen_device,
-                    load_in_8bit=qwen_quant
-                )
-                
-                if self.qwen_model_manager.initialized:
-                    self.qwen_ready = True
-                    self.query_logger.info("QwenModelManager успешно инициализирован!")
-                else:
-                    self.qwen_model_manager = None
-                    self.query_logger.warning("QwenModelManager не удалось инициализировать")
-        except (ImportError, Exception) as e:
-            self.query_logger.debug(f"Ошибка импорта или инициализации QwenModelManager: {e}")
-            self.qwen_model_manager = None
+                self._qwen_config = model_config
+                self.query_logger.info("QwenModelManager будет загружен при первом запросе (lazy loading)")
+        except Exception as e:
+            self.query_logger.debug(f"Qwen config не найден: {e}")
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
         self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
@@ -864,7 +852,32 @@ class CoreBrain:
         
         # Уровень 0: QwenModelManager (приоритетная модель для диалогов)
         try:
-            if hasattr(self, 'qwen_model_manager') and self.qwen_model_manager and self.qwen_model_manager.initialized:
+            # Lazy loading - загружаем модель только при первом запросе
+            if self.qwen_model_manager is None and self._qwen_config is not None:
+                self.query_logger.info("Загрузка QwenModelManager (lazy)...")
+                try:
+                    from ..mlearning.qwen_model_manager import QwenModelManager
+                    
+                    qwen_device = self._qwen_config.get('device', 'cuda')
+                    qwen_quant = self._qwen_config.get('quantization') == 'int8'
+                    
+                    self.qwen_model_manager = QwenModelManager(
+                        model_size=self._qwen_config.get('name', 'qwen3.5-2b'),
+                        device=qwen_device,
+                        load_in_8bit=qwen_quant
+                    )
+                    
+                    if self.qwen_model_manager.initialized:
+                        self.qwen_ready = True
+                        self.query_logger.info("QwenModelManager успешно загружен!")
+                    else:
+                        self.qwen_model_manager = None
+                        self.query_logger.warning("QwenModelManager не инициализирован")
+                except Exception as e:
+                    self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
+                    self.qwen_model_manager = None
+            
+            if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
                 
                 # Используем chat format для Qwen
