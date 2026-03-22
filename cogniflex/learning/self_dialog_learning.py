@@ -118,6 +118,8 @@ class SelfDialogLearningSystem:
         self.running = True
         self.stop_event.clear()
         
+        self._cleanup_low_priority_opportunities()
+        
         self.worker_thread = threading.Thread(
             target=self._worker_loop,
             daemon=True,
@@ -140,6 +142,40 @@ class SelfDialogLearningSystem:
             self.worker_thread.join(timeout=5.0)
         
         logger.info("Система самообучения остановлена")
+    
+    def _cleanup_low_priority_opportunities(self):
+        """Очищает возможности с низким приоритетом при старте."""
+        if not self.brain:
+            return
+        
+        try:
+            analyzer_core = None
+            if hasattr(self.brain, 'self_analyzer') and self.brain.self_analyzer:
+                analyzer_core = getattr(self.brain.self_analyzer, 'analyzer_core', None)
+            elif hasattr(self.brain, 'analyzer_core'):
+                analyzer_core = self.brain.analyzer_core
+            
+            if analyzer_core:
+                try:
+                    conn = getattr(analyzer_core, 'db_path', None)
+                    if conn:
+                        import sqlite3
+                        db_conn = sqlite3.connect(conn)
+                        cursor = db_conn.cursor()
+                        cursor.execute('''
+                            UPDATE learning_opportunities 
+                            SET executed = 1, execution = ?, last_updated = ?
+                            WHERE priority < 0.3
+                        ''', (json.dumps({"skipped": True, "reason": "low_priority_startup"}), time.time()))
+                        deleted = cursor.rowcount
+                        db_conn.commit()
+                        db_conn.close()
+                        if deleted > 0:
+                            logger.info(f"Очищено {deleted} возможностей с низким приоритетом")
+                except Exception as e:
+                    logger.debug(f"Ошибка очистки низкоприоритетных возможностей: {e}")
+        except Exception as e:
+            logger.debug(f"Ошибка при очистке: {e}")
     
     def _worker_loop(self):
         """Основной рабочий цикл системы."""
@@ -240,6 +276,11 @@ class SelfDialogLearningSystem:
             opportunity_type = opportunity.get('opportunity_type', 'expansion')
             priority = opportunity.get('priority', 0.5)
             domain = opportunity.get('domain', 'general')
+            
+            if priority < 0.3:
+                logger.debug(f"Пропуск возможности с низким приоритетом: {concept} ({priority:.2f})")
+                self._mark_opportunity_executed(opportunity_id, {"skipped": True, "reason": "low_priority"})
+                return
             
             logger.info(f"Выполняется обучение: {concept} (тип: {opportunity_type}, приоритет: {priority:.2f})")
             
@@ -447,16 +488,25 @@ class SelfDialogLearningSystem:
     def _mark_in_analyzer_core(self, opportunity_id: str, result: Dict[str, Any]):
         """Отмечает возможность как выполненную в analyzer_core."""
         try:
-            conn = self.brain.analyzer_core._get_db_connection() if hasattr(self.brain.analyzer_core, '_get_db_connection') else None
-            if conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    UPDATE learning_opportunities 
-                    SET executed = 1, execution = ?, last_updated = ?
-                    WHERE id = ?
-                ''', (json.dumps(result), time.time(), opportunity_id))
-                conn.commit()
-                conn.close()
+            analyzer_core = None
+            if hasattr(self.brain, 'self_analyzer') and self.brain.self_analyzer:
+                analyzer_core = getattr(self.brain.self_analyzer, 'analyzer_core', None)
+            elif hasattr(self.brain, 'analyzer_core'):
+                analyzer_core = self.brain.analyzer_core
+            
+            if analyzer_core:
+                db_path = getattr(analyzer_core, 'db_path', None)
+                if db_path:
+                    import sqlite3
+                    conn = sqlite3.connect(db_path)
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        UPDATE learning_opportunities 
+                        SET executed = 1, execution = ?, last_updated = ?
+                        WHERE id = ?
+                    ''', (json.dumps(result), time.time(), opportunity_id))
+                    conn.commit()
+                    conn.close()
         except Exception:
             pass
     
