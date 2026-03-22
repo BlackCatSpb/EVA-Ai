@@ -30,6 +30,12 @@ except Exception:  # ImportError or any runtime import issue
     SentenceTransformer = None  # type: ignore
     SENTENCE_TRANSFORMERS_AVAILABLE = False
 
+# Singleton для sentence-transformers моделей
+try:
+    from cogniflex.mlearning.sentence_transformers_cache import get_sentence_transformer
+except ImportError:
+    get_sentence_transformer = None
+
 try:
     import torch  # type: ignore
     TORCH_AVAILABLE = True
@@ -57,14 +63,7 @@ class ContradictionDetector:
         """
         self.knowledge_graph = knowledge_graph
         self.nlp_model = nlp_model or self._init_nlp_model()
-        self.source_reputation_system = source_reputation_system
-        self.detection_threshold = detection_threshold
-        self.max_conflicting_facts = max_conflicting_facts
-        self.detected_contradictions = []
-        self.last_detection_time = 0
-        self.detection_history = []
-        self.active = True
-        
+
         # Инициализируем анализатор тональности и стоп-слова (безопасно)
         self.sentiment_analyzer = get_sentiment_analyzer()
         self.stop_words = get_stopwords(("english", "russian"))
@@ -75,6 +74,15 @@ class ContradictionDetector:
         """Инициализирует NLP-модель для анализа противоречий."""
         try:
             logger.info("Инициализация NLP-модели для обнаружения противоречий...")
+            
+            # Используем singleton для загрузки sentence-transformers модели
+            if get_sentence_transformer is not None:
+                model = get_sentence_transformer('paraphrase-multilingual-MiniLM-L12-v2')
+                if model is not None:
+                    logger.info("NLP-модель загружена через singleton")
+                    return model
+            
+            # Fallback на прямую загрузку
             if SENTENCE_TRANSFORMERS_AVAILABLE and SentenceTransformer is not None:
                 return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
             else:
@@ -87,7 +95,7 @@ class ContradictionDetector:
                     return np.random.rand(len(texts), 384)
             return DummyNLPModel()
     
-    def detect_contradictions(self, concept: Optional[str] = None, 
+    def detect_contradictions(self, concept: Optional[str] = None,
                             force: bool = False) -> List[Dict[str, Any]]:
         """
         Обнаруживает противоречия в знаниях системы.
@@ -1144,6 +1152,12 @@ except (ImportError, ModuleNotFoundError, RuntimeError) as e:
     torch = None  # type: ignore
     TORCH_AVAILABLE = False
 
+# Singleton для sentence-transformers моделей
+try:
+    from cogniflex.mlearning.sentence_transformers_cache import get_sentence_transformer
+except ImportError:
+    get_sentence_transformer = None
+
 logger = logging.getLogger("cogniflex.contradiction.detection")
 
 class ContradictionDetector:
@@ -1164,14 +1178,7 @@ class ContradictionDetector:
         """
         self.knowledge_graph = knowledge_graph
         self.nlp_model = nlp_model or self._init_nlp_model()
-        self.source_reputation_system = source_reputation_system
-        self.detection_threshold = detection_threshold
-        self.max_conflicting_facts = max_conflicting_facts
-        self.detected_contradictions = []
-        self.last_detection_time = 0
-        self.detection_history = []
-        self.active = True
-        
+
         # Инициализируем анализатор тональности и стоп-слова (безопасно)
         self.sentiment_analyzer = get_sentiment_analyzer()
         self.stop_words = get_stopwords(("english", "russian"))
@@ -1182,6 +1189,15 @@ class ContradictionDetector:
         """Инициализирует NLP-модель для анализа противоречий."""
         try:
             logger.info("Инициализация NLP-модели для обнаружения противоречий...")
+            
+            # Используем singleton для загрузки sentence-transformers модели
+            if get_sentence_transformer is not None:
+                model = get_sentence_transformer('paraphrase-multilingual-MiniLM-L12-v2')
+                if model is not None:
+                    logger.info("NLP-модель загружена через singleton")
+                    return model
+            
+            # Fallback на прямую загрузку
             if SENTENCE_TRANSFORMERS_AVAILABLE and SentenceTransformer is not None:
                 return SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
             else:
@@ -1194,7 +1210,7 @@ class ContradictionDetector:
                     return np.random.rand(len(texts), 384)
             return DummyNLPModel()
     
-    def detect_contradictions(self, concept: Optional[str] = None, 
+    def detect_contradictions(self, concept: Optional[str] = None,
                             force: bool = False) -> List[Dict[str, Any]]:
         """
         Обнаруживает противоречия в знаниях системы.

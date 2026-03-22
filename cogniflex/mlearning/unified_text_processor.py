@@ -52,6 +52,12 @@ else:
     SentenceTransformer = None
     logger.info("SentenceTransformer disabled by configuration")
 
+# Импортируем singleton для кэширования sentence-transformers моделей
+try:
+    from cogniflex.mlearning.sentence_transformers_cache import get_sentence_transformer
+except ImportError:
+    get_sentence_transformer = None
+
 from transformers import pipeline
 
 # Попытка загрузить необходимые ресурсы NLTK (offline-safe)
@@ -187,28 +193,44 @@ class UnifiedTextProcessor(BaseComponent):
         if is_embedding_loading_disabled():
             logger.info("Загрузка эмбеддингов отключена конфигурацией")
             self.embedding_model = None
+            self.embedder = None
             return
             
         try:
-            if SentenceTransformer is not None:
-                # Проверяем наличие локальных моделей
-                # Use HuggingFace model name directly
-                logger.info(f"Загружаем модель эмбеддингов: {self.model_name}")
+            device = "cuda" if self.use_gpu else "cpu"
+            
+            # Используем singleton для загрузки sentence-transformers модели
+            if get_sentence_transformer is not None:
+                logger.info(f"Загружаем модель эмбеддингов через singleton (устройство: {device})")
+                self.embedding_model = get_sentence_transformer(self.model_name, device=device)
+                self.embedder = self.embedding_model
+                if self.embedding_model is not None:
+                    logger.info("Модель эмбеддингов загружена успешно (через singleton)")
+                else:
+                    logger.warning("Не удалось загрузить модель эмбеддингов через singleton")
+            elif SentenceTransformer is not None:
+                # Fallback - прямая загрузка без singleton
+                logger.info(f"Загружаем модель эмбеддингов напрямую: {self.model_name}")
                 try:
                     self.embedding_model = SentenceTransformer(
                         self.model_name,
-                        device='cpu'
+                        device=device
                     )
+                    self.embedder = self.embedding_model
                     logger.info("Модель эмбеддингов загружена успешно")
                 except Exception as e:
                     logger.warning(f"Ошибка загрузки модели эмбеддингов: {e}")
                     self.embedding_model = None
+                    self.embedder = None
             else:
                 logger.warning("SentenceTransformer не доступен. Функции эмбеддингов отключены.")
+                self.embedding_model = None
+                self.embedder = None
                 
         except Exception as e:
             logger.error(f"Ошибка при загрузке модели эмбеддингов: {e}", exc_info=True)
             self.embedding_model = None
+            self.embedder = None
             try:
                 self.nlp = spacy.load("ru_core_news_sm", disable=["parser", "ner", "textcat"])
                 logger.debug("Русская SpaCy модель загружена")
@@ -219,24 +241,6 @@ class UnifiedTextProcessor(BaseComponent):
                 except Exception as e2:
                     logger.warning(f"Не удалось загрузить SpaCy модель: {e}")
                     self.nlp = None
-            
-            # Загрузка модели эмбеддингов
-            if is_embedding_loading_disabled():
-                logger.info("Загрузка эмбеддингов отключена конфигурацией")
-                self.embedder = None
-            else:
-                try:
-                    device = "cuda" if self.use_gpu else "cpu"
-                    if SentenceTransformer is not None:
-                        # Use HuggingFace model name directly
-                        self.embedder = SentenceTransformer(self.model_name, device=device)
-                        logger.info(f"Модель эмбеддингов '{self.model_name}' загружена с {device}")
-                    else:
-                        self.embedder = None
-                        logger.info("sentence_transformers не установлен; пропускаем загрузку embedder")
-                except Exception as e:
-                    logger.warning(f"Не удалось загрузить модель эмбеддингов: {e}")
-                    self.embedder = None
             
             # Определяем размерность эмбеддинга
             try:

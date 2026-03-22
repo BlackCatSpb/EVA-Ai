@@ -16,7 +16,7 @@
   "model": {
     "name": "qwen3.5-2b",
     "type": "qwen",
-    "path": "C:\\Users\\black\\OneDrive\\Desktop\\CogniFlex\\cogniflex\\mlearning\\cogniflex_models\\qwen3.5-2b",
+    "path": "cogniflex/mlearning/cogniflex_models/qwen3.5-2b",
     "vocab_size": 151936,
     "max_length": 32768,
     "device": "cuda:0",

@@ -100,6 +100,10 @@ class CoreBrain:
         """Инициализирует ядро CogniFlex."""
         logger.debug("Инициализация CogniFlexCore...")
         
+        # Если конфигурация не передана, загружаем из brain_config.json
+        if config is None:
+            config = self._load_brain_config()
+        
         # Создаем специальный логгер для обработки запросов
         self.query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
         self.query_logger.info("Инициализирован логгер обработки запросов")
@@ -335,10 +339,11 @@ class CoreBrain:
         # Инициализация FractalModelManager для загрузки модели из фрактального хранилища
         try:
             from ..mlearning.fractal_model_manager import FractalModelManager
-            # Указываем правильный путь к модели
-            model_path = "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model"
+            # Динамически определяем путь относительно расположения brain_config.json или текущей директории
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            model_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
-            self.query_logger.debug("FractalModelManager инициализирован с путем: {}".format(model_path))
+            self.query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
         except (ImportError, Exception) as e:
             self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
@@ -350,11 +355,16 @@ class CoreBrain:
         self._qwen_config = None
         try:
             model_config = self.config.get('model', {})
-            if model_config.get('type') == 'qwen' or model_config.get('name', '').startswith('qwen'):
+            model_type = model_config.get('type', '')
+            model_name = model_config.get('name', '')
+            
+            if model_type == 'qwen' or model_name.startswith('qwen'):
                 self._qwen_config = model_config
-                self.query_logger.info("QwenModelManager будет загружен при первом запросе (lazy loading)")
+                self.query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
+            else:
+                self.query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'. Ожидается type='qwen' или name начинающееся с 'qwen'")
         except Exception as e:
-            self.query_logger.debug(f"Qwen config не найден: {e}")
+            self.query_logger.warning(f"Qwen config не найден: {e}")
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
         self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
@@ -628,6 +638,31 @@ class CoreBrain:
             self.query_logger.error(f"Ошибка инициализации ядра за {error_time:.4f} сек: {e}", exc_info=True)
             self.metrics_manager.record_error("core_initialization_failed")
             return False
+    
+    def _load_brain_config(self) -> Dict[str, Any]:
+        """Загружает конфигурацию из brain_config.json."""
+        import json
+        
+        # Ищем файл в нескольких местах
+        possible_paths = [
+            "brain_config.json",
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), "brain_config.json"),
+            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "brain_config.json"),
+        ]
+        
+        for config_path in possible_paths:
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    logger.info(f"Конфигурация загружена из {config_path}")
+                    self.query_logger.info(f"Загружена конфигурация из {config_path}")
+                    return config
+                except Exception as e:
+                    logger.warning(f"Ошибка загрузки {config_path}: {e}")
+        
+        logger.warning("brain_config.json не найден, используется пустая конфигурация")
+        return {}
     
     def _get_system_info(self) -> Dict[str, Any]:
         """Возвращает информацию о системе для логгирования."""
