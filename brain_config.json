@@ -14,21 +14,22 @@
     "gpu_memory_fraction": 0.4
   },
   "model": {
-    "name": "rugpt3small",
-    "path": "C:\\Users\\black\\OneDrive\\Desktop\\CogniFlex\\cogniflex\\core\\cogniflex_cache\\ml_unit\\fractal_storage\\models\\rugpt3_small_fractal",
-    "vocab_size": 50264,
-    "max_length": 2048,
-    "device": "cuda:0"
+    "name": "qwen3.5-2b",
+    "type": "qwen",
+    "path": "C:\\Users\\black\\OneDrive\\Desktop\\CogniFlex\\cogniflex\\mlearning\\cogniflex_models\\qwen3.5-2b",
+    "vocab_size": 151936,
+    "max_length": 32768,
+    "device": "cuda:0",
+    "quantization": "int8"
   },
   "generation": {
-    "temperature": 0.3,
-    "top_p": 0.8,
-    "top_k": 30,
-    "max_new_tokens": 150,
-    "do_sample": false,
-    "repetition_penalty": 2.0,
-    "no_repeat_ngram_size": 3,
-    "pad_token_id": 50256
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 50,
+    "max_new_tokens": 512,
+    "do_sample": true,
+    "repetition_penalty": 1.1,
+    "pad_token_id": 151643
   },
   "optimization": {
     "use_gpu": true,

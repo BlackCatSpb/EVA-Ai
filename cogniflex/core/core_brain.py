@@ -330,6 +330,7 @@ class CoreBrain:
             self.query_logger.warning(f"Ошибка импорта гибридного кэша: {e}")
         
         self.fractal_ready = False  # Флаг готовности фрактальной модели
+        self.qwen_ready = False  # Флаг готовности Qwen модели
         
         # Инициализация FractalModelManager для загрузки модели из фрактального хранилища
         try:
@@ -341,6 +342,31 @@ class CoreBrain:
         except (ImportError, Exception) as e:
             self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
+        
+        # Инициализация QwenModelManager как предпочтительной модели
+        try:
+            model_config = self.config.get('model', {})
+            if model_config.get('type') == 'qwen' or model_config.get('name', '').startswith('qwen'):
+                from ..mlearning.qwen_model_manager import QwenModelManager
+                
+                qwen_device = model_config.get('device', 'cuda')
+                qwen_quant = model_config.get('quantization') == 'int8'
+                
+                self.qwen_model_manager = QwenModelManager(
+                    model_size=model_config.get('name', 'qwen3.5-2b'),
+                    device=qwen_device,
+                    load_in_8bit=qwen_quant
+                )
+                
+                if self.qwen_model_manager.initialized:
+                    self.qwen_ready = True
+                    self.query_logger.info("QwenModelManager успешно инициализирован!")
+                else:
+                    self.qwen_model_manager = None
+                    self.query_logger.warning("QwenModelManager не удалось инициализировать")
+        except (ImportError, Exception) as e:
+            self.query_logger.debug(f"Ошибка импорта или инициализации QwenModelManager: {e}")
+            self.qwen_model_manager = None
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
         self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
@@ -835,6 +861,34 @@ class CoreBrain:
                 "fallback_level": 0,
                 "processing_time": time.time() - start_time
             }
+        
+        # Уровень 0: QwenModelManager (приоритетная модель для диалогов)
+        try:
+            if hasattr(self, 'qwen_model_manager') and self.qwen_model_manager and self.qwen_model_manager.initialized:
+                self.query_logger.info("Используем QwenModelManager для генерации")
+                
+                # Используем chat format для Qwen
+                messages = [{"role": "user", "content": query}]
+                response_text = self.qwen_model_manager.generate(
+                    messages,
+                    max_new_tokens=256,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.1
+                )
+                
+                if response_text and not response_text.startswith("Ошибка"):
+                    return {
+                        "response": response_text,
+                        "text": response_text,
+                        "status": "ok",
+                        "confidence": 0.9,
+                        "source": "qwen_model",
+                        "fallback_level": 0,
+                        "processing_time": time.time() - start_time
+                    }
+        except Exception as e:
+            self.query_logger.warning(f"QwenModelManager недоступен: {e}")
         
         # Проверяем наличие reasoning_engine и используем его для генерации с рассуждением
         if hasattr(self, 'reasoning_engine') and self.reasoning_engine:

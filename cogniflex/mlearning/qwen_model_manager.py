@@ -87,6 +87,51 @@ QWEN_MODELS = {
 }
 
 
+def get_qwen_model_path() -> str:
+    """Возвращает путь к локальной модели Qwen"""
+    # Определяем корень проекта
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(os.path.dirname(current_dir))
+    
+    # Путь к локальной модели
+    local_path = os.path.join(
+        project_root, 
+        "cogniflex", 
+        "mlearning", 
+        "cogniflex_models", 
+        "qwen3.5-2b"
+    )
+    
+    # Также проверяем альтернативные пути
+    alternative_paths = [
+        os.path.join(project_root, "cogniflex_models", "qwen3.5-2b"),
+        os.path.join(project_root, "qwen3.5-2b"),
+        os.path.join(os.getcwd(), "cogniflex_models", "qwen3.5-2b"),
+    ]
+    
+    for alt_path in alternative_paths:
+        if os.path.exists(alt_path) and os.listdir(alt_path):
+            return alt_path
+    
+    return local_path
+
+
+def is_qwen_available() -> bool:
+    """Проверяет доступность локальной модели Qwen"""
+    model_path = get_qwen_model_path()
+    required_files = ["config.json", "model.safetensors"]
+    
+    if not os.path.exists(model_path):
+        return False
+    
+    # Проверяем наличие хотя бы одного файла модели
+    for f in os.listdir(model_path):
+        if f.endswith(('.safetensors', '.bin', '.pt')):
+            return True
+    
+    return False
+
+
 class QwenModelManager:
     """
     Менеджер для работы с моделями Qwen3.5
@@ -95,12 +140,13 @@ class QwenModelManager:
     
     def __init__(
         self, 
-        model_size: str = "qwen3.5-3b",
+        model_size: str = "qwen3.5-2b",
         device: str = "auto",
         cache_dir: Optional[str] = None,
         quantize: bool = True,
         load_in_8bit: bool = False,
-        load_in_4bit: bool = False
+        load_in_4bit: bool = False,
+        local_model_path: Optional[str] = None
     ):
         """
         Инициализация Qwen Model Manager
@@ -112,6 +158,7 @@ class QwenModelManager:
             quantize: Использовать квантизацию
             load_in_8bit: Загрузить в 8-bit
             load_in_4bit: Загрузить в 4-bit (требует bitsandbytes)
+            local_model_path: Путь к локальной модели (если есть)
         """
         self.model_size = model_size.lower()
         self.device = self._get_device(device)
@@ -119,6 +166,7 @@ class QwenModelManager:
         self.quantize = quantize
         self.load_in_8bit = load_in_8bit
         self.load_in_4bit = load_in_4bit
+        self.local_model_path = local_model_path or get_qwen_model_path()
         
         self.model = None
         self.tokenizer = None
@@ -128,6 +176,7 @@ class QwenModelManager:
         os.makedirs(self.cache_dir, exist_ok=True)
         
         logger.info(f"QwenModelManager инициализирован: {model_size}, device={self.device}")
+        logger.info(f"Локальная модель: {self.local_model_path}")
         
         self._initialize_model()
     
@@ -141,14 +190,19 @@ class QwenModelManager:
         """Загружает модель и токенизатор"""
         try:
             if self.model_size not in QWEN_MODELS:
-                logger.warning(f"Модель {self.model_size} не найдена, используем qwen3.5-3b")
-                self.model_size = "qwen3.5-3b"
+                logger.warning(f"Модель {self.model_size} не найдена, используем qwen3.5-2b")
+                self.model_size = "qwen3.5-2b"
             
             model_info = QWEN_MODELS[self.model_size]
-            model_name = model_info["name"]
+            model_source = model_info["name"]
             
-            logger.info(f"Загрузка модели: {model_name}")
-            logger.info(f"Параметры: {model_info['params']}, RAM: {model_info['ram_fp16']}")
+            # Проверяем локальную модель
+            if os.path.exists(self.local_model_path) and os.listdir(self.local_model_path):
+                logger.info(f"Загрузка локальной модели из: {self.local_model_path}")
+                model_source = self.local_model_path
+            else:
+                logger.info(f"Загрузка модели с HuggingFace: {model_source}")
+                logger.info(f"Параметры: {model_info['params']}, RAM: {model_info['ram_fp16']}")
             
             # Настройки загрузки
             load_kwargs = {
@@ -158,7 +212,7 @@ class QwenModelManager:
                 "torch_dtype": torch.float16 if self.device == "cpu" else torch.float32,
             }
             
-            # Квантизация
+            # Квантизация для экономии памяти
             if self.load_in_4bit:
                 try:
                     from transformers import BitsAndBytesConfig
@@ -180,7 +234,7 @@ class QwenModelManager:
             # Загрузка токенизатора
             logger.info("Загрузка токенизатора...")
             self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
+                model_source,
                 trust_remote_code=True,
                 cache_dir=self.cache_dir
             )
@@ -191,7 +245,7 @@ class QwenModelManager:
             # Загрузка модели
             logger.info("Загрузка модели (может занять несколько минут)...")
             self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
+                model_source,
                 **load_kwargs
             )
             
@@ -199,14 +253,18 @@ class QwenModelManager:
                 self.model = self.model.to(torch.float16)
             
             # Конфигурация генерации
-            self.generation_config = GenerationConfig.from_pretrained(
-                model_name,
-                trust_remote_code=True,
-                cache_dir=self.cache_dir
-            )
+            try:
+                self.generation_config = GenerationConfig.from_pretrained(
+                    model_source,
+                    trust_remote_code=True,
+                    cache_dir=self.cache_dir
+                )
+            except Exception:
+                logger.warning("Не удалось загрузить generation_config, используем значения по умолчанию")
+                self.generation_config = None
             
             self.initialized = True
-            logger.info(f"✓ Модель {model_name} успешно загружена!")
+            logger.info(f"✓ Модель {model_source} успешно загружена!")
             logger.info(f"  Устройство: {self.device}")
             logger.info(f"  Параметров: {model_info['params']}")
             
@@ -222,18 +280,20 @@ class QwenModelManager:
         top_p: float = 0.9,
         top_k: int = 50,
         repetition_penalty: float = 1.1,
+        do_sample: bool = True,
         **kwargs
     ) -> str:
         """
         Генерирует текст на основе промпта
         
         Args:
-            prompt: Входной текст
+            prompt: Входной текст (может быть простым текстом или списком сообщений)
             max_new_tokens: Максимум новых токенов
             temperature: Температура (0-2)
             top_p: Nucleus sampling
             top_k: Top-k sampling
             repetition_penalty: Штраф за повторения
+            do_sample: Использовать сэмплирование
             
         Returns:
             Сгенерированный текст
@@ -242,10 +302,14 @@ class QwenModelManager:
             return "Ошибка: модель не инициализирована"
         
         try:
+            # Поддержка списка сообщений для чата
+            if isinstance(prompt, list):
+                prompt = self._format_chat(prompt)
+            
             inputs = self.tokenizer(prompt, return_tensors="pt")
             
             # Переносим на устройство
-            if self.device == "cpu" or torch.cuda.is_available():
+            if self.model is not None:
                 inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
             
             generation_kwargs = {
@@ -254,9 +318,9 @@ class QwenModelManager:
                 "top_p": top_p,
                 "top_k": top_k,
                 "repetition_penalty": repetition_penalty,
-                "do_sample": temperature > 0,
-                "pad_token_id": self.tokenizer.pad_token_id,
-                "eos_token_id": self.tokenizer.eos_token_id,
+                "do_sample": do_sample and temperature > 0,
+                "pad_token_id": self.tokenizer.pad_token_id or 0,
+                "eos_token_id": self.tokenizer.eos_token_id or 2,
             }
             
             outputs = self.model.generate(
@@ -269,6 +333,9 @@ class QwenModelManager:
                 outputs[0][inputs["input_ids"].shape[1]:],
                 skip_special_tokens=True
             )
+            
+            # Очищаем от специальных токенов
+            generated_text = generated_text.replace("<|im_end|>", "").strip()
             
             return generated_text.strip()
             
@@ -298,17 +365,32 @@ class QwenModelManager:
             return f"Ошибка: {str(e)}"
     
     def _format_chat(self, messages: List[Dict[str, str]]) -> str:
-        """Форматирует сообщения для модели"""
+        """Форматирует сообщения для модели с использованием chat template"""
+        try:
+            # Пробуем использовать встроенный chat template (Qwen 2.5+)
+            if hasattr(self.tokenizer, 'apply_chat_template'):
+                return self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True
+                )
+        except Exception as e:
+            logger.debug(f"Chat template не доступен: {e}")
+        
+        # Fallback: ручное форматирование
         text = ""
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             if role == "system":
-                text += f"System: {content}\n\n"
+                text += f"<|im_start|>system\n{content}<|im_end|>\n"
             elif role == "user":
-                text += f"User: {content}\n\n"
+                text += f"<|im_start|>user\n{content}<|im_end|>\n"
             elif role == "assistant":
-                text += f"Assistant: {content}\n\n"
+                text += f"<|im_start|>assistant\n{content}<|im_end|>\n"
+        
+        # Добавляем промпт для генерации
+        text += "<|im_start|>assistant\n"
         return text
     
     def get_info(self) -> Dict[str, Any]:

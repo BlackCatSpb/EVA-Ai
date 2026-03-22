@@ -15,6 +15,9 @@ from .tokenization_fractal import ExtendedFractalTokenizer
 from .neuromorphic_memory import NeuromorphicMemoryLayer
 from .fractal_trainer import FractalKnowledgeTrainer
 
+# Qwen model support
+from .qwen_model_manager import QwenModelManager, QWEN_MODELS, get_qwen_model_path, is_qwen_available
+
 __all__ = [
     # Existing components
     "ModelManager",
@@ -28,6 +31,12 @@ __all__ = [
     "NeuromorphicMemoryLayer",
     "FractalKnowledgeTrainer",
     "storage",
+    
+    # Qwen model
+    "QwenModelManager",
+    "QWEN_MODELS",
+    "get_qwen_model_path",
+    "is_qwen_available",
 ]
 
 # Оптимизированные менеджеры
