@@ -226,10 +226,10 @@ class GenerationCoordinator:
     def generate_response(
         self,
         prompt: str,
-        max_new_tokens: int = 100,
-        temperature: float = 0.8,
-        top_k: int = 40,
-        top_p: float = 0.95,
+        max_new_tokens: int = 150,
+        temperature: float = 0.3,
+        top_k: int = 30,
+        top_p: float = 0.8,
         repetition_penalty: float = 2.0,
         num_return_sequences: int = 1,
         use_cache: bool = True,
@@ -466,11 +466,11 @@ def main():
         result = coordinator.generate_response(
             prompt=prompt,
             max_new_tokens=1000,  # Увеличили лимит токенов
-            temperature=0.7,
-            top_p=0.9,
-            top_k=50,
+            temperature=0.3,
+            top_p=0.8,
+            top_k=30,
             use_cache=True,
-            do_sample=True,
+            do_sample=False,  # Отключено для стабильности
             num_beams=2  # Используем beam search для более качественной генерации
         )
         

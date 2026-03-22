@@ -21,11 +21,13 @@
     "device": "cuda:0"
   },
   "generation": {
-    "temperature": 0.7,
-    "top_p": 0.9,
-    "top_k": 50,
-    "max_new_tokens": 100,
-    "do_sample": true,
+    "temperature": 0.3,
+    "top_p": 0.8,
+    "top_k": 30,
+    "max_new_tokens": 150,
+    "do_sample": false,
+    "repetition_penalty": 2.0,
+    "no_repeat_ngram_size": 3,
     "pad_token_id": 50256
   },
   "optimization": {
