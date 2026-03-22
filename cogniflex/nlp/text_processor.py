@@ -3,6 +3,7 @@
 
 Содержит класс TextProcessor, который предоставляет функциональность
 для токенизации, нормализации и предобработки текста.
+Теперь использует Qwen3.5-2B токенизатор.
 """
 
 import re
@@ -15,15 +16,33 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 logger = logging.getLogger(__name__)
 
+
+def _get_project_root() -> str:
+    """Возвращает корневую директорию проекта"""
+    possible_roots = []
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))
+    possible_roots.append(os.path.dirname(current_dir))
+    
+    drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+    username = os.environ.get('USERNAME', 'user')
+    onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex')
+    if os.path.exists(os.path.join(onedrive_path, 'cogniflex')):
+        return onedrive_path
+    
+    return os.getcwd()
+
+
 class TextProcessor:
     """Класс для обработки текста с поддержкой различных токенизаторов.
     
     Предоставляет унифицированный интерфейс для работы с разными токенизаторами
-    и выполняет предобработку текста.
+    и выполняет предобработку текста. Теперь использует Qwen3.5-2B.
     """
     
     def __init__(self, 
-                 model_name: str = "rugpt3_small_fractal",
+                 model_name: str = "qwen3.5-2b",
                  **tokenizer_kwargs):
         """Инициализация процессора текста.
         
@@ -33,7 +52,7 @@ class TextProcessor:
         """
         self.model_name = model_name
         self.tokenizer_kwargs = {
-            'max_length': 2048,  # Увеличено с 512 до 2048
+            'max_length': 2048,
             'truncation': True,
             'padding': 'max_length',
             'return_tensors': 'pt',
@@ -41,15 +60,11 @@ class TextProcessor:
             **tokenizer_kwargs
         }
         
-        # Определяем путь к локальному токенизатору
-        if model_name == "rugpt3_small_fractal":
-            # Используем функцию определения корня проекта вместо os.getcwd()
-            from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
-            project_root = LocalRuGPT3Loader._get_project_root()
-            # ВАЖНО: vocab.json находится в models/rugpt3_small_fractal/, НЕ в model/
-            self.tokenizer_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal")
+        project_root = _get_project_root()
+        
+        if model_name == "qwen3.5-2b":
+            self.tokenizer_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
         elif os.path.isdir(model_name):
-            # Если model_name - это путь к директории, используем его напрямую
             self.tokenizer_path = model_name
         else:
             self.tokenizer_path = model_name
@@ -67,21 +82,9 @@ class TextProcessor:
     def _initialize_tokenizer(self):
         """Инициализирует токенизатор с указанными параметрами."""
         try:
-            # Сначала пробуем через Localrugpt3largeLoader
-            try:
-                from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
-                loader = LocalRuGPT3Loader(storage_path=self.tokenizer_path)
-                self._tokenizer = loader.create_tokenizer()
-                if self._tokenizer:
-                    logger.info(f"Токенизатор успешно загружен через Localrugpt3largeLoader из: {self.tokenizer_path}")
-                    return
-            except Exception as fallback_error:
-                logger.warning(f"Localrugpt3largeLoader не удался: {fallback_error}")
-            
-            # Если Localrugpt3largeLoader не сработал, пробуем AutoTokenizer с абсолютным путем
             init_params = {
-                'local_files_only': True,  # Принудительно только локальные файлы
-                'use_fast': False,  # Используем медленную но более совместимую версию
+                'local_files_only': True,
+                'use_fast': False,
             }
             
             logger.info(f"Пробуем загрузить токенизатор из: {self.tokenizer_path}")
@@ -93,7 +96,6 @@ class TextProcessor:
             
         except Exception as e:
             logger.error(f"Не удалось загрузить токенизатор {self.tokenizer_path}: {str(e)}")
-            # В случае ошибки создаем базовый токенизатор
             try:
                 from transformers import GPT2Tokenizer
                 self._tokenizer = GPT2Tokenizer.from_pretrained('gpt2')

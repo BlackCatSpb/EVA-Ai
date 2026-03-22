@@ -120,50 +120,31 @@ class HybridModelManager:
         logger.info(f"HybridModelManager инициализирован: VRAM={max_vram_gb}GB, SSD={max_ssd_gb}GB")
     
     def initialize(self) -> bool:
-        """Инициализирует гибридный менеджер"""
+        """Инициализирует гибридный менеджер - теперь использует Qwen3.5-2B"""
         try:
             with self._lock:
-                # Регистрируем основную модель по умолчанию
                 project_root = _get_project_root()
-                model_dir = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+                qwen_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
+                
                 success = self.register_model(
-                    model_name="rugpt3_small_fractal",
-                    model_path=model_dir,
-                    tokenizer_path=model_dir,  # Теперь токенизатор в той же директории
-                    priority=1  # Высокий приоритет
+                    model_name="qwen3.5-2b",
+                    model_path=qwen_path,
+                    tokenizer_path=qwen_path,
+                    priority=1
                 )
                 
                 if success:
-                    # Загружаем токенизатор
-                    tokenizer_success = self.load_tokenizer(
-                        "rugpt3_small_fractal",
-                        model_dir  # Используем ту же директорию
-                    )
+                    tokenizer_success = self.load_tokenizer("qwen3.5-2b", qwen_path)
                     
                     if not tokenizer_success:
-                        logger.warning("Не удалось загрузить токенизатор, пробуем альтернативные пути...")
-                        # Пробуем альтернативные пути - важно: модель в подпапке model/
-                        alt_paths = [
-                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
-                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
-                            "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizer/rugpt3_small_fractal"
-                        ]
-                        
-                        for alt_path in alt_paths:
-                            logger.info(f"Пробуем альтернативный путь: {alt_path}")
-                            if self.load_tokenizer("rugpt3_small_fractal", alt_path):
-                                tokenizer_success = True
-                                break
-                    
-                    if not tokenizer_success:
-                        logger.error("Не удалось загрузить локальный токенизатор")
+                        logger.warning("Не удалось загрузить токенизатор Qwen")
                         return False
                     
                     self.initialized = True
-                    logger.info("HybridModelManager успешно инициализирован")
+                    logger.info("HybridModelManager успешно инициализирован с Qwen3.5-2B")
                     return True
                 else:
-                    logger.error("Не удалось зарегистрировать модель по умолчанию")
+                    logger.error("Не удалось зарегистрировать модель Qwen")
                     return False
                     
         except Exception as e:
@@ -266,25 +247,25 @@ class HybridModelManager:
     def load_tokenizer(self, model_name: str, tokenizer_path: str) -> bool:
         """Загружает токенизатор (может быть несколько одновременно)"""
         try:
+            from transformers import AutoTokenizer
+            
             with self._lock:
                 if model_name in self.tokenizers:
                     logger.debug(f"Токенизатор {model_name} уже загружен")
                     return True
                 
                 # Используем абсолютный путь
-                import os
                 if not os.path.isabs(tokenizer_path):
                     project_root = _get_project_root()
                     tokenizer_path = os.path.join(project_root, tokenizer_path)
                 
                 logger.info(f"Загружаем токенизатор из: {tokenizer_path}")
                 
-                # Импортируем локальный загрузчик
-                from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
-                
-                # Создаем загрузчик
-                loader = LocalRuGPT3Loader(storage_path=tokenizer_path)
-                tokenizer = loader.create_tokenizer()
+                tokenizer = AutoTokenizer.from_pretrained(
+                    tokenizer_path,
+                    local_files_only=True,
+                    trust_remote_code=False
+                )
                 
                 if tokenizer:
                     self.tokenizers[model_name] = tokenizer
@@ -366,30 +347,9 @@ class HybridModelManager:
         return size_gb <= available_vram * 0.8  # 80% для безопасности
     
     def _load_model_to_window(self, window: ModelWindow, device: str) -> bool:
-        """Загружает модель в окно"""
-        try:
-            # Импортируем локальный загрузчик
-            from cogniflex.mlearning.local_rugpt3_loader import LocalRuGPT3Loader
-            
-            # Создаем загрузчик
-            loader = LocalRuGPT3Loader()
-            model = loader.create_model(device=device)
-            
-            if model:
-                window.model = model
-                window.device = device
-                
-                # Очищаем CUDA кэш если нужно
-                if device == "cuda":
-                    torch.cuda.empty_cache()
-                
-                return True
-            else:
-                return False
-                
-        except Exception as e:
-            logger.error(f"Ошибка загрузки модели в окно: {e}")
-            return False
+        """Загружает модель в окно - теперь через QwenModelManager"""
+        logger.info("Текстовая генерация теперь через QwenModelManager, не HybridModelManager")
+        return False
     
     def generate_response(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """

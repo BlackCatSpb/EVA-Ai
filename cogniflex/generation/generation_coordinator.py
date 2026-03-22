@@ -3,7 +3,7 @@ import time
 import torch
 import logging
 from typing import List, Dict, Any, Optional, Tuple
-from transformers import GPT2LMHeadModel, AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig
 
 # Relative imports
 from ..memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
@@ -14,10 +14,31 @@ from ..memory.disk_cache import DiskCache
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def _get_project_root() -> str:
+    """Возвращает корневую директорию проекта"""
+    possible_roots = []
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))
+    possible_roots.append(os.path.dirname(current_dir))
+    
+    for root in possible_roots:
+        if os.path.exists(os.path.join(root, 'cogniflex')):
+            return root
+    
+    drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
+    username = os.environ.get('USERNAME', 'user')
+    onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'CogniFlex')
+    if os.path.exists(os.path.join(onedrive_path, 'cogniflex')):
+        return onedrive_path
+    
+    return os.getcwd()
+
 class GenerationCoordinator:
     def __init__(
         self,
-        model_name: str = "sberbank-ai/rugpt3large_based_on_gpt2",
+        model_name: str = "qwen3.5-2b",
         num_workers: int = 4,
         cache_dir: str = "./cache",
         max_cache_size_gb: int = 50,
@@ -48,45 +69,38 @@ class GenerationCoordinator:
         self.model = None
         self.model_config = None
         
-        # Инициализация токенизатора с использованием ruGPT-3 Large из фрактального хранилища
+        # Инициализация токенизатора с использованием Qwen3.5-2B
         try:
-            # Проверяем наличие ruGPT-3 Large во фрактальном хранилище
-            # ВАЖНО: модель находится в models/rugpt3_small_fractal/model/
+            # Проверяем наличие Qwen3.5-2B
+            project_root = _get_project_root()
             possible_paths = [
-                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
-                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
-                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal',
-                'cogniflex/mlearning/cogniflex_models/fractal_unified_text-generation',
+                os.path.join(project_root, 'cogniflex', 'mlearning', 'cogniflex_models', 'qwen3.5-2b'),
+                'cogniflex/mlearning/cogniflex_models/qwen3.5-2b',
             ]
             
             local_model_path = None
             for path in possible_paths:
                 if os.path.exists(path):
                     local_model_path = path
-                    logger.info(f"Найдена модель по пути: {os.path.abspath(path)}")
+                    logger.info(f"Найден Qwen3.5-2B по пути: {os.path.abspath(path)}")
                     break
             
             if not local_model_path:
-                raise FileNotFoundError(f"Локальная модель не найдена. Проверенные пути:\n" + 
+                raise FileNotFoundError(f"Локальная модель Qwen не найдена. Проверенные пути:\n" + 
                                     "\n".join(f"  - {os.path.abspath(p)}" for p in possible_paths))
             
-            logger.info(f"Используем модель: {os.path.abspath(local_model_path)}")
+            logger.info(f"Используем Qwen модель: {os.path.abspath(local_model_path)}")
                 
             self.tokenizer = AutoTokenizer.from_pretrained(
                 local_model_path,
                 local_files_only=True,
                 trust_remote_code=False
             )
-            logger.info(f"Токенизатор успешно загружен из: {local_model_path}")
-            
-            # Обновляем имя модели для соответствия ruGPT-3 Small
-            if 'rugpt3_small' in local_model_path:
-                self.model_name = 'sberbank-ai/rugpt3small_based_on_gpt2'
-                logger.info(f"Обновлено имя модели на: {self.model_name}")
+            logger.info(f"Qwen токенизатор успешно загружен из: {local_model_path}")
             
         except Exception as e:
             logger.error(f"Ошибка загрузки токенизатора: {e}")
-            raise RuntimeError("Не удалось загрузить токенизатор. Проверьте наличие локальной модели.")
+            raise RuntimeError("Не удалось загрузить токенизатор Qwen.")
             
         # Инициализация параллельного токенизатора
         self.parallel_tokenizer = ParallelTokenizer(
@@ -154,74 +168,12 @@ class GenerationCoordinator:
         return MockBrain(cache_dir)
         
     def load_model(self):
-        """Загрузка модели ruGPT-3 Large из фрактального хранилища"""
+        """Загрузка модели теперь через QwenModelManager (lazy loading)"""
         if self.model is not None:
             return True
             
-        logger.info(f"Загрузка модели {self.model_name} на {self.device}...")
-        start_time = time.time()
-        
-        try:
-            # Сначала пробуем загрузить локальные веса ruGPT-3 Large
-            local_model_paths = [
-                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model',
-                'cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal',
-                'cogniflex/mlearning/cogniflex_models/rugpt3_small',
-            ]
-            
-            local_model_path = None
-            for path in local_model_paths:
-                if os.path.exists(path):
-                    # Проверяем наличие pytorch_model.bin
-                    if os.path.exists(os.path.join(path, 'pytorch_model.bin')):
-                        local_model_path = path
-                        logger.info(f"Найдены локальные веса модели: {os.path.abspath(path)}")
-                        break
-            
-            if local_model_path:
-                # Загружаем из локальных весов
-                logger.info("Загрузка модели из локальных весов...")
-                self.model = GPT2LMHeadModel.from_pretrained(
-                    local_model_path,
-                    local_files_only=True,
-                    torch_dtype=torch.float32
-                ).to(self.device)
-                
-                logger.info(f"✅ Модель успешно загружена из локальных весов: {local_model_path}")
-            else:
-                # Fallback: загрузка из HuggingFace (только если локальные недоступны)
-                logger.warning(f"Локальные веса не найдены, загрузка из HuggingFace: {self.model_name}")
-                
-                # Загружаем конфигурацию модели
-                self.model_config = AutoConfig.from_pretrained(
-                    self.model_name,
-                    max_position_embeddings=2048,
-                    pad_token_id=self.tokenizer.eos_token_id or self.tokenizer.pad_token_id
-                )
-                
-                # Загружаем модель с поддержкой ускорения
-                if torch.cuda.is_available():
-                    self.model = GPT2LMHeadModel.from_pretrained(
-                        self.model_name,
-                        config=self.model_config,
-                        device_map="auto",
-                        torch_dtype=torch.float16 if torch.cuda.is_bf16_supported() else torch.float32
-                    ).to(self.device)
-                else:
-                    self.model = GPT2LMHeadModel.from_pretrained(
-                        self.model_name,
-                        config=self.model_config
-                    ).to(self.device)
-                
-                logger.info(f"✅ Модель загружена из HuggingFace: {self.model_name}")
-            
-            self.model.eval()
-            logger.info(f"Модель загружена за {time.time() - start_time:.2f} сек")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке модели: {e}", exc_info=True)
-            return False
+        logger.info("GenerationCoordinator: текстовая генерация теперь через QwenModelManager")
+        return False
     
     def generate_response(
         self,

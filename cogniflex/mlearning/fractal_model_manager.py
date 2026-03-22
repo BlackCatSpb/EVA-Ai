@@ -1,13 +1,13 @@
 """
 Fractal Model Manager для CogniFlex
 Управляет фрактальной архитектурой трансформера с интеграцией памяти
+Текстовая генерация теперь через Qwen3.5-2B
 """
 import logging
 import json
 import os
 from typing import Optional, Any, Dict
 import torch
-from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -88,138 +88,18 @@ class FractalModelManager:
             logger.error(f"Ошибка загрузки конфигурации: {e}")
     
     def _initialize_model(self):
-        """Инициализирует модель"""
+        """Инициализирует модель - теперь через Qwen3.5-2B"""
         try:
-            # Используем локальный загрузчик ruGPT-3 Medium
-            from .local_rugpt3_loader import load_rugpt3_medium_local
-            
-            model_name = "sberbank-ai/rugpt3small_based_on_gpt2"
-            logger.info(f"Начальный model_name: {model_name}")
-            
-            if self.config:
-                model_cfg = self.config.get("model", {}) if isinstance(self.config, dict) else {}
-                config_model_name = model_cfg.get("name", "") if model_cfg else ""
-                logger.info(f"Из конфига получено model name: '{config_model_name}'")
-                logger.info(f"Тип config_model_name: {type(config_model_name)}")
-                if config_model_name == "rugpt3small":
-                    model_name = "sberbank-ai/rugpt3small_based_on_gpt2"
-                    logger.info(f"Установлен small model_name: {model_name}")
-                elif config_model_name == "rugpt3large":
-                    model_name = "sberbank-ai/rugpt3large_based_on_gpt2"
-                    logger.info(f"Установлен large model_name: {model_name}")
-                else:
-                    model_name = config_model_name
-                    logger.info(f"Использован config model_name: {model_name}")
-            else:
-                logger.info("Конфиг не найден или не содержит model.name")
-            
-            logger.info(f"Финальная модель для загрузки: '{model_name}'")
-            
-            # Определяем устройство
-            device = self.device
-            if device == "auto":
-                # Проверяем доступность CUDA и используем её если доступна
-                if torch.cuda.is_available():
-                    device = "cuda"
-                    logger.info("CUDA доступна, используем GPU")
-                else:
-                    device = "cpu"
-                    logger.info("CUDA недоступна, используем CPU")
-                    logger.info("Используем CPU для предотвращения ошибок памяти GPU")
-            
-            # Загружаем модель и токенизатор локально
-            import os
-            
-            # Получаем корень проекта
             project_root = _get_project_root()
-            logger.info(f"Корень проекта: {project_root}")
+            qwen_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
             
-            # Пробуем путь к ruGPT-3 Small во фрактальном хранилище (абсолютные пути)
-            storage_paths = [
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "tokenizers", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal"),
-                os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "rugpt3_small"),
-                "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/models/rugpt3_small_fractal/model",
-                "cogniflex/core/cogniflex_cache/ml_unit/fractal_storage/tokenizers/rugpt3_small_fractal",
-            ]
+            logger.info(f"Qwen3.5-2B path: {qwen_path}")
+            logger.info("Текстовая генерация теперь через Qwen3.5-2B (lazy loading)")
             
-            storage_path = None
-            for path in storage_paths:
-                if os.path.exists(path):
-                    storage_path = path
-                    logger.info(f"Найдена модель по пути: {os.path.abspath(path)}")
-                    break
-            
-            if storage_path is None:
-                storage_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
-                logger.warning(f"Модель не найдена, используем путь по умолчанию: {storage_path}")
-            
-            logger.info(f"Используем путь к хранилищу: {os.path.abspath(storage_path)}")
-            
-            self.model, self.tokenizer = load_rugpt3_medium_local(
-                storage_path=storage_path,
-                device=device
-            )
-            
-            # Обновляем устройство на реальное устройство модели
-            if self.model:
-                self.device = str(self.model.device)
-                logger.info(f"Устройство модели обновлено на: {self.device}")
-            
-            if self.model and self.tokenizer:
-                # Устанавливаем pad_token
-                if self.tokenizer.pad_token is None:
-                    self.tokenizer.pad_token = self.tokenizer.eos_token
-                
-                # Модель уже на нужном устройстве
-                self.model.eval()
-                
-                # Инициализируем улучшатель качества текста
-                try:
-                    from .text_quality_improver import TextQualityImprover
-                    self.quality_improver = TextQualityImprover(None)
-                    logger.info("TextQualityImprover инициализирован")
-                except Exception as e:
-                    logger.warning(f"Не удалось инициализировать TextQualityImprover: {e}")
-                    self.quality_improver = None
-                
-                # Инициализируем тренер для улучшения качества
-                try:
-                    from .text_quality_trainer import TextQualityTrainer, TrainingConfig
-                    self.trainer_config = TrainingConfig(
-                        learning_rate=3e-5,
-                        batch_size=2,
-                        num_epochs=50,
-                        warmup_steps=100,
-                        max_length=128,
-                        gradient_accumulation_steps=4
-                    )
-                    # Создаем тренер
-                    self.trainer = TextQualityTrainer(
-                        model=self.model,
-                        tokenizer=self.tokenizer,
-                        config=self.trainer_config
-                    )
-                    logger.info("TextQualityTrainer инициализирован")
-                except Exception as e:
-                    logger.warning(f"Не удалось инициализировать TextQualityTrainer: {e}")
-                    self.trainer = None
-                
-                logger.info(f"✅ Модель {model_name} успешно загружена локально")
-                self.initialized = True
-                self.has_fractal_model = True
-                
-            else:
-                logger.error(f"❌ Не удалось загрузить модель {model_name}")
-                self.initialized = False
-                return
+            self.model = None
+            self.tokenizer = None
+            self.initialized = True
+            self.has_fractal_model = False
             
         except Exception as e:
             logger.error(f"Ошибка инициализации модели: {e}")
@@ -488,6 +368,10 @@ class FractalModelManager:
             logger.error("Модель не инициализирована")
             return False
         
+        if self.model is None or self.tokenizer is None:
+            logger.warning("Модель или токенизатор не загружены, пропускаем сохранение")
+            return False
+        
         try:
             os.makedirs(path, exist_ok=True)
             self.model.save_pretrained(path)
@@ -499,24 +383,9 @@ class FractalModelManager:
             return False
     
     def load_model(self, path: str) -> bool:
-        """Загружает модель"""
-        try:
-            self.model = GPT2LMHeadModel.from_pretrained(path)
-            self.tokenizer = GPT2Tokenizer.from_pretrained(path)
-            
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-            
-            self.model.to(self.device)
-            self.model.eval()
-            self.initialized = True
-            self.has_fractal_model = True
-            
-            logger.info(f"Модель загружена из {path}")
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка загрузки модели: {e}")
-            return False
+        """Загружает модель - теперь через QwenModelManager"""
+        logger.info("Текстовая генерация теперь через QwenModelManager, не FractalModelManager")
+        return False
     
     def get_model_for_task(self, task_type: str, model_name: Optional[str] = None, **kwargs) -> tuple:
         """
@@ -554,14 +423,14 @@ class FractalModelManager:
         # Возвращаем информацию о текущей модели
         model_info = {
             "name": (self.config.get("model", {}) or {}).get("name", "rugpt3large") if self.config else "rugpt3large",
-            "display_name": "ruGPT-3 Large (фрактальная)",
+            "display_name": "Qwen3.5-2B",
             "type": "text-generation",
             "status": "loaded" if self.model and self.tokenizer else "error",
             "device": str(self.device) if hasattr(self, 'device') else "unknown",
             "initialized": self.initialized,
             "has_fractal_support": True,
             "model_path": self.model_path,
-            "description": "Фрактальная модель ruGPT-3 Large для генерации текста"
+            "description": "Qwen3.5-2B для генерации текста"
         }
         
         # Возвращаем только одну модель - ruGPT-3 Large
