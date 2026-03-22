@@ -94,6 +94,15 @@ class TextProcessor:
             )
             logger.info(f"Токенизатор успешно загружен через AutoTokenizer из: {self.tokenizer_path}")
             
+            # Устанавливаем pad_token для Qwen
+            if self._tokenizer.pad_token is None:
+                if hasattr(self._tokenizer, 'eos_token') and self._tokenizer.eos_token:
+                    self._tokenizer.pad_token = self._tokenizer.eos_token
+                    logger.info("Установлен pad_token = eos_token")
+                else:
+                    self._tokenizer.pad_token = '</pad>'
+                    logger.info("Установлен pad_token по умолчанию")
+            
         except Exception as e:
             logger.error(f"Не удалось загрузить токенизатор {self.tokenizer_path}: {str(e)}")
             try:

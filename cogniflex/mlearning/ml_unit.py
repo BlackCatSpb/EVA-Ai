@@ -143,9 +143,9 @@ class MLUnit:
         try:
             from cogniflex.nlp.text_processor import TextProcessor
             
-            # Используем правильную директорию с моделью и токенизатором
+            # Используем правильную директорию с моделью и токенизатором Qwen
             project_root = _get_project_root()
-            model_dir = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+            model_dir = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
             
             self.text_processor = TextProcessor(
                 model_name=model_dir,  # Используем полный путь к директории
