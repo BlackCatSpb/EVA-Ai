@@ -581,6 +581,24 @@ class ChatModule:
         """Создает контекстное меню."""
         self.context_menu = Menu(self.chat_display, tearoff=0)
         self.context_menu.add_command(label="Копировать", command=self._copy_selected)
+        
+        # Подменю для работы с выделением
+        selection_menu = Menu(self.context_menu, tearoff=0)
+        selection_menu.add_command(label="Спросить об этом", 
+            command=lambda: self._run_command_on_selection('ask'))
+        selection_menu.add_command(label="Объяснить", 
+            command=lambda: self._run_command_on_selection('explain'))
+        selection_menu.add_command(label="Оспорить", 
+            command=lambda: self._run_command_on_selection('challenge'))
+        selection_menu.add_separator()
+        selection_menu.add_command(label="Добавить в граф знаний", 
+            command=lambda: self._run_command_on_selection('add_to_graph'))
+        selection_menu.add_separator()
+        selection_menu.add_command(label="Использовать как контекст (Ctrl+Q)", 
+            command=self._on_use_selection_as_context)
+        
+        self.context_menu.add_cascade(label="По выделению...", menu=selection_menu)
+        self.context_menu.add_separator()
         self.context_menu.add_command(label="Копировать все", command=self._copy_all)
         self.context_menu.add_separator()
         self.context_menu.add_command(label="Очистить чат", command=self._clear_chat)
