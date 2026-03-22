@@ -19,7 +19,7 @@
     "path": "cogniflex/mlearning/cogniflex_models/qwen3.5-2b",
     "vocab_size": 151936,
     "max_length": 32768,
-    "device": "cuda:0",
+    "device": "cpu",
     "quantization": "int8"
   },
   "generation": {

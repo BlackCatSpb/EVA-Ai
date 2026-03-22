@@ -87,26 +87,22 @@ QWEN_MODELS = {
 }
 
 
-def get_qwen_model_path() -> str:
+def get_qwen_model_path(model_size: str = "qwen3.5-2b") -> str:
     """Возвращает путь к локальной модели Qwen"""
-    # Определяем корень проекта
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
     
-    # Путь к локальной модели
     local_path = os.path.join(
         project_root, 
-        "cogniflex", 
         "mlearning", 
         "cogniflex_models", 
-        "qwen3.5-2b"
+        model_size
     )
     
-    # Также проверяем альтернативные пути
     alternative_paths = [
-        os.path.join(project_root, "cogniflex_models", "qwen3.5-2b"),
-        os.path.join(project_root, "qwen3.5-2b"),
-        os.path.join(os.getcwd(), "cogniflex_models", "qwen3.5-2b"),
+        os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", model_size),
+        os.path.join(os.getcwd(), "cogniflex", "mlearning", "cogniflex_models", model_size),
+        os.path.join(project_root, "cogniflex_models", model_size),
     ]
     
     for alt_path in alternative_paths:
@@ -206,13 +202,18 @@ class QwenModelManager:
             
             # Настройки загрузки
             load_kwargs = {
-                "device_map": "auto" if self.device == "cpu" else self.device,
                 "trust_remote_code": True,
                 "cache_dir": self.cache_dir,
-                "torch_dtype": torch.float16 if self.device == "cpu" else torch.float32,
+                "torch_dtype": torch.float16,
             }
             
-            # Квантизация для экономии памяти
+            # Для CPU загружаем напрямую, для CUDA используем device_map
+            if self.device == "cpu":
+                load_kwargs["device_map"] = "cpu"
+            elif torch.cuda.is_available():
+                load_kwargs["device_map"] = "auto"
+            
+            # Квантизация для экономии памяти (только если требуется)
             if self.load_in_4bit:
                 try:
                     from transformers import BitsAndBytesConfig
@@ -224,12 +225,20 @@ class QwenModelManager:
                     )
                     logger.info("Используется 4-bit квантизация")
                 except ImportError:
-                    logger.warning("bitsandbytes не установлен, используем 8-bit")
-                    self.load_in_8bit = True
+                    logger.warning("bitsandbytes не установлен, пропускаем квантизацию")
+                    self.load_in_4bit = False
             
             if self.load_in_8bit and not self.load_in_4bit:
-                load_kwargs["load_in_8bit"] = True
-                logger.info("Используется 8-bit квантизация")
+                try:
+                    from transformers import BitsAndBytesConfig
+                    load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                        load_in_8bit=True,
+                        bnb_8bit_compute_dtype=torch.float16,
+                    )
+                    logger.info("Используется 8-bit квантизация")
+                except (ImportError, Exception) as e:
+                    logger.warning(f"8-bit квантизация недоступна ({e}), пропускаем")
+                    self.load_in_8bit = False
             
             # Загрузка токенизатора
             logger.info("Загрузка токенизатора...")
@@ -248,9 +257,6 @@ class QwenModelManager:
                 model_source,
                 **load_kwargs
             )
-            
-            if self.device == "cpu" and not (self.load_in_8bit or self.load_in_4bit):
-                self.model = self.model.to(torch.float16)
             
             # Конфигурация генерации
             try:
