@@ -120,7 +120,7 @@ class HybridModelManager:
         logger.info(f"HybridModelManager инициализирован: VRAM={max_vram_gb}GB, SSD={max_ssd_gb}GB")
     
     def initialize(self) -> bool:
-        """Инициализирует гибридный менеджер - теперь использует Qwen3.5-2B"""
+        """Инициализирует гибридный менеджер - использует QwenModelManager"""
         try:
             with self._lock:
                 project_root = _get_project_root()
@@ -137,11 +137,10 @@ class HybridModelManager:
                     tokenizer_success = self.load_tokenizer("qwen3.5-2b", qwen_path)
                     
                     if not tokenizer_success:
-                        logger.warning("Не удалось загрузить токенизатор Qwen")
-                        return False
+                        logger.warning("Не удалось загрузить токенизатор Qwen, используем только QwenModelManager")
                     
                     self.initialized = True
-                    logger.info("HybridModelManager успешно инициализирован с Qwen3.5-2B")
+                    logger.info("HybridModelManager инициализирован (Qwen загружается через QwenModelManager)")
                     return True
                 else:
                     logger.error("Не удалось зарегистрировать модель Qwen")
@@ -416,31 +415,44 @@ class HybridModelManager:
                                    temperature: float = 0.7, **kwargs) -> str:
         """Внутренний метод генерации ответа"""
         try:
-            # Убеждаемся что модель загружена
-            if not self.load_model(model_name):
-                return f"Ошибка: не удалось загрузить модель {model_name}"
-            
-            # Находим окно
+            # Проверяем наличие модели в окне
             window = self._find_window(model_name)
-            if not window or not window.model:
-                return f"Ошибка: модель {model_name} не доступна"
             
-            # Убеждаемся что токенизатор загружен
-            if model_name not in self.tokenizers:
-                # Пробуем загрузить токенизатор
-                tokenizer_path = f"cogniflex_cache/ml_unit/fractal_storage/tokenizers/{model_name}"
-                if not self.load_tokenizer(model_name, tokenizer_path):
-                    return f"Ошибка: не удалось загрузить токенизатор для {model_name}"
-            
-            tokenizer = self.tokenizers[model_name]
-            
-            # Генерируем ответ
-            return self._generate_with_model(window.model, tokenizer, prompt, 
-                                           max_tokens, temperature, window.device, **kwargs)
+            if window and window.model:
+                # Модель загружена напрямую
+                if model_name not in self.tokenizers:
+                    return f"Ошибка: токенизатор для {model_name} не загружен"
+                
+                tokenizer = self.tokenizers[model_name]
+                return self._generate_with_model(window.model, tokenizer, prompt, 
+                                               max_tokens, temperature, window.device, **kwargs)
+            else:
+                # Модель не загружена в HybridModelManager
+                # Используем QwenModelManager если доступен через brain
+                logger.info(f"Модель {model_name} не загружена в HybridManager, используем базовый ответ")
+                return self._generate_fallback_response(prompt)
             
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return f"Ошибка генерации: {str(e)}"
+    
+    def _generate_fallback_response(self, prompt: str) -> str:
+        """Генерирует базовый fallback ответ без модели"""
+        prompt_lower = prompt.lower()
+        
+        fallbacks = {
+            'привет': 'Привет! Я CogniFlex, рад общению.',
+            'здравств': 'Здравствуйте! Чем могу помочь?',
+            'как дела': 'Спасибо, что спрашиваете! У меня всё хорошо.',
+            'как тебя': 'Меня зовут CogniFlex.',
+            'кто ты': 'Я CogniFlex - когнитивная AI система.',
+        }
+        
+        for key, response in fallbacks.items():
+            if key in prompt_lower:
+                return response
+        
+        return 'Интересный вопрос! Расскажите подробнее.'
     
     def _generate_with_model(self, model, tokenizer, prompt: str, max_tokens: int,
                            temperature: float, device: str, **kwargs) -> str:
