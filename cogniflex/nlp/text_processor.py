@@ -42,7 +42,7 @@ class TextProcessor:
     """
     
     def __init__(self, 
-                 model_name: str = "qwen3.5-2b",
+                 model_name: str = "qwen3.5-0.8b",
                  **tokenizer_kwargs):
         """Инициализация процессора текста.
         
@@ -62,8 +62,10 @@ class TextProcessor:
         
         project_root = _get_project_root()
         
-        if model_name == "qwen3.5-2b":
-            self.tokenizer_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
+        if model_name == "qwen3.5-0.8b":
+            self.tokenizer_path = os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-0.8b")
+        elif model_name == "qwen3.5-2b":
+            self.tokenizer_path = os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-2b")
         elif os.path.isdir(model_name):
             self.tokenizer_path = model_name
         else:

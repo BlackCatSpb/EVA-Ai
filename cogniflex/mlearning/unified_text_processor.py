@@ -161,7 +161,7 @@ class UnifiedTextProcessor(BaseComponent):
             # Создаем локальный токенизатор
             try:
                 from cogniflex.nlp.text_processor import TextProcessor
-                self.tokenizer = TextProcessor(model_name="qwen3.5-2b")
+                self.tokenizer = TextProcessor(model_name="qwen3.5-0.8b")
                 logger.info("Локальный токенизатор Qwen3.5-2B создан успешно")
             except Exception as e:
                 logger.warning(f"Не удалось создать локальный токенизатор: {e}")
