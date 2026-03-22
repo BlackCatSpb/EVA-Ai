@@ -822,6 +822,20 @@ class CoreBrain:
             # Объединяем оба контекста, context имеет приоритет
             user_context = {**user_context, **context}
         
+        # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - модель не обучена для диалогов
+        query_lower = query.lower().strip()
+        greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
+        if any(g in query_lower for g in greeting_keywords):
+            return {
+                "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                "status": "ok",
+                "confidence": 1.0,
+                "source": "greeting_handler",
+                "fallback_level": 0,
+                "processing_time": time.time() - start_time
+            }
+        
         # Проверяем наличие reasoning_engine и используем его для генерации с рассуждением
         if hasattr(self, 'reasoning_engine') and self.reasoning_engine:
             try:
