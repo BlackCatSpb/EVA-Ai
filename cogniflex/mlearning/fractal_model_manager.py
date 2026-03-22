@@ -237,19 +237,20 @@ class FractalModelManager:
         query = query.strip()
         
         prompts = {
-            'greeting': ['привет', 'здравствуй', 'добрый день', 'hello', 'hi'],
+            'greeting': ['привет', 'здравствуй', 'добрый день', 'hello', 'hi', 'хай', 'здорово'],
             'question': ['кто', 'что', 'как', 'почему', 'зачем', 'where', 'who', 'what', 'how', 'why'],
             'help': ['помощь', 'help', 'помоги', 'подскажи'],
         }
         
         query_lower = query.lower()
         
+        # Для приветствий используем очень короткий промпт
         if any(g in query_lower for g in prompts['greeting']):
-            return f"Привет! Я CogniFlex, русскоязычный AI ассистент. {query}\n"
+            return f"Привет! Ответь кратко: "
         elif any(h in query_lower for h in prompts['help']):
-            return f"Я помогу! {query}\n"
+            return f"Помощь с: {query}. Краткий ответ:"
         else:
-            return f"Вопрос: {query}\nОтвет на русском языке, кратко и по делу:\n"
+            return f"Вопрос: {query}\nКраткий ответ:"
     
     def generate_response(self, query: str, max_tokens: int = 512, **kwargs) -> str:
         """
@@ -270,8 +271,14 @@ class FractalModelManager:
             # Используем conversational промпт
             prompt = self._create_conversational_prompt(query)
             
-            # Ограничиваем
-            max_tokens = min(max_tokens, 50)
+            # Для приветствий используем только fallback (модель не обучена для диалогов)
+            query_lower = query.lower()
+            greeting_words = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово']
+            if any(g in query_lower for g in greeting_words):
+                return self._get_fallback_response(query)
+            
+            # Ограничиваем генерацию
+            max_tokens = min(max_tokens, 30)
             
             # Токенизируем
             inputs = self.tokenizer(
@@ -330,11 +337,19 @@ class FractalModelManager:
         import re
         
         # Слишком короткий
-        if len(response) < 3:
+        if len(response) < 10:
             return False
         
         # Слишком длинный без пунктуации
         if len(response) > 200 and response.count('.') < 2:
+            return False
+        
+        # Слишком много точек подряд (признак плохой генерации)
+        if '......' in response or '....' in response:
+            return False
+        
+        # Слишком много повторений символов
+        if re.search(r'(.)\1{4,}', response):  # 5+ повторений одного символа
             return False
         
         # Содержит паттерны-маркеры плохого качества
@@ -342,9 +357,18 @@ class FractalModelManager:
             r'\d{5,}',  # Длинные числа
             r'[A-Z]{5,}',  # Капс слова
             r'http[s]?://',  # URL
+            r'^\s*-{3,}',  # Много дефисов в начале
+            r'\.{5,}',  # Много точек подряд
         ]
         for marker in bad_markers:
             if re.search(marker, response):
+                return False
+        
+        # Проверка на бессмысленное повторение (более 30% текста - повторение)
+        words = response.split()
+        if len(words) > 10:
+            unique_words = len(set(w.lower() for w in words))
+            if unique_words / len(words) < 0.3:  # Менее 30% уникальных слов
                 return False
         
         return True
