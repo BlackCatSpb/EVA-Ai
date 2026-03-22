@@ -14,12 +14,12 @@
     "gpu_memory_fraction": 0.4
   },
   "model": {
-    "name": "qwen3.5-2b",
+    "name": "qwen3.5-0.8b",
     "type": "qwen",
-    "path": "cogniflex/mlearning/cogniflex_models/qwen3.5-2b",
+    "path": "cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b",
     "vocab_size": 151936,
     "max_length": 32768,
-    "device": "cpu",
+    "device": "cuda",
     "quantization": "int8"
   },
   "generation": {
