@@ -625,3 +625,73 @@ class FractalStorage:
             if node:
                 results.append(self._node_to_dict(node))
         return results
+    
+    def update_confidence_from_feedback(self, node_id: str, new_confidence: float, feedback: str = None) -> bool:
+        """Обновить уверенность узла после фидбека."""
+        node = self.nodes.get(node_id)
+        if not node:
+            return False
+        
+        if not node.context:
+            node.context = {}
+        
+        old_conf = node.context.get("confidence", 0.5)
+        node.context["confidence"] = new_confidence
+        node.context["previous_confidence"] = old_conf
+        node.context["feedback_updated_at"] = time.time()
+        
+        if feedback:
+            node.context["last_feedback"] = feedback
+        
+        self._save()
+        return True
+    
+    def merge_reasoning_chains(self, chain1_id: str, chain2_id: str) -> Optional[FractalNode]:
+        """Объединить две цепочки рассуждений."""
+        node1 = self.nodes.get(chain1_id)
+        node2 = self.nodes.get(chain2_id)
+        
+        if not node1 or not node2:
+            return None
+        
+        merged_content = f"MERGED: {node1.content} || {node2.content}"
+        merged_context = {
+            "merged_from": [chain1_id, chain2_id],
+            "original_confidence": [
+                node1.context.get("confidence", 0.5) if node1.context else 0.5,
+                node2.context.get("confidence", 0.5) if node2.context else 0.5
+            ]
+        }
+        
+        # Определяем уровень - берем максимальный
+        level = max(node1.level, node2.level)
+        
+        merged_node = self.add_node(
+            content=merged_content,
+            node_type="merged_reasoning",
+            level=level,
+            context=merged_context
+        )
+        
+        # Связываем с оригинальными
+        node1.add_child(merged_node.id)
+        node2.add_child(merged_node.id)
+        
+        self._save()
+        return merged_node
+    
+    def get_feedback_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Получить историю фидбека."""
+        feedback_nodes = []
+        
+        for node in self.nodes.values():
+            if node.context and "last_feedback_rating" in node.context:
+                feedback_nodes.append({
+                    "node_id": node.id,
+                    "content": node.content[:100],
+                    "rating": node.context["last_feedback_rating"],
+                    "timestamp": node.context.get("feedback_updated_at", node.created_at)
+                })
+        
+        feedback_nodes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        return feedback_nodes[:limit]

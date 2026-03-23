@@ -632,6 +632,261 @@ class SelfReasoningEngine:
             "source": "linear_reasoning",
             "processing_time": 0.0
         }
+    
+    # =====================================================
+    # === FEEDBACK LOOP МЕТОДЫ (ДЛЯ САМООБУЧЕНИЯ) ===
+    # =====================================================
+    
+    def process_user_feedback(self, query: str, feedback: str, rating: float) -> Dict[str, Any]:
+        """
+        Обработать фидбек пользователя для самообучения
+        
+        Args:
+            query: Оригинальный запрос
+            feedback: Текст обратной связи
+            rating: Оценка от 0.0 до 1.0
+            
+        Returns:
+            Dict с результатами обработки
+        """
+        try:
+            # Находим цепочку рассуждений для запроса
+            if self.fractal_storage:
+                chain = self.fractal_storage.get_reasoning_chain(query)
+                
+                # Обновляем уверенность на основе рейтинга
+                for node in chain:
+                    old_conf = node.context.get("confidence", 0.5) if node.context else 0.5
+                    # Корректируем уверенность: учитываем фидбек
+                    adjusted_conf = (old_conf + rating) / 2
+                    
+                    if node.context:
+                        node.context["confidence"] = adjusted_conf
+                        node.context["last_feedback_rating"] = rating
+                        node.context["feedback_time"] = time.time()
+                
+                self.fractal_storage._save()
+                
+                # Триггерируем самообучение если рейтинг низкий
+                if rating < 0.3:
+                    self._trigger_self_learning(query, feedback)
+                
+                logger.info(f"Обработан фидбек для '{query[:30]}...': rating={rating:.2f}")
+                
+                return {
+                    "status": "processed",
+                    "chain_updated": len(chain),
+                    "triggered_learning": rating < 0.3
+                }
+            
+            return {"status": "no_storage", "message": "FractalStorage не доступен"}
+            
+        except Exception as e:
+            logger.error(f"Ошибка обработки фидбека: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def refine_reasoning_chain(self, node_id: str, correction: str) -> Dict[str, Any]:
+        """
+        Уточнить цепочку рассуждений после коррекции пользователя
+        """
+        if not self.fractal_storage:
+            return {"status": "error", "message": "Нет хранилища"}
+        
+        try:
+            node = self.fractal_storage.get_node(node_id)
+            if not node:
+                return {"status": "error", "message": "Узел не найден"}
+            
+            # Добавляем коррекцию в контекст узла
+            if not node.context:
+                node.context = {}
+            
+            corrections = node.context.get("corrections", [])
+            corrections.append({
+                "correction": correction,
+                "timestamp": time.time()
+            })
+            node.context["corrections"] = corrections
+            node.context["needs_rethink"] = True
+            
+            self.fractal_storage._save()
+            
+            logger.info(f"Добавлена коррекция для узла {node_id[:16]}...")
+            
+            return {"status": "processed", "node_id": node_id}
+            
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    def learn_from_outcome(self, query: str, outcome: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Выучить результат для будущих рассуждений
+        """
+        try:
+            success = outcome.get("success", False)
+            user_rating = outcome.get("rating", 0.5)
+            response_quality = outcome.get("response_quality", "unknown")
+            
+            # Сохраняем в историю обучения
+            learning_record = {
+                "query": query,
+                "success": success,
+                "rating": user_rating,
+                "quality": response_quality,
+                "timestamp": time.time()
+            }
+            
+            # Добавляем в FractalStorage как особый узел обучения
+            if self.fractal_storage:
+                self.fractal_storage.add_node(
+                    content=f"Learning: {query[:50]}",
+                    node_type="learning_record",
+                    level=1,
+                    context=learning_record
+                )
+            
+            # Адаптируем параметры если нужно
+            if user_rating < 0.4:
+                # Понижаем порог уверенности для подобных запросов
+                logger.info(f"Низкий рейтинг для '{query[:30]}...', адаптирую параметры")
+                self.confidence_threshold = max(0.5, self.confidence_threshold - 0.05)
+            elif user_rating > 0.8:
+                # Повышаем если высокий
+                self.confidence_threshold = min(0.9, self.confidence_threshold + 0.02)
+            
+            return {
+                "status": "learned",
+                "new_threshold": self.confidence_threshold,
+                "query": query[:30]
+            }
+            
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    def self_correct(self, query: str, user_correction: str) -> Dict[str, Any]:
+        """
+        Самоисправление на основе коррекции пользователя
+        """
+        # Находим похожие рассуждения
+        similar = self.retrieve_similar_reasoning(query)
+        
+        correction_prompt = f"""Пользователь указал, что предыдущий ответ был неверным.
+Коррекция: {user_correction}
+
+Вопрос: {query}
+
+Дай исправленный ответ учитывая коррекцию:"""
+        
+        corrected_response = self._generate_with_qwen(correction_prompt)
+        
+        # Сохраняем исправленную версию
+        if self.fractal_storage:
+            self.fractal_storage.add_reasoning_step(
+                query=query,
+                step_content=f"SELF-CORRECTED: {corrected_response}",
+                confidence=0.6,  # Понижаем из-за коррекции
+                iteration=999
+            )
+        
+        return {
+            "corrected_response": corrected_response,
+            "similar_used": len(similar),
+            "status": "corrected"
+        }
+    
+    def adaptive_recursion_depth(self, query_complexity: float) -> int:
+        """
+        Адаптивная глубина рекурсии на основе сложности запроса
+        
+        Args:
+            query_complexity: Оценка сложности от 0.0 до 1.0
+            
+        Returns:
+            Рекомендуемая глубина рекурсии
+        """
+        # Базовая глубина
+        base_depth = 1
+        
+        # Увеличиваем для сложных запросов
+        if query_complexity > 0.7:
+            return min(self.max_recursion_depth, base_depth + 2)
+        elif query_complexity > 0.4:
+            return min(self.max_recursion_depth, base_depth + 1)
+        
+        return base_depth
+    
+    def cross_session_learning(self, query: str) -> List[Dict]:
+        """
+        Учиться на прошлых сессиях - находим похожие запросы
+        """
+        if not self.fractal_retriever:
+            return []
+        
+        try:
+            # Ищем в прошлых рассуждениях
+            similar = self.fractal_retriever.retrieve_with_embedding(
+                query=query,
+                top_k=10
+            )
+            
+            # Фильтруем только те, которые получили положительный фидбек
+            learned = []
+            for item in similar:
+                ctx = item.get("context", {})
+                rating = ctx.get("last_feedback_rating", 0.5)
+                
+                if rating >= 0.6:
+                    learned.append({
+                        "query": item.get("content", "")[:100],
+                        "rating": rating,
+                        "node_id": item.get("id")
+                    })
+            
+            return learned
+            
+        except Exception as e:
+            logger.warning(f"Ошибка кросс-сессионного обучения: {e}")
+            return []
+    
+    def _trigger_self_learning(self, query: str, reason: str):
+        """
+        Триггерировать самообучение при низком качестве
+        """
+        try:
+            # Пробуем получить CuriosityEngine
+            curiosity = getattr(self.brain, 'curiosity_engine', None)
+            if curiosity and hasattr(curiosity, 'trigger_self_learning'):
+                curiosity.trigger_self_learning(query, reason)
+                logger.info(f"Триггернуто самообучение для: {query[:30]}...")
+            else:
+                logger.debug("CuriosityEngine не доступен для самообучения")
+        except Exception as e:
+            logger.debug(f"Не удалось триггернуть самообучение: {e}")
+    
+    def get_feedback_stats(self) -> Dict[str, Any]:
+        """Получить статистику фидбека"""
+        if not self.fractal_storage:
+            return {"status": "no_storage"}
+        
+        total_feedback = 0
+        positive = 0
+        negative = 0
+        
+        for node in self.fractal_storage.nodes.values():
+            if node.context and "last_feedback_rating" in node.context:
+                total_feedback += 1
+                rating = node.context["last_feedback_rating"]
+                if rating >= 0.5:
+                    positive += 1
+                else:
+                    negative += 1
+        
+        return {
+            "total_feedback": total_feedback,
+            "positive": positive,
+            "negative": negative,
+            "current_threshold": self.confidence_threshold
+        }
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:
