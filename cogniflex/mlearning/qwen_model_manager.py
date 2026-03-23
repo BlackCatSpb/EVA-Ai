@@ -228,9 +228,17 @@ class QwenModelManager:
         self._initialize_model()
     
     def _get_device(self, device: str) -> str:
-        """Определяет устройство для загрузки"""
+        """Определяет устройство для загрузки с проверкой доступности памяти"""
         if device == "auto":
-            return "cuda" if torch.cuda.is_available() else "cpu"
+            if torch.cuda.is_available():
+                try:
+                    total_mem = torch.cuda.get_device_properties(0).total_memory
+                    free_mem = torch.cuda.mem_get_info()[0]
+                    if free_mem > 500 * 1024 * 1024:  # 500MB minimum
+                        return "cuda"
+                except:
+                    pass
+            return "cpu"
         return device
     
     def _initialize_model(self):
@@ -365,9 +373,13 @@ class QwenModelManager:
             
             inputs = self.tokenizer(prompt, return_tensors="pt")
             
-            # Переносим на устройство
+            # Переносим на устройство модели - используем более надежный способ
             if self.model is not None:
-                inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+                try:
+                    model_device = next(self.model.parameters()).device
+                    inputs = {k: v.to(model_device) for k, v in inputs.items()}
+                except:
+                    inputs = {k: v.to("cpu") for k, v in inputs.items()}
             
             generation_kwargs = {
                 "max_new_tokens": max_new_tokens,
