@@ -87,6 +87,7 @@ class AnalyzerCore:
         self.max_feedback_buffer = 100
         
         # Статистика
+        self.stats = {}  # Для обратной совместимости
         self.analysis_stats = {
             "total_analyses": 0,
             "last_analysis": 0,

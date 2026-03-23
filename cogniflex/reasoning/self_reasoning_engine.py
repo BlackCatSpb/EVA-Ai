@@ -905,7 +905,15 @@ class SelfReasoningEngine:
             "fractal_storage_ok": self.fractal_storage is not None,
             "fractal_embedder_ok": self.fractal_embedder is not None,
             "fractal_retriever_ok": self.fractal_retriever is not None,
-            "qwen_cached": self._qwen_cached is not None if hasattr(self, '_qwen_cached') else None
+            "qwen_cached": self._qwen_cached is not None
+        }
+        
+        healthy = all(v for v in checks.values())
+        
+        return {
+            "healthy": healthy,
+            "checks": checks,
+            "stats": self.get_stats()
         }
         
         healthy = all(v for v in checks.values() if v is not None)

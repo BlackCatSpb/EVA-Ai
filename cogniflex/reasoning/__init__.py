@@ -3,7 +3,7 @@ CogniFlex Reasoning - Self-Reasoning Engine и Fractal Storage
 """
 
 from .self_reasoning_engine import SelfReasoningEngine, create_reasoning_engine
-from .confidence_scorer import calculate_overall_confidence, should_terminate, CONFIDENCE_THRESHOLD
+from .confidence_scorer import calculate_overall_confidence, should_terminate, CONFIDENCE_THRESHOLD, get_confidence_level
 from .clarification_generator import ClarificationGenerator
 from .reasoning_types import ReasoningStep, ReasoningResult, ReasoningPhase, AnalysisResult
 from .integration import ReasoningIntegration, integrate_reasoning
@@ -17,6 +17,7 @@ __all__ = [
     'calculate_overall_confidence',
     'should_terminate',
     'CONFIDENCE_THRESHOLD',
+    'get_confidence_level',
     'ClarificationGenerator',
     'ReasoningStep',
     'ReasoningResult',
