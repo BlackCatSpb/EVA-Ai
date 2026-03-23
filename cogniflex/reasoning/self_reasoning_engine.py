@@ -52,7 +52,7 @@ class SelfReasoningEngine:
         self.clarification_gen = ClarificationGenerator()
         
         # Fractal Storage для хранения цепочек рассуждений
-        self.fractal_storage = None
+        self.fractal_storage = getattr(brain, 'fractal_storage', None) if brain else None
         
         # Fractal компоненты для рекурсивного reasoning
         self.fractal_embedder = None
@@ -437,6 +437,11 @@ class SelfReasoningEngine:
         sub_queries = self.decompose_query(query)
         logger.info(f"Декомпозиция на {len(sub_queries)} подзадач")
         
+        # Если декомпозиция не удалась - используем линейную обработку
+        if not sub_queries:
+            logger.info("Декомпозиция вернула пустой список, используем линейную обработку")
+            return self._linear_process_query(query, user_context)
+        
         sub_results = []
         for sq in sub_queries:
             if depth + 1 < self.max_recursion_depth:
@@ -474,7 +479,8 @@ class SelfReasoningEngine:
         except Exception as e:
             logger.warning(f"Декомпозиция не удалась: {e}")
         
-        return [query]
+        # Возвращаем пустой список вместо исходного запроса
+        return []
     
     def retrieve_similar_reasoning(self, query: str) -> List[Dict]:
         """Найти похожие рассуждения из прошлого"""

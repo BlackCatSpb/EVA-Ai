@@ -1380,7 +1380,6 @@ def _load_hf_model_dir(model_dir: str, device: str = "cpu") -> Optional[torch.nn
                     real_dir = found[0].parent
 
         model_path_str = str(real_dir)
-        torch_dtype = torch.float16 if (device == "cuda" and torch.cuda.is_available()) else torch.float32
 
         try:
             model = AutoModelForCausalLM.from_pretrained(
@@ -1388,7 +1387,6 @@ def _load_hf_model_dir(model_dir: str, device: str = "cpu") -> Optional[torch.nn
                 local_files_only=True,
                 trust_remote_code=False,
                 low_cpu_mem_usage=True,
-                torch_dtype=torch_dtype,
             )
         except Exception:
             if AutoModel is None:
@@ -1464,14 +1462,12 @@ def export_hf_model_to_fractal(
         out_dir = Path(output_path)
         out_dir.mkdir(parents=True, exist_ok=True)
         torch_device = "cuda" if (device == "cuda" and torch.cuda.is_available()) else "cpu"
-        torch_dtype = torch.float16 if torch_device == "cuda" else torch.float32
 
         model = AutoModelForCausalLM.from_pretrained(
             hf_model_dir_or_id,
             local_files_only=local_files_only,
             trust_remote_code=False,
             low_cpu_mem_usage=True,
-            torch_dtype=torch_dtype,
         )
         model.to(torch_device)
         model.eval()

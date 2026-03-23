@@ -521,3 +521,107 @@ class FractalStorage:
         self._save()
         
         return node
+    
+    def merge_branch_results(self, branch_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Слить результаты параллельных веток рекурсии."""
+        if not branch_results:
+            return {"merged_response": "", "confidence": 0.0, "sub_branches": 0}
+        
+        responses = [r.get("response", "") for r in branch_results if r.get("response")]
+        confidences = [r.get("confidence", 0.0) for r in branch_results]
+        
+        avg_confidence = sum(confidences) / len(confidences) if confidences else 0.5
+        
+        merged = " | ".join(responses) if responses else ""
+        
+        return {
+            "merged_response": merged,
+            "confidence": avg_confidence,
+            "sub_branches": len(branch_results),
+            "branch_responses": responses
+        }
+    
+    def detect_cycle(self, start_node_id: str, max_check: int = 100) -> Dict[str, Any]:
+        """Обнаружить циклы в графе рассуждений."""
+        if start_node_id not in self.nodes:
+            return {"has_cycle": False, "cycle_nodes": [], "depth": 0}
+        
+        visited = set()
+        path = []
+        cycle_nodes = []
+        
+        def dfs(node_id: str, depth: int) -> bool:
+            if depth > max_check:
+                return False
+            
+            if node_id in visited:
+                if node_id in path:
+                    cycle_nodes.append(node_id)
+                    return True
+                return False
+            
+            visited.add(node_id)
+            path.append(node_id)
+            
+            node = self.nodes.get(node_id)
+            if not node:
+                return False
+            
+            for child_id in node.child_ids:
+                if dfs(child_id, depth + 1):
+                    return True
+            
+            path.pop()
+            return False
+        
+        has_cycle = dfs(start_node_id, 0)
+        
+        return {
+            "has_cycle": has_cycle,
+            "cycle_nodes": cycle_nodes,
+            "depth": len(visited)
+        }
+    
+    def prune_by_age(self, max_age_seconds: float = 86400 * 30) -> int:
+        """Удалить узлы старше max_age_seconds (по умолчанию 30 дней)."""
+        current_time = time.time()
+        removed = 0
+        
+        nodes_to_remove = []
+        for node_id, node in self.nodes.items():
+            age = current_time - node.created_at
+            if age > max_age_seconds:
+                nodes_to_remove.append(node_id)
+        
+        for node_id in nodes_to_remove:
+            if self.delete_node(node_id, cascade=False):
+                removed += 1
+        
+        if removed > 0:
+            self._save()
+        
+        return removed
+    
+    def compact_storage(self) -> Dict[str, Any]:
+        """Дефрагментировать хранилище - пересоздать JSON файлы."""
+        original_nodes = len(self.nodes)
+        original_edges = len(self.edges)
+        
+        self._save()
+        
+        return {
+            "nodes_before": original_nodes,
+            "nodes_after": len(self.nodes),
+            "edges_before": original_edges,
+            "edges_after": len(self.edges),
+            "compacted": True
+        }
+    
+    def batch_retrieve(self, node_ids: List[str]) -> List[Dict[str, Any]]:
+        """Пакетное извлечение узлов для производительности."""
+        results = []
+        for node_id in node_ids:
+            node = self.nodes.get(node_id)
+            if node:
+                results.append(self._node_to_dict(node))
+        return results

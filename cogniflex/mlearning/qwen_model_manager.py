@@ -257,7 +257,6 @@ class QwenModelManager:
             load_kwargs = {
                 "trust_remote_code": True,
                 "cache_dir": self.cache_dir,
-                "torch_dtype": torch.float16,
             }
             
             # Для CPU загружаем напрямую, для CUDA используем device_map

@@ -80,7 +80,6 @@ class BitNetModelManager:
                 self.model = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     device_map="cpu",
-                    torch_dtype=torch.float32,
                     cache_dir=self.cache_dir
                 )
                 
