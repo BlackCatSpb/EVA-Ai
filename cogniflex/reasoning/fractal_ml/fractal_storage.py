@@ -406,3 +406,118 @@ class FractalStorage:
     def _node_to_dict(self, node: FractalNode) -> Dict[str, Any]:
         """Конвертировать узел в словарь."""
         return node.to_dict()
+    
+    def retrieve_similar_reasoning(
+        self, 
+        query: str, 
+        embedder, 
+        top_k: int = 5
+    ) -> List[FractalNode]:
+        """Найти похожие рассуждения по эмбеддингам."""
+        if not embedder:
+            return []
+        
+        query_embedding = embedder.embed_text(query)
+        results = []
+        
+        for node in self.nodes.values():
+            if node.node_type != FractalNodeType.REASONING_STEP.value:
+                continue
+            
+            node_embedding = embedder.embed_text(node.content)
+            similarity = embedder.compute_similarity(query_embedding, node_embedding)
+            
+            if similarity > 0.5:
+                results.append((node, similarity))
+        
+        results.sort(key=lambda x: x[1], reverse=True)
+        return [r[0] for r in results[:top_k]]
+    
+    def find_reasoning_parents(
+        self, 
+        step_id: str, 
+        max_depth: int = 3
+    ) -> List[FractalNode]:
+        """Найти родительские рассуждения."""
+        if step_id not in self.nodes:
+            return []
+        
+        parents = []
+        current = self.nodes[step_id]
+        depth = 0
+        
+        while current.parent_id and depth < max_depth:
+            parent = self.nodes.get(current.parent_id)
+            if parent:
+                parents.append(parent)
+                current = parent
+                depth += 1
+            else:
+                break
+        
+        return parents
+    
+    def get_cross_level_context(
+        self, 
+        query: str, 
+        levels: Optional[List[int]] = None
+    ) -> Dict[int, List[FractalNode]]:
+        """Получить контекст с разных уровней иерархии."""
+        if levels is None:
+            levels = [0, 1, 2, 3]
+        
+        result = {}
+        query_lower = query.lower()
+        
+        for level in levels:
+            level_nodes = self.get_nodes_by_level(level)
+            
+            relevant = [
+                n for n in level_nodes 
+                if query_lower in n.content.lower() or 
+               (n.context and query_lower in str(n.context).lower())
+            ]
+            
+            result[level] = relevant
+        
+        return result
+    
+    def compute_aggregated_confidence(self, chain: List[str]) -> float:
+        """Вычислить агрегированную уверенность для всей цепочки."""
+        if not chain:
+            return 0.0
+        
+        confidences = []
+        for node_id in chain:
+            node = self.nodes.get(node_id)
+            if node and node.context:
+                conf = node.context.get("confidence", 0.5)
+                confidences.append(conf)
+        
+        if not confidences:
+            return 0.5
+        
+        return sum(confidences) / len(confidences)
+    
+    def store_with_embedding(
+        self, 
+        content: str, 
+        node_type: str, 
+        level: int, 
+        embedding: List[float],
+        parent_id: Optional[str] = None,
+        context: Optional[Dict] = None
+    ) -> FractalNode:
+        """Сохранить узел с предвычисленным эмбеддингом."""
+        node = self.add_node(
+            content=content,
+            node_type=node_type,
+            level=level,
+            parent_id=parent_id,
+            context=context
+        )
+        
+        node.embedding = embedding
+        self._save()
+        
+        return node

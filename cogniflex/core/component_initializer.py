@@ -559,7 +559,7 @@ class ComponentInitializer:
                 return None
         
         def create_self_reasoning_engine():
-            """Создает Self-Reasoning Engine для саморассуждений."""
+            """Создает Self-Reasoning Engine для саморассуждений с поддержкой рекурсии."""
             try:
                 from cogniflex.reasoning import SelfReasoningEngine
                 
@@ -569,23 +569,26 @@ class ComponentInitializer:
                 # Получаем fractal_storage
                 fractal_storage = getattr(self.core_brain, 'fractal_storage', None)
                 
-                # Создаем движок рассуждений
+                # Создаем движок рассуждений с рекурсивной поддержкой
                 self_reasoning_engine = SelfReasoningEngine(
                     brain=self.core_brain,
                     config={
                         'max_iterations': reasoning_config.get('max_iterations', 5),
-                        'confidence_threshold': reasoning_config.get('confidence_threshold', 0.75)
+                        'confidence_threshold': reasoning_config.get('confidence_threshold', 0.75),
+                        'max_recursion_depth': reasoning_config.get('max_recursion_depth', 3)
                     }
                 )
                 
                 # Подключаем fractal_storage если есть
                 if fractal_storage:
                     self_reasoning_engine.fractal_storage = fractal_storage
+                    # Инициализируем retriever после подключения storage
+                    self_reasoning_engine._init_retriever()
                 
                 # Регистрируем в core_brain
                 self.core_brain.self_reasoning_engine = self_reasoning_engine
                 
-                self.logger.info("✅ SelfReasoningEngine создан")
+                self.logger.info("✅ SelfReasoningEngine создан с рекурсивной поддержкой")
                 return self_reasoning_engine
             except Exception as e:
                 self.logger.error(f"❌ Ошибка создания self_reasoning_engine: {e}", exc_info=True)

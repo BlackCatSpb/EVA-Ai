@@ -22,11 +22,12 @@ logger = logging.getLogger(__name__)
 # Параметры из DESIGN.md
 MAX_ITERATIONS = 5
 DEFAULT_MAX_TOKENS = 256
+MAX_RECURSION_DEPTH = 3
 
 
 class SelfReasoningEngine:
     """
-    Движок самостоятельного рассуждения
+    Движок самостоятельного рассуждения с поддержкой рекурсии
     Использует ЕДИНСТВЕННЫЙ экземпляр Qwen (singleton) для генерации
     """
     
@@ -45,6 +46,7 @@ class SelfReasoningEngine:
         self.max_iterations = self.config.get('max_iterations', MAX_ITERATIONS)
         self.confidence_threshold = self.config.get('confidence_threshold', CONFIDENCE_THRESHOLD)
         self.max_tokens = self.config.get('max_tokens', DEFAULT_MAX_TOKENS)
+        self.max_recursion_depth = self.config.get('max_recursion_depth', MAX_RECURSION_DEPTH)
         
         # Компоненты
         self.clarification_gen = ClarificationGenerator()
@@ -52,11 +54,28 @@ class SelfReasoningEngine:
         # Fractal Storage для хранения цепочек рассуждений
         self.fractal_storage = None
         
+        # Fractal компоненты для рекурсивного reasoning
+        self.fractal_embedder = None
+        self.fractal_retriever = None
+        self._init_fractal_components()
+        
         # Статистика
         self.total_queries = 0
         self.total_iterations = 0
+        self.recursive_calls = 0
         
-        logger.info(f"SelfReasoningEngine инициализирован: max_iterations={self.max_iterations}, threshold={self.confidence_threshold}")
+        logger.info(f"SelfReasoningEngine инициализирован: max_iterations={self.max_iterations}, recursion_depth={self.max_recursion_depth}")
+    
+    def _init_fractal_components(self):
+        """Инициализация FractalRetriever и FractalEmbedder"""
+        try:
+            from cogniflex.reasoning.fractal_ml.fractal_embedder import FractalEmbedder
+            from cogniflex.reasoning.fractal_ml.fractal_retriever import FractalRetriever
+            
+            self.fractal_embedder = FractalEmbedder(use_sentence_transformers=False)
+            logger.info("FractalEmbedder инициализирован")
+        except Exception as e:
+            logger.warning(f"Не удалось инициализировать fractal компоненты: {e}")
     
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """
@@ -91,6 +110,15 @@ class SelfReasoningEngine:
             pass
         
         logger.info(f"Начинаем рассуждение для запроса: {query[:50]}...")
+        
+        # Проверяем сложность запроса - используем рекурсию для сложных
+        self._init_retriever()
+        
+        if self.fractal_retriever and self._is_complex_query(query):
+            logger.info("Сложный запрос - используем рекурсивный reasoning")
+            result = self._recursive_process_query(query, user_context, depth=0)
+            result["processing_time"] = time.time() - start_time
+            return result
         
         # Инициализация результата
         result = ReasoningResult(
@@ -350,9 +378,253 @@ class SelfReasoningEngine:
         return {
             "total_queries": self.total_queries,
             "total_iterations": self.total_iterations,
+            "recursive_calls": self.recursive_calls,
             "avg_iterations": self.total_iterations / max(1, self.total_queries),
             "max_iterations": self.max_iterations,
+            "max_recursion_depth": self.max_recursion_depth,
             "confidence_threshold": self.confidence_threshold
+        }
+    
+    # =====================================================
+    # === РЕКУРСИВНЫЕ МЕТОДЫ ===
+    # =====================================================
+    
+    def _init_retriever(self):
+        """Инициализация Retriever после подключения storage"""
+        if self.fractal_storage and not self.fractal_retriever and self.fractal_embedder:
+            try:
+                from cogniflex.reasoning.fractal_ml.fractal_retriever import FractalRetriever
+                self.fractal_retriever = FractalRetriever(
+                    storage=self.fractal_storage,
+                    embedder=self.fractal_embedder
+                )
+                logger.info("FractalRetriever инициализирован")
+            except Exception as e:
+                logger.warning(f"Не удалось инициализировать Retriever: {e}")
+    
+    def _is_complex_query(self, query: str) -> bool:
+        """Определить сложность запроса для выбора стратегии"""
+        complexity_indicators = [
+            " и ", " или ", " но ", " потому что ", " поэтому",
+            " если ", " тогда ", " следовательно ", " значит ",
+            " как ", "почему", "какие", "сравни", "различия", "отличие"
+        ]
+        
+        query_lower = query.lower()
+        complexity_score = sum(1 for ind in complexity_indicators if ind in query_lower)
+        
+        is_long = len(query.split()) > 15
+        
+        return complexity_score >= 2 or is_long
+    
+    def _recursive_process_query(
+        self, 
+        query: str, 
+        user_context: Optional[Dict],
+        depth: int
+    ) -> Dict[str, Any]:
+        """Рекурсивная обработка сложных запросов"""
+        self.recursive_calls += 1
+        
+        logger.info(f"Рекурсивный вызов depth={depth}, query={query[:30]}...")
+        
+        if depth >= self.max_recursion_depth:
+            logger.info(f"Достигнута максимальная глубина {self.max_recursion_depth}")
+            return self._linear_process_query(query, user_context)
+        
+        self._init_retriever()
+        
+        sub_queries = self.decompose_query(query)
+        logger.info(f"Декомпозиция на {len(sub_queries)} подзадач")
+        
+        sub_results = []
+        for sq in sub_queries:
+            if depth + 1 < self.max_recursion_depth:
+                sub_result = self._recursive_process_query(sq, user_context, depth=depth + 1)
+            else:
+                sub_result = self._linear_process_query(sq, user_context)
+            sub_results.append(sub_result)
+        
+        similar_reasoning = []
+        if self.fractal_retriever:
+            similar_reasoning = self.retrieve_similar_reasoning(query)
+            logger.info(f"Найдено {len(similar_reasoning)} похожих рассуждений")
+        
+        final_result = self._synthesize_recursive_results(
+            query, sub_results, similar_reasoning, depth
+        )
+        
+        return final_result
+    
+    def decompose_query(self, query: str) -> List[str]:
+        """Декомпозиция сложного запроса на подзадачи"""
+        prompt = f"""Разбей запрос на 2-4 простых подзапроса.
+Запрос: {query}
+Верни только список подзапросов, каждый на новой строке:"""
+        
+        try:
+            response = self._generate_with_qwen(prompt)
+            if response:
+                sub_queries = [
+                    line.strip() for line in response.split('\n')
+                    if line.strip() and len(line.strip()) > 10
+                ]
+                if len(sub_queries) >= 2:
+                    return sub_queries
+        except Exception as e:
+            logger.warning(f"Декомпозиция не удалась: {e}")
+        
+        return [query]
+    
+    def retrieve_similar_reasoning(self, query: str) -> List[Dict]:
+        """Найти похожие рассуждения из прошлого"""
+        if not self.fractal_retriever or not self.fractal_storage:
+            return []
+        
+        try:
+            results = self.fractal_retriever.retrieve_with_embedding(query=query, top_k=5)
+            similar = [r for r in results if r.get('node_type') == 'reasoning_step']
+            return similar
+        except Exception as e:
+            logger.warning(f"Ошибка поиска похожих рассуждений: {e}")
+            return []
+    
+    def build_recursive_context(self, query: str) -> Dict:
+        """Построить контекст из разных уровней хранилища"""
+        context = {"level_0": [], "level_1": [], "level_2": [], "level_3": [], "similar": []}
+        
+        if not self.fractal_retriever:
+            return context
+        
+        try:
+            cross_level = self.fractal_retriever.retrieve_cross_level(query=query, levels=[0, 1, 2, 3])
+            for level, nodes in cross_level.items():
+                context[f"level_{level}"] = nodes
+            context["similar"] = self.retrieve_similar_reasoning(query)
+        except Exception as e:
+            logger.warning(f"Ошибка построения контекста: {e}")
+        
+        return context
+    
+    def _synthesize_recursive_results(
+        self,
+        query: str,
+        sub_results: List[Dict],
+        similar_reasoning: List[Dict],
+        depth: int
+    ) -> Dict[str, Any]:
+        """Синтез результатов рекурсивной обработки"""
+        combined_responses = [r.get("response", "") for r in sub_results]
+        combined_confidences = [r.get("confidence", 0.0) for r in sub_results]
+        
+        avg_confidence = sum(combined_confidences) / len(combined_confidences) if combined_confidences else 0.5
+        
+        if similar_reasoning:
+            similar_confidences = [s.get("confidence", 0.5) for s in similar_reasoning]
+            if similar_confidences:
+                boost = min(0.1, sum(similar_confidences) / len(similar_confidences) * 0.1)
+                avg_confidence = min(1.0, avg_confidence + boost)
+        
+        prompt = f"""На основе подответов составь единый ответ на вопрос.
+Вопрос: {query}
+Подответы: {' '.join(combined_responses)}
+Дай финальный ответ:"""
+        
+        final_response = self._generate_with_qwen(prompt)
+        
+        return {
+            "response": final_response or (combined_responses[0] if combined_responses else ""),
+            "text": final_response or (combined_responses[0] if combined_responses else ""),
+            "status": "ok",
+            "confidence": avg_confidence,
+            "source": "recursive_reasoning",
+            "recursive_depth": depth + 1,
+            "sub_queries_processed": len(sub_results),
+            "similar_found": len(similar_reasoning),
+            "reasoning": {
+                "sub_results": sub_results,
+                "similar_reasoning": similar_reasoning,
+                "depth": depth
+            }
+        }
+    
+    def _linear_process_query(
+        self, 
+        query: str, 
+        user_context: Optional[Dict]
+    ) -> Dict[str, Any]:
+        """Стандартная линейная обработка (без рекурсии)"""
+        result = ReasoningResult(
+            final_response="",
+            confidence=0.0,
+            iterations=0,
+            query=query
+        )
+        
+        current_query = query
+        iteration = 0
+        
+        while iteration < self.max_iterations:
+            iteration += 1
+            result.iterations = iteration
+            self.total_iterations += 1
+            
+            step = ReasoningStep(
+                phase=ReasoningPhase.GENERATION.value,
+                thought=f"Генерирую ответ на: {current_query[:30]}...",
+                confidence=0.0
+            )
+            
+            response = self._generate_with_qwen(current_query)
+            result.steps.append(step)
+            
+            if not response or response.startswith("Ошибка"):
+                result.final_response = response or "Ошибка генерации"
+                break
+            
+            analysis = self._analyze_response(current_query, response)
+            
+            confidence = calculate_overall_confidence(
+                ethics_result=analysis.ethics_result,
+                contradiction_result=analysis.contradiction_result,
+                knowledge_result=analysis.knowledge_result,
+                query=current_query
+            )
+            
+            step = ReasoningStep(
+                phase=ReasoningPhase.FINAL_SYNTHESIS.value,
+                thought=f"Анализ завершён. Уверенность: {confidence:.2f}",
+                confidence=confidence
+            )
+            result.steps.append(step)
+            
+            result.confidence = confidence
+            
+            if should_terminate(confidence, self.confidence_threshold):
+                result.final_response = response
+                break
+            
+            if iteration < self.max_iterations:
+                questions = self._generate_clarification(analysis, current_query)
+                result.clarification_questions = questions
+                
+                if questions:
+                    result.final_response = f"Уточните, пожалуйста: {questions[0]}"
+                    break
+        
+        if iteration >= self.max_iterations and not result.final_response:
+            result.final_response = "Извините, мне нужно больше информации."
+        
+        self._store_reasoning_chain(result)
+        
+        return {
+            "response": result.final_response,
+            "text": result.final_response,
+            "status": "ok",
+            "confidence": result.confidence,
+            "reasoning": result.to_dict(),
+            "source": "linear_reasoning",
+            "processing_time": 0.0
         }
 
 
