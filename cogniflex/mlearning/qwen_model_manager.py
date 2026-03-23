@@ -128,45 +128,39 @@ _qwen_model_manager_instance: Optional['QwenModelManager'] = None
 
 
 def get_qwen_model_manager(
-    model_size: str = "qwen3.5-2b",
+    model_size: str = "qwen3.5-0.8b",
     device: str = "auto",
     cache_dir: Optional[str] = None,
     quantize: bool = True,
-    load_in_8bit: bool = False,
+    load_in_8bit: bool = True,
     load_in_4bit: bool = False,
-    local_model_path: Optional[str] = None
+    local_model_path: Optional[str] = None,
+    force_reload: bool = False
 ) -> 'QwenModelManager':
     """
     Возвращает синглтон экземпляр QwenModelManager.
     
     Все модули должны использовать эту функцию вместо создания собственных
     экземпляров QwenModelManager.
-    
-    Args:
-        model_size: Размер модели
-        device: Устройство для загрузки
-        cache_dir: Директория для кэша
-        quantize: Использовать квантизацию
-        load_in_8bit: Загрузить в 8-bit
-        load_in_4bit: Загрузить в 4-bit
-        local_model_path: Путь к локальной модели
-        
-    Returns:
-        Экземпляр QwenModelManager
     """
     global _qwen_model_manager_instance
     
-    if _qwen_model_manager_instance is None:
-        _qwen_model_manager_instance = QwenModelManager(
-            model_size=model_size,
-            device=device,
-            cache_dir=cache_dir,
-            quantize=quantize,
-            load_in_8bit=load_in_8bit,
-            load_in_4bit=load_in_4bit,
-            local_model_path=local_model_path
-        )
-        logger.info(f"Создан синглтон QwenModelManager: {model_size}")
+    # Если уже есть экземпляр и он инициализирован - возвращаем его
+    if _qwen_model_manager_instance is not None and not force_reload:
+        if _qwen_model_manager_instance.initialized:
+            return _qwen_model_manager_instance
+    
+    # Создаем новый экземпляр
+    _qwen_model_manager_instance = QwenModelManager(
+        model_size=model_size,
+        device=device,
+        cache_dir=cache_dir,
+        quantize=quantize,
+        load_in_8bit=load_in_8bit,
+        load_in_4bit=load_in_4bit,
+        local_model_path=local_model_path
+    )
+    logger.info(f"Создан синглтон QwenModelManager: {model_size}, 8bit={load_in_8bit}")
     
     return _qwen_model_manager_instance
 

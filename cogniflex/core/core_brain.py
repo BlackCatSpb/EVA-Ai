@@ -100,13 +100,13 @@ class CoreBrain:
         """Инициализирует ядро CogniFlex."""
         logger.debug("Инициализация CogniFlexCore...")
         
+        # Инициализируем query_logger ПЕРЕД загрузкой конфигурации
+        self.query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
+        self.query_logger.info("Инициализирован логгер обработки запросов")
+        
         # Если конфигурация не передана, загружаем из brain_config.json
         if config is None:
             config = self._load_brain_config()
-        
-        # Создаем специальный логгер для обработки запросов
-        self.query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
-        self.query_logger.info("Инициализирован логгер обработки запросов")
         
         # Инициализация событийной системы
         try:
@@ -891,19 +891,24 @@ class CoreBrain:
             if self.qwen_model_manager is None and self._qwen_config is not None:
                 self.query_logger.info("Загрузка QwenModelManager (lazy)...")
                 try:
-                    from ..mlearning.qwen_model_manager import QwenModelManager
+                    try:
+                        from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
+                    except ImportError:
+                        from ..mlearning.qwen_model_manager import get_qwen_model_manager
                     
                     qwen_device = self._qwen_config.get('device', 'cuda')
-                    qwen_quant = self._qwen_config.get('quantization') == 'int8'
                     
-                    self.qwen_model_manager = QwenModelManager(
-                        model_size=self._qwen_config.get('name', 'qwen3.5-2b'),
+                    self.qwen_model_manager = get_qwen_model_manager(
+                        model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
                         device=qwen_device,
-                        load_in_8bit=qwen_quant
+                        load_in_8bit=True,
+                        load_in_4bit=False
                     )
                     
                     if self.qwen_model_manager.initialized:
                         self.qwen_ready = True
+                        if self.events:
+                            self.events.trigger('qwen_model_ready', self.qwen_model_manager)
                         self.query_logger.info("QwenModelManager успешно загружен!")
                     else:
                         self.qwen_model_manager = None
