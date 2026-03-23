@@ -12,8 +12,9 @@ logger = logging.getLogger("cogniflex.reasoning.fractal_retriever")
 class FractalRetriever:
     """Ретривер для извлечения данных из FractalStorage."""
     
-    def __init__(self, storage):
+    def __init__(self, storage, embedder=None):
         self.storage = storage
+        self.embedder = embedder
     
     def retrieve_with_depth(self, level: Optional[int] = None, max_depth: int = 3) -> List[Dict[str, Any]]:
         """
@@ -139,3 +140,127 @@ class FractalRetriever:
             "created_at": node.created_at,
             "updated_at": node.updated_at
         }
+    
+    def retrieve_with_embedding(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        """Семантический поиск по эмбеддингам."""
+        if not self.embedder:
+            logger.warning("Embedder не инициализирован, используем текстовый поиск")
+            return self.semantic_search(query, max_results=top_k)
+        
+        query_embedding = self.embedder.embed_text(query)
+        results = []
+        
+        for node in self.storage.nodes.values():
+            node_embedding = self.embedder.embed_node(node)
+            similarity = self.embedder.compute_similarity(query_embedding, node_embedding)
+            
+            results.append({
+                **self._node_to_dict(node),
+                "similarity": similarity
+            })
+        
+        results.sort(key=lambda x: x.get("similarity", 0), reverse=True)
+        return results[:top_k]
+    
+    def retrieve_cross_level(self, query: str, levels: List[int] = None) -> Dict[int, List[Dict]]:
+        """Извлечение с разных уровней иерархии."""
+        if levels is None:
+            levels = [0, 1, 2, 3]
+        
+        result = {}
+        for level in levels:
+            nodes = self.storage.get_nodes_by_level(level)
+            query_lower = query.lower()
+            filtered = [
+                self._node_to_dict(n) 
+                for n in nodes 
+                if query_lower in n.content.lower()
+            ]
+            result[level] = filtered
+        
+        return result
+    
+    def retrieve_reasoning_context(
+        self, 
+        query: str, 
+        levels: List[int] = None
+    ) -> Dict[int, List[Dict]]:
+        """Извлечь контекст рассуждения для каждого уровня абстракции."""
+        if levels is None:
+            levels = [0, 1, 2, 3]
+        
+        context = {}
+        
+        for level in levels:
+            level_nodes = self.storage.get_nodes_by_level(level)
+            
+            relevant = []
+            for node in level_nodes:
+                ctx = node.context or {}
+                if ctx.get("query") == query or query.lower() in node.content.lower():
+                    relevant.append(self._node_to_dict(node))
+            
+            context[level] = relevant
+        
+        return context
+    
+    def search_reasoning_graph(
+        self, 
+        query: str,
+        max_depth: int = 5,
+        relation_types: List[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Поиск в графе рассуждений."""
+        if relation_types is None:
+            relation_types = ["follows_from", "related_to", "based_on"]
+        
+        start_nodes = self.storage.search_by_content(query, limit=20)
+        
+        results = []
+        visited = set()
+        
+        for start_node in start_nodes:
+            self._graph_search_recursive(
+                start_node.id, 
+                query, 
+                0, 
+                max_depth, 
+                relation_types,
+                visited,
+                results
+            )
+        
+        return results
+    
+    def _graph_search_recursive(
+        self, 
+        node_id: str, 
+        query: str,
+        depth: int, 
+        max_depth: int,
+        relation_types: List[str],
+        visited: set,
+        results: List
+    ):
+        if depth > max_depth or node_id in visited:
+            return
+        
+        visited.add(node_id)
+        node = self.storage.get_node(node_id)
+        
+        if not node:
+            return
+        
+        if query.lower() in node.content.lower():
+            results.append({
+                **self._node_to_dict(node),
+                "search_depth": depth
+            })
+        
+        for rel_type in relation_types:
+            if rel_type in node.relations:
+                for related_id in node.relations[rel_type]:
+                    self._graph_search_recursive(
+                        related_id, query, depth + 1, max_depth,
+                        relation_types, visited, results
+                    )

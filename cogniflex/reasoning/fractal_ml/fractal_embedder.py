@@ -122,3 +122,64 @@ class FractalEmbedder:
             "hash": hashlib.md5(str(combined).encode()).hexdigest()[:16],
             "query": query[:100]
         }
+    
+    def batch_embed(self, texts: List[str]) -> List[List[float]]:
+        """Пакетная генерация эмбеддингов."""
+        if self._use_st and self._model:
+            embeddings = self._model.encode(texts, normalize_embeddings=True)
+            return [emb.tolist()[:self.embedding_dim] for emb in embeddings]
+        
+        return [self._generate_hash_embedding(text) for text in texts]
+    
+    def save_embeddings(self, path: str) -> bool:
+        """Сохранить кэш эмбеддингов на диск."""
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(self.cache, f, indent=2)
+            logger.info(f"Сохранено {len(self.cache)} эмбеддингов в {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка сохранения эмбеддингов: {e}")
+            return False
+    
+    def load_embeddings(self, path: str) -> bool:
+        """Загрузить кэш эмбеддингов с диска."""
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                self.cache = json.load(f)
+            logger.info(f"Загружено {len(self.cache)} эмбеддингов из {path}")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка загрузки эмбеддингов: {e}")
+            return False
+    
+    def embed_reasoning_step(
+        self, 
+        content: str, 
+        parent_step_id: str = None,
+        iteration: int = 0
+    ) -> List[float]:
+        """Эмбеддинг шага рассуждения с учётом позиции в цепочке."""
+        base_emb = self.embed_text(content)
+        
+        iteration_factor = iteration / 100.0
+        
+        result = base_emb[:]
+        for i in range(min(len(result), self.embedding_dim // 10)):
+            result[i] = result[i] * (1 - iteration_factor) + iteration_factor * (i / 10)
+        
+        return result
+    
+    def compare_reasoning_chains(
+        self, 
+        chain1: List[Dict], 
+        chain2: List[Dict]
+    ) -> float:
+        """Сравнение двух цепочек рассуждений."""
+        if not chain1 or not chain2:
+            return 0.0
+        
+        emb1 = self.embed_text(" ".join([n.get("content", "") for n in chain1]))
+        emb2 = self.embed_text(" ".join([n.get("content", "") for n in chain2]))
+        
+        return self.compute_similarity(emb1, emb2)

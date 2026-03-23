@@ -208,3 +208,201 @@ class FractalStorage:
             "nodes_by_level": by_level,
             "storage_path": self.storage_path
         }
+    
+    def delete_node(self, node_id: str, cascade: bool = True) -> bool:
+        """Удалить узел с опциональным каскадным удалением потомков."""
+        if node_id not in self.nodes:
+            return False
+        
+        node = self.nodes[node_id]
+        
+        if cascade:
+            for child_id in node.child_ids[:]:
+                self.delete_node(child_id, cascade=True)
+        
+        edges_to_remove = [
+            eid for eid, edge in self.edges.items()
+            if edge.source_id == node_id or edge.target_id == node_id
+        ]
+        for eid in edges_to_remove:
+            del self.edges[eid]
+        
+        if node.parent_id and node.parent_id in self.nodes:
+            parent = self.nodes[node.parent_id]
+            if node_id in parent.child_ids:
+                parent.child_ids.remove(node_id)
+        
+        del self.nodes[node_id]
+        self._save()
+        return True
+    
+    def update_node(self, node_id: str, content: Optional[str] = None, **kwargs) -> Optional[FractalNode]:
+        """Обновить узел с версионированием."""
+        node = self.nodes.get(node_id)
+        if not node:
+            return None
+        
+        if content is not None:
+            node.content = content
+            node.version += 1
+            node.updated_at = time.time()
+        
+        for key, value in kwargs.items():
+            if hasattr(node, key):
+                setattr(node, key, value)
+        
+        self._save()
+        return node
+    
+    def get_neighbors(self, node_id: str, include_children: bool = True, 
+                     include_parents: bool = True) -> List[FractalNode]:
+        """Получить все связанные узлы (не только дети)."""
+        neighbors = []
+        node = self.nodes.get(node_id)
+        if not node:
+            return neighbors
+        
+        if include_children:
+            for child_id in node.child_ids:
+                if child_id in self.nodes:
+                    neighbors.append(self.nodes[child_id])
+        
+        if include_parents and node.parent_id:
+            parent = self.nodes.get(node.parent_id)
+            if parent:
+                neighbors.append(parent)
+        
+        for rel_type, related_ids in node.relations.items():
+            for rel_id in related_ids:
+                if rel_id in self.nodes:
+                    neighbors.append(self.nodes[rel_id])
+        
+        return neighbors
+    
+    def traverse_breadth_first(self, start_id: str, max_depth: int = 3) -> List[FractalNode]:
+        """BFS обход дерева рассуждений."""
+        if start_id not in self.nodes:
+            return []
+        
+        result = []
+        queue = [(start_id, 0)]
+        visited = {start_id}
+        
+        while queue:
+            node_id, depth = queue.pop(0)
+            
+            if depth > max_depth:
+                continue
+            
+            node = self.nodes[node_id]
+            result.append(node)
+            
+            for child_id in node.child_ids:
+                if child_id not in visited:
+                    visited.add(child_id)
+                    queue.append((child_id, depth + 1))
+        
+        return result
+    
+    def batch_add_nodes(self, nodes_data: List[Dict]) -> List[FractalNode]:
+        """Массовое добавление узлов (транзакционно)."""
+        nodes = []
+        for data in nodes_data:
+            node = self.add_node(
+                content=data["content"],
+                node_type=data.get("node_type", "detail"),
+                level=data.get("level", 0),
+                parent_id=data.get("parent_id"),
+                context=data.get("context", {})
+            )
+            nodes.append(node)
+        return nodes
+    
+    def get_reasoning_chain(self, query: str) -> List[FractalNode]:
+        """Получить все шаги рассуждений для запроса."""
+        result = []
+        for node in self.nodes.values():
+            if node.node_type == FractalNodeType.REASONING_STEP.value:
+                ctx = node.context or {}
+                if ctx.get("query") == query:
+                    result.append(node)
+        return sorted(result, key=lambda n: n.context.get("iteration", 0) if n.context else 0)
+    
+    def compute_reasoning_confidence(self, node_id: str) -> float:
+        """Вычислить уверенность рассуждения на основе связей."""
+        node = self.nodes.get(node_id)
+        if not node:
+            return 0.0
+        
+        base_confidence = node.context.get("confidence", 0.5) if node.context else 0.5
+        
+        if node.parent_id:
+            parent = self.nodes.get(node.parent_id)
+            if parent:
+                parent_confidence = parent.context.get("confidence", 0.5) if parent.context else 0.5
+                base_confidence = min(base_confidence, parent_confidence * 0.9)
+        
+        return base_confidence
+    
+    def validate_reasoning_chain(self, chain: List[str]) -> Dict[str, Any]:
+        """Проверить логическую целостность цепочки рассуждений."""
+        if not chain:
+            return {"valid": False, "errors": ["Пустая цепочка"]}
+        
+        errors = []
+        
+        for i, node_id in enumerate(chain):
+            if node_id not in self.nodes:
+                errors.append(f"Узел {node_id} не найден")
+                continue
+            
+            node = self.nodes[node_id]
+            
+            if i > 0:
+                prev_id = chain[i - 1]
+                if prev_id not in node.relations.get("follows_from", []):
+                    if node.parent_id != prev_id:
+                        errors.append(f"Разрыв связи между {prev_id} и {node_id}")
+        
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "chain_length": len(chain)
+        }
+    
+    def get_reasoning_subgraph(self, start_step_id: str) -> Dict[str, Any]:
+        """Получить подграф связанных рассуждений."""
+        if start_step_id not in self.nodes:
+            return {"nodes": [], "edges": []}
+        
+        visited = set()
+        nodes_data = []
+        edges_data = []
+        
+        def collect(node_id: str, depth: int = 0):
+            if depth > 5 or node_id in visited:
+                return
+            
+            visited.add(node_id)
+            node = self.nodes.get(node_id)
+            if not node:
+                return
+            
+            nodes_data.append(self._node_to_dict(node))
+            
+            for rel_type, related_ids in node.relations.items():
+                for rel_id in related_ids:
+                    edges_data.append({
+                        "source": node_id,
+                        "target": rel_id,
+                        "relation": rel_type
+                    })
+                    collect(rel_id, depth + 1)
+        
+        collect(start_step_id)
+        
+        return {"nodes": nodes_data, "edges": edges_data, "node_count": len(nodes_data)}
+    
+    def _node_to_dict(self, node: FractalNode) -> Dict[str, Any]:
+        """Конвертировать узел в словарь."""
+        return node.to_dict()
