@@ -83,6 +83,9 @@ class SelfDialogLearningSystem:
         self.min_quality_threshold = self.config.get("min_quality_threshold", 0.6)
         self.auto_execute_enabled = self.config.get("auto_execute_enabled", True)
         
+        # Порог приоритета для выполнения обучения (снижен с 0.3 до 0.1)
+        self.min_priority_threshold = self.config.get("min_priority_threshold", 0.1)
+        
         self.dialog_queue = queue.Queue()
         self.active_dialogs: Dict[str, SelfDialog] = {}
         self.dialog_history: List[SelfDialog] = []
@@ -229,12 +232,13 @@ class SelfDialogLearningSystem:
             return []
         
         opportunities = []
+        min_priority = self.min_priority_threshold  # Используем настраиваемый порог
         
         if hasattr(self.brain, 'self_analyzer') and self.brain.self_analyzer:
             try:
                 opportunities = self.brain.self_analyzer.get_learning_opportunities(
                     executed=False,
-                    min_priority=0.3,
+                    min_priority=min_priority,
                     limit=10
                 )
             except Exception as e:
@@ -244,7 +248,7 @@ class SelfDialogLearningSystem:
             try:
                 opportunities = self.brain.analyzer_core.get_learning_opportunities(
                     executed=False,
-                    min_priority=0.3,
+                    min_priority=min_priority,
                     limit=10
                 )
             except Exception as e:
@@ -277,7 +281,8 @@ class SelfDialogLearningSystem:
             priority = opportunity.get('priority', 0.5)
             domain = opportunity.get('domain', 'general')
             
-            if priority < 0.3:
+            # Используем настраиваемый порог приоритета
+            if priority < self.min_priority_threshold:
                 logger.debug(f"Пропуск возможности с низким приоритетом: {concept} ({priority:.2f})")
                 self._mark_opportunity_executed(opportunity_id, {"skipped": True, "reason": "low_priority"})
                 return
@@ -622,27 +627,60 @@ class SelfDialogLearningSystem:
         return prompt
     
     def _simulate_assistant_response(self, prompt: str) -> str:
-        """Симулирует ответ ассистента."""
+        """Симулирует ответ ассистента с использованием SelfReasoningEngine."""
+        topic_match = prompt.split("Тема:")[1].split("\n")[0].strip() if "Тема:" in prompt else "тему"
+        
+        # Пробуем использовать SelfReasoningEngine
+        if self.brain and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine:
+            try:
+                result = self.brain.self_reasoning_engine.process_query(f"Объясни: {topic_match}")
+                if result and result.get('response'):
+                    return result['response'][:500]
+            except Exception as e:
+                logger.debug(f"Не удалось использовать SelfReasoningEngine: {e}")
+        
+        # Пробуем использовать process_query
         if self.brain and hasattr(self.brain, 'process_query'):
             try:
-                response = self.brain.process_query(f"Объясни: {prompt}")
-                return response[:500] if len(response) > 500 else response
+                response = self.brain.process_query(f"Объясни: {topic_match}")
+                if response and isinstance(response, dict):
+                    response = response.get('response', response.get('text', ''))
+                return response[:500] if response and len(response) > 500 else (response or '')
             except Exception as e:
                 logger.debug(f"Не удалось получить ответ от brain: {e}")
         
-        topic_match = prompt.split("Тема:")[1].split("\n")[0].strip() if "Тема:" in prompt else "тему"
-        return f"初步分析 {topic_match}: система исследует базовые аспекты проблемы."
+        # Fallback - простой ответ
+        return f"Анализ темы '{topic_match}': система исследует базовые аспекты проблемы."
     
     def _simulate_critic_response(self, turns: List[DialogTurn], topic: str) -> str:
-        """Симулирует ответ критика."""
+        """Симулирует ответ критика с проверкой противоречий."""
         if not turns:
             return "Нет данных для критики."
         
         last_content = turns[-1].content if turns else ""
+        
+        # Проверяем противоречия если доступен ContradictionManager
+        contradictions_found = []
+        if self.brain and hasattr(self.brain, 'contradiction_manager') and self.brain.contradiction_manager:
+            try:
+                contr_result = self.brain.contradiction_manager.detect_contradictions()
+                if contr_result and isinstance(contr_result, dict):
+                    contradictions = contr_result.get('contradictions', [])
+                    if contradictions:
+                        contradictions_found = [str(c)[:50] for c in contradictions[:3]]
+            except Exception as e:
+                logger.debug(f"Ошибка проверки противоречий: {e}")
+        
         gaps = self._identify_knowledge_gaps(last_content, topic)
         
+        result_parts = []
+        if contradictions_found:
+            result_parts.append(f"Противоречия: {', '.join(contradictions_found)}")
+        
         gaps_text = "; ".join(gaps) if gaps else "не выявлены"
-        return f"Критический анализ: выявлены следующие пробелы в знаниях: {gaps_text}."
+        result_parts.append(f"Пробелы в знаниях: {gaps_text}")
+        
+        return "Критический анализ: " + ". ".join(result_parts) + "."
     
     def _simulate_learner_response(self, turns: List[DialogTurn], topic: str) -> str:
         """Симулирует ответ обучающегося."""
@@ -709,6 +747,92 @@ class SelfDialogLearningSystem:
         self.stats["knowledge_gaps_identified"] += len(gaps)
         
         return gaps
+    
+    def _extract_entities(self, text: str) -> Dict[str, List[str]]:
+        """Извлекает сущности из текста простыми методами.
+        
+        Args:
+            text: Входной текст для анализа
+            
+        Returns:
+            Словарь с типами сущностей и списком найденных сущностей
+        """
+        entities = {
+            "persons": [],
+            "organizations": [],
+            "locations": [],
+            "concepts": [],
+            "technologies": [],
+            "numbers": []
+        }
+        
+        if not text:
+            return entities
+        
+        text_lower = text.lower()
+        words = text.split()
+        
+        person_patterns = [
+            "человек", "пользователь", "специалист", "эксперт", "ученый",
+            "разработчик", "администратор", "аналитик", "инженер"
+        ]
+        
+        org_patterns = [
+            "компания", "организация", "команда", "группа", "институт",
+            "университет", "лаборатория", "предприятие", "корпорация"
+        ]
+        
+        location_patterns = [
+            "страна", "город", "регион", "область", "континент",
+            "европа", "азия", "россия", "сша", "германия", "франция"
+        ]
+        
+        concept_patterns = [
+            "концепция", "принцип", "теория", "модель", "система",
+            "метод", "подход", "стратегия", "алгоритм", "процесс"
+        ]
+        
+        tech_patterns = [
+            "python", "java", "c++", "javascript", "tensorflow", "pytorch",
+            "神经网络", "машинное обучение", "глубинное обучение", "nlp",
+            "transformer", "bert", "gpt", "llm"
+        ]
+        
+        for i, word in enumerate(words):
+            word_lower = word.lower().strip(".,!?;:()[]{}")
+            
+            for pattern in person_patterns:
+                if pattern in word_lower:
+                    entities["persons"].append(word)
+                    break
+            
+            for pattern in org_patterns:
+                if pattern in word_lower:
+                    entities["organizations"].append(word)
+                    break
+            
+            for pattern in location_patterns:
+                if pattern in word_lower:
+                    entities["locations"].append(word)
+                    break
+            
+            for pattern in concept_patterns:
+                if pattern in word_lower:
+                    entities["concepts"].append(word)
+                    break
+            
+            for pattern in tech_patterns:
+                if pattern in word_lower:
+                    entities["technologies"].append(word)
+                    break
+            
+            if word_lower.isdigit() and len(word_lower) > 1:
+                entities["numbers"].append(word_lower)
+        
+        for key in entities:
+            entities[key] = list(set(entities[key]))[:10]
+        
+        return entities
     
     def _assess_turn_quality(self, turn: DialogTurn, dialog: SelfDialog) -> float:
         """Оценивает качество хода диалога."""

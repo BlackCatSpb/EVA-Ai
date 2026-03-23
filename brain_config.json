@@ -21,8 +21,8 @@
     "max_length": 32768,
     "device": "cuda",
     "quantization": "int8",
-    "qwen_only_mode": true,
-    "disable_fallback": true
+    "qwen_only_mode": false,
+    "disable_fallback": false
   },
   "generation": {
     "temperature": 0.7,
@@ -87,5 +87,17 @@
   },
   "knowledge_awareness": {
     "enabled": true
+  },
+  "reasoning": {
+    "enabled": true,
+    "max_iterations": 5,
+    "confidence_threshold": 0.75,
+    "storage_dir": "./cache/fractal_reasoning",
+    "weights": {
+      "ethics": 0.30,
+      "contradiction": 0.30,
+      "knowledge": 0.20,
+      "quality": 0.20
+    }
   }
 }

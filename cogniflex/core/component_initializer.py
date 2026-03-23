@@ -132,6 +132,10 @@ class ComponentInitializer:
             'ethics_framework': ['knowledge_graph'],
             'web_search_engine': ['knowledge_graph'],
             'gui': [],
+            
+            # Fractal Reasoning компоненты (фрактальное хранилище для саморассуждений)
+            'fractal_storage': [],
+            'self_reasoning_engine': ['fractal_storage', 'knowledge_graph'],
         }
     
     def _register_component_factories(self):
@@ -526,6 +530,67 @@ class ComponentInitializer:
                 self.logger.error(f"❌ Ошибка создания web_search_engine: {e}", exc_info=True)
                 return None
         
+        # ===== FRACTAL REASONING КОМПОНЕНТЫ =====
+        
+        def create_fractal_storage():
+            """Создает FractalStorage для хранения цепочек рассуждений."""
+            try:
+                from cogniflex.reasoning.fractal_ml import FractalStorage
+                
+                storage_dir = os.path.join(
+                    getattr(self.core_brain, 'cache_dir', './cache'),
+                    'fractal_reasoning'
+                )
+                os.makedirs(storage_dir, exist_ok=True)
+                
+                fractal_storage = FractalStorage(storage_dir=storage_dir, auto_init=True)
+                
+                # Регистрируем в core_brain
+                self.core_brain.fractal_storage = fractal_storage
+                
+                # Регистрируем в components если есть
+                if hasattr(self.core_brain, 'components'):
+                    self.core_brain.components['fractal_storage'] = fractal_storage
+                
+                self.logger.info(f"✅ FractalStorage создан: {storage_dir}")
+                return fractal_storage
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания fractal_storage: {e}", exc_info=True)
+                return None
+        
+        def create_self_reasoning_engine():
+            """Создает Self-Reasoning Engine для саморассуждений."""
+            try:
+                from cogniflex.reasoning import SelfReasoningEngine
+                
+                # Получаем конфигурацию из brain_config
+                reasoning_config = self.core_brain.config.get('reasoning', {}) if hasattr(self.core_brain, 'config') else {}
+                
+                # Получаем fractal_storage
+                fractal_storage = getattr(self.core_brain, 'fractal_storage', None)
+                
+                # Создаем движок рассуждений
+                self_reasoning_engine = SelfReasoningEngine(
+                    brain=self.core_brain,
+                    config={
+                        'max_iterations': reasoning_config.get('max_iterations', 5),
+                        'confidence_threshold': reasoning_config.get('confidence_threshold', 0.75)
+                    }
+                )
+                
+                # Подключаем fractal_storage если есть
+                if fractal_storage:
+                    self_reasoning_engine.fractal_storage = fractal_storage
+                
+                # Регистрируем в core_brain
+                self.core_brain.self_reasoning_engine = self_reasoning_engine
+                
+                self.logger.info("✅ SelfReasoningEngine создан")
+                return self_reasoning_engine
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания self_reasoning_engine: {e}", exc_info=True)
+                return None
+        
         # Регистрируем все фабрики
         self.component_factories = {
             # Системные
@@ -559,6 +624,10 @@ class ComponentInitializer:
             'ethics_framework': create_ethics_framework,
             'web_search_engine': create_web_search_engine,
             'gui': create_gui,
+            
+            # Fractal Reasoning
+            'fractal_storage': create_fractal_storage,
+            'self_reasoning_engine': create_self_reasoning_engine,
         }
         
         self.logger.info(f"Зарегистрировано {len(self.component_factories)} фабрик компонентов")

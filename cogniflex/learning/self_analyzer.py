@@ -346,13 +346,64 @@ class SelfAnalyzer:
         }
     
     def analyze_contradictions(self) -> Dict[str, Any]:
-        """Анализирует противоречия для выявления возможностей."""
-        # В реальной реализации здесь будет код для анализа противоречий
-        # Для упрощения возвращаем заглушку
-        logger.warning("Анализ противоречий не реализован в текущей версии")
+        """Анализирует противоречия для выявления возможностей обучения."""
+        logger.info("Анализ противоречий...")
+        
+        contradictions_found = []
+        learning_opportunities = []
+        
+        # Проверяем доступность ContradictionManager
+        if self.brain and hasattr(self.brain, 'contradiction_manager') and self.brain.contradiction_manager:
+            try:
+                contr_result = self.brain.contradiction_manager.detect_contradictions()
+                if contr_result and isinstance(contr_result, dict):
+                    contradictions = contr_result.get('contradictions', [])
+                    contradictions_found = contradictions
+                    
+                    # Создаём возможности обучения из противоречий
+                    for contr in contradictions[:5]:
+                        if isinstance(contr, dict):
+                            topic = contr.get('concept', contr.get('topic', 'unknown'))
+                            learning_opportunities.append({
+                                'type': 'contradiction_analysis',
+                                'topic': topic,
+                                'contradiction': contr,
+                                'priority': 0.6
+                            })
+                            
+                    logger.info(f"Найдено {len(contradictions_found)} противоречий")
+            except Exception as e:
+                logger.warning(f"Ошибка при анализе противоречий: {e}")
+        
+        # Также проверяем историю взаимодействий
+        if not contradictions_found and hasattr(self, 'interaction_history'):
+            try:
+                recent_interactions = self.interaction_history[-20:] if self.interaction_history else []
+                
+                # Проверяем последние запросы на наличие противоречий
+                for interaction in recent_interactions:
+                    if isinstance(interaction, dict):
+                        query = interaction.get('query', '')
+                        response = interaction.get('response', '')
+                        
+                        # Простой анализ - ищем противоречивые паттерны
+                        if query and response:
+                            # Если ответ содержит неопределённость
+                            uncertain_words = ['возможно', 'вероятно', 'не уверен', 'может быть', 'неизвестно']
+                            if any(word in response.lower() for word in uncertain_words):
+                                learning_opportunities.append({
+                                    'type': 'uncertainty_resolution',
+                                    'topic': query[:50],
+                                    'priority': 0.4
+                                })
+            except Exception as e:
+                logger.debug(f"Ошибка анализа истории: {e}")
+        
         return {
-            "status": "not_implemented",
-            "message": "Метод не реализован",
+            "status": "completed",
+            "contradictions_found": contradictions_found,
+            "learning_opportunities": learning_opportunities,
+            "opportunities_count": len(learning_opportunities),
             "timestamp": time.time()
         }
     

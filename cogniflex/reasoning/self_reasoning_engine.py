@@ -49,6 +49,9 @@ class SelfReasoningEngine:
         # Компоненты
         self.clarification_gen = ClarificationGenerator()
         
+        # Fractal Storage для хранения цепочек рассуждений
+        self.fractal_storage = None
+        
         # Статистика
         self.total_queries = 0
         self.total_iterations = 0
@@ -68,6 +71,24 @@ class SelfReasoningEngine:
         """
         start_time = time.time()
         self.total_queries += 1
+        
+        # Быстрая проверка - сразу используем fallback если модели недоступны
+        try:
+            qwen = getattr(self.brain, 'qwen_model_manager', None)
+            if qwen is None or not getattr(qwen, 'initialized', False):
+                # Qwen недоступен - используем простой ответ напрямую
+                simple_response = self._generate_simple_response(query)
+                return {
+                    "response": simple_response,
+                    "text": simple_response,
+                    "status": "ok",
+                    "confidence": 0.5,
+                    "reasoning": {"source": "simple_fallback"},
+                    "source": "self_reasoning_engine",
+                    "processing_time": time.time() - start_time
+                }
+        except Exception:
+            pass
         
         logger.info(f"Начинаем рассуждение для запроса: {query[:50]}...")
         
@@ -151,6 +172,9 @@ class SelfReasoningEngine:
         
         logger.info(f"Рассуждение завершено: {iteration} итераций, уверенность {result.confidence:.2f}")
         
+        # Сохраняем цепочку рассуждений в FractalStorage если доступен
+        self._store_reasoning_chain(result)
+        
         # Возвращаем результат в формате для CoreBrain
         return {
             "response": result.final_response,
@@ -164,14 +188,14 @@ class SelfReasoningEngine:
     
     def _generate_with_qwen(self, prompt: str) -> str:
         """
-        Генерация через Qwen singleton
-        ВАЖНО: Используем ЕДИНСТВЕННЫЙ экземпляр модели!
+        Генерация ответа с fallback на разные модели
+        Приоритет: Qwen → FractalModelManager → ResponseGenerator
         """
+        # Попытка 1: Qwen singleton
         try:
             qwen = getattr(self.brain, 'qwen_model_manager', None)
             
-            if qwen is None or not qwen.initialized:
-                # Пробуем получить через singleton
+            if qwen is None or not getattr(qwen, 'initialized', False):
                 try:
                     from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
                     qwen = get_qwen_model_manager(
@@ -179,27 +203,73 @@ class SelfReasoningEngine:
                         device='auto',
                         load_in_8bit=True
                     )
-                except Exception as e:
-                    return f"Ошибка: не удалось загрузить Qwen: {e}"
+                except Exception:
+                    pass
             
-            if qwen is None or not qwen.initialized:
-                return "Ошибка: Qwen модель не инициализирована"
-            
-            # Генерация через chat format
-            messages = [{"role": "user", "content": prompt}]
-            response = qwen.generate(
-                messages,
-                max_new_tokens=self.max_tokens,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1
-            )
-            
-            return response if response else "Ошибка: пустой ответ"
-        
+            if qwen and getattr(qwen, 'initialized', False):
+                messages = [{"role": "user", "content": prompt}]
+                response = qwen.generate(
+                    messages,
+                    max_new_tokens=self.max_tokens,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.1
+                )
+                if response:
+                    return response
         except Exception as e:
-            logger.error(f"Ошибка генерации Qwen: {e}")
-            return f"Ошибка генерации: {e}"
+            logger.debug(f"Qwen generation failed: {e}")
+        
+        # Попытка 2: FractalModelManager
+        try:
+            fractal_mm = getattr(self.brain, 'fractal_model_manager', None)
+            if fractal_mm and hasattr(fractal_mm, 'generate_response'):
+                response = fractal_mm.generate_response(prompt)
+                if response:
+                    return response
+        except Exception as e:
+            logger.debug(f"FractalModelManager generation failed: {e}")
+        
+        # Попытка 3: ResponseGenerator
+        try:
+            resp_gen = getattr(self.brain, 'response_generator', None)
+            if resp_gen and hasattr(resp_gen, 'generate'):
+                result = resp_gen.generate(prompt)
+                if result and isinstance(result, dict):
+                    return result.get('text', result.get('response', ''))
+                elif result:
+                    return str(result)
+        except Exception as e:
+            logger.debug(f"ResponseGenerator generation failed: {e}")
+        
+        # Попытка 4: GenerationCoordinator
+        try:
+            gen_coord = getattr(self.brain, 'generation_coordinator', None)
+            if gen_coord and hasattr(gen_coord, 'generate'):
+                result = gen_coord.generate(text=prompt, source="reasoning_engine")
+                if result:
+                    return result.text if hasattr(result, 'text') else str(result)
+        except Exception as e:
+            logger.debug(f"GenerationCoordinator failed: {e}")
+        
+        # Fallback: простой ответ без модели
+        logger.warning("Все генераторы недоступны, используем простой ответ")
+        return self._generate_simple_response(prompt)
+    
+    def _generate_simple_response(self, prompt: str) -> str:
+        """Простой fallback ответ без модели."""
+        prompt_lower = prompt.lower().strip()
+        
+        # Простые шаблоны для приветствий
+        greetings = ['привет', 'здравствуй', 'hello', 'hi', 'хай', 'прив', 'здорово']
+        if any(g in prompt_lower for g in greetings):
+            return "Здравствуйте! Я CogniFlex. Чем могу помочь?"
+        
+        # Простые ответы на общие вопросы
+        if '?' in prompt:
+            return f"Интересный вопрос: '{prompt}'. Для полного ответа требуется больше контекста."
+        
+        return f"Получил ваш запрос: '{prompt}'. Чтобы дать точный ответ, уточните детали."
     
     def _analyze_response(self, query: str, response: str) -> AnalysisResult:
         """
@@ -249,6 +319,31 @@ class SelfReasoningEngine:
         except Exception as e:
             logger.warning(f"Clarification generation failed: {e}")
             return ["Можете уточнить ваш запрос?"]
+    
+    def _store_reasoning_chain(self, result: ReasoningResult) -> None:
+        """
+        Сохранение цепочки рассуждений в FractalStorage
+        """
+        if not self.fractal_storage:
+            # Пробуем получить из brain
+            self.fractal_storage = getattr(self.brain, 'fractal_storage', None)
+        
+        if not self.fractal_storage:
+            return
+        
+        try:
+            # Сохраняем каждый шаг рассуждения
+            for i, step in enumerate(result.steps):
+                self.fractal_storage.add_reasoning_step(
+                    query=result.query,
+                    step_content=step.thought,
+                    confidence=step.confidence,
+                    iteration=i + 1
+                )
+            
+            logger.debug(f"Сохранено {len(result.steps)} шагов рассуждения в FractalStorage")
+        except Exception as e:
+            logger.warning(f"Не удалось сохранить цепочку рассуждений: {e}")
     
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику работы"""

@@ -16,6 +16,8 @@ from .fractal_base import (
 from .fractal_tokenizer import FractalTokenizer, FractalTokenizerWrapper
 
 from .fractal_storage import FractalStorage
+from .fractal_retriever import FractalRetriever
+from .fractal_embedder import FractalEmbedder
 
 __all__ = [
     'FractalNode',
@@ -28,6 +30,8 @@ __all__ = [
     'FractalTokenizer',
     'FractalTokenizerWrapper',
     'FractalStorage',
+    'FractalRetriever',
+    'FractalEmbedder',
     'create_fractal_id',
 ]
 

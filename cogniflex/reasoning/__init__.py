@@ -8,7 +8,7 @@ from .clarification_generator import ClarificationGenerator
 from .reasoning_types import ReasoningStep, ReasoningResult, ReasoningPhase, AnalysisResult
 from .integration import ReasoningIntegration, integrate_reasoning
 
-from .fractal_ml import FractalStorage, FractalNode, FractalNodeType
+from .fractal_ml import FractalStorage, FractalNode, FractalNodeType, FractalRetriever, FractalEmbedder
 
 __all__ = [
     # Self-Reasoning
@@ -29,6 +29,8 @@ __all__ = [
     'FractalStorage',
     'FractalNode',
     'FractalNodeType',
+    'FractalRetriever',
+    'FractalEmbedder',
 ]
 
 # Параметры из DESIGN.md
