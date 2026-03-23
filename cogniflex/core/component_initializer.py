@@ -562,6 +562,7 @@ class ComponentInitializer:
             """Создает Self-Reasoning Engine для саморассуждений с поддержкой рекурсии."""
             try:
                 from cogniflex.reasoning import SelfReasoningEngine
+                from cogniflex.reasoning.integration import ReasoningIntegration
                 
                 # Получаем конфигурацию из brain_config
                 reasoning_config = self.core_brain.config.get('reasoning', {}) if hasattr(self.core_brain, 'config') else {}
@@ -582,8 +583,16 @@ class ComponentInitializer:
                 # Подключаем fractal_storage если есть
                 if fractal_storage:
                     self_reasoning_engine.fractal_storage = fractal_storage
-                    # Инициализируем retriever после подключения storage
                     self_reasoning_engine._init_retriever()
+                
+                # Также пробуем интеграцию через ReasoningIntegration
+                try:
+                    reasoning_integration = ReasoningIntegration(self.core_brain)
+                    reasoning_integration.integrate_with_brain()
+                    self.core_brain.reasoning_integration = reasoning_integration
+                    self.logger.info("✅ ReasoningIntegration также создан")
+                except Exception as e:
+                    self.logger.debug(f"ReasoningIntegration не создан: {e}")
                 
                 # Регистрируем в core_brain
                 self.core_brain.self_reasoning_engine = self_reasoning_engine
