@@ -1325,7 +1325,7 @@ class KnowledgeGraph:
                 ambiguous_entities = self.entity_extractor.extract_ambiguous_terms(full_text)
                 if ambiguous_entities:
                     node.meta['ambiguities'] = [
-                        {"term": e.term, "type": e.entity_type}
+                        {"text": e.text, "type": e.ambiguity_type.value if hasattr(e.ambiguity_type, 'value') else str(e.ambiguity_type)}
                         for e in ambiguous_entities
                     ]
             
@@ -1817,6 +1817,61 @@ class KnowledgeGraph:
             Optional[KnowledgeNode]: Узел или None
         """
         return self.nodes.get(node_id)
+    
+    def get_node_by_name(self, name: str) -> Optional[KnowledgeNode]:
+        """
+        Возвращает узел по имени.
+        
+        Args:
+            name: Имя узла для поиска
+            
+        Returns:
+            Optional[KnowledgeNode]: Узел или None
+        """
+        name_lower = name.lower()
+        for node in self.nodes.values():
+            if node.name.lower() == name_lower or node.name.lower() == name_lower.strip():
+                return node
+            if name_lower in node.name.lower():
+                return node
+        return None
+    
+    def get_related_concepts(self, entity: str) -> List[Dict[str, Any]]:
+        """
+        Получить связанные концепты для сущности.
+        
+        Args:
+            entity: Имя сущности
+            
+        Returns:
+            List[Dict]: Список связанных концептов
+        """
+        related = []
+        entity_lower = entity.lower()
+        
+        node = self.get_node_by_name(entity)
+        if node:
+            related.append({
+                "name": node.name,
+                "type": node.node_type,
+                "relation": "self"
+            })
+        
+        for edge in self.edges.values():
+            if edge.source_name and entity_lower in edge.source_name.lower():
+                related.append({
+                    "name": edge.target_name or edge.target_id,
+                    "type": edge.relation_type,
+                    "relation": "outgoing"
+                })
+            elif edge.target_name and entity_lower in edge.target_name.lower():
+                related.append({
+                    "name": edge.source_name or edge.source_id,
+                    "type": edge.relation_type,
+                    "relation": "incoming"
+                })
+        
+        return related
     
     def get_relevant_nodes(self, query: str, limit: int = 50,
                            domains: Optional[List[str]] = None,
