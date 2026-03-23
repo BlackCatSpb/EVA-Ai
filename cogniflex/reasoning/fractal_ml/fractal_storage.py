@@ -26,6 +26,11 @@ class FractalStorage:
         self.nodes: Dict[str, FractalNode] = {}
         self.edges: Dict[str, FractalEdge] = {}
         
+        # Batch save optimization
+        self._dirty = False
+        self._save_queue_size = 10  # Сохранять каждые 10 операций
+        self._operation_count = 0
+        
         # Создаём директорию
         os.makedirs(storage_path, exist_ok=True)
         
@@ -64,6 +69,9 @@ class FractalStorage:
     
     def _save(self):
         """Сохранение данных в файлы"""
+        if not self._dirty and self._operation_count > 0:
+            return  # Пропускаем если нет изменений
+        
         try:
             # Сохраняем узлы
             nodes_data = {node.id: node.to_dict() for node in self.nodes.values()}
@@ -75,8 +83,16 @@ class FractalStorage:
             with open(self.edges_file, 'w', encoding='utf-8') as f:
                 json.dump(edges_data, f, indent=2, ensure_ascii=False)
                 
+            self._dirty = False
+            self._operation_count = 0
+                
         except Exception as e:
             logger.error(f"Ошибка сохранения: {e}")
+    
+    def flush(self):
+        """Принудительное сохранение (для критических операций)"""
+        self._dirty = True
+        self._save()
     
     def add_node(
         self, 
@@ -118,7 +134,15 @@ class FractalStorage:
             )
             self.edges[edge.id] = edge
         
-        self._save()
+        # Batch save - помечаем как dirty и сохраняем если накопилось
+        self._dirty = True
+        self._operation_count += 1
+        
+        if self._operation_count >= self._save_queue_size:
+            self._save()
+            self._operation_count = 0
+            self._dirty = False
+        
         return node
     
     def get_node(self, node_id: str) -> Optional[FractalNode]:

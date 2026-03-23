@@ -59,6 +59,9 @@ class SelfReasoningEngine:
         self.fractal_retriever = None
         self._init_fractal_components()
         
+        # Кэш для Qwen - избегаем повторной инициализации
+        self._qwen_cached = None
+        
         # Статистика
         self.total_queries = 0
         self.total_iterations = 0
@@ -219,24 +222,27 @@ class SelfReasoningEngine:
         Генерация ответа с fallback на разные модели
         Приоритет: Qwen → FractalModelManager → ResponseGenerator
         """
-        # Попытка 1: Qwen singleton
+        # Попытка 1: Qwen singleton (используем кэш)
         try:
-            qwen = getattr(self.brain, 'qwen_model_manager', None)
+            if self._qwen_cached is None:
+                qwen = getattr(self.brain, 'qwen_model_manager', None)
+                
+                if qwen is None or not getattr(qwen, 'initialized', False):
+                    try:
+                        from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
+                        qwen = get_qwen_model_manager(
+                            model_size='qwen3.5-0.8b',
+                            device='auto',
+                            load_in_8bit=True
+                        )
+                    except Exception:
+                        pass
+                
+                self._qwen_cached = qwen
             
-            if qwen is None or not getattr(qwen, 'initialized', False):
-                try:
-                    from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
-                    qwen = get_qwen_model_manager(
-                        model_size='qwen3.5-0.8b',
-                        device='auto',
-                        load_in_8bit=True
-                    )
-                except Exception:
-                    pass
-            
-            if qwen and getattr(qwen, 'initialized', False):
+            if self._qwen_cached and getattr(self._qwen_cached, 'initialized', False):
                 messages = [{"role": "user", "content": prompt}]
-                response = qwen.generate(
+                response = self._qwen_cached.generate(
                     messages,
                     max_new_tokens=self.max_tokens,
                     temperature=0.7,
@@ -475,11 +481,15 @@ class SelfReasoningEngine:
                     if line.strip() and len(line.strip()) > 10
                 ]
                 if len(sub_queries) >= 2:
+                    logger.info(f"Декомпозиция успешна: {len(sub_queries)} подзадач")
                     return sub_queries
+                else:
+                    logger.info(f"Декомпозиция вернула мало подзадач: {len(sub_queries)}, использую линейный режим")
         except Exception as e:
             logger.warning(f"Декомпозиция не удалась: {e}")
         
-        # Возвращаем пустой список вместо исходного запроса
+        # Возвращаем пустой список - будет использован линейный режим
+        logger.info(f"Декомпозиция вернула пустой список для: {query[:30]}...")
         return []
     
     def retrieve_similar_reasoning(self, query: str) -> List[Dict]:
