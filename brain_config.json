@@ -41,9 +41,12 @@
     "batch_processing": false
   },
   "learning": {
-    "enable_training": false,
-    "training_disabled": true,
-    "disable_background_training": true
+    "enable_training": true,
+    "training_disabled": false,
+    "disable_background_training": false,
+    "auto_learning_enabled": true,
+    "learning_rate": 0.001,
+    "batch_size": 8
   },
   "self_dialog_learning": {
     "enabled": true,
@@ -64,8 +67,8 @@
     ]
   },
   "system": {
-    "disable_learning_threads": true,
-    "disable_background_training": true,
+    "disable_learning_threads": false,
+    "disable_background_training": false,
     "max_concurrent_operations": 4
   },
   "logging": {
