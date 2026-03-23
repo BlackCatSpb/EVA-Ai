@@ -2526,6 +2526,96 @@ def main():
         except Exception as e:
             self.query_logger.warning(f"Ошибка получения статуса системы: {e}")
             return {'status': 'error', 'error': str(e)}
+    
+    def get_components_status(self) -> Dict[str, Dict[str, Any]]:
+        """Возвращает статус всех компонентов системы."""
+        status = {}
+        
+        key_components = [
+            'fractal_storage', 'self_reasoning_engine', 'reasoning_integration',
+            'knowledge_graph', 'memory_manager', 'hybrid_cache',
+            'ml_unit', 'model_manager', 'qwen_model_manager',
+            'curiosity_engine', 'learning_manager', 'self_dialog_learning',
+            'ethics_framework', 'contradiction_manager', 'event_bus'
+        ]
+        
+        for comp_name in key_components:
+            component = self.components.get(comp_name) or getattr(self, comp_name, None)
+            
+            if component is None:
+                status[comp_name] = {'status': 'not_initialized', 'healthy': False}
+            else:
+                try:
+                    # Пробуем получить статус через разные атрибуты
+                    is_healthy = True
+                    detail = 'initialized'
+                    
+                    if hasattr(component, 'initialized'):
+                        is_healthy = getattr(component, 'initialized', False)
+                    elif hasattr(component, 'health_check'):
+                        health = component.health_check()
+                        is_healthy = health.get('healthy', True) if isinstance(health, dict) else bool(health)
+                    
+                    if hasattr(component, 'get_stats'):
+                        try:
+                            detail = component.get_stats()
+                        except:
+                            pass
+                    
+                    status[comp_name] = {
+                        'status': 'ok' if is_healthy else 'error',
+                        'healthy': is_healthy,
+                        'detail': detail
+                    }
+                except Exception as e:
+                    status[comp_name] = {'status': 'error', 'healthy': False, 'error': str(e)}
+        
+        return status
+    
+    def shutdown(self, save_state: bool = True) -> Dict[str, Any]:
+        """Graceful shutdown системы с сохранением состояния."""
+        if self._shutting_down:
+            return {'status': 'already_shutting_down'}
+        
+        with self._shutdown_lock:
+            self._shutting_down = True
+            self.running = False
+            
+            results = {'saved': [], 'errors': []}
+            
+            # Сохраняем состояние FractalStorage
+            if save_state:
+                try:
+                    fractal_storage = getattr(self, 'fractal_storage', None)
+                    if fractal_storage and hasattr(fractal_storage, 'flush'):
+                        fractal_storage.flush()
+                        results['saved'].append('fractal_storage')
+                except Exception as e:
+                    results['errors'].append(f'fractal_storage: {e}')
+                
+                # Сохраняем гибридный кэш
+                try:
+                    hybrid_cache = getattr(self, 'hybrid_cache', None)
+                    if hybrid_cache and hasattr(hybrid_cache, 'save'):
+                        hybrid_cache.save()
+                        results['saved'].append('hybrid_cache')
+                except Exception as e:
+                    results['errors'].append(f'hybrid_cache: {e}')
+            
+            # Останавливаем фоновые потоки
+            try:
+                if hasattr(self, 'deferred_system') and self.deferred_system:
+                    self.deferred_system.shutdown()
+            except Exception as e:
+                results['errors'].append(f'deferred_system: {e}')
+            
+            self.query_logger.info(f"Система остановлена. Сохранено: {results['saved']}, Ошибки: {results['errors']}")
+            
+            return {
+                'status': 'shutdown_complete',
+                'saved': results['saved'],
+                'errors': results['errors']
+            }
 
 if __name__ == "__main__":
     main()

@@ -719,3 +719,16 @@ class FractalStorage:
         
         feedback_nodes.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
         return feedback_nodes[:limit]
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Проверка здоровья FractalStorage"""
+        stats = self.get_stats()
+        
+        return {
+            "healthy": True,
+            "node_count": stats["total_nodes"],
+            "edge_count": stats["total_edges"],
+            "storage_path": self.storage_path,
+            "dirty": self._dirty,
+            "operation_count": self._operation_count
+        }

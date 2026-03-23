@@ -897,6 +897,24 @@ class SelfReasoningEngine:
             "negative": negative,
             "current_threshold": self.confidence_threshold
         }
+    
+    def health_check(self) -> Dict[str, Any]:
+        """Проверка здоровья SelfReasoningEngine"""
+        checks = {
+            "engine_initialized": True,
+            "fractal_storage_ok": self.fractal_storage is not None,
+            "fractal_embedder_ok": self.fractal_embedder is not None,
+            "fractal_retriever_ok": self.fractal_retriever is not None,
+            "qwen_cached": self._qwen_cached is not None if hasattr(self, '_qwen_cached') else None
+        }
+        
+        healthy = all(v for v in checks.values() if v is not None)
+        
+        return {
+            "healthy": healthy,
+            "checks": checks,
+            "stats": self.get_stats()
+        }
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:
