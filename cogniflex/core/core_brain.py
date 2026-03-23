@@ -871,20 +871,101 @@ class CoreBrain:
             # Объединяем оба контекста, context имеет приоритет
             user_context = {**user_context, **context}
         
-        # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - модель не обучена для диалогов
-        query_lower = query.lower().strip()
-        greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
-        if any(g in query_lower for g in greeting_keywords):
-            return {
-                "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
-                "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
-                "status": "ok",
-                "confidence": 1.0,
-                "source": "greeting_handler",
-                "fallback_level": 0,
-                "processing_time": time.time() - start_time
-            }
+        # === QWEN-ONLY MODE: Load Qwen FIRST before any processing ===
+        # Check if Qwen-only mode is enabled
+        qwen_only_mode = False
+        try:
+            model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
+            qwen_only_mode = model_cfg.get('qwen_only_mode', False)
+        except:
+            pass
         
+        # Load Qwen if not loaded yet (before greeting check!)
+        if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
+            self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
+            try:
+                from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
+                qwen_device = self._qwen_config.get('device', 'cuda')
+                
+                self.qwen_model_manager = get_qwen_model_manager(
+                    model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
+                    device=qwen_device,
+                    load_in_8bit=True,
+                    load_in_4bit=False
+                )
+                
+                if self.qwen_model_manager and self.qwen_model_manager.initialized:
+                    self.qwen_ready = True
+                    self.query_logger.info("QwenModelManager загружен для обработки запроса")
+                else:
+                    self.query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
+            except Exception as e:
+                self.query_logger.error(f"Ошибка загрузки Qwen: {e}")
+        
+        # === В Qwen-only режиме НЕ используем greeting handler ===
+        # Все запросы (включая приветствия) идут через Qwen
+        if not qwen_only_mode:
+            # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - только если НЕ Qwen-only режим
+            query_lower = query.lower().strip()
+            greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
+            if any(g in query_lower for g in greeting_keywords):
+                return {
+                    "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                    "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                    "status": "ok",
+                    "confidence": 1.0,
+                    "source": "greeting_handler",
+                    "fallback_level": 0,
+                    "processing_time": time.time() - start_time
+                }
+        
+        # === Qwen-only mode: Force Qwen usage ===
+        if qwen_only_mode:
+            # If Qwen not ready, return error
+            if not self.qwen_model_manager or not self.qwen_model_manager.initialized:
+                return {
+                    "response": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
+                    "text": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
+                    "status": "error",
+                    "confidence": 0.0,
+                    "source": "qwen_error",
+                    "error": "Qwen model not initialized in qwen_only_mode",
+                    "processing_time": time.time() - start_time
+                }
+            
+            # Use Qwen for ALL queries in qwen_only_mode
+            self.query_logger.info("Используем QwenModelManager (qwen_only_mode)")
+            messages = [{"role": "user", "content": query}]
+            response_text = self.qwen_model_manager.generate(
+                messages,
+                max_new_tokens=256,
+                temperature=0.7,
+                top_p=0.9,
+                repetition_penalty=1.1
+            )
+            
+            if response_text and not response_text.startswith("Ошибка"):
+                return {
+                    "response": response_text,
+                    "text": response_text,
+                    "status": "ok",
+                    "confidence": 0.9,
+                    "source": "qwen_model",
+                    "fallback_level": 0,
+                    "processing_time": time.time() - start_time
+                }
+            else:
+                return {
+                    "response": f"Ошибка генерации: {response_text or 'пустой ответ'}",
+                    "text": f"Ошибка генерации: {response_text or 'пустой ответ'}",
+                    "status": "error",
+                    "confidence": 0.0,
+                    "source": "qwen_error",
+                    "processing_time": time.time() - start_time
+                }
+        
+        # === NON-QWEN ONLY MODE: Legacy fallback chain ===
+        # Only executed if qwen_only_mode is False
         # Уровень 0: QwenModelManager (приоритетная модель для диалогов)
         try:
             # Lazy loading - загружаем модель только при первом запросе

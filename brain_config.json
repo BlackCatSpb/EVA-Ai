@@ -20,7 +20,9 @@
     "vocab_size": 151936,
     "max_length": 32768,
     "device": "cuda",
-    "quantization": "int8"
+    "quantization": "int8",
+    "qwen_only_mode": true,
+    "disable_fallback": true
   },
   "generation": {
     "temperature": 0.7,
