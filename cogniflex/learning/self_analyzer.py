@@ -336,12 +336,44 @@ class SelfAnalyzer:
     
     def analyze_knowledge_gaps(self) -> Dict[str, Any]:
         """Анализирует пробелы в знаниях для выявления возможностей."""
-        # В реальной реализации здесь будет код для анализа пробелов в знаниях
-        # Для упрощения возвращаем заглушку
-        logger.warning("Анализ пробелов в знаниях не реализован в текущей версии")
+        logger.info("Анализ пробелов в знаниях...")
+        
+        gaps_found = []
+        learning_opportunities = []
+        
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+            try:
+                kg = self.brain.knowledge_graph
+                
+                low_confidence_nodes = []
+                for node_id, node in kg.nodes.items():
+                    confidence = node.context.get("confidence", 0.5) if node.context else 0.5
+                    if confidence < 0.5:
+                        low_confidence_nodes.append({
+                            "id": node_id,
+                            "name": node.name,
+                            "confidence": confidence
+                        })
+                
+                gaps_found = low_confidence_nodes[:10]
+                
+                for gap in gaps_found:
+                    learning_opportunities.append({
+                        'type': 'knowledge_gap',
+                        'topic': gap['name'],
+                        'priority': 1.0 - gap['confidence'],
+                        'gap_confidence': gap['confidence']
+                    })
+                
+                logger.info(f"Найдено {len(gaps_found)} пробелов в знаниях")
+            except Exception as e:
+                logger.warning(f"Ошибка при анализе пробелов в знаниях: {e}")
+        
         return {
-            "status": "not_implemented",
-            "message": "Метод не реализован",
+            "status": "completed",
+            "gaps_found": gaps_found,
+            "learning_opportunities": learning_opportunities,
+            "opportunities_count": len(learning_opportunities),
             "timestamp": time.time()
         }
     

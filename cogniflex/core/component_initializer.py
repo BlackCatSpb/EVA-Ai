@@ -25,7 +25,7 @@ class ComponentInitializer:
     - Мониторинг состояния
     """
     
-    # Полный список из 21 компонента системы
+    # Полный список из 23 компонента системы
     COMPONENT_LIST = [
         # Системные компоненты (3)
         'event_bus',
@@ -65,6 +65,10 @@ class ComponentInitializer:
         'adaptation_manager',
         'web_search_engine',
         'gui',
+        
+        # Fractal Reasoning (2) - добавлены позже
+        'fractal_storage',
+        'self_reasoning_engine',
     ]
     
     def __init__(self, core_brain):

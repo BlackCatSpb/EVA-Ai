@@ -915,14 +915,6 @@ class SelfReasoningEngine:
             "checks": checks,
             "stats": self.get_stats()
         }
-        
-        healthy = all(v for v in checks.values() if v is not None)
-        
-        return {
-            "healthy": healthy,
-            "checks": checks,
-            "stats": self.get_stats()
-        }
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:
