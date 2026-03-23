@@ -87,29 +87,25 @@ QWEN_MODELS = {
 }
 
 
-def get_qwen_model_path(model_size: str = "qwen3.5-2b") -> str:
+def get_qwen_model_path(model_size: str = "qwen3.5-0.8b") -> str:
     """Возвращает путь к локальной модели Qwen"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
     
-    local_path = os.path.join(
-        project_root, 
-        "mlearning", 
-        "cogniflex_models", 
-        model_size
-    )
-    
-    alternative_paths = [
+    # Проверяем разные варианты путей
+    paths_to_check = [
         os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", model_size),
+        os.path.join(project_root, "mlearning", "cogniflex_models", model_size),
         os.path.join(os.getcwd(), "cogniflex", "mlearning", "cogniflex_models", model_size),
-        os.path.join(project_root, "cogniflex_models", model_size),
+        os.path.join(os.getcwd(), "mlearning", "cogniflex_models", model_size),
     ]
     
-    for alt_path in alternative_paths:
-        if os.path.exists(alt_path) and os.listdir(alt_path):
-            return alt_path
+    for path in paths_to_check:
+        if os.path.exists(path) and os.listdir(path):
+            return path
     
-    return local_path
+    # Fallback - возвращаем первый путь
+    return paths_to_check[0]
 
 
 def is_qwen_available() -> bool:
@@ -126,6 +122,61 @@ def is_qwen_available() -> bool:
             return True
     
     return False
+
+
+_qwen_model_manager_instance: Optional['QwenModelManager'] = None
+
+
+def get_qwen_model_manager(
+    model_size: str = "qwen3.5-2b",
+    device: str = "auto",
+    cache_dir: Optional[str] = None,
+    quantize: bool = True,
+    load_in_8bit: bool = False,
+    load_in_4bit: bool = False,
+    local_model_path: Optional[str] = None
+) -> 'QwenModelManager':
+    """
+    Возвращает синглтон экземпляр QwenModelManager.
+    
+    Все модули должны использовать эту функцию вместо создания собственных
+    экземпляров QwenModelManager.
+    
+    Args:
+        model_size: Размер модели
+        device: Устройство для загрузки
+        cache_dir: Директория для кэша
+        quantize: Использовать квантизацию
+        load_in_8bit: Загрузить в 8-bit
+        load_in_4bit: Загрузить в 4-bit
+        local_model_path: Путь к локальной модели
+        
+    Returns:
+        Экземпляр QwenModelManager
+    """
+    global _qwen_model_manager_instance
+    
+    if _qwen_model_manager_instance is None:
+        _qwen_model_manager_instance = QwenModelManager(
+            model_size=model_size,
+            device=device,
+            cache_dir=cache_dir,
+            quantize=quantize,
+            load_in_8bit=load_in_8bit,
+            load_in_4bit=load_in_4bit,
+            local_model_path=local_model_path
+        )
+        logger.info(f"Создан синглтон QwenModelManager: {model_size}")
+    
+    return _qwen_model_manager_instance
+
+
+def reset_qwen_model_manager():
+    """Сбрасывает синглтон экземпляр (для тестирования)."""
+    global _qwen_model_manager_instance
+    if _qwen_model_manager_instance is not None:
+        _qwen_model_manager_instance.unload()
+        _qwen_model_manager_instance = None
 
 
 class QwenModelManager:

@@ -21,13 +21,13 @@ logger = logging.getLogger("cogniflex.learning.memory_graph_trainer")
 class TrainingConfig:
     """Конфигурация для обучения графа памяти."""
     learning_rate: float = 0.001
-    batch_size: int = 32
-    epochs: int = 10
-    embedding_dim: int = 768
-    hidden_dim: int = 512
+    batch_size: int = 8
+    epochs: int = 5
+    embedding_dim: int = 128
+    hidden_dim: int = 64
     dropout_rate: float = 0.1
     weight_decay: float = 1e-5
-    patience: int = 5
+    patience: int = 3
     min_delta: float = 1e-4
 
 class MemoryGraphNetwork(nn.Module):
@@ -744,10 +744,10 @@ logger = logging.getLogger("cogniflex.learning.memory_graph_trainer")
 class TrainingConfig:
     """Конфигурация для обучения графа памяти."""
     learning_rate: float = 0.001
-    batch_size: int = 32
+    batch_size: int = 8
     epochs: int = 10
-    embedding_dim: int = 768
-    hidden_dim: int = 512
+    embedding_dim: int = 128
+    hidden_dim: int = 128
     dropout_rate: float = 0.1
     weight_decay: float = 1e-5
     patience: int = 5

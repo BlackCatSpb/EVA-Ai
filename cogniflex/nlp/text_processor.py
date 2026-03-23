@@ -19,11 +19,14 @@ logger = logging.getLogger(__name__)
 
 def _get_project_root() -> str:
     """Возвращает корневую директорию проекта"""
-    possible_roots = []
     current_file = os.path.abspath(__file__)
     current_dir = os.path.dirname(current_file)
-    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))
-    possible_roots.append(os.path.dirname(current_dir))
+    
+    grandparent = os.path.dirname(os.path.dirname(current_dir))
+    cogniflex_dir = os.path.join(grandparent, 'cogniflex')
+    
+    if os.path.exists(cogniflex_dir) and os.path.isdir(cogniflex_dir):
+        return grandparent
     
     drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
     username = os.environ.get('USERNAME', 'user')
@@ -63,9 +66,9 @@ class TextProcessor:
         project_root = _get_project_root()
         
         if model_name == "qwen3.5-0.8b":
-            self.tokenizer_path = os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-0.8b")
+            self.tokenizer_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-0.8b")
         elif model_name == "qwen3.5-2b":
-            self.tokenizer_path = os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-2b")
+            self.tokenizer_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
         elif os.path.isdir(model_name):
             self.tokenizer_path = model_name
         else:
