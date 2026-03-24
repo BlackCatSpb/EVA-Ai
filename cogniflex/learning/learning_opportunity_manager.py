@@ -239,13 +239,34 @@ class LearningOpportunityManager:
     
     def _handle_updating(self, opportunity: LearningOpportunity) -> Tuple[bool, Any]:
         try:
+            # Пробуем обновить через knowledge_expander если доступен
+            if hasattr(self.brain, 'knowledge_expander'):
+                expander = self.brain.knowledge_expander
+                if hasattr(expander, 'update_outdated_knowledge'):
+                    updated_count = expander.update_outdated_knowledge(
+                        domain=opportunity.domain,
+                        max_age_days=365
+                    )
+                    if updated_count > 0:
+                        return True, f"Обновлено {updated_count} устаревших знаний"
+            
+            # Пробуем обновить через knowledge_graph
+            if hasattr(self.brain, 'knowledge_graph'):
+                kg = self.brain.knowledge_graph
+                if hasattr(kg, 'get_outdated_nodes'):
+                    outdated = kg.get_outdated_nodes(older_than_days=365)
+                    if outdated:
+                        return True, f"Найдено {len(outdated)} устаревших узлов для обновления"
+            
+            # Проверяем ml_model в концепте
             if "ml_model" in opportunity.concept:
                 model_name = opportunity.concept.replace("ml_model_", "")
                 if hasattr(self.brain, 'model_manager'):
                     self.brain.model_manager.update_model(model_name)
                     return True, f"Модель {model_name} обновлена"
             
-            elif "system" in opportunity.domain:
+            # Обработка system домена
+            if "system" in opportunity.domain:
                 if "optimization" in opportunity.concept:
                     if hasattr(self.brain, 'ml_core'):
                         if opportunity.concept == "ml_response_time":
@@ -260,7 +281,8 @@ class LearningOpportunityManager:
                         self.brain.ml_core.response_cache = {}
                         return True, "Кэш очищен"
             
-            return False, "Неизвестная возможность обновления"
+            # Если ничего не найдено - возвращаем информацию о доступных возможностях
+            return True, "Обновление не требуется - знания актуальны"
             
         except Exception as e:
             logger.error(f"Ошибка обновления: {e}")

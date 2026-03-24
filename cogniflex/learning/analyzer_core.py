@@ -98,6 +98,10 @@ class AnalyzerCore:
             "learning_opportunities": 0
         }
         
+        # Данные для сохранения
+        self.patterns = []
+        self.metrics_history = []
+        
         # Очередь анализа
         self.analysis_queue = queue.Queue()
         
@@ -658,10 +662,27 @@ class AnalyzerCore:
             import json
             import os
             
+            # Получаем данные из БД
+            learning_opps = []
+            try:
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, concept, opportunity_type, priority FROM learning_opportunities ORDER BY priority DESC LIMIT 100")
+                for row in cursor.fetchall():
+                    learning_opps.append({
+                        'id': row[0],
+                        'concept': row[1],
+                        'type': row[2],
+                        'priority': row[3]
+                    })
+            except Exception:
+                pass
+            
             data = {
-                'patterns': getattr(self, 'patterns', []),
-                'metrics_history': getattr(self, 'metrics_history', []),
-                'learning_opportunities': getattr(self, 'learning_opportunities', []),
+                'patterns': self.patterns,
+                'metrics_history': self.metrics_history,
+                'learning_opportunities': learning_opps,
+                'analysis_stats': self.analysis_stats,
                 'timestamp': time.time()
             }
             

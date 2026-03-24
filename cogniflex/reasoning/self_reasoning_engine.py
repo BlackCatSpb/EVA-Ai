@@ -313,11 +313,51 @@ class SelfReasoningEngine:
         if any(g in prompt_lower for g in greetings):
             return "Здравствуйте! Я CogniFlex. Чем могу помочь?"
         
+        # Попробуем использовать knowledge graph если доступен
+        kg_response = self._get_knowledge_response(prompt_lower)
+        if kg_response:
+            return kg_response
+        
+        # Ключевые слова для тематических ответов
+        keyword_responses = {
+            'погода': 'Для информации о погоде я могу выполнить поиск в интернете.',
+            'новост': 'Могу найти последние новости по вашему запросу.',
+            'помощ': 'Я могу помочь с ответами на вопросы, анализом информации и поиском данных.',
+            'что такое': 'Для объяснения понятий мне нужно больше контекста.',
+            'как работает': 'Могу объяснить принципы работы, но для точного ответа уточните область.',
+            'кто такой': 'Для идентификации личности нужны дополнительные детали.',
+            'спасиб': 'Пожалуйста! Рад был помочь.',
+            'благодар': 'Спасибо! Обращайтесь ещё.',
+            'пока': 'До свидания! Возвращайтесь с новыми вопросами.',
+            'помоги': 'Опишите подробнее, что именно вам нужно, и я постараюсь помочь.',
+        }
+        
+        for keyword, response in keyword_responses.items():
+            if keyword in prompt_lower:
+                return response
+        
         # Простые ответы на общие вопросы
         if '?' in prompt:
             return f"Интересный вопрос: '{prompt}'. Для полного ответа требуется больше контекста."
         
         return f"Получил ваш запрос: '{prompt}'. Чтобы дать точный ответ, уточните детали."
+    
+    def _get_knowledge_response(self, prompt: str) -> Optional[str]:
+        """Попытка получить ответ из knowledge graph"""
+        try:
+            if hasattr(self.brain, 'knowledge_graph'):
+                kg = self.brain.knowledge_graph
+                if hasattr(kg, 'search'):
+                    results = kg.search(prompt, limit=3)
+                    if results:
+                        best = results[0]
+                        if isinstance(best, dict):
+                            content = best.get('content', best.get('text', ''))
+                            if content:
+                                return f"Известно: {content[:200]}..."
+        except Exception:
+            pass
+        return None
     
     def _analyze_response(self, query: str, response: str) -> AnalysisResult:
         """

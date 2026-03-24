@@ -2,6 +2,7 @@
 import time
 import logging
 import hashlib
+import re
 from typing import Dict, Any, Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 

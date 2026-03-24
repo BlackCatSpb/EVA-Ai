@@ -57,6 +57,14 @@ class CuriosityEngine:
         self.explored_topics = set()
         self.curiosity_history = []
         
+        # Инициализируем менеджер возможностей обучения
+        self.learning_opportunity_manager = None
+        if brain and hasattr(brain, 'learning_opportunity_manager'):
+            self.learning_opportunity_manager = brain.learning_opportunity_manager
+        elif brain and hasattr(brain, 'analyzer_core'):
+            from cogniflex.learning.learning_opportunity_manager import LearningOpportunityManager
+            self.learning_opportunity_manager = LearningOpportunityManager(brain=brain, analyzer_core=brain.analyzer_core)
+        
         self.curiosity_patterns = [
             (r'\b(кто|who)\s+(это|is)\b', CuriosityType.ENTITY_EXPLORATION),
             (r'\b(что|what)\s+(такое|is)\b', CuriosityType.ENTITY_EXPLORATION),
@@ -219,14 +227,41 @@ class CuriosityEngine:
         logger.info(f"Triggering self-learning for topic: {topic}")
         
         self.explored_topics.add(topic)
+        gap_score = self.assess_knowledge_gap(topic)
         
-        return {
+        # Пытаемся создать возможность для обучения
+        learning_task = {
             'topic': topic,
-            'gap_score': self.assess_knowledge_gap(topic),
+            'gap_score': gap_score,
             'questions': self._generate_questions(CuriosityType.TOPIC_EXPANSION, topic, []),
             'timestamp': time.time(),
             'status': 'pending'
         }
+        
+        # Пытаемся добавить в менеджер возможностей обучения
+        try:
+            if hasattr(self, 'learning_opportunity_manager') and self.learning_opportunity_manager:
+                gap_assessment = self.assess_knowledge_gap(topic)
+                if gap_assessment > 0.3:
+                    opportunity_id = self.learning_opportunity_manager.add_learning_opportunity(
+                        concept=topic,
+                        opportunity_type='expansion',
+                        priority=gap_assessment,
+                        domain='auto_detected',
+                        evidence=[f'Curiosity gap detected: score={gap_assessment}'],
+                        suggested_actions=[
+                            f'Изучить тему: {topic}',
+                            'Найти релевантные источники',
+                            'Обновить знания в графе'
+                        ]
+                    )
+                    learning_task['opportunity_id'] = opportunity_id
+                    learning_task['status'] = 'learning_opportunity_created'
+                    logger.info(f"Создана возможность для обучения: {opportunity_id}")
+        except Exception as e:
+            logger.warning(f"Не удалось создать возможность для обучения: {e}")
+        
+        return learning_task
     
     def get_curiosity_report(self) -> Dict[str, Any]:
         """Get summary of curiosity engine state."""
