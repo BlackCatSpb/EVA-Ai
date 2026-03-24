@@ -10,8 +10,7 @@
     "max_batch_size": 4,
     "memory_check_interval": 5,
     "aggressive_eviction": true,
-    "prefetch_enabled": true,
-    "gpu_memory_fraction": 0.4
+    "prefetch_enabled": true
   },
   "model": {
     "name": "qwen3.5-0.8b",
@@ -43,7 +42,6 @@
   "learning": {
     "enable_training": true,
     "training_disabled": false,
-    "disable_background_training": false,
     "auto_learning_enabled": true,
     "learning_rate": 0.001,
     "batch_size": 8
