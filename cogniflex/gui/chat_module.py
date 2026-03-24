@@ -675,19 +675,18 @@ class ChatModule:
         self.input_text.bind("<Up>", self._on_history_up)
         self.input_text.bind("<Down>", self._on_history_down)
         
-        # Горячие клавиши
-        self.input_text.bind("<Control-c>", self._on_copy_shortcut)
-        self.input_text.bind("<Control-C>", self._on_copy_shortcut)
-        self.input_text.bind("<Control-v>", self._on_paste_shortcut)
-        self.input_text.bind("<Control-V>", self._on_paste_shortcut)
-        self.input_text.bind("<Control-x>", self._on_cut_shortcut)
-        self.input_text.bind("<Control-X>", self._on_cut_shortcut)
+        # Горячие клавиши - используем стандартное поведение + свои обработчики
+        # Ctrl+C, Ctrl+V, Ctrl+X работают по умолчанию в Text виджетах
+        # Дополнительные клавиши
         self.input_text.bind("<Control-a>", self._on_select_all_shortcut)
         self.input_text.bind("<Control-A>", self._on_select_all_shortcut)
         self.input_text.bind("<Control-q>", 
             lambda e: (self._quote_selection_to_input(), "break"))
         self.input_text.bind("<Control-Q>", 
             lambda e: (self._quote_selection_to_input(), "break"))
+        # Ctrl+Shift+V для вставки без форматирования
+        self.input_text.bind("<Control-Shift-V>", self._on_paste_shortcut)
+        self.input_text.bind("<Control-Shift-v>", self._on_paste_shortcut)
     
     def _create_status_bar(self):
         """Создает статус-бар с метриками."""
@@ -1406,7 +1405,8 @@ class ChatModule:
     
     def _on_paste_shortcut(self, event):
         try:
-            self._paste_text(self.input_text)
+            # Используем стандартную вставку
+            self.input_text.event_generate('<<Paste>>')
             return "break"
         except (AttributeError, tk.TclError):
             return None
