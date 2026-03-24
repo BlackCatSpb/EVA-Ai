@@ -328,7 +328,27 @@ class QwenModelManager:
             
         except Exception as e:
             logger.error(f"Ошибка загрузки модели: {e}")
-            self.initialized = False
+            
+            # Пробуем загрузить без квантизации если 8-bit не работает
+            if self.load_in_8bit and "quantized" in str(e).lower():
+                logger.info("Пробуем загрузить без 8-bit квантизации...")
+                try:
+                    self.load_in_8bit = False
+                    load_kwargs.pop('quantization_config', None)
+                    load_kwargs['device_map'] = 'auto'
+                    load_kwargs['torch_dtype'] = torch.float16
+                    
+                    self.model = AutoModelForCausalLM.from_pretrained(
+                        model_source,
+                        **load_kwargs
+                    )
+                    self.initialized = True
+                    logger.info(f"✓ Модель {model_source} загружена без квантизации!")
+                except Exception as e2:
+                    logger.error(f"Не удалось загрузить даже без квантизации: {e2}")
+                    self.initialized = False
+            else:
+                self.initialized = False
     
     def generate(
         self, 

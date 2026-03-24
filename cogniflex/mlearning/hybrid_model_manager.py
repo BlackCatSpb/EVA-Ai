@@ -124,23 +124,40 @@ class HybridModelManager:
         try:
             with self._lock:
                 project_root = _get_project_root()
-                qwen_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
+                
+                # Читаем модель из конфигурации
+                model_name = "qwen3.5-0.8b"
+                model_path_config = "cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b"
+                qwen_path = os.path.join(project_root, model_path_config)
+                
+                # Если модель не найдена, пробуем альтернативные пути
+                if not os.path.exists(qwen_path):
+                    alt_paths = [
+                        os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b"),
+                        os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-0.8b"),
+                        os.path.join(project_root, "mlearning", "cogniflex_models", "qwen3.5-2b"),
+                    ]
+                    for alt_path in alt_paths:
+                        if os.path.exists(alt_path):
+                            qwen_path = alt_path
+                            model_name = os.path.basename(alt_path)
+                            break
                 
                 success = self.register_model(
-                    model_name="qwen3.5-2b",
+                    model_name=model_name,
                     model_path=qwen_path,
                     tokenizer_path=qwen_path,
                     priority=1
                 )
                 
                 if success:
-                    tokenizer_success = self.load_tokenizer("qwen3.5-2b", qwen_path)
+                    tokenizer_success = self.load_tokenizer(model_name, qwen_path)
                     
                     if not tokenizer_success:
                         logger.warning("Не удалось загрузить токенизатор Qwen, используем только QwenModelManager")
                     
                     self.initialized = True
-                    logger.info("HybridModelManager инициализирован (Qwen загружается через QwenModelManager)")
+                    logger.info(f"HybridModelManager инициализирован: {model_name} (через QwenModelManager)")
                     return True
                 else:
                     logger.error("Не удалось зарегистрировать модель Qwen")
