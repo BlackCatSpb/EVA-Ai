@@ -282,12 +282,12 @@ class KnowledgeAnalyzer:
         
         # Добавляем связи
         for edge in self.knowledge_graph.get_all_edges():
-            if edge["source_id"] in G.nodes and edge["target_id"] in G.nodes:
+            if edge.source_id in G.nodes and edge.target_id in G.nodes:
                 G.add_edge(
-                    edge["source_id"], 
-                    edge["target_id"], 
-                    relation=edge["relation_type"],
-                    strength=edge["strength"]
+                    edge.source_id, 
+                    edge.target_id, 
+                    relation=edge.relation_type,
+                    strength=edge.strength
                 )
         
         return G
@@ -452,7 +452,7 @@ class KnowledgeAnalyzer:
                 edges = self.knowledge_graph.get_edges(node_id)
                 for edge in edges:
                     # Проверяем, что целевой узел тоже в кластере
-                    if edge["target_id"] in cluster["nodes"]:
+                    if edge.target_id in cluster["nodes"]:
                         internal_edges += 1
             
             density = internal_edges / max(1, total_possible_edges)
@@ -464,11 +464,11 @@ class KnowledgeAnalyzer:
                 node = self.knowledge_graph.get_node(node_id)
                 if not node:
                     continue
-                    
+                
                 edges = self.knowledge_graph.get_edges(node_id)
                 for edge in edges:
-                    if edge["target_id"] in cluster["nodes"]:
-                        total_strength += edge["strength"]
+                    if edge.target_id in cluster["nodes"]:
+                        total_strength += edge.strength
                         strength_count += 1
             
             avg_strength = total_strength / strength_count if strength_count > 0 else 0

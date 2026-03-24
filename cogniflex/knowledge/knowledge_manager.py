@@ -363,7 +363,10 @@ class KnowledgeManager:
         """
         if not concept:
             return []
-            
+        
+        if self.knowledge_updater is None:
+            return []
+        
         return self.knowledge_updater.expand_knowledge(concept, depth, num_results)
     
     def update_outdated_knowledge(self, domain: Optional[str] = None, 
@@ -378,6 +381,9 @@ class KnowledgeManager:
         Returns:
             int: Количество обновленных знаний
         """
+        if self.knowledge_updater is None:
+            return 0
+        
         return self.knowledge_updater.update_outdated_knowledge(domain, max_age_days)
     
     def integrate_knowledge(self, concept: str, depth: int = 1) -> bool:
@@ -421,6 +427,9 @@ class KnowledgeManager:
             max_nodes: Максимальное количество узлов
             min_strength: Минимальная сила знаний
         """
+        if self.knowledge_updater is None:
+            return
+        
         self.knowledge_updater.auto_update_knowledge(max_nodes, min_strength)
     
     def generate_explanation(self, concept: str, level: float = 0.5) -> str:
@@ -439,6 +448,9 @@ class KnowledgeManager:
             
         if not 0.0 <= level <= 1.0:
             level = 0.5
+        
+        if self.knowledge_updater is None:
+            return ""
             
         return self.knowledge_updater.generate_explanation(concept, level)
     
@@ -454,6 +466,9 @@ class KnowledgeManager:
             str: Сгенерированное сравнение
         """
         if not concept1 or not concept2:
+            return ""
+        
+        if self.knowledge_updater is None:
             return ""
             
         return self.knowledge_updater.generate_comparison(concept1, concept2)

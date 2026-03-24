@@ -180,9 +180,9 @@ class KnowledgeIntegrator:
                                 dst_nodes = self.knowledge_graph.search_nodes(concept_name, limit=1)
                                 if src_nodes and dst_nodes:
                                     self.knowledge_graph.add_edge(
-                                        src_nodes[0].id,
-                                        dst_nodes[0].id,
-                                        relation_type,
+                                        source_id=src_nodes[0].id,
+                                        target_id=dst_nodes[0].id,
+                                        relation_type=relation_type,
                                         strength=related.get("connection_strength", 0.5)
                                     )
                             filled_gaps += 1
@@ -470,7 +470,7 @@ class KnowledgeIntegrator:
         # Если доступен ML, используем его для получения вектора
         if self.brain and hasattr(self.brain, 'text_processor'):
             try:
-                return self.brain.text_processor.get_text_embedding(node.metadata.get("description", node.content))
+                return self.brain.text_processor.get_text_embedding(node.meta.get("description", node.content))
             except Exception as e:
                 logger.warning(f"Ошибка получения векторного представления: {e}")
         
@@ -651,23 +651,23 @@ class KnowledgeIntegrator:
             
             if node1:
                 self.knowledge_graph.add_edge(
-                    hypothesis_id,
-                    node1[0].id,
-                    "explains",
+                    source_id=hypothesis_id,
+                    target_id=node1[0].id,
+                    relation_type="explains",
                     strength=0.7
                 )
             if node2:
                 self.knowledge_graph.add_edge(
-                    hypothesis_id,
-                    node2[0].id,
-                    "explains",
+                    source_id=hypothesis_id,
+                    target_id=node2[0].id,
+                    relation_type="explains",
                     strength=0.7
                 )
             if target_node:
                 self.knowledge_graph.add_edge(
-                    hypothesis_id,
-                    target_node[0].id,
-                    "applies_to",
+                    source_id=hypothesis_id,
+                    target_id=target_node[0].id,
+                    relation_type="applies_to",
                     strength=0.7
                 )
             
@@ -733,7 +733,7 @@ class KnowledgeIntegrator:
             # Усиливаем лучшее определение
             self.knowledge_graph.update_concept(
                 best_node.id,
-                new_description=best_node.metadata["description"],
+                new_description=best_node.meta["description"],
                 strength=min(1.0, best_node.strength + 0.2)
             )
             
@@ -742,7 +742,7 @@ class KnowledgeIntegrator:
                 if domain != best_domain:
                     self.knowledge_graph.update_concept(
                         node.id,
-                        new_description=node.metadata["description"],
+                        new_description=node.meta["description"],
                         strength=max(0.3, node.strength - 0.1)
                     )
             
@@ -786,7 +786,7 @@ class KnowledgeIntegrator:
         concept = contradiction["concept"]
         
         # Получаем все описания
-        descriptions = [node.metadata.get("description", "") for node in nodes_by_domain.values()]
+        descriptions = [node.meta.get("description", "") for node in nodes_by_domain.values()]
         
         # Если доступен ML, используем его для генерации обобщенного определения
         if self.brain and hasattr(self.brain, 'text_processor'):
@@ -834,7 +834,7 @@ class KnowledgeIntegrator:
             # Объединяем ключевые элементы из всех определений
             all_keywords = []
             for node in nodes_by_domain.values():
-                desc = node.metadata.get("description", "")
+                desc = node.meta.get("description", "")
                 # Извлекаем ключевые слова
                 words = re.findall(r'\b\w+\b', desc.lower())
                 stop_words = {'и', 'в', 'на', 'с', 'к', 'от', 'по', 'для', 'о', 'об', 'про'}
@@ -1542,7 +1542,7 @@ class KnowledgeIntegrator:
             
             elif correction_type == "missing_info":
                 # Добавляем недостающую информацию к существующему описанию
-                new_description = f"{node.metadata['description']}\n\nДополнение: {correction}"
+                new_description = f"{node.meta['description']}\n\nДополнение: {correction}"
                 updated = self.knowledge_graph.update_concept(
                     node.id,
                     new_description=new_description,
@@ -1614,7 +1614,7 @@ class KnowledgeIntegrator:
             
             return self.knowledge_graph.update_concept(
                 node.id,
-                new_description=node.metadata["description"],
+                new_description=node.meta["description"],
                 strength=new_strength,
                 user_id=user_id
             )

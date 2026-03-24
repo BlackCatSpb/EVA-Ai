@@ -592,7 +592,9 @@ class ComponentInitializer:
                 # Также пробуем интеграцию через ReasoningIntegration
                 try:
                     reasoning_integration = ReasoningIntegration(self.core_brain)
-                    reasoning_integration.integrate_with_brain()
+                    # Reuse existing SelfReasoningEngine instead of creating new one
+                    reasoning_integration.reasoning_engine = self_reasoning_engine
+                    reasoning_integration.enabled = True
                     self.core_brain.reasoning_integration = reasoning_integration
                     self.logger.info("✅ ReasoningIntegration также создан")
                 except Exception as e:

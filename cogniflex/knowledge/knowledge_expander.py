@@ -309,8 +309,8 @@ class KnowledgeExpander:
         node2 = self.knowledge_graph.search_nodes(concept2, limit=1)
         
         if node1 and node2:
-            desc1 = node1[0].metadata.get("description", "").lower()
-            desc2 = node2[0].metadata.get("description", "").lower()
+            desc1 = node1[0].meta.get("description", "").lower() if hasattr(node1[0], 'meta') else ""
+            desc2 = node2[0].meta.get("description", "").lower() if hasattr(node2[0], 'meta') else ""
             
             for relation, keywords in common_relations.items():
                 for keyword in keywords:
@@ -320,8 +320,8 @@ class KnowledgeExpander:
         # Проверяем существующие связи
         if node1:
             for edge in self.knowledge_graph.get_edges(node1[0].id):
-                if node2 and edge.target == node2[0].id:
-                    return edge.relation
+                if node2 and edge.target_id == node2[0].id:
+                    return edge.relation_type
         
         # По умолчанию - общая связь
         return "related_to"
@@ -475,7 +475,8 @@ class KnowledgeExpander:
             concept_details = self.knowledge_graph.get_node_details(node.id)
             
             # Формируем базовый ответ
-            response = f"{concept}: {node.metadata.get('description', 'Описание отсутствует')}\n\n"
+            node_desc = node.meta.get('description', '') if hasattr(node, 'meta') else ''
+            response = f"{concept}: {node_desc or 'Описание отсутствует'}\n\n"
             
             # Добавляем информацию в зависимости от уровня детализации
             if level < 0.3:  # Низкая детализация
