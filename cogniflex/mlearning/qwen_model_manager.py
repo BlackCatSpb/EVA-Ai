@@ -6,9 +6,16 @@ import logging
 import os
 from typing import Optional, Dict, List, Any
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+from transformers import AutoTokenizer, GenerationConfig
 
 logger = logging.getLogger(__name__)
+
+# Импортируем правильный класс модели
+try:
+    from transformers import Qwen3_5ForConditionalGeneration as QwenModelClass
+except ImportError:
+    from transformers import AutoModelForCausalLM as QwenModelClass
+    logger.warning("Qwen3_5ForConditionalGeneration не найден, используем AutoModelForCausalLM")
 
 QWEN_MODELS = {
     # Qwen3.5 Small Series (Март 2026) - РЕКОМЕНДУЕТСЯ
@@ -305,7 +312,7 @@ class QwenModelManager:
             
             # Загрузка модели
             logger.info("Загрузка модели (может занять несколько минут)...")
-            self.model = AutoModelForCausalLM.from_pretrained(
+            self.model = QwenModelClass.from_pretrained(
                 model_source,
                 **load_kwargs
             )
@@ -346,7 +353,7 @@ class QwenModelManager:
                     if self.cache_dir:
                         load_kwargs['cache_dir'] = self.cache_dir
                     
-                    self.model = AutoModelForCausalLM.from_pretrained(
+                    self.model = QwenModelClass.from_pretrained(
                         model_source,
                         **load_kwargs
                     )
