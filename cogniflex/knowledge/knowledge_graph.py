@@ -1,19 +1,3 @@
-
-def safe_json_loads(value):
-    """Безопасная загрузка JSON с обработкой ошибок."""
-    if not value:
-        return {}
-    try:
-        if isinstance(value, str):
-            return json.loads(value)
-        elif isinstance(value, (bytes, bytearray)):
-            return json.loads(value.decode('utf-8'))
-        else:
-            # Если значение не является строкой, возвращаем пустой dict
-            return {}
-    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
-        return {}
-
 """
 Модуль графа знаний для CogniFlex - управление структурой знаний
 Обновленная версия с поддержкой гибридного кэша, асинхронной токенизации и версионирования
@@ -64,6 +48,22 @@ try:
     from cogniflex.knowledge.context_entity import EntityExtractor
 except ImportError:
     EntityExtractor = None
+
+
+def safe_json_loads(value):
+    """Безопасная загрузка JSON с обработкой ошибок."""
+    if not value:
+        return {}
+    try:
+        if isinstance(value, str):
+            return json.loads(value)
+        elif isinstance(value, (bytes, bytearray)):
+            return json.loads(value.decode('utf-8'))
+        else:
+            return {}
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
+        return {}
+
 
 # Перечисления для типов узлов и связей
 class NodeType(Enum):
@@ -1916,10 +1916,7 @@ class KnowledgeGraph:
             if hasattr(self, "_update_node_in_db"):
                 self._update_node_in_db(node)
             else:
-                # Если нет прямого метода — сохраняем в БД и в памяти
                 self.nodes[node.id] = node
-                if hasattr(self, "_update_node_in_db"):
-                    self._update_node_in_db(node)
         except Exception:
             # Логирование уже есть на уровне вызывающих методов
             pass
@@ -3050,11 +3047,7 @@ class KnowledgeGraph:
                     })
             elif item_type == "edge":
                 edge = self.edges.get(item_id)
-        last_edge = None
-        for edge in self.edges.values():
-            last_edge = edge
-        
-        if last_edge is not None:
+                if edge:
                     # Проверяем, относится ли связь к домену через узлы
                     source_node = self.nodes.get(edge.source_id)
                     target_node = self.nodes.get(edge.target_id)
@@ -3065,7 +3058,7 @@ class KnowledgeGraph:
                             "type": "edge",
                             "relation": edge.relation_type,
                             "last_updated": edge.last_updated,
-                            "changes": len(edge.history)
+                            "changes": len(edge.history) if hasattr(edge, 'history') else 0
                         })
         
         return updates

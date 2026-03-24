@@ -100,6 +100,11 @@ class CuriosityEngine:
                 )
                 triggers.append(trigger)
         
+        if triggers:
+            self.curiosity_history.extend(triggers)
+            if len(self.curiosity_history) > 100:
+                self.curiosity_history = self.curiosity_history[-100:]
+        
         return triggers[:5]
     
     def _extract_entities(self, text: str) -> List[str]:

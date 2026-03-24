@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 class LearningOpportunity:
     concept: str
     opportunity_type: str
-    priority: int
+    priority: float
     domain: str
     evidence: List[Any]
     suggested_actions: List[Any]

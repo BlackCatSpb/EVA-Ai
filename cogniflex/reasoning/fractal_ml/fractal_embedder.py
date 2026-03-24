@@ -94,7 +94,13 @@ class FractalEmbedder:
             return 0.0
         
         dot_product = sum(a * b for a, b in zip(emb1, emb2))
-        return dot_product
+        norm1 = sum(x ** 2 for x in emb1) ** 0.5
+        norm2 = sum(x ** 2 for x in emb2) ** 0.5
+        
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+        
+        return dot_product / (norm1 * norm2)
     
     def create_address_from_text(self, text: str) -> Dict[str, Any]:
         """Создать фрактальный адрес из текста."""

@@ -464,7 +464,7 @@ class SelfReasoningEngine:
         
         sub_results = []
         for sq in sub_queries:
-            if depth + 1 < self.max_recursion_depth:
+            if depth + 1 <= self.max_recursion_depth:
                 sub_result = self._recursive_process_query(sq, user_context, depth=depth + 1)
             else:
                 sub_result = self._linear_process_query(sq, user_context)

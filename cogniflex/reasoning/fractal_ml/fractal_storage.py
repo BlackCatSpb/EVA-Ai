@@ -69,7 +69,7 @@ class FractalStorage:
     
     def _save(self):
         """Сохранение данных в файлы"""
-        if not self._dirty and self._operation_count > 0:
+        if not self._dirty and self._operation_count == 0:
             return  # Пропускаем если нет изменений
         
         try:
