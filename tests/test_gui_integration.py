@@ -112,10 +112,10 @@ class TestGUIImports(unittest.TestCase):
     def test_import_integrated_gui(self):
         """Test importing integrated_gui module."""
         try:
-            from cogniflex.gui.integrated_gui import IntegratedCogniFlexGUI, create_integrated_gui
-            logger.info("✓ integrated_gui module imported successfully")
+            from cogniflex.gui.core_gui import CogniFlexGUI
+            logger.info("✓ core_gui module imported successfully")
         except Exception as e:
-            logger.error(f"✗ Failed to import integrated_gui: {e}")
+            logger.error(f"✗ Failed to import core_gui: {e}")
             raise
     
     def test_import_chat_module(self):
@@ -440,10 +440,10 @@ class TestIntegratedCogniFlexGUIMethods(unittest.TestCase):
         self.root = tk.Tk()
         self.root.withdraw()
         
-        from cogniflex.gui.integrated_gui import IntegratedCogniFlexGUI
+        from cogniflex.gui.core_gui import CogniFlexGUI
         # Patch setup_gui to avoid creating real tkinter widgets
-        with patch.object(IntegratedCogniFlexGUI, 'setup_gui', return_value=None):
-            self.gui = IntegratedCogniFlexGUI(self.brain)
+        with patch.object(CogniFlexGUI, 'setup_gui', return_value=None):
+            self.gui = CogniFlexGUI(self.brain)
             self.gui.root = self.root
     
     def tearDown(self):

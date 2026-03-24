@@ -28,7 +28,7 @@ def main():
         # Импорт компонентов системы
         from cogniflex.core.core_brain import CoreBrain
         from cogniflex.core.integration_layer import CogniFlexIntegrator
-        from cogniflex.gui.integrated_gui import create_integrated_gui
+        from cogniflex.gui.core_gui import CogniFlexGUI
 
         print("✅ Импорт компонентов завершен")
 

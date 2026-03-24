@@ -15,7 +15,7 @@ def test_gui_imports():
     
     try:
         print("Импорт CoreBrain...")
-        from cogniflex.core.core_brain import CogniFlexCore
+        from cogniflex.core.core_brain import CoreBrain
         print("✅ CoreBrain импортирован")
         
         print("Импорт GUI...")
