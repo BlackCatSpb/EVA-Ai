@@ -1114,22 +1114,7 @@ class ContradictionDetector:
         # Добавляем в основной список
         self.detected_contradictions.extend(all_contradictions)
         
-
-
-    from sentence_transformers import SentenceTransformer  # type: ignore
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except (ImportError, ModuleNotFoundError, RuntimeError) as e:
-    logger.debug(f"Failed to import sentence_transformers: {e}")
-    SentenceTransformer = None  # type: ignore
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-
-try:
-    import torch  # type: ignore
-    TORCH_AVAILABLE = True
-except (ImportError, ModuleNotFoundError, RuntimeError) as e:
-    logger.debug(f"Failed to import torch: {e}")
-    torch = None  # type: ignore
-    TORCH_AVAILABLE = False
+        return all_contradictions
 
 # Singleton для sentence-transformers моделей
 try:
