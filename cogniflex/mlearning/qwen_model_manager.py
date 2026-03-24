@@ -333,19 +333,38 @@ class QwenModelManager:
             if self.load_in_8bit and "quantized" in str(e).lower():
                 logger.info("Пробуем загрузить без 8-bit квантизации...")
                 try:
+                    # Сбрасываем 8-bit и пересоздаем kwargs
                     self.load_in_8bit = False
-                    load_kwargs.pop('quantization_config', None)
-                    load_kwargs['device_map'] = 'auto'
-                    load_kwargs['torch_dtype'] = torch.float16
+                    
+                    load_kwargs = {
+                        'trust_remote_code': True,
+                        'device_map': 'cpu',
+                        'torch_dtype': torch.float32,
+                        'low_cpu_mem_usage': True,
+                    }
+                    
+                    if self.cache_dir:
+                        load_kwargs['cache_dir'] = self.cache_dir
                     
                     self.model = AutoModelForCausalLM.from_pretrained(
                         model_source,
                         **load_kwargs
                     )
+                    
+                    # Переносим на GPU если есть место
+                    if torch.cuda.is_available():
+                        try:
+                            self.model = self.model.to('cuda')
+                            self.device = 'cuda'
+                            logger.info("Модель перенесена на GPU")
+                        except Exception as e3:
+                            logger.warning(f"Не удалось перенести на GPU: {e3}, используем CPU")
+                            self.device = 'cpu'
+                    
                     self.initialized = True
                     logger.info(f"✓ Модель {model_source} загружена без квантизации!")
                 except Exception as e2:
-                    logger.error(f"Не удалось загрузить даже без квантизации: {e2}")
+                    logger.error(f"Не удалось загрузить без квантизации: {e2}")
                     self.initialized = False
             else:
                 self.initialized = False
