@@ -24,6 +24,7 @@ class KnowledgeManager:
         """
         self.brain = brain
         self.cache_dir = cache_dir
+        self.knowledge_updater = None
         
         try:
             # Создаем компоненты

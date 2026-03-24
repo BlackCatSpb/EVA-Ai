@@ -30,6 +30,7 @@ class KnowledgeIntegrator:
         self.brain = brain
         self.knowledge_graph = knowledge_graph or KnowledgeGraph(brain=brain)
         self.knowledge_analyzer = knowledge_analyzer or KnowledgeAnalyzer(self.knowledge_graph, brain)
+        self.knowledge_expander = None
         
         # Надежность источников
         self.source_reliability = defaultdict(float)
@@ -449,7 +450,7 @@ class KnowledgeIntegrator:
             # Проверяем, есть ли связь с целевым узлом и тем же отношением
             edges = self.knowledge_graph.get_edges(node.id)
             for edge in edges:
-                if edge.target == target_id and edge.relation == relation:
+                if edge.target_id == target_id and edge.relation_type == relation:
                     # Учитываем силу подтверждения (чем выше сходство, тем сильнее подтверждение)
                     confirmations += min(1, int(similarity * 10))
                     break
@@ -716,7 +717,8 @@ class KnowledgeIntegrator:
                 score += max(0.0, 1.0 - (age_days / 365)) * 0.3
                 
                 # Авторитетность домена
-                score += self.knowledge_expander.get_domain_authority(domain) * 0.3
+                if self.knowledge_expander and hasattr(self.knowledge_expander, 'get_domain_authority'):
+                    score += self.knowledge_expander.get_domain_authority(domain) * 0.3
                 
                 domain_scores[domain] = score
             
@@ -1045,9 +1047,9 @@ class KnowledgeIntegrator:
         
         edges = self.knowledge_graph.get_edges(source_node[0].id)
         for edge in edges:
-            target_node = self.knowledge_graph.get_node(edge.target)
-            if target_node and target_node.content == target and edge.relation == relation:
-                return self._evaluate_statement_strength(source_node[0].id, edge.target, relation)
+            target_node = self.knowledge_graph.get_node(edge.target_id)
+            if target_node and target_node.content == target and edge.relation_type == relation:
+                return self._evaluate_statement_strength(source_node[0].id, edge.target_id, relation)
         
         return 0.3
     
@@ -1068,7 +1070,11 @@ class KnowledgeIntegrator:
             evidence = contradiction["evidence"]
             
             # Оцениваем авторитетность каждого домена
-            domain_authorities = {domain: self.knowledge_expander.get_domain_authority(domain) for domain in domains}
+            domain_authorities = {}
+            if self.knowledge_expander and hasattr(self.knowledge_expander, 'get_domain_authority'):
+                domain_authorities = {domain: self.knowledge_expander.get_domain_authority(domain) for domain in domains}
+            else:
+                domain_authorities = {domain: 0.5 for domain in domains}
             
             # Находим наиболее авторитетный домен
             main_domain = max(domain_authorities, key=domain_authorities.get)
@@ -1704,7 +1710,7 @@ class KnowledgeIntegrator:
                         # Проверяем, есть ли уже связь
                         existing_edge = None
                         for edge in self.knowledge_graph.get_edges(node1.id):
-                            if edge.target == node2.id:
+                            if edge.target_id == node2.id:
                                 existing_edge = edge
                                 break
                         
@@ -1714,7 +1720,10 @@ class KnowledgeIntegrator:
                             self._update_edge_strength(existing_edge.id, new_strength)
                         else:
                             # Создаем новую связь
-                            relation_type = self.knowledge_expander._determine_relation_type(node1.content, node2.content)
+                            if self.knowledge_expander and hasattr(self.knowledge_expander, '_determine_relation_type'):
+                                relation_type = self.knowledge_expander._determine_relation_type(node1.content, node2.content)
+                            else:
+                                relation_type = "related_to"
                             self.knowledge_graph.add_connection(
                                 node1.id,
                                 node2.id,
@@ -1825,7 +1834,10 @@ class KnowledgeIntegrator:
                 
                 for similar_node in similar_nodes:
                     # Определяем тип связи
-                    relation_type = self.knowledge_expander._determine_relation_type(node.content, similar_node.content)
+                    if self.knowledge_expander and hasattr(self.knowledge_expander, '_determine_relation_type'):
+                        relation_type = self.knowledge_expander._determine_relation_type(node.content, similar_node.content)
+                    else:
+                        relation_type = "related_to"
                     
                     # Создаем связь
                     self.knowledge_graph.add_connection(

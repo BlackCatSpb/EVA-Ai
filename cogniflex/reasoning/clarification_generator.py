@@ -45,7 +45,7 @@ class ClarificationGenerator:
         questions = []
         
         # Анализируем что именно не хватает
-        knowledge_gaps = analysis_result.get('knowledge_gaps', [])
+        knowledge_gaps = analysis_result.get('gaps_found', [])
         missing_entities = analysis_result.get('missing_entities', [])
         
         # Генерируем вопросы на основе пробелов в знаниях

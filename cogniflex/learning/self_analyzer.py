@@ -28,6 +28,7 @@ class SelfAnalyzer:
         
         self.is_initialized = False
         self.init_error = None
+        self.interaction_history = []
         
         try:
             # Проверяем состояние моделей
@@ -572,10 +573,10 @@ class SelfAnalyzer:
         
         if hasattr(self, 'analyzer_core') and self.analyzer_core:
             try:
-                opportunities = self.analyzer_core.get_learning_opportunities(status='executed', limit=100)
+                opportunities = self.analyzer_core.get_learning_opportunities(executed=True, limit=100)
                 progress_data["executed_opportunities"] = len(opportunities)
                 
-                pending = self.analyzer_core.get_learning_opportunities(status='pending', limit=10)
+                pending = self.analyzer_core.get_learning_opportunities(executed=False, limit=10)
                 progress_data["pending_opportunities"] = len(pending)
             except Exception as e:
                 logger.warning(f"Ошибка анализа прогресса: {e}")

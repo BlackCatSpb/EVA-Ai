@@ -16,6 +16,7 @@ class LearningOpportunityManager:
     def __init__(self, brain=None, analyzer_core=None, cache_dir=None):
         self.brain = brain
         self.analyzer_core = analyzer_core or AnalyzerCore(brain)
+        self.learning_rate = 0.01
         logger.info("LearningOpportunityManager инициализирован")
     
     def get_learning_opportunities(self) -> List[Dict[str, Any]]:
@@ -91,6 +92,7 @@ class LearningOpportunityManager:
                 return True
             
             opportunity = LearningOpportunity(
+                id=row[0],
                 concept=row[1],
                 opportunity_type=row[2],
                 priority=row[3],

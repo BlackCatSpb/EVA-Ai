@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class LearningOpportunity:
+    id: str
     concept: str
     opportunity_type: str
     priority: float

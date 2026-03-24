@@ -14,6 +14,7 @@ logger = logging.getLogger("cogniflex.analyzer_core")
 @dataclass
 class LearningOpportunity:
     """Представляет возможность для обучения системы."""
+    id: str
     concept: str
     opportunity_type: str  # expansion, refinement, updating, integration
     priority: float  # 0.0-1.0
@@ -46,6 +47,7 @@ class LearningOpportunity:
     def from_dict(cls, data: Dict[str, Any]) -> 'LearningOpportunity':
         """Создает возможность для обучения из словаря."""
         return cls(
+            id=data.get("id", ""),
             concept=data["concept"],
             opportunity_type=data["opportunity_type"],
             priority=data["priority"],
@@ -339,6 +341,7 @@ class AnalyzerCore:
             opportunities = []
             for row in cursor.fetchall():
                 opportunity = LearningOpportunity(
+                    id=row[0],
                     concept=row[1],
                     opportunity_type=row[2],
                     priority=row[3],
