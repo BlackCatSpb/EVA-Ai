@@ -1858,15 +1858,21 @@ class KnowledgeGraph:
             })
         
         for edge in self.edges.values():
-            if edge.source_name and entity_lower in edge.source_name.lower():
+            source_node = self.nodes.get(edge.source_id)
+            target_node = self.nodes.get(edge.target_id)
+            
+            source_name = source_node.name if source_node else edge.source_id
+            target_name = target_node.name if target_node else edge.target_id
+            
+            if source_name and entity_lower in source_name.lower():
                 related.append({
-                    "name": edge.target_name or edge.target_id,
+                    "name": target_name,
                     "type": edge.relation_type,
                     "relation": "outgoing"
                 })
-            elif edge.target_name and entity_lower in edge.target_name.lower():
+            elif target_name and entity_lower in target_name.lower():
                 related.append({
-                    "name": edge.source_name or edge.source_id,
+                    "name": source_name,
                     "type": edge.relation_type,
                     "relation": "incoming"
                 })

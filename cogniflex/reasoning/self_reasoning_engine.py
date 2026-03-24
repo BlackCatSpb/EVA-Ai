@@ -54,6 +54,20 @@ class SelfReasoningEngine:
         # Fractal Storage для хранения цепочек рассуждений
         self.fractal_storage = getattr(brain, 'fractal_storage', None) if brain else None
         
+        # Fallback: создаём FractalStorage если его нет в brain
+        if self.fractal_storage is None:
+            try:
+                from cogniflex.reasoning.fractal_ml import FractalStorage
+                storage_path = './cache/fractal_reasoning'
+                if brain and hasattr(brain, 'cache_dir'):
+                    import os
+                    storage_path = os.path.join(brain.cache_dir, 'fractal_reasoning')
+                self.fractal_storage = FractalStorage(storage_path)
+                logger.info(f"FractalStorage создан: {storage_path}")
+            except Exception as e:
+                logger.warning(f"Не удалось создать FractalStorage: {e}")
+                self.fractal_storage = None
+        
         # Fractal компоненты для рекурсивного reasoning
         self.fractal_embedder = None
         self.fractal_retriever = None

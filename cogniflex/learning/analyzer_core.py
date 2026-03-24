@@ -220,6 +220,18 @@ class AnalyzerCore:
             )
             ''')
             
+            # Таблица для связей знаний
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS knowledge_edges (
+                id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                target_id TEXT NOT NULL,
+                relation_type TEXT NOT NULL,
+                timestamp REAL NOT NULL,
+                metadata TEXT
+            )
+            ''')
+            
             conn.commit()
             conn.close()
             
