@@ -186,6 +186,40 @@ class AnalyzerCore:
             )
             ''')
             
+            # Таблица для фидбэка пользователей
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id TEXT PRIMARY KEY,
+                rating REAL NOT NULL,
+                timestamp REAL NOT NULL,
+                query TEXT,
+                response TEXT,
+                metadata TEXT
+            )
+            ''')
+            
+            # Таблица для запросов
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS queries (
+                id TEXT PRIMARY KEY,
+                query TEXT NOT NULL,
+                response_time REAL NOT NULL,
+                timestamp REAL NOT NULL,
+                metadata TEXT
+            )
+            ''')
+            
+            # Таблица для знаний
+            cursor.execute('''
+            CREATE TABLE IF NOT EXISTS knowledge_nodes (
+                id TEXT PRIMARY KEY,
+                concept TEXT NOT NULL,
+                confidence REAL DEFAULT 0.5,
+                timestamp REAL NOT NULL,
+                metadata TEXT
+            )
+            ''')
+            
             conn.commit()
             conn.close()
             

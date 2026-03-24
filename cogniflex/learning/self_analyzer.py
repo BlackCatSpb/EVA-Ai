@@ -510,3 +510,77 @@ class SelfAnalyzer:
             return False
         except Exception:
             return False
+    
+    def analyze_performance_detailed(self) -> Dict[str, Any]:
+        """Детальный анализ производительности системы."""
+        logger.info("Детальный анализ производительности...")
+        
+        performance_data = {
+            "models_ready": self._models_ready(),
+            "timestamp": time.time()
+        }
+        
+        if hasattr(self, 'performance_analyzer') and self.performance_analyzer:
+            try:
+                perf_result = self.performance_analyzer.analyze_performance()
+                performance_data["performance"] = perf_result
+            except Exception as e:
+                logger.warning(f"Ошибка анализа производительности: {e}")
+                performance_data["performance_error"] = str(e)
+        
+        return {
+            "status": "completed",
+            "data": performance_data
+        }
+    
+    def analyze_memory_state(self) -> Dict[str, Any]:
+        """Анализ состояния памяти системы."""
+        logger.info("Анализ состояния памяти...")
+        
+        memory_data = {
+            "timestamp": time.time()
+        }
+        
+        if self.brain and hasattr(self.brain, 'memory_manager'):
+            try:
+                memory_manager = self.brain.memory_manager
+                if hasattr(memory_manager, 'get_stats'):
+                    memory_data["memory_stats"] = memory_manager.get_stats()
+            except Exception as e:
+                logger.warning(f"Ошибка анализа памяти: {e}")
+        
+        if self.brain and hasattr(self.brain, 'fractal_storage'):
+            try:
+                fs = self.brain.fractal_storage
+                if hasattr(fs, 'get_stats'):
+                    memory_data["fractal_stats"] = fs.get_stats()
+            except Exception as e:
+                logger.warning(f"Ошибка анализа fractal_storage: {e}")
+        
+        return {
+            "status": "completed",
+            "data": memory_data
+        }
+    
+    def analyze_learning_progress(self) -> Dict[str, Any]:
+        """Анализ прогресса обучения системы."""
+        logger.info("Анализ прогресса обучения...")
+        
+        progress_data = {
+            "timestamp": time.time()
+        }
+        
+        if hasattr(self, 'analyzer_core') and self.analyzer_core:
+            try:
+                opportunities = self.analyzer_core.get_learning_opportunities(status='executed', limit=100)
+                progress_data["executed_opportunities"] = len(opportunities)
+                
+                pending = self.analyzer_core.get_learning_opportunities(status='pending', limit=10)
+                progress_data["pending_opportunities"] = len(pending)
+            except Exception as e:
+                logger.warning(f"Ошибка анализа прогресса: {e}")
+        
+        return {
+            "status": "completed",
+            "data": progress_data
+        }

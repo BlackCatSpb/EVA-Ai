@@ -96,6 +96,28 @@ class ReasoningIntegration:
         if self.reasoning_engine:
             return self.reasoning_engine.get_stats()
         return {}
+    
+    def enable(self) -> bool:
+        """Включить Self-Reasoning Engine"""
+        if self.reasoning_engine is None:
+            return self.integrate_with_brain()
+        self.enabled = True
+        self.brain.self_reasoning_engine = self.reasoning_engine
+        logger.info("Self-Reasoning Engine включён")
+        return True
+    
+    def disable(self):
+        """Отключить Self-Reasoning Engine"""
+        self.enabled = False
+        logger.info("Self-Reasoning Engine отключён")
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Получить статус reasoning engine"""
+        return {
+            "enabled": self.enabled,
+            "engine_ready": self.reasoning_engine is not None,
+            "stats": self.get_stats()
+        }
 
 
 def integrate_reasoning(brain) -> ReasoningIntegration:
