@@ -763,25 +763,6 @@ class KnowledgeGraph:
                 self.temporal_index.append((node.timestamp, node.id, "node"))
             if node.last_updated != node.timestamp:
                 self.temporal_index.append((node.last_updated, node.id, "node"))
-        
-        if edge:
-            # Обновляем индекс связей
-            self.relation_index[edge.relation_type] = [
-                eid for eid in self.relation_index[edge.relation_type] if eid != edge.id
-            ]
-            self.relation_index[edge.relation_type].append(edge.id)
-            
-            # Обновляем временной индекс
-            self.temporal_index = [
-                item for item in self.temporal_index 
-                if not (item[1] == edge.id and item[2] == "edge")
-            ]
-            self.temporal_index.append((edge.timestamp, edge.id, "edge"))
-            if edge.last_updated != edge.timestamp:
-                self.temporal_index.append((edge.last_updated, edge.id, "edge"))
-            
-            # Сортируем временной индекс с безопасной функцией сортировки
-            self.temporal_index.sort(key=safe_sort_key)
 
     @property
     def graph(self) -> Dict[str, Any]:
