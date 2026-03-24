@@ -98,6 +98,7 @@ class ChatModule:
         self.processing_thread = None
         self.stop_event = threading.Event()
         self._status_updater_id = None
+        self.typing_text = "Печатает..."
         self.formatting_pattern = re.compile(r'\*\*(.*?)\*\*|__(.*?)__|_(.*?)_|`(.*?)`')
         self.markdown_link_pattern = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
         self.url_pattern = re.compile(r'https?://\S+')

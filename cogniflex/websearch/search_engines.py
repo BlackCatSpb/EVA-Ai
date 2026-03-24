@@ -25,11 +25,19 @@ class SearchEngines:
         self.searx_url = "https://searx.be/search"
 
     def search_google(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Google (через DuckDuckGo)."""
+        """Выполняет поиск через Google (использует DuckDuckGo из-за ограничений Google API).
+        
+        Note: Прямой поиск Google требует API ключ. Используем DuckDuckGo как fallback.
+        """
+        logger.info(f"Google search fallback to DuckDuckGo for: {query[:30]}...")
         return self.search_duckduckgo(query, max_results)
 
     def search_yandex(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Yandex (через DuckDuckGo)."""
+        """Выполняет поиск через Yandex (использует DuckDuckGo из-за ограничений Yandex API).
+        
+        Note: Прямой поиск Yandex требует API ключ. Используем DuckDuckGo как fallback.
+        """
+        logger.info(f"Yandex search fallback to DuckDuckGo for: {query[:30]}...")
         return self.search_duckduckgo(query, max_results)
 
     def search_bing(self, query: str, max_results: int) -> List[SearchResult]:
