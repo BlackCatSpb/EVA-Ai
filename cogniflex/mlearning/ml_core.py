@@ -16,7 +16,7 @@ class ModelHealth:
                  status: str = "operational", health_score: float = 1.0,
                  usage_count: int = 0, error_count: int = 0, 
                  response_time: float = 0.0, last_used: float = 0.0,
-                 memory_usage: float = 0.0):
+                 memory_usage: float = 0.0, metadata: Dict[str, Any] = None):
         """
         Инициализирует состояние модели.
         
@@ -30,6 +30,7 @@ class ModelHealth:
             response_time: Среднее время ответа
             last_used: Временная метка последнего использования
             memory_usage: Использование памяти
+            metadata: Дополнительные метаданные
         """
         self.model_name = model_name
         self.model_type = model_type
@@ -40,6 +41,7 @@ class ModelHealth:
         self.response_time = response_time
         self.last_used = last_used or time.time()
         self.memory_usage = memory_usage
+        self.metadata = metadata or {}
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'ModelHealth':

@@ -7,7 +7,6 @@ import time
 import threading
 import json
 import re
-import numpy as np
 from typing import Dict, List, Optional, Any, Tuple, Union, Callable
 from dataclasses import dataclass, field
 from collections import defaultdict
@@ -391,7 +390,7 @@ class EthicsFramework:
             stats_file = os.path.join(cache_dir, 'ethics_stats.json')
             if os.path.exists(stats_file):
                 with open(stats_file, 'r', encoding='utf-8') as f:
-                    self.ethics_stats = json.load(f)
+                    self.stats = json.load(f)
                     logger.debug("Статистика этики загружена")
                     
         except Exception as e:

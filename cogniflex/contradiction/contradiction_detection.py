@@ -63,6 +63,9 @@ class ContradictionDetector:
         """
         self.knowledge_graph = knowledge_graph
         self.nlp_model = nlp_model or self._init_nlp_model()
+        self.active = False
+        self.detection_threshold = detection_threshold
+        self.max_conflicting_facts = max_conflicting_facts
 
         # Инициализируем анализатор тональности и стоп-слова (безопасно)
         self.sentiment_analyzer = get_sentiment_analyzer()
@@ -1112,31 +1115,7 @@ class ContradictionDetector:
         self.detected_contradictions.extend(all_contradictions)
         
 
-"""Модуль обнаружения противоречий в системе CogniFlex"""
-import os
-import logging
-import time
-import json
-import re
-import threading
-from collections import defaultdict
-from typing import Dict, List, Optional, Any, Tuple, Set, Union
-from datetime import datetime, timedelta
-import random
-import hashlib
-import numpy as np
 
-# Централизованные NLP-фоллбеки
-from cogniflex.nlp_fallbacks import (
-    compute_semantic_similarity,
-    get_sentiment_analyzer,
-    polarity_scores,
-    tokenize,
-    get_stopwords,
-)
-
-# Optional dependencies
-try:
     from sentence_transformers import SentenceTransformer  # type: ignore
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except (ImportError, ModuleNotFoundError, RuntimeError) as e:
@@ -1178,6 +1157,9 @@ class ContradictionDetector:
         """
         self.knowledge_graph = knowledge_graph
         self.nlp_model = nlp_model or self._init_nlp_model()
+        self.active = False
+        self.detection_threshold = detection_threshold
+        self.max_conflicting_facts = max_conflicting_facts
 
         # Инициализируем анализатор тональности и стоп-слова (безопасно)
         self.sentiment_analyzer = get_sentiment_analyzer()

@@ -487,5 +487,6 @@ class QwenModelManager:
             del self.tokenizer
             self.tokenizer = None
         self.initialized = False
-        torch.cuda.empty_cache() if torch.cuda.is_available() else None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         logger.info("Модель выгружена из памяти")
