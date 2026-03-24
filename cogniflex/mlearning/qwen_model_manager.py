@@ -310,12 +310,24 @@ class QwenModelManager:
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
             
-            # Загрузка модели
+            # Загрузка модели - пробуем GPU если доступно
             logger.info("Загрузка модели (может занять несколько минут)...")
-            self.model = QwenModelClass.from_pretrained(
-                model_source,
-                **load_kwargs
-            )
+            try:
+                self.model = QwenModelClass.from_pretrained(
+                    model_source,
+                    **load_kwargs
+                )
+            except Exception as gpu_error:
+                # Если GPU не работает - пробуем CPU
+                logger.warning(f"GPU загрузка не удалась: {gpu_error}, пробуем CPU...")
+                load_kwargs["device_map"] = "cpu"
+                load_kwargs["torch_dtype"] = torch.float32
+                if "quantization_config" in load_kwargs:
+                    del load_kwargs["quantization_config"]
+                self.model = QwenModelClass.from_pretrained(
+                    model_source,
+                    **load_kwargs
+                )
             
             # Конфигурация генерации
             try:
