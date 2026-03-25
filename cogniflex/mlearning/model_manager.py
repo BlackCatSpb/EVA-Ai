@@ -117,12 +117,12 @@ class ModelManager(BaseComponent):
                 fractal_levels = int(store_config.get('fractal_levels', 4))
                 containers_per_group = int(store_config.get('containers_per_group', 4))
 
+                config_device = self.config.get('device', 'cpu')
                 device = 'cpu'
-                try:
-                    if torch is not None and torch.cuda.is_available():
-                        device = 'cuda'
-                except Exception:
-                    device = 'cpu'
+                if config_device and isinstance(config_device, str):
+                    device = config_device if not config_device.startswith('cuda') or (torch is not None and torch.cuda.is_available()) else 'cpu'
+                elif torch is not None and torch.cuda.is_available():
+                    device = 'cuda'
 
                 self.fractal_store = FractalWeightStore(
                     block_size=block_size,

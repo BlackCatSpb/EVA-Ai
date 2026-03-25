@@ -110,11 +110,8 @@ class QueryProcessor:
                     logger.debug(f"Ошибка подготовки доказательств из узлов KG: {e}")
 
                 # Опциональное дополнение веб-поиском при включённой конфигурации
-                try:
-                    augment_web = bool(getattr(self.brain, "config", {}).get("augment_with_web_on_kg", True))
-                except (AttributeError, TypeError, ValueError) as e:
-                    logger.debug(f"Ошибка получения конфигурации веб-дополнения: {e}")
-                    augment_web = True
+                brain_config = getattr(self.brain, "config", {}) or {}
+                augment_web = brain_config.get("augment_with_web_on_kg", True)
 
                 if augment_web and self.brain.components.get("web_search_engine"):
                     try:

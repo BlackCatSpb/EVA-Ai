@@ -706,11 +706,11 @@ class MLUnit:
                 return True
             
             logger.warning("MLUnit инициализирован без компонентов - режим заглушки")
-            return True  # Всегда возвращаем True чтобы не блокировать систему
+            return False
         
         except Exception as e:
             logger.error(f"Ошибка дополнительной инициализации MLUnit: {e}", exc_info=True)
-            return True  # Возвращаем True даже при ошибке, чтобы система продолжила работу
+            return False
     
     def start(self):
         """Запускает фоновые процессы MLUnit."""

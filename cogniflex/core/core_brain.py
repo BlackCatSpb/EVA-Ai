@@ -686,8 +686,10 @@ class CoreBrain:
                 except Exception as e:
                     logger.warning(f"Ошибка загрузки {config_path}: {e}")
         
-        logger.warning("brain_config.json не найден, используется пустая конфигурация")
-        return {}
+        logger.error("brain_config.json не найден ни в одном из ожидаемых расположений")
+        raise FileNotFoundError(
+            f"brain_config.json не найден. Проверены пути: {possible_paths}"
+        )
     
     def _get_system_info(self) -> Dict[str, Any]:
         """Возвращает информацию о системе для логгирования."""
