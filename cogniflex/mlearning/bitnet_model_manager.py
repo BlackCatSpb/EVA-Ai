@@ -122,7 +122,7 @@ class BitNetModelManager:
     def generate(
         self, 
         prompt: str, 
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 2048,
         temperature: float = 0.7,
         top_p: float = 0.9,
         **kwargs

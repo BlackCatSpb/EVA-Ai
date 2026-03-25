@@ -981,7 +981,7 @@ class CoreBrain:
             messages = [{"role": "user", "content": query}]
             response_text = self.qwen_model_manager.generate(
                 messages,
-                max_new_tokens=256,
+                max_new_tokens=2048,
                 temperature=temperature,
                 top_p=top_p,
                 repetition_penalty=repetition_penalty
@@ -1054,7 +1054,7 @@ class CoreBrain:
                 messages = [{"role": "user", "content": query}]
                 response_text = self.qwen_model_manager.generate(
                     messages,
-                    max_new_tokens=256,
+                    max_new_tokens=2048,
                     temperature=temperature,
                     top_p=top_p,
                     repetition_penalty=repetition_penalty
