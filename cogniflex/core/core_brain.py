@@ -1094,7 +1094,12 @@ class CoreBrain:
             if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager:
                 response = self.fractal_model_manager.generate(query)
                 if response:
-                    response_dict = response.to_dict()
+                    if isinstance(response, dict):
+                        response_dict = response
+                    elif hasattr(response, 'to_dict'):
+                        response_dict = response.to_dict()
+                    else:
+                        response_dict = {"generated_text": str(response), "status": "success"}
                     response_dict["fallback_level"] = 2
                     response_dict["source"] = "fractal_model_manager"
                     self.query_logger.info("Успешно использован fractal_model_manager")

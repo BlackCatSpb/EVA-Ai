@@ -544,10 +544,12 @@ class QueryProcessor:
             if not self.brain.components.get("ml_unit"):
                 return "Извините, модуль генерации недоступен."
             
-            if hasattr(self.brain, 'process_query'):
-                result = self.brain.process_query(query, context=gen_context)
+            # Используем ml_unit напрямую вместо brain.process_query() чтобы избежать бесконечного цикла
+            ml_unit = self.brain.components.get("ml_unit")
+            if ml_unit and hasattr(ml_unit, 'generate'):
+                result = ml_unit.generate(query, context=gen_context)
                 if result and isinstance(result, dict):
-                    return result.get('text', 'Ошибка обработки')
+                    return result.get('text', result.get('generated_text', 'Ошибка обработки'))
                 elif isinstance(result, str):
                     return result
                 return "Ошибка обработки ответа"

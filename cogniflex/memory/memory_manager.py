@@ -140,7 +140,7 @@ class MemoryManager:
             if not os.path.exists(self.working_memory_file):
                 return ComponentState.ERROR
                 
-            if not self.knowledge_graph or not getattr(self.knowledge_graph, 'is_initialized', False):
+            if not self.knowledge_graph or not getattr(self.knowledge_graph, 'initialized', False):
                 return ComponentState.ERROR
                 
             return ComponentState.READY
@@ -939,14 +939,14 @@ class MemoryManager:
 
         # Узлы: working / semantic / episodic
         try:
-            for entry in self.working_memory:
+            for entry in self.working_memory.values():
                 if isinstance(entry, dict) and entry.get("id"):
                     add_node(entry, "working")
         except Exception:
             logger.debug("Ошибка экспорта working_memory", exc_info=True)
 
         try:
-            for entry in self.semantic_memory:
+            for entry in self.semantic_memory.values():
                 if isinstance(entry, dict) and entry.get("id"):
                     add_node(entry, "semantic")
         except Exception:

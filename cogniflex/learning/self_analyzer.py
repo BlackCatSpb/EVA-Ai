@@ -545,8 +545,8 @@ class SelfAnalyzer:
         if self.brain and hasattr(self.brain, 'memory_manager'):
             try:
                 memory_manager = self.brain.memory_manager
-                if hasattr(memory_manager, 'get_stats'):
-                    memory_data["memory_stats"] = memory_manager.get_stats()
+                if hasattr(memory_manager, 'get_memory_statistics'):
+                    memory_data["memory_stats"] = memory_manager.get_memory_statistics()
             except Exception as e:
                 logger.warning(f"Ошибка анализа памяти: {e}")
         
