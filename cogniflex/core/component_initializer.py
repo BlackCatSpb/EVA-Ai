@@ -274,10 +274,18 @@ class ComponentInitializer:
         def create_knowledge_graph():
             try:
                 import sys as _sys
-                _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                import os as _os
+                _root = _os.path.normpath(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))))
                 if _root not in _sys.path:
                     _sys.path.insert(0, _root)
-                os.chdir(_root)
+                _os.chdir(_root)
+                # Force fresh import
+                if 'cogniflex' in sys.modules:
+                    del sys.modules['cogniflex']
+                if 'cogniflex.knowledge' in sys.modules:
+                    del sys.modules['cogniflex.knowledge']
+                if 'cogniflex.knowledge.knowledge_graph_integrated' in sys.modules:
+                    del sys.modules['cogniflex.knowledge.knowledge_graph_integrated']
                 from cogniflex.knowledge.knowledge_graph_integrated import IntegratedKnowledgeGraph
                 event_bus = getattr(self.core_brain, 'event_bus', None)
                 knowledge_graph = IntegratedKnowledgeGraph(
@@ -314,10 +322,18 @@ class ComponentInitializer:
         def create_text_processor():
             try:
                 import sys as _sys
-                _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                import os as _os
+                _root = _os.path.normpath(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))))
                 if _root not in _sys.path:
                     _sys.path.insert(0, _root)
-                os.chdir(_root)
+                _os.chdir(_root)
+                # Force fresh import
+                if 'cogniflex' in sys.modules:
+                    del sys.modules['cogniflex']
+                if 'cogniflex.mlearning' in sys.modules:
+                    del sys.modules['cogniflex.mlearning']
+                if 'cogniflex.mlearning.unified_text_processor' in sys.modules:
+                    del sys.modules['cogniflex.mlearning.unified_text_processor']
                 from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
                 text_processor = UnifiedTextProcessor(brain=self.core_brain)
                 hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
