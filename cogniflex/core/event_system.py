@@ -128,7 +128,12 @@ class EventBus:
 
         # Сортируем обработчики по приоритету
         event_priority = priority_override if priority_override is not None else self.event_priorities.get(event_name, 5)
-        listeners.sort(key=lambda cb: getattr(cb, '_event_priority', 5), reverse=True)
+        
+        # Use priority_override if provided, otherwise use callback's own priority
+        if priority_override is not None:
+            listeners.sort(key=lambda cb: priority_override, reverse=True)
+        else:
+            listeners.sort(key=lambda cb: getattr(cb, '_event_priority', 5), reverse=True)
 
         ts = time.time()
         with self._lock:

@@ -136,10 +136,10 @@ class MemoryManager:
         try:
             if not os.path.exists(self.working_memory_file):
                 return ComponentState.ERROR
-                
-            if not self.knowledge_graph or not getattr(self.knowledge_graph, 'initialized', False):
+            
+            if self.knowledge_graph is not None and not getattr(self.knowledge_graph, 'initialized', False):
                 return ComponentState.ERROR
-                
+            
             return ComponentState.READY
         except Exception:
             return ComponentState.ERROR
