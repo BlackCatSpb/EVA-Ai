@@ -504,21 +504,21 @@ def initialize_generation_coordinator(brain):
         if hasattr(brain.model_manager, 'get_available_models') and hasattr(brain.model_manager, 'generate_response'):
             hybrid_provider = HybridModelProvider(brain.model_manager)
             coordinator.register_provider(hybrid_provider)
-            logger.info("✅ Зарегистрирован HybridModelProvider")
+            logger.info("[OK] Зарегистрирован HybridModelProvider")
         else:
             # Fallback на старый провайдер
             model_provider = FractalModelProvider(brain.model_manager)
             coordinator.register_provider(model_provider)
-            logger.info("✅ Зарегистрирован FractalModelProvider (fallback)")
+            logger.info("[OK] Зарегистрирован FractalModelProvider (fallback)")
     
     # 2. Fallback на другие менеджеры (если доступны)
     elif hasattr(brain, 'fractal_model_manager') and brain.fractal_model_manager:
         if hasattr(brain.fractal_model_manager, 'initialized') and brain.fractal_model_manager.initialized:
             fractal_provider = FractalModelProvider(brain.fractal_model_manager)
             coordinator.register_provider(fractal_provider)
-            logger.info("✅ Зарегистрирован fractal_model_manager")
+            logger.info("[OK] Зарегистрирован fractal_model_manager")
         else:
-            logger.warning("⚠️ fractal_model_manager не инициализирован, пропускаем")
+            logger.warning("[WARN] fractal_model_manager не инициализирован, пропускаем")
     
     # 3. ResponseGenerator
     if hasattr(brain, 'components') and 'response_generator' in brain.components:

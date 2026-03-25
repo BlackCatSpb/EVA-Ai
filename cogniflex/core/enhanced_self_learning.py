@@ -138,11 +138,11 @@ class EnhancedSelfLearningSystem:
                 self.ml_unit = self.brain._ml_unit
             
             logger.info("Интеграция с модулями системы инициализирована:")
-            logger.info(f"  Граф знаний: {'✅' if self.knowledge_graph else '❌'}")
-            logger.info(f"  Менеджер памяти: {'✅' if self.memory_manager else '❌'}")
-            logger.info(f"  История чата: {'✅' if self.chat_history else '❌'}")
-            logger.info(f"  ML Unit: {'✅' if self.ml_unit else '❌'}")
-            logger.info(f"  Text Processor: {'✅' if self.text_processor else '❌'}")
+            logger.info(f"  Граф знаний: {'[OK]' if self.knowledge_graph else '[FAIL]'}")
+            logger.info(f"  Менеджер памяти: {'[OK]' if self.memory_manager else '[FAIL]'}")
+            logger.info(f"  История чата: {'[OK]' if self.chat_history else '[FAIL]'}")
+            logger.info(f"  ML Unit: {'[OK]' if self.ml_unit else '[FAIL]'}")
+            logger.info(f"  Text Processor: {'[OK]' if self.text_processor else '[FAIL]'}")
             
             # Логируем доступные компоненты для отладки
             if components:
