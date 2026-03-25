@@ -971,13 +971,20 @@ class CoreBrain:
             
             # Use Qwen for ALL queries in qwen_only_mode
             self.query_logger.info("Используем QwenModelManager (qwen_only_mode)")
+            
+            # Get generation params from config
+            gen_config = self.config.get('generation', {})
+            temperature = gen_config.get('temperature', 0.7)
+            top_p = gen_config.get('top_p', 0.9)
+            repetition_penalty = gen_config.get('repetition_penalty', 1.1)
+            
             messages = [{"role": "user", "content": query}]
             response_text = self.qwen_model_manager.generate(
                 messages,
                 max_new_tokens=256,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1
+                temperature=temperature,
+                top_p=top_p,
+                repetition_penalty=repetition_penalty
             )
             
             if response_text and not response_text.startswith("Ошибка"):
@@ -1037,14 +1044,20 @@ class CoreBrain:
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
                 
+                # Get generation params from config
+                gen_config = self.config.get('generation', {})
+                temperature = gen_config.get('temperature', 0.7)
+                top_p = gen_config.get('top_p', 0.9)
+                repetition_penalty = gen_config.get('repetition_penalty', 1.1)
+                
                 # Используем chat format для Qwen
                 messages = [{"role": "user", "content": query}]
                 response_text = self.qwen_model_manager.generate(
                     messages,
                     max_new_tokens=256,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1
+                    temperature=temperature,
+                    top_p=top_p,
+                    repetition_penalty=repetition_penalty
                 )
                 
                 if response_text and not response_text.startswith("Ошибка"):

@@ -5,6 +5,7 @@
 
 import os
 import sys
+import json
 import logging
 import time
 import threading
@@ -16,6 +17,24 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 logger = logging.getLogger("cogniflex.ml_unit")
+
+
+def _load_brain_config() -> Dict[str, Any]:
+    """Loads brain configuration from brain_config.json."""
+    config_path = os.path.join(_get_project_root(), 'brain_config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load brain_config.json: {e}")
+    return {}
+
+
+def _get_hybrid_cache_config() -> Dict[str, Any]:
+    """Returns hybrid_cache config from brain_config.json."""
+    config = _load_brain_config()
+    return config.get('hybrid_cache', {})
 
 
 def _get_project_root() -> str:
@@ -75,7 +94,7 @@ class MLUnit:
     """
     
     def __init__(self, brain=None, cache_dir="cache/ml_unit", use_gpu=True, 
-                 max_workers=4, hybrid_cache_size=3295640, safe_test_mode=False):
+                 max_workers=4, hybrid_cache_size=None, safe_test_mode=False):
         """
         Инициализирует MLUnit с улучшенной архитектурой.
         
@@ -84,15 +103,24 @@ class MLUnit:
             cache_dir: Директория для кэша
             use_gpu: Использовать GPU если доступно
             max_workers: Максимальное количество воркеров
-            hybrid_cache_size: Размер гибридного кэша
+            hybrid_cache_size: Размер гибридного кэша (если None - берется из config)
             safe_test_mode: Режим безопасного тестирования
         """
         self.brain = brain
         self.cache_dir = cache_dir
         self.use_gpu = use_gpu
         self.max_workers = max_workers
-        self.hybrid_cache_size = hybrid_cache_size
         self.safe_test_mode = safe_test_mode
+        
+        # Get hybrid_cache_size from config if not provided
+        hc_config = _get_hybrid_cache_config()
+        if hybrid_cache_size is None:
+            # Use max_hot_tokens from config (default 8192) * estimated token size (4096)
+            max_hot_tokens = hc_config.get('max_hot_tokens', 8192)
+            hybrid_cache_size = max_hot_tokens * 4096
+        
+        self.hybrid_cache_size = hybrid_cache_size
+        logger.info(f"MLUnit hybrid_cache_size: {self.hybrid_cache_size} (from config: max_hot_tokens={hc_config.get('max_hot_tokens', 8192)})")
         
         # Компоненты MLUnit
         self.ml_core = None

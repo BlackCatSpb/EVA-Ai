@@ -103,17 +103,14 @@ class MemoryManager:
                 self.hybrid_cache = self.brain.hybrid_cache  # Also set for compatibility
                 logger.debug("Используем единый HybridTokenCache из brain")
             else:
-                # Fallback - создаем свой экземпляр если brain недоступен
+                # Fallback - используем get_shared_cache для согласованности
                 try:
-                    from .hybrid_token_cache import HybridTokenCache
-                    self._hybrid_cache = HybridTokenCache(
-                        cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
-                        brain=self.brain
-                    )
+                    from .hybrid_token_cache import get_shared_cache
+                    self._hybrid_cache = get_shared_cache(self.brain, "memory_manager")
                     self.hybrid_cache = self._hybrid_cache  # Also set for compatibility
-                    logger.info("Гибридный кэш успешно инициализирован")
+                    logger.info("Гибридный кэш успешно инициализирован через get_shared_cache")
                 except ImportError as e:
-                    logger.error(f"Не удалось импортировать HybridTokenCache: {e}")
+                    logger.error(f"Не удалось импортировать get_shared_cache: {e}")
                     raise RuntimeError("Не удалось загрузить модуль гибридного кэша")
                 except Exception as e:
                     logger.error(f"Ошибка инициализации гибридного кэша: {e}")
@@ -152,53 +149,34 @@ class MemoryManager:
         try:
             # Импортируем HybridTokenCache с обработкой ошибок
             try:
-                from .hybrid_token_cache import HybridTokenCache
+                from .hybrid_token_cache import HybridTokenCache, get_shared_cache
                 logger.debug("HybridTokenCache импортирован успешно")
             except ImportError:
                 logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
                 return
-
-            # Инициализируем гибридный кэш
-            # Если brain отсутствует или не имеет cache_dir, используем shim с cache_dir менеджера
-            brain_obj = self.brain
-            if brain_obj is None or not hasattr(brain_obj, "cache_dir") or not brain_obj.cache_dir:
-                class _BrainShim:
-                    def __init__(self, cache_dir: str):
-                        self.cache_dir = cache_dir
-                # Используем локальную директорию кэша менеджера как основу
-                safe_cache_dir = self.cache_dir if os.path.isabs(self.cache_dir) else os.path.join(os.getcwd(), self.cache_dir)
-                os.makedirs(safe_cache_dir, exist_ok=True)
-                brain_obj = _BrainShim(safe_cache_dir)
-
-            # Читаем лимит памяти кэша из конфигурации ядра или переменной окружения
-            try:
-                mem_gb_env = os.getenv("COGNIFLEX_CACHE_MEM_GB")
-                mem_gb_cfg = None
-                try:
-                    # Если у brain есть config, попытаемся прочитать оттуда
-                    mem_gb_cfg = float(getattr(getattr(self.brain, 'config', {}), 'get', lambda *_: None)(
-                        'cache_memory_gb'
-                    ) or 0)
-                except Exception:
-                    mem_gb_cfg = None
-                target_memory_gb = float(mem_gb_env) if mem_gb_env else (mem_gb_cfg if mem_gb_cfg else 16.0)
-            except Exception:
-                target_memory_gb = 16.0
 
             # Используем единый экземпляр из brain если доступен
             if self.brain and hasattr(self.brain, 'hybrid_cache') and self.brain.hybrid_cache:
                 self.hybrid_cache = self.brain.hybrid_cache
                 logger.debug("Используем единый HybridTokenCache из brain")
             else:
-                # Fallback - создаем свой экземпляр
-                self.hybrid_cache = HybridTokenCache(
-                    brain=brain_obj,
-                    max_memory_tokens=10000,
-                    disk_cache_dir="hybrid_cache",
-                    target_memory_gb=target_memory_gb,
-                )
+                # Fallback - используем get_shared_cache для согласованности
+                # Если brain отсутствует или не имеет cache_dir, используем shim с cache_dir менеджера
+                brain_obj = self.brain
+                if brain_obj is None or not hasattr(brain_obj, "cache_dir") or not brain_obj.cache_dir:
+                    class _BrainShim:
+                        def __init__(self, cache_dir: str):
+                            self.cache_dir = cache_dir
+                            self.config = {}
+                    # Используем локальную директорию кэша менеджера как основу
+                    safe_cache_dir = self.cache_dir if os.path.isabs(self.cache_dir) else os.path.join(os.getcwd(), self.cache_dir)
+                    os.makedirs(safe_cache_dir, exist_ok=True)
+                    brain_obj = _BrainShim(safe_cache_dir)
+
+                # Используем get_shared_cache для единого экземпляра
+                self.hybrid_cache = get_shared_cache(brain_obj, "memory_manager")
                 logger.info(
-                    f"Гибридный кэш инициализирован: max_memory_tokens=10000, target_memory_gb={target_memory_gb}, disk_dir=hybrid_cache"
+                    f"Гибридный кэш инициализирован через get_shared_cache: memory_manager"
                 )
 
         except Exception as e:

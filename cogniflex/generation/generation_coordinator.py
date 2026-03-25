@@ -1,6 +1,7 @@
 import os
 import time
 import torch
+import json
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from transformers import AutoTokenizer, AutoConfig
@@ -13,6 +14,24 @@ from ..memory.disk_cache import DiskCache
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _load_brain_config() -> Dict[str, Any]:
+    """Loads brain configuration from brain_config.json."""
+    config_path = os.path.join(_get_project_root(), 'brain_config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load brain_config.json: {e}")
+    return {}
+
+
+def _get_generation_config() -> Dict[str, Any]:
+    """Returns generation config from brain_config.json."""
+    config = _load_brain_config()
+    return config.get('generation', {})
 
 
 def _get_project_root() -> str:
@@ -57,6 +76,20 @@ class GenerationCoordinator:
         self.num_workers = num_workers
         self.is_ready = False
         self.init_error = None
+        
+        # Load generation config from brain_config.json
+        gen_config = _get_generation_config()
+        model_config = _load_brain_config().get('model', {})
+        
+        # Use max_length from config (model.max_length in config, default 32768)
+        self.max_length = model_config.get('max_length', 32768)
+        self.temperature = gen_config.get('temperature', 0.7)
+        self.top_p = gen_config.get('top_p', 0.9)
+        self.top_k = gen_config.get('top_k', 50)
+        self.repetition_penalty = gen_config.get('repetition_penalty', 1.1)
+        self.max_new_tokens = gen_config.get('max_new_tokens', 2048)
+        
+        logger.info(f"GenerationCoordinator config: max_length={self.max_length}, temperature={self.temperature}, top_p={self.top_p}")
         
         # Инициализация гибридного кеша
         self.brain = brain or self._create_mock_brain(cache_dir, max_cache_size_gb)
@@ -246,7 +279,7 @@ class GenerationCoordinator:
                 return_tensors="pt",
                 padding=False,  # Отключаем padding для генерации
                 truncation=True,
-                max_length=4096,  # Увеличено с 1024 до 4096
+                max_length=self.max_length,  # Use config value (default 32768 from brain_config.json)
                 return_attention_mask=True
             ).to(self.device)
             
