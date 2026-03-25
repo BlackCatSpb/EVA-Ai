@@ -13,14 +13,26 @@ from typing import Dict, Any, List, Set, Optional, Callable, Tuple
 logger = logging.getLogger("cogniflex.component_initializer")
 
 def _ensure_cogniflex_path():
-    """Ensure CogniFlex path is in sys.path."""
-    cogniflex_root = "C:/Users/black/OneDrive/Desktop/CogniFlex"
+    """Ensure CogniFlex path is in sys.path using dynamic path detection."""
+    current_file = os.path.abspath(__file__)
+    cogniflex_core_dir = os.path.dirname(current_file)
+    cogniflex_dir = os.path.dirname(cogniflex_core_dir)
+    cogniflex_root = os.path.dirname(cogniflex_dir)
+    cogniflex_root = os.path.normpath(cogniflex_root)
+    
     if cogniflex_root not in sys.path:
         sys.path.insert(0, cogniflex_root)
+    
+    cogniflex_parent = os.path.dirname(cogniflex_root)
+    if cogniflex_parent not in sys.path:
+        sys.path.insert(0, cogniflex_parent)
+    
     try:
         os.chdir(cogniflex_root)
     except:
         pass
+    
+    return cogniflex_root
 
 _ensure_cogniflex_path()
 
