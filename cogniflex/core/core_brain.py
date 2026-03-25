@@ -1049,12 +1049,16 @@ class CoreBrain:
         # Уровень 1: Generation Coordinator
         try:
             if self.generation_coordinator:
-                response = self.generation_coordinator.generate(
-                    text=query,
-                    user_context=user_context,
-                    source="core_brain"
+                response = self.generation_coordinator.generate_response(
+                    prompt=query,
+                    max_new_tokens=150
                 )
-                response_dict = response.to_dict()
+                if isinstance(response, dict):
+                    response_dict = response
+                elif hasattr(response, 'to_dict'):
+                    response_dict = response.to_dict()
+                else:
+                    response_dict = {"generated_text": str(response), "status": "success"}
                 response_dict["fallback_level"] = 1
                 response_dict["source"] = "generation_coordinator"
                 self.query_logger.info("Успешно использован generation_coordinator")

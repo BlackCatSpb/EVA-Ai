@@ -197,7 +197,7 @@ class KnowledgeAnalyzer:
             
             # Пытаемся создать граф с помощью NetworkX
             try:
-                G = self.knowledge_graph._build_networkx_graph(domain=domain)
+                G = self._build_networkx_graph(domain=domain)
             except Exception as e:
                 logger.error(f"Ошибка построения графа NetworkX: {e}")
                 return {

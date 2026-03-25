@@ -76,7 +76,8 @@ class MemoryManager:
         self.memory_locks = {
             "working": threading.Lock(),
             "semantic": threading.Lock(),
-            "episodic": threading.Lock()
+            "episodic": threading.Lock(),
+            "user_profiles": threading.Lock()
         }
         
         # Ошибки
@@ -757,8 +758,8 @@ class MemoryManager:
         
         # Получаем из временной памяти
         with self.memory_locks["working"]:
-            for entry in self.working_memory:
-                if "type" in entry["metadata"] and entry["metadata"]["type"] == "action":
+            for entry in self.working_memory.values():
+                if "type" in entry.get("metadata", {}) and entry["metadata"]["type"] == "action":
                     actions.append({
                         "id": entry["id"],
                         "type": entry["metadata"].get("action_type", "unknown"),
