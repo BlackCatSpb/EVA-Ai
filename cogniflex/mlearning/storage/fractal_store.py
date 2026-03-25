@@ -366,6 +366,75 @@ class FractalWeightStore:
     def has_tensor(self, tensor_id: str) -> bool:
         """Check if a tensor exists in storage"""
         return tensor_id in self.containers
+    
+    def reconstruct_state_dict(
+        self,
+        output_dtype: str = "float32",
+        device: str = "cpu",
+        limit_tensors: Optional[int] = None,
+        include_params: Optional[List[str]] = None,
+        resume_from: Optional[str] = None,
+        processed_params: Optional[set] = None,
+    ) -> Dict[str, torch.Tensor]:
+        """
+        Reconstruct state_dict from stored tensors.
+        This method is required by model_manager.py but uses existing storage methods.
+        """
+        if processed_params is None:
+            processed_params = set()
+        
+        state_dict = {}
+        tensor_count = 0
+        
+        try:
+            # Get list of all available tensors (model parameters) from containers
+            available_tensors = list(self.containers.keys())
+            
+            for param_name in available_tensors:
+                if include_params and param_name not in include_params:
+                    continue
+                if param_name in processed_params:
+                    continue
+                if limit_tensors and tensor_count >= limit_tensors:
+                    break
+                
+                # Get tensor from storage
+                try:
+                    tensor = self.get_tensor(param_name)
+                    if tensor is None:
+                        continue
+                    
+                    # Convert dtype if needed
+                    if output_dtype == "float32":
+                        tensor = tensor.float()
+                    elif output_dtype == "float16":
+                        tensor = tensor.half()
+                    elif output_dtype == "int8":
+                        tensor = tensor.char()
+                    
+                    # Move to device if needed
+                    if device != "cpu" and tensor.device == torch.device("cpu"):
+                        tensor = tensor.to(device)
+                    
+                    state_dict[param_name] = tensor
+                    processed_params.add(param_name)
+                    tensor_count += 1
+                    
+                except Exception as e:
+                    logger.warning(f"Error loading parameter {param_name}: {e}")
+                    continue
+            
+            logger.info(f"Reconstructed {tensor_count} tensors into state_dict")
+            return state_dict
+            
+        except Exception as e:
+            logger.error(f"Error reconstructing state_dict: {e}", exc_info=True)
+            return {}
+    
+    @property
+    def index(self) -> Dict:
+        """Alias for containers to match expected interface."""
+        return self.containers
 
     def get_tensor(self, tensor_id: str) -> Optional[torch.Tensor]:
         """Get a tensor from storage"""
