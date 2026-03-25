@@ -1343,11 +1343,17 @@ class ChatModule:
         if not message:
             return
         
-        # Проверка готовности
+        # Проверка готовности - расширенная проверка
         try:
             brain = getattr(self.gui, 'brain', None)
             ml_ready = bool(getattr(brain, 'models_ready', False)) if brain else False
             fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
+            has_ml_unit = hasattr(brain, 'ml_unit') and brain.ml_unit is not None if brain else False
+            
+            # Если есть ml_unit - считаем что система может работать
+            if has_ml_unit and not ml_ready:
+                ml_ready = True
+                fractal_ready = True
             
             if not ml_ready and not fractal_ready:
                 info = "Модель ещё загружается. Пожалуйста, дождитесь готовности (" + \
@@ -1881,6 +1887,16 @@ class ChatModule:
         start = time.time()
         brain = getattr(self.gui, 'brain', None)
         
+        # Debug logging
+        if brain:
+            print(f"[DEBUG CHAT] brain found: {type(brain)}, has process_query: {hasattr(brain, 'process_query')}")
+            if hasattr(brain, 'ml_unit'):
+                print(f"[DEBUG CHAT] brain.ml_unit found: {type(brain.ml_unit)}")
+            else:
+                print("[DEBUG CHAT] brain.ml_unit NOT FOUND")
+        else:
+            print("[DEBUG CHAT] brain is None!")
+        
         def _select_callable():
             try:
                 if brain and hasattr(brain, 'process_query'):
@@ -1889,7 +1905,8 @@ class ChatModule:
                     return brain.ml_unit.process_query
                 if brain and hasattr(brain, 'ml_unit') and hasattr(brain.ml_unit, 'generate_response'):
                     return brain.ml_unit.generate_response
-            except (AttributeError, TypeError):
+            except (AttributeError, TypeError) as e:
+                logger.debug(f"Error in _select_callable: {e}")
                 pass
             return None
         

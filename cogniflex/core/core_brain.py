@@ -335,6 +335,7 @@ class CoreBrain:
         
         self.fractal_ready = False  # Флаг готовности фрактальной модели
         self.qwen_ready = False  # Флаг готовности Qwen модели
+        self.models_ready = False  # Флаг готовности ML моделей
         
         # Инициализация FractalModelManager для загрузки модели из фрактального хранилища
         try:
@@ -585,6 +586,10 @@ class CoreBrain:
                 elif not fractal_init_result:
                     self.query_logger.debug("Не удалось загрузить фрактальную модель")
                     self.fractal_ready = False
+                
+                # Устанавливаем models_ready если фрактальная модель готова
+                if self.fractal_ready:
+                    self.models_ready = True
             except Exception as e:
                 self.query_logger.debug(f"Исключение при инициализации фрактальной модели: {e}")
                 self.fractal_ready = False
