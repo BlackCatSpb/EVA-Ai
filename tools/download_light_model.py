@@ -32,14 +32,16 @@ def ensure_model_cached(model_id: str, cache_dir: str) -> bool:
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir, local_files_only=True)
             logger.info("Tokenizer already cached")
-        except:
+        except Exception as e:
+            logger.warning(f"Tokenizer not in cache, downloading: {e}")
             tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=cache_dir)
             logger.info("Tokenizer downloaded and cached")
         
         try:
             model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir, local_files_only=True)
             logger.info("Model already cached")
-        except:
+        except Exception as e:
+            logger.warning(f"Model not in cache, downloading: {e}")
             model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=cache_dir)
             logger.info("Model downloaded and cached")
         

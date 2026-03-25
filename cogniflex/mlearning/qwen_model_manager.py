@@ -237,8 +237,8 @@ class QwenModelManager:
                     free_mem = torch.cuda.mem_get_info()[0]
                     if free_mem > 500 * 1024 * 1024:  # 500MB minimum
                         return "cuda"
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to check CUDA memory: {e}")
             return "cpu"
         return device
     
@@ -391,7 +391,7 @@ class QwenModelManager:
     def generate(
         self, 
         prompt: str, 
-        max_new_tokens: int = 256,
+        max_new_tokens: int = 2048,
         temperature: float = 0.7,
         top_p: float = 0.9,
         top_k: int = 50,
@@ -429,7 +429,8 @@ class QwenModelManager:
                 try:
                     model_device = next(self.model.parameters()).device
                     inputs = {k: v.to(model_device) for k, v in inputs.items()}
-                except:
+                except Exception as e:
+                    logger.warning(f"Failed to get model device, using CPU: {e}")
                     inputs = {k: v.to("cpu") for k, v in inputs.items()}
             
             generation_kwargs = {

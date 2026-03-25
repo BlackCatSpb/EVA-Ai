@@ -122,8 +122,8 @@ class CuriosityEngine:
                 result = self.brain.entity_extractor.extract_entities(text)
                 if result:
                     return [e.get('text', e.get('entity', str(e))) for e in result]
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to extract entities: {e}")
         
         entities = []
         entities.extend(re.findall(r'"([^"]+)"', text))
@@ -155,8 +155,8 @@ class CuriosityEngine:
             try:
                 result = self.brain.knowledge_graph.search(entity, limit=1)
                 return bool(result)
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to check entity in knowledge graph: {e}")
         return entity in self.explored_entities
     
     def _extract_topic_from_pattern(self, text: str, pattern: str) -> str:
@@ -209,8 +209,8 @@ class CuriosityEngine:
                 results = self.brain.knowledge_graph.search(topic, limit=5)
                 if results:
                     gap_score = max(0.1, 1.0 - len(results) * 0.2)
-            except:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to assess knowledge gap: {e}")
         
         if topic in self.explored_topics:
             gap_score *= 0.5
