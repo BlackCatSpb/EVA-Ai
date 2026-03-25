@@ -787,6 +787,17 @@ class CoreBrain:
         self.query_logger.debug(f"Установка компонента knowledge_graph: {value}")
         self.components['knowledge_graph'] = value
     
+    @property
+    def qwen_api_enhancer(self):
+        """Возвращает QwenAPIEnhancer компонент."""
+        return self.components.get('qwen_api_enhancer')
+    
+    @qwen_api_enhancer.setter
+    def qwen_api_enhancer(self, value):
+        """Устанавливает QwenAPIEnhancer компонент."""
+        self.query_logger.debug(f"Установка компонента qwen_api_enhancer: {value}")
+        self.components['qwen_api_enhancer'] = value
+    
     def register_component(self, name: str, component: Any) -> bool:
         """Регистрирует компонент в CoreBrain."""
         try:

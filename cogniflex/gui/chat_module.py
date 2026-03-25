@@ -1068,6 +1068,22 @@ class ChatModule:
             fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
             is_ready = ready or fractal_ready
             
+            # Проверяем Qwen API статус
+            qwen_status = ""
+            if brain and hasattr(brain, 'qwen_api_enhancer') and brain.qwen_api_enhancer:
+                status = brain.qwen_api_enhancer.get_status()
+                if status.get('enabled'):
+                    source = status.get('current_source', 'unknown')
+                    enhancements = status.get('total_enhancements', 0)
+                    if source == 'qwen_api':
+                        qwen_status = f" | 🤖 Qwen API: ✅"
+                    elif source == 'wikipedia':
+                        qwen_status = f" | 🌐 Wiki"
+                    elif source == 'websearch':
+                        qwen_status = f" | 🌐 Web"
+                    else:
+                        qwen_status = f" | 🤖 Локально"
+            
             # Индикатор
             if self.ml_status_canvas and self.ml_status_canvas.winfo_exists():
                 color = self.gui.colors['success'] if is_ready else self.gui.colors['warning']
@@ -1077,9 +1093,9 @@ class ChatModule:
             if self.ml_status_label and self.ml_status_label.winfo_exists():
                 if is_ready:
                     if fractal_ready:
-                        self.ml_status_label.config(text="Фрактальное хранилище: активно")
+                        self.ml_status_label.config(text=f"Фрактальное хранилище: активно{qwen_status}")
                     else:
-                        self.ml_status_label.config(text="ML: готово")
+                        self.ml_status_label.config(text=f"ML: готово{qwen_status}")
                 else:
                     prog_text = self._current_ml_progress_text()
                     self.ml_status_label.config(text=f"ML: {prog_text}")

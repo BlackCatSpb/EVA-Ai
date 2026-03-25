@@ -59,9 +59,10 @@ class ComponentInitializer:
         'metrics_collector',
         'analytics_manager',
         
-        # Специализированные (5)
+        # Специализированные (6)
         'contradiction_manager',
         'ethics_framework',
+        'qwen_api_enhancer',
         'adaptation_manager',
         'web_search_engine',
         'gui',
@@ -264,6 +265,22 @@ class ComponentInitializer:
             except Exception as e:
                 self.logger.error(f"❌ Ошибка создания knowledge_graph: {e}", exc_info=True)
                 raise
+        
+        def create_qwen_api_enhancer():
+            """Создает QwenAPIEnhancer для обогащения знаний"""
+            try:
+                import os
+                from cogniflex.knowledge.qwen_api_enhancer import QwenAPIEnhancer
+                
+                api_key = os.environ.get('OPENROUTER_API_KEY', '')
+                enhancer = QwenAPIEnhancer(api_key=api_key, enable_fallbacks=True)
+                
+                self.core_brain.qwen_api_enhancer = enhancer
+                self.logger.info(f"✅ QwenAPIEnhancer создан: {enhancer.get_status()}")
+                return enhancer
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка создания qwen_api_enhancer: {e}", exc_info=True)
+                return None
         
         def create_text_processor():
             try:
@@ -620,6 +637,7 @@ class ComponentInitializer:
             'hybrid_cache': create_hybrid_cache,
             # Знания
             'knowledge_graph': create_knowledge_graph,
+            'qwen_api_enhancer': create_qwen_api_enhancer,
             'text_processor': create_text_processor,
             # ML
             'ml_unit': create_ml_unit,
