@@ -389,7 +389,8 @@ class HybridTokenCache:
             if not base_cache_dir:
                 base_cache_dir = os.path.join(os.getcwd(), 'ml_cache')
             os.makedirs(base_cache_dir, exist_ok=True)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error setting up cache directory: {e}")
             base_cache_dir = os.path.join(os.getcwd(), 'ml_cache')
             os.makedirs(base_cache_dir, exist_ok=True)
         
@@ -400,7 +401,8 @@ class HybridTokenCache:
         try:
             cfg = getattr(self.brain, 'config', {}) or {}
             hc = cfg.get('hybrid_cache') or {}
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error loading hybrid_cache config: {e}")
             hc = {}
         
         # Применение настроек из конфигурации
@@ -721,7 +723,8 @@ class HybridTokenCache:
             if isinstance(value, str):
                 return len(value.encode("utf-8"))
             return len(str(value).encode("utf-8"))
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error estimating size: {e}")
             return 0
     
     def _evict_one_lru(self) -> None:
@@ -731,8 +734,8 @@ class HybridTokenCache:
                 return
             first_key = next(iter(self.memory_cache.cache))
             self._move_token_to_disk(first_key)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error in _evict_one_lru: {e}")
     
     def _load_metadata(self) -> None:
         """Загружает метаданные о токенах с диска."""
@@ -865,23 +868,23 @@ class HybridTokenCache:
             try:
                 if hasattr(self, "_local_stop_event"):
                     self._local_stop_event.set()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error setting stop event: {e}")
             
             try:
                 stop_event = getattr(self.brain, 'stop_event', None)
                 if isinstance(stop_event, threading.Event):
                     stop_event.set()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error setting brain stop event: {e}")
             
             # Ожидание завершения потоков
             try:
                 t = getattr(self, "_memory_pressure_thread", None)
                 if t and isinstance(t, threading.Thread) and t.is_alive():
                     t.join(timeout=2.0)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error joining memory pressure thread: {e}")
             
             # Сохранение метаданных
             self._save_metadata()

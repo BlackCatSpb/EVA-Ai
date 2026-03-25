@@ -541,7 +541,8 @@ class ChatModule:
         try:
             self._copy_selected()
             return "break"
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in _on_chat_copy: {e}")
             return None
     
     def _on_use_selection_as_context(self, event):
@@ -557,7 +558,8 @@ class ChatModule:
                     line_start = f"{current_pos.split('.')[0]}.0"
                     line_end = f"{current_pos.split('.')[0]}.end"
                     selected = self.chat_display.get(line_start, line_end)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error getting current line: {e}")
                     return None
             
             if selected and selected.strip():
@@ -795,12 +797,14 @@ class ChatModule:
             if extras and isinstance(extras, dict):
                 try:
                     safe_extras = json.loads(json.dumps(extras, ensure_ascii=False, default=str))
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error serializing extras: {e}")
                     safe_extras = {}
                 for k, v in extras.items():
                     try:
                         safe_extras[k] = json.loads(json.dumps(v, ensure_ascii=False, default=str))
-                    except Exception:
+                    except Exception as e:
+                        logger.debug(f"Error serializing extra key {k}: {e}")
                         safe_extras[k] = str(v)
                 entry.update({"extras": safe_extras})
             
@@ -823,8 +827,8 @@ class ChatModule:
                 last_char = self.chat_display.get("end-2c", "end-1c")
                 if last_char not in ("\n", ""):
                     self.chat_display.insert(tk.END, "\n")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error adding new line: {e}")
             
             # Временная метка
             time_str = datetime.fromtimestamp(timestamp).strftime("%H:%M:%S")
@@ -1213,7 +1217,8 @@ class ChatModule:
             self._status_updater_id = self.gui.root.after(
                 interval_ms, 
                 lambda: self._schedule_status_update(interval_ms))
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in _schedule_status_update: {e}")
             self._status_updater_id = None
     
     def _update_status_bar(self):
@@ -1244,8 +1249,8 @@ class ChatModule:
             if self.mem_label:
                 self.mem_label.config(text=f"RAM: {mem_pct}%")
                 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error updating status bar: {e}")
     
     # =========================================================================
     # История чата
@@ -1405,7 +1410,8 @@ class ChatModule:
                 return None  # Новая строка
             self._send_message()
             return "break"
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in _on_enter_pressed: {e}")
             return None
     
     def _on_history_up(self, event):
@@ -1476,7 +1482,8 @@ class ChatModule:
             self.chat_display.mark_set(tk.INSERT, "1.0")
             self.chat_display.see(tk.INSERT)
             return "break"
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error in _on_chat_select_all: {e}")
             return None
     
     def _on_help(self, event=None):
@@ -1507,17 +1514,19 @@ class ChatModule:
                 )
                 self._add_message("Справка", help_text, "system")
                 
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Error showing help: {e}")
             try:
                 messagebox.showinfo("Справка", 
                     "Нажимайте Enter для отправки, Shift+Enter — новая строка.")
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.debug(f"Error showing fallback help dialog: {e2}")
         finally:
             try:
                 if self.input_text and self.input_text.winfo_exists():
                     self.input_text.focus_set()
-            except Exception:
+            except Exception as e3:
+                logger.debug(f"Error setting focus: {e3}")
                 pass
     
     # =========================================================================
@@ -1562,8 +1571,8 @@ class ChatModule:
         finally:
             try:
                 menu.grab_release()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error releasing menu grab: {e}")
     
     def _get_selected_chat_text(self) -> Optional[str]:
         """Возвращает выделенный текст из чата."""
@@ -1606,7 +1615,8 @@ class ChatModule:
                         daemon=True).start()
                     self._add_message("CogniFlex", 
                         f"Добавляю в граф знаний: \"{concept}\"", "system")
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Error adding to knowledge graph: {e}")
                     self._add_message("CogniFlex", 
                         "Не удалось запустить интеграцию знаний для выделенного текста.", "system")
                 return

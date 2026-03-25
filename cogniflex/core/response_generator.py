@@ -281,7 +281,7 @@ class ResponseGenerator:
             if success:
                 # Получаем инициализированный токенизатор из менеджера
                 initialized_component = self.component_init_manager.get_initialized_component(component_name)
-                if initialized_component and hasattr(initialized_component, 'tokenizer'):
+                if initialized_component and hasattr(initialized_component, 'tokenizer') and initialized_component.tokenizer is not None:
                     self.tokenizer = initialized_component.tokenizer
                     logger.info("Токенизатор получен из ComponentInitializationManager")
                 else:

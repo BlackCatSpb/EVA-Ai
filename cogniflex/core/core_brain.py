@@ -1801,7 +1801,7 @@ class CoreBrain:
     def _perform_basic_eviction(self, target_tokens):
         """Выполняет базовое вытеснение LRU"""
         try:
-            if hasattr(self.token_cache, '_evict_one_lru'):
+            if hasattr(self, 'token_cache') and self.token_cache and hasattr(self.token_cache, '_evict_one_lru'):
                 evicted = 0
                 for _ in range(min(target_tokens, 100)):  # Ограничиваем 100 токенов за раз
                     self.token_cache._evict_one_lru()

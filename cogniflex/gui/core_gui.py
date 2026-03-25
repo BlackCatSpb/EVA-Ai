@@ -544,10 +544,10 @@ class CogniFlexGUI:
                 if prev_module and hasattr(prev_module, "deactivate"):
                     try:
                         prev_module.deactivate()
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as e:
+                        logger.warning(f"Error deactivating previous module: {e}")
+        except Exception as e:
+            logger.warning(f"Error in _switch_view: {e}")
 
         for widget in self.content_area.winfo_children():
             widget.destroy()
@@ -583,8 +583,8 @@ class CogniFlexGUI:
         except Exception as e:
             try:
                 self.chat_logger.debug(f"_schedule_update error: {e}")
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.warning(f"Error logging _schedule_update error: {e2}")
 
     def _start_background_services(self):
         self._schedule_update()
