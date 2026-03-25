@@ -91,7 +91,7 @@ class FractalModelManager:
         """Инициализирует модель - теперь через Qwen3.5-2B"""
         try:
             project_root = _get_project_root()
-            qwen_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
+            qwen_path = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-0.8b")
             
             logger.info(f"Qwen3.5-2B path: {qwen_path}")
             logger.info("Текстовая генерация теперь через Qwen3.5-2B (lazy loading)")

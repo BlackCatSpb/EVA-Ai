@@ -38,7 +38,7 @@ def _get_project_root() -> str:
 class GenerationCoordinator:
     def __init__(
         self,
-        model_name: str = "qwen3.5-2b",
+        model_name: str = "qwen3.5-0.8b",
         num_workers: int = 4,
         cache_dir: str = "./cache",
         max_cache_size_gb: int = 50,
@@ -74,8 +74,8 @@ class GenerationCoordinator:
             # Проверяем наличие Qwen3.5-2B
             project_root = _get_project_root()
             possible_paths = [
-                os.path.join(project_root, 'cogniflex', 'mlearning', 'cogniflex_models', 'qwen3.5-2b'),
-                'cogniflex/mlearning/cogniflex_models/qwen3.5-2b',
+                os.path.join(project_root, 'cogniflex', 'mlearning', 'cogniflex_models', 'qwen3.5-0.8b'),
+                'cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b',
             ]
             
             local_model_path = None

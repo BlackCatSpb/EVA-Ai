@@ -145,7 +145,7 @@ class MLUnit:
             
             # Используем правильную директорию с моделью и токенизатором Qwen
             project_root = _get_project_root()
-            model_dir = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-2b")
+            model_dir = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-0.8b")
             
             self.text_processor = TextProcessor(
                 model_name=model_dir,  # Используем полный путь к директории

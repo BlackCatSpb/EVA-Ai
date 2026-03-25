@@ -364,7 +364,20 @@ class HybridTokenCache:
         """
         self.brain = brain
         self.gpu_available = torch.cuda.is_available()
-        self.device = "cuda:0" if self.gpu_available else "cpu"
+        
+        # Get device from brain config if available, otherwise use auto-detection
+        cfg = getattr(self.brain, 'config', {}) or {}
+        hc = cfg.get('hybrid_cache', {}) or {}
+        model_cfg = cfg.get('model', {}) or {}
+        
+        # Use device from config, fallback to cuda:0 if available, else cpu
+        config_device = hc.get('device') or model_cfg.get('device')
+        if config_device:
+            self.device = config_device
+        elif self.gpu_available:
+            self.device = "cuda:0"
+        else:
+            self.device = "cpu"
         
         # Определение базовой директории кэша
         try:
