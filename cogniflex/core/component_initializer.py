@@ -809,22 +809,22 @@ class ComponentInitializer:
             self.logger.info("=" * 60)
             self.logger.info("ИТОГИ ИНИЦИАЛИЗАЦИИ")
             self.logger.info("=" * 60)
-            self.logger.info(f"✅ Успешно: {success_count}")
-            self.logger.info(f"❌ Ошибки: {failed_count}")
-            self.logger.info(f"⚠️ Пропущено: {skipped_count}")
-            self.logger.info(f"📊 Всего: {len(components_to_init)}")
+            self.logger.info(f"[OK] Успешно: {success_count}")
+            self.logger.info(f"[FAIL] Ошибки: {failed_count}")
+            self.logger.info(f"[WARN] Пропущено: {skipped_count}")
+            self.logger.info(f"[STAT] Всего: {len(components_to_init)}")
             
             if failed_count > 0:
                 self.logger.warning(f"Не инициализированы: {self.failed_components}")
             
             success_rate = success_count / max(1, len(components_to_init)) * 100
-            self.logger.info(f"📈 Успешность: {success_rate:.1f}%")
+            self.logger.info(f"[STAT] Успешность: {success_rate:.1f}%")
             self.logger.info("=" * 60)
             
             return failed_count == 0
             
         except Exception as e:
-            self.logger.error(f"❌ Критическая ошибка инициализации: {e}", exc_info=True)
+            self.logger.error(f"[CRITICAL] Критическая ошибка инициализации: {e}", exc_info=True)
             return False
     
     def post_initialize_connections(self):
@@ -864,9 +864,9 @@ class ComponentInitializer:
                             component.hybrid_cache = hybrid_cache
                             
                             if old_cache is hybrid_cache:
-                                self.logger.info(f"   ✅ {comp_name}: уже был подключен")
+                                self.logger.info(f"   [OK] {comp_name}: уже был подключен")
                             elif old_cache is not None:
-                                self.logger.info(f"   🔄 {comp_name}: заменен старый кэш")
+                                self.logger.info(f"   [UPD] {comp_name}: заменен старый кэш")
                             else:
                                 self.logger.info(f"   └─ hybrid_cache → {comp_name}")
                         else:
@@ -1119,9 +1119,9 @@ if __name__ == "__main__":
     mock_brain = MockCoreBrain()
     initializer = ComponentInitializer(mock_brain)
     
-    print(f"\n📦 Зарегистрировано фабрик: {len(initializer.component_factories)}")
-    print(f"📋 Компонентов в списке: {len(initializer.COMPONENT_LIST)}")
-    print(f"🔗 Зависимостей определено: {len(initializer.component_dependencies)}")
+    print(f"\n[INFO] Зарегистрировано фабрик: {len(initializer.component_factories)}")
+    print(f"[INFO] Компонентов в списке: {len(initializer.COMPONENT_LIST)}")
+    print(f"[INFO] Зависимостей определено: {len(initializer.component_dependencies)}")
     
-    print("\n✅ ComponentInitializer готов к работе")
+    print("\n[OK] ComponentInitializer готов к работе")
     print("=" * 60)
