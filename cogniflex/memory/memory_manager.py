@@ -873,8 +873,11 @@ class MemoryManager:
             if os.path.exists(self.user_profiles_file):
                 with open(self.user_profiles_file, 'r', encoding='utf-8') as f:
                     self.user_profiles = json.load(f)
+            else:
+                self.user_profiles = {}
         except Exception as e:
             logger.error(f"Ошибка загрузки профилей пользователей: {e}")
+            self.user_profiles = {}
     
     def _save_user_profiles(self):
         """Сохраняет профили пользователей в файл."""
