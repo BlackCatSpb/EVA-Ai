@@ -18,7 +18,6 @@ def _ensure_cogniflex_path():
     if cogniflex_root not in sys.path:
         sys.path.insert(0, cogniflex_root)
     try:
-        import os
         os.chdir(cogniflex_root)
     except:
         pass
