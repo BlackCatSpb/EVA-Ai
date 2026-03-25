@@ -270,7 +270,8 @@ class FailureDetector:
 class RecoveryManager:
     """Основной менеджер восстановления."""
 
-    def __init__(self, checkpoint_dir: str = "recovery_checkpoints"):
+    def __init__(self, checkpoint_dir: str = "recovery_checkpoints", brain=None):
+        self.brain = brain
         self.state_manager = ComponentStateManager(checkpoint_dir)
         self.failure_detector = FailureDetector()
         self.recovery_plans: Dict[str, RecoveryPlan] = {}

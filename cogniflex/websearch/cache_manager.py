@@ -38,22 +38,26 @@ class CacheManager:
         except Exception as e:
             logger.error(f"Ошибка сохранения кэша поиска: {e}")
     
-    def generate_cache_key(self, query: str) -> str:
-        """Генерирует ключ для кэша на основе запроса."""
-        return hashlib.md5(query.encode()).hexdigest()
+    def generate_cache_key(self, query: str, search_config: Optional[Dict] = None) -> str:
+        """Генерирует ключ для кэша на основе запроса и конфигурации поиска."""
+        config_str = ""
+        if search_config:
+            config_str = json.dumps(search_config, sort_keys=True)
+        combined = f"{query}|{config_str}"
+        return hashlib.md5(combined.encode()).hexdigest()
     
-    def get_cached_results(self, query: str) -> Optional[List[SearchResult]]:
+    def get_cached_results(self, query: str, search_config: Optional[Dict] = None) -> Optional[List[SearchResult]]:
         """Получает результаты из кэша."""
-        cache_key = self.generate_cache_key(query)
+        cache_key = self.generate_cache_key(query, search_config)
         if cache_key in self.search_cache:
             cached_data = self.search_cache[cache_key]
             if time.time() - cached_data["timestamp"] < self.cache_ttl:
                 return [SearchResult(**item) for item in cached_data["results"]]
         return None
     
-    def save_to_cache(self, query: str, results: List[SearchResult]):
+    def save_to_cache(self, query: str, results: List[SearchResult], search_config: Optional[Dict] = None):
         """Сохраняет результаты в кэш."""
-        cache_key = self.generate_cache_key(query)
+        cache_key = self.generate_cache_key(query, search_config)
         self.search_cache[cache_key] = {
             "timestamp": time.time(),
             "results": [result.__dict__ for result in results]

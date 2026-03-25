@@ -1063,7 +1063,7 @@ class CoreBrain:
             if self.generation_coordinator:
                 response = self.generation_coordinator.generate_response(
                     prompt=query,
-                    max_new_tokens=150
+                    max_new_tokens=2048
                 )
                 if isinstance(response, dict):
                     response_dict = response
