@@ -58,7 +58,7 @@ class QwenAPIEnhancer:
                 self.qwen_client = QwenAPIClient(
                     api_key=self.api_key,
                     base_url="https://openrouter.ai/api/v1",
-                    model="qwen/qwen3-30b-a3b:free"
+                    model="qwen/qwen3-30b-a3b"
                 )
                 self.status['qwen_api'] = True
                 logger.info("QwenAPIEnhancer: Qwen API подключен")
