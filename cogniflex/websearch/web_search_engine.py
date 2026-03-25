@@ -52,7 +52,8 @@ class WebSearchEngine:
         self.active_search_engines = {
             "google": True,
             "yandex": True,
-            "bing": False
+            "bing": False,
+            "wikipedia": True
         }
         
         # Кэш поисковых запросов
@@ -379,6 +380,8 @@ class WebSearchEngine:
                     future = executor.submit(search_engines.search_yandex, query, max_results)
                 elif engine == "bing":
                     future = executor.submit(search_engines.search_bing, query, max_results)
+                elif engine == "wikipedia":
+                    future = executor.submit(search_engines.search_wikipedia, query, max_results)
                 else:
                     continue
                 

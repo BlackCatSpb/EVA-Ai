@@ -300,6 +300,85 @@ class SearchEngines:
             # Fallback на DuckDuckGo
             return self.search_duckduckgo(query, max_results)
     
+    def search_wikipedia(self, query: str, max_results: int) -> List[SearchResult]:
+        """Search Wikipedia API.
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            
+        Returns:
+            List of SearchResult objects with source='wikipedia'
+        """
+        try:
+            logger.info(f"Searching Wikipedia for: {query}")
+            
+            # Try English Wikipedia first, then Russian
+            wikis = [
+                ('en', 'https://en.wikipedia.org/w/api.php'),
+                ('ru', 'https://ru.wikipedia.org/w/api.php')
+            ]
+            
+            results = []
+            
+            # Create session with proper User-Agent for Wikipedia
+            wiki_session = requests.Session()
+            wiki_session.headers.update({
+                'User-Agent': 'CogniFlexAI/1.0 (https://github.com/BlackCatSpb/CogniFlex; contact@example.com) Python/3.13'
+            })
+            
+            for lang_code, api_url in wikis:
+                params = {
+                    'action': 'query',
+                    'list': 'search',
+                    'srsearch': query,
+                    'format': 'json',
+                    'srlimit': max_results,
+                    'srprop': 'snippet'
+                }
+                
+                try:
+                    response = wiki_session.get(api_url, params=params, timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    
+                    search_results = data.get('query', {}).get('search', [])
+                    
+                    for item in search_results[:max_results]:
+                        title = item.get('title', '')
+                        page_id = item.get('pageid', '')
+                        
+                        # Get snippet with HTML tags cleaned
+                        snippet = item.get('snippet', '')
+                        snippet = re.sub(r'<[^>]+>', '', snippet)
+                        snippet = snippet.replace('&quot;', '"').replace('&amp;', '&')
+                        
+                        wiki_url = f"https://{lang_code}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
+                        
+                        result = SearchResult(
+                            title=title,
+                            url=wiki_url,
+                            snippet=snippet,
+                            source="wikipedia",
+                            relevance_score=self._calculate_relevance(title, snippet, query),
+                            query=query
+                        )
+                        results.append(result)
+                    
+                    if results:
+                        logger.info(f"Found {len(results)} Wikipedia results ({lang_code})")
+                        break
+                        
+                except Exception as e:
+                    logger.debug(f"Wikipedia ({lang_code}) error: {e}")
+                    continue
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Wikipedia search failed: {e}")
+            return []
+    
     def _calculate_relevance(self, title: str, snippet: str, query: str) -> float:
         """Рассчитывает релевантность результата."""
         if not title and not snippet:
