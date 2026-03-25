@@ -12,6 +12,17 @@ from typing import Dict, Any, List, Set, Optional, Callable, Tuple
 
 logger = logging.getLogger("cogniflex.component_initializer")
 
+def _ensure_cogniflex_path():
+    """Ensure CogniFlex path is in sys.path."""
+    cogniflex_root = "C:/Users/black/OneDrive/Desktop/CogniFlex"
+    if cogniflex_root not in sys.path:
+        sys.path.insert(0, cogniflex_root)
+    try:
+        import os
+        os.chdir(cogniflex_root)
+    except:
+        pass
+
 
 class ComponentInitializer:
     """
@@ -249,6 +260,7 @@ class ComponentInitializer:
         
         def create_knowledge_graph():
             try:
+                _ensure_cogniflex_path()
                 from cogniflex.knowledge.knowledge_graph_integrated import IntegratedKnowledgeGraph
                 event_bus = getattr(self.core_brain, 'event_bus', None)
                 knowledge_graph = IntegratedKnowledgeGraph(
@@ -284,6 +296,7 @@ class ComponentInitializer:
         
         def create_text_processor():
             try:
+                _ensure_cogniflex_path()
                 from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
                 text_processor = UnifiedTextProcessor(brain=self.core_brain)
                 hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
@@ -303,6 +316,7 @@ class ComponentInitializer:
         
         def create_ml_unit():
             try:
+                _ensure_cogniflex_path()
                 from cogniflex.mlearning.ml_unit import MLUnit
                 cache_dir = os.path.join(
                     getattr(self.core_brain, 'cache_dir', './cache'),
@@ -701,6 +715,8 @@ class ComponentInitializer:
             bool: True если все компоненты инициализированы успешно
         """
         try:
+            _ensure_cogniflex_path()
+            
             self.logger.info("=" * 60)
             self.logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ КОМПОНЕНТОВ")
             self.logger.info("=" * 60)

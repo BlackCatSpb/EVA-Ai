@@ -298,7 +298,7 @@ class CogniFlexGUI:
             if hasattr(ChatModule, '__init__'):
                 self.chat_module = ChatModule(self)
                 chat_initialized = True
-                logger.info("✅ Chat модуль инициализирован успешно (приоритет)")
+                logger.info("[OK] Chat модуль инициализирован успешно (приоритет)")
             else:
                 logger.warning("Класс ChatModule не найден")
 
@@ -315,7 +315,7 @@ class CogniFlexGUI:
                 module_class = getattr(module, 'ChatModule')
                 self.chat_module = module_class(self)
                 chat_initialized = True
-                logger.info("✅ Chat модуль инициализирован через fallback")
+                logger.info("[OK] Chat модуль инициализирован через fallback")
             except Exception as e:
                 logger.critical(f"Не удалось инициализировать ChatModule даже через fallback: {e}")
 
@@ -336,7 +336,7 @@ class CogniFlexGUI:
                 module_class = getattr(module, class_name)
                 instance = module_class(self)
                 setattr(self, f"{name}_module", instance)
-                logger.info(f"✅ Модуль '{name}' инициализирован успешно")
+                logger.info(f"[OK] Модуль '{name}' инициализирован успешно")
 
             except ImportError as e:
                 logger.error(f"Не удалось импортировать модуль '{name}': {e}")
@@ -385,7 +385,7 @@ class CogniFlexGUI:
                             logger.debug(f"Ошибка деактивации ChatModuleStub: {e}")
 
                 self.chat_module = ChatModuleStub(self)
-                logger.info("✅ Заглушка для chat модуля создана")
+                logger.info("[OK] Заглушка для chat модуля создана")
 
             except Exception as e:
                 logger.critical(f"Не удалось создать даже заглушку для chat модуля: {e}")
