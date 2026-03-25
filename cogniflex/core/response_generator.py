@@ -331,25 +331,20 @@ class ResponseGenerator:
                 logger.info("Токенизатор инициализирован")
                 return True
             
-            # Fallback: пробуем загрузить напрямую из модели
+            # Fallback: пробуем загрузить напрямую из модели (qwen3.5-0.8b - активная модель из brain_config.json)
             try:
                 from transformers import AutoTokenizer
-                model_paths = [
-                    "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b",
-                    "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/qwen3.5-2b",
-                    "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/rugpt3_large",
-                ]
-                for model_path in model_paths:
-                    if os.path.exists(model_path):
-                        try:
-                            self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-                            if self.tokenizer:
-                                logger.info(f"Токенизатор загружен из {model_path}")
-                                return True
-                        except Exception:
-                            continue
+                model_path = "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b"
+                if os.path.exists(model_path):
+                    try:
+                        self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+                        if self.tokenizer:
+                            logger.info(f"Токенизатор загружен из {model_path}")
+                            return True
+                    except Exception as e:
+                        logger.warning(f"Не удалось загрузить токенизатор из {model_path}: {e}")
             except Exception as e:
-                logger.warning(f"Не удалось загрузить токенизатор: {e}")
+                logger.warning(f"Ошибка при загрузке токенизатора: {e}")
             
             logger.warning("Не удалось найти токенизатор ни в одном из источников")
             return False
