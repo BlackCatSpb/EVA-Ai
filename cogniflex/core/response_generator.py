@@ -383,14 +383,36 @@ class ResponseGenerator:
             logger.error("Transformers недоступен, невозможно создать fallback токенизатор")
             return
         
+        # Пробуем загрузить из локальной директории qwen3.5-0.8b
         try:
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                'sberbank-ai/rugpt3large_based_on_gpt2',
-                local_files_only=True
-            )
+            model_path = "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b"
+            if os.path.exists(model_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
+                if self.tokenizer and self.tokenizer.pad_token is None:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                logger.info("Создан fallback токенизатор из qwen3.5-0.8b")
+                return
+        except Exception as e:
+            logger.warning(f"Не удалось создать fallback из qwen: {e}")
+        
+        # Пробуем загрузить из локальной директории rugpt3
+        try:
+            model_path = "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/rugpt3_large"
+            if os.path.exists(model_path):
+                self.tokenizer = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+                if self.tokenizer and self.tokenizer.pad_token is None:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                logger.info("Создан fallback токенизатор из rugpt3_large")
+                return
+        except Exception as e:
+            logger.warning(f"Не удалось создать fallback из rugpt3: {e}")
+        
+        # Последняя попытка - онлайн загрузка
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained('sberbank-ai/rugpt3large_based_on_gpt2')
             if self.tokenizer and self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
-            logger.info("Создан fallback токенизатор")
+            logger.info("Создан fallback токенизатор (онлайн)")
         except Exception as e:
             logger.error(f"Не удалось создать fallback токенизатор: {e}")
             self.tokenizer = None

@@ -1350,18 +1350,21 @@ class ChatModule:
             fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
             has_ml_unit = hasattr(brain, 'ml_unit') and brain.ml_unit is not None if brain else False
             
+            print(f"[DEBUG CHAT] brain={brain is not None}, models_ready={ml_ready}, fractal_ready={fractal_ready}, has_ml_unit={has_ml_unit}")
+            
             # Если есть ml_unit - считаем что система может работать
             if has_ml_unit and not ml_ready:
                 ml_ready = True
                 fractal_ready = True
+                print(f"[DEBUG CHAT] Enabled ml_ready=True because has_ml_unit={has_ml_unit}")
             
             if not ml_ready and not fractal_ready:
                 info = "Модель ещё загружается. Пожалуйста, дождитесь готовности (" + \
                        self._current_ml_progress_text() + ")."
                 self._add_message("CogniFlex", info, "system")
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[DEBUG CHAT] Exception in check: {e}")
         
         # Добавление сообщения
         self._add_message("Вы", message, "user")
