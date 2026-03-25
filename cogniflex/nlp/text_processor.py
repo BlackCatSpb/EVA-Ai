@@ -55,7 +55,7 @@ class TextProcessor:
         """
         self.model_name = model_name
         self.tokenizer_kwargs = {
-            'max_length': 2048,
+            'max_length': 32768,
             'truncation': True,
             'padding': 'max_length',
             'return_tensors': 'pt',

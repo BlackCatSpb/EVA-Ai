@@ -114,7 +114,7 @@ class OptimizedFractalModelManager:
             "use_uint16": True,
             "tensor_pool_size": 1000,
             "batch_size": 4,
-            "max_length": 256,
+            "max_length": 32768,
             "overlap_tokens": 64,
             "auto_improvement": True,
             "quality_threshold": 0.7,
