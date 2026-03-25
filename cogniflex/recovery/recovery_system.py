@@ -471,11 +471,21 @@ class RecoveryManager:
     def _reduce_batch_size(self, component_name: str, timeout: int) -> bool:
         """Уменьшает размер батча."""
         try:
-            # Находим компонент и уменьшаем batch size
-            # Это зависит от конкретной реализации компонента
             logger.info(f"Уменьшение размера батча для {component_name}")
-            time.sleep(1)  # Имитация работы
-            return True
+            if hasattr(self, 'brain') and self.brain:
+                component = getattr(self.brain, component_name, None)
+                if component and hasattr(component, 'batch_size'):
+                    old_size = component.batch_size
+                    component.batch_size = max(1, int(old_size * 0.5))
+                    logger.info(f" batch_size: {old_size} -> {component.batch_size}")
+                    return True
+                elif component and hasattr(component, 'max_batch_size'):
+                    old_size = component.max_batch_size
+                    component.max_batch_size = max(1, int(old_size * 0.5))
+                    logger.info(f" max_batch_size: {old_size} -> {component.max_batch_size}")
+                    return True
+            logger.warning(f"Компонент {component_name} не найден или не имеет batch_size")
+            return False
         except Exception as e:
             logger.error(f"Ошибка уменьшения batch size: {e}")
             return False
@@ -496,9 +506,20 @@ class RecoveryManager:
         """Перезапускает компонент."""
         try:
             logger.info(f"Перезапуск компонента {component_name}")
-            # Здесь должна быть логика перезапуска конкретного компонента
-            time.sleep(2)  # Имитация перезапуска
-            return True
+            if hasattr(self, 'brain') and self.brain:
+                component = getattr(self.brain, component_name, None)
+                if component and hasattr(component, 'reset'):
+                    component.reset()
+                    logger.info(f"Компонент {component_name} перезапущен через reset()")
+                    return True
+                elif component and hasattr(component, 'initialize'):
+                    if hasattr(component, 'initialized'):
+                        component.initialized = False
+                    component.initialize()
+                    logger.info(f"Компонент {component_name} перезапущен через initialize()")
+                    return True
+            logger.warning(f"Не удалось перезапустить {component_name}: компонент не найден")
+            return False
         except Exception as e:
             logger.error(f"Ошибка перезапуска компонента {component_name}: {e}")
             return False
@@ -528,9 +549,22 @@ class RecoveryManager:
         """Переключается на альтернативный endpoint."""
         try:
             logger.info(f"Переключение endpoint для {component_name}")
-            # Здесь должна быть логика переключения endpoint
-            time.sleep(1)  # Имитация работы
-            return True
+            if hasattr(self, 'brain') and self.brain:
+                component = getattr(self.brain, component_name, None)
+                if component and hasattr(component, 'endpoints'):
+                    endpoints = component.endpoints
+                    if isinstance(endpoints, list) and len(endpoints) > 1:
+                        current_idx = getattr(component, 'current_endpoint', 0)
+                        next_idx = (current_idx + 1) % len(endpoints)
+                        component.current_endpoint = next_idx
+                        logger.info(f"Переключен endpoint: {endpoints[current_idx]} -> {endpoints[next_idx]}")
+                        return True
+                elif component and hasattr(component, 'switch_to_backup'):
+                    component.switch_to_backup()
+                    logger.info(f"Переключен на backup для {component_name}")
+                    return True
+            logger.warning(f"Не удалось переключить endpoint для {component_name}")
+            return False
         except Exception as e:
             logger.error(f"Ошибка переключения endpoint: {e}")
             return False

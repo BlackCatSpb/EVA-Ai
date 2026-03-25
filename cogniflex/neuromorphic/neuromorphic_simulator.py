@@ -1091,11 +1091,18 @@ class NeuromorphicSimulator:
     def _improve_coherence(self):
         """Улучшает когерентность нейронной активности."""
         logger.info("Улучшение когерентности нейронной активности")
-        # В реальной системе здесь будет корректировка параметров сети
+        coherence_count = 0
         for network in self.neural_networks.values():
-            # Пример: уменьшаем шум
-            # В реальной системе здесь будут конкретные изменения параметров
-            pass
+            if hasattr(network, 'noise_level') and network.noise_level > 0.1:
+                network.noise_level = max(0.01, network.noise_level * 0.9)
+                coherence_count += 1
+            if hasattr(network, 'connections'):
+                conn_sum = network.connections.sum() if hasattr(network.connections, 'sum') else 0
+                if conn_sum > 0:
+                    diag_mask = np.eye(network.connections.shape[0])
+                    network.connections = network.connections * 0.95 + diag_mask * network.connections * 0.05
+                    coherence_count += 1
+        logger.info(f"Улучшена когерентность в {coherence_count} сетях")
 
     def _install_nest_instructions(self):
         """Выводит инструкции по установке NEST."""
