@@ -93,10 +93,29 @@ class TextProcessor:
             }
             
             logger.info(f"Пробуем загрузить токенизатор из: {self.tokenizer_path}")
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                self.tokenizer_path,
-                **init_params
-            )
+            
+            tokenizer_path = self.tokenizer_path
+            if os.path.isabs(tokenizer_path) and os.name == 'nt':
+                try:
+                    self._tokenizer = AutoTokenizer.from_pretrained(
+                        tokenizer_path,
+                        **init_params
+                    )
+                except Exception as path_error:
+                    logger.warning(f"Не удалось загрузить с абсолютного пути: {path_error}")
+                    project_root = _get_project_root()
+                    rel_path = os.path.relpath(tokenizer_path, project_root)
+                    logger.info(f"Пробуем относительный путь: {rel_path}")
+                    self._tokenizer = AutoTokenizer.from_pretrained(
+                        rel_path,
+                        **init_params
+                    )
+                    self.tokenizer_path = rel_path
+            else:
+                self._tokenizer = AutoTokenizer.from_pretrained(
+                    tokenizer_path,
+                    **init_params
+                )
             logger.info(f"Токенизатор успешно загружен через AutoTokenizer из: {self.tokenizer_path}")
             
             # Устанавливаем pad_token для Qwen

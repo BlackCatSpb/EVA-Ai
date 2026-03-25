@@ -400,11 +400,15 @@ class MLUnit:
                 try:
                     if torch is not None:
                         encoded = self.text_processor.encode(test_text)
-                        input_ids = encoded.get('input_ids', torch.tensor([]))
-                        if isinstance(input_ids, list):
-                            tokens_count = len(input_ids)
-                        else:
+                        input_ids = encoded.get('input_ids')
+                        if input_ids is None:
+                            tokens_count = 0
+                        elif isinstance(input_ids, list):
+                            tokens_count = len(input_ids) if input_ids else 0
+                        elif hasattr(input_ids, 'numel'):
                             tokens_count = input_ids.numel()
+                        else:
+                            tokens_count = 0
                     else:
                         tokens_count = 0
                     logger.info(f"Тестовая токенизация успешна. Токенов: {tokens_count}")
