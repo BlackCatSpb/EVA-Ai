@@ -587,8 +587,16 @@ class CoreBrain:
                     self.query_logger.debug("Не удалось загрузить фрактальную модель")
                     self.fractal_ready = False
                 
-                # Устанавливаем models_ready если фрактальная модель готова или ml_unit доступен
-                if self.fractal_ready or (hasattr(self, 'ml_unit') and self.ml_unit is not None):
+                # Устанавливаем models_ready если фрактальная модель готова или ml_unit готов
+                ml_unit_ready = False
+                if hasattr(self, 'ml_unit') and self.ml_unit is not None:
+                    ml_unit_ready = getattr(self.ml_unit, 'models_ready', False)
+                    if not ml_unit_ready:
+                        ml_unit_ready = getattr(self.ml_unit, 'initialized', False)
+                        if not ml_unit_ready and hasattr(self.ml_unit, 'running'):
+                            ml_unit_ready = getattr(self.ml_unit, 'running', False)
+                
+                if self.fractal_ready or ml_unit_ready:
                     self.models_ready = True
             except Exception as e:
                 self.query_logger.debug(f"Исключение при инициализации фрактальной модели: {e}")

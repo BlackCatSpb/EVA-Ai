@@ -1066,7 +1066,16 @@ class ChatModule:
         try:
             brain = getattr(self.gui, 'brain', None)
             fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
-            is_ready = ready or fractal_ready
+            
+            ml_unit_ready = False
+            if brain and hasattr(brain, 'ml_unit') and brain.ml_unit is not None:
+                ml_unit_ready = getattr(brain.ml_unit, 'models_ready', False)
+                if not ml_unit_ready:
+                    ml_unit_ready = getattr(brain.ml_unit, 'initialized', False)
+                if not ml_unit_ready:
+                    ml_unit_ready = getattr(brain.ml_unit, 'running', False)
+            
+            is_ready = ready or fractal_ready or ml_unit_ready
             
             # Проверяем Qwen API статус
             qwen_status = ""
@@ -1112,7 +1121,15 @@ class ChatModule:
         """Применяет начальное состояние готовности ML."""
         try:
             brain = getattr(self.gui, 'brain', None)
-            ready = bool(getattr(brain, 'fractal_ready', True)) if brain else True
+            fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
+            ml_unit_ready = False
+            if brain and hasattr(brain, 'ml_unit') and brain.ml_unit is not None:
+                ml_unit_ready = getattr(brain.ml_unit, 'models_ready', False)
+                if not ml_unit_ready:
+                    ml_unit_ready = getattr(brain.ml_unit, 'initialized', False)
+                if not ml_unit_ready:
+                    ml_unit_ready = getattr(brain.ml_unit, 'running', False)
+            ready = fractal_ready or ml_unit_ready
             self._apply_ml_ready_state(ready)
         except (AttributeError, TypeError, RuntimeError):
             pass

@@ -21,8 +21,8 @@ class FractalStorage:
     MAX_LEVELS = 4
     BRANCHING_FACTOR = 16
     
-    def __init__(self, storage_path: str):
-        self.storage_path = storage_path
+    def __init__(self, storage_dir: str):
+        self.storage_dir = storage_dir
         self.nodes: Dict[str, FractalNode] = {}
         self.edges: Dict[str, FractalEdge] = {}
         
@@ -32,11 +32,11 @@ class FractalStorage:
         self._operation_count = 0
         
         # Создаём директорию
-        os.makedirs(storage_path, exist_ok=True)
+        os.makedirs(storage_dir, exist_ok=True)
         
         # Файлы для хранения
-        self.nodes_file = os.path.join(storage_path, "nodes.json")
-        self.edges_file = os.path.join(storage_path, "edges.json")
+        self.nodes_file = os.path.join(storage_dir, "nodes.json")
+        self.edges_file = os.path.join(storage_dir, "edges.json")
         
         # Загружаем существующие данные
         self._load()
@@ -230,7 +230,7 @@ class FractalStorage:
             "total_nodes": len(self.nodes),
             "total_edges": len(self.edges),
             "nodes_by_level": by_level,
-            "storage_path": self.storage_path
+            "storage_path": self.storage_dir
         }
     
     def delete_node(self, node_id: str, cascade: bool = True) -> bool:
@@ -728,7 +728,7 @@ class FractalStorage:
             "healthy": True,
             "node_count": stats["total_nodes"],
             "edge_count": stats["total_edges"],
-            "storage_path": self.storage_path,
+            "storage_path": self.storage_dir,
             "dirty": self._dirty,
             "operation_count": self._operation_count
         }

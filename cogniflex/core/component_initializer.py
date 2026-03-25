@@ -615,7 +615,7 @@ class ComponentInitializer:
                 )
                 os.makedirs(storage_dir, exist_ok=True)
                 
-                fractal_storage = FractalStorage(storage_path=storage_dir)
+                fractal_storage = FractalStorage(storage_dir=storage_dir)
                 
                 # Регистрируем в core_brain
                 self.core_brain.fractal_storage = fractal_storage

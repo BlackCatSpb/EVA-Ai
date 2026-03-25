@@ -62,7 +62,7 @@ class SelfReasoningEngine:
                 if brain and hasattr(brain, 'cache_dir'):
                     import os
                     storage_path = os.path.join(brain.cache_dir, 'fractal_reasoning')
-                self.fractal_storage = FractalStorage(storage_path)
+                self.fractal_storage = FractalStorage(storage_dir=storage_path)
                 logger.info(f"FractalStorage создан: {storage_path}")
             except Exception as e:
                 logger.warning(f"Не удалось создать FractalStorage: {e}")
