@@ -605,6 +605,11 @@ class ResponseGenerator:
                 logger.error(f"Ошибка получения модели: {e}")
                 return None, None, model_name
         
+        # Fallback: используем self.tokenizer если tokenizer всё ещё None
+        if tokenizer is None and self.tokenizer is not None:
+            tokenizer = self.tokenizer
+            logger.info("Используем self.tokenizer как fallback")
+        
         return model, tokenizer, model_name
     
     def _generate_with_model(self, model: Any, tokenizer: Any, prompt: str, **kwargs) -> str:
