@@ -23,6 +23,8 @@ def _ensure_cogniflex_path():
     except:
         pass
 
+_ensure_cogniflex_path()
+
 
 class ComponentInitializer:
     """
