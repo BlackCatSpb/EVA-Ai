@@ -54,10 +54,23 @@ class FractalStorage:
         if not self.initialized:
             logger.warning("Попытка сохранить данные в неинициализированное хранилище")
             return False
+        
+        try:
+            import json
+            import os
             
-        # В реальной реализации здесь была бы логика сохранения
-        logger.debug(f"Сохранение данных с ключом '{key}' в фрактальное хранилище")
-        return True
+            # Сохраняем в файл
+            safe_key = key.replace('/', '_').replace('\\', '_')
+            filepath = os.path.join(self.storage_dir, f"{safe_key}.json")
+            
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump({"key": key, "data": data, "timestamp": __import__('time').time()}, f, ensure_ascii=False, default=str)
+            
+            logger.debug(f"Сохранены данные с ключом '{key}' в {filepath}")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка сохранения данных с ключом '{key}': {e}")
+            return False
     
     def retrieve(self, key: str) -> Optional[Any]:
         """Получение данных из хранилища.
@@ -71,10 +84,23 @@ class FractalStorage:
         if not self.initialized:
             logger.warning("Попытка получить данные из неинициализированного хранилища")
             return None
+        
+        try:
+            import json
+            import os
             
-        # В реальной реализации здесь была бы логика получения
-        logger.debug(f"Получение данных с ключом '{key}' из фрактального хранилища")
-        return None
+            safe_key = key.replace('/', '_').replace('\\', '_')
+            filepath = os.path.join(self.storage_dir, f"{safe_key}.json")
+            
+            if os.path.exists(filepath):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    stored = json.load(f)
+                    logger.debug(f"Получены данные с ключом '{key}' из {filepath}")
+                    return stored.get("data")
+            return None
+        except Exception as e:
+            logger.error(f"Ошибка получения данных с ключом '{key}': {e}")
+            return None
     
     def delete(self, key: str) -> bool:
         """Удаление данных из хранилища.

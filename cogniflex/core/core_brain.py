@@ -392,6 +392,18 @@ class CoreBrain:
             if hasattr(self, 'components'):
                 self.components['background_coordinator'] = self.background
                 self.query_logger.debug("BackgroundCoordinator зарегистрирован как компонент")
+            
+            # Регистрируем фоновые задачи
+            try:
+                from .background_jobs.training_job import TrainingJob
+                from .background_jobs.web_index_job import WebIndexJob
+                from .background_jobs.module_recovery_job import ModuleRecoveryJob
+                self.background.register_job_type(TrainingJob)
+                self.background.register_job_type(WebIndexJob)
+                self.background.register_job_type(ModuleRecoveryJob)
+                self.query_logger.debug("Фоновые задачи зарегистрированы")
+            except Exception as e:
+                self.query_logger.warning(f"Не удалось зарегистрировать фоновые задачи: {e}")
                 
         except Exception as e:
             logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
