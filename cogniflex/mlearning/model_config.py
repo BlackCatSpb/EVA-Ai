@@ -4,43 +4,43 @@
 
 # Доступные модели
 MODEL_CONFIGS = {
-    "gpt2": {
-        "name": "gpt2",
-        "display_name": "GPT-2",
-        "description": "Локальная модель GPT-2 (124M параметров)",
+    "qwen3.5-0.8b": {
+        "name": "qwen3.5-0.8b",
+        "display_name": "Qwen 3.5 0.8B",
+        "description": "Локальная модель Qwen 3.5 (0.8B параметров)",
         "requires_download": False,
-        "size_mb": 500,
+        "size_mb": 1600,
         "supports_gpu": True,
-        "supports_russian": False,
-        "quality": 3
+        "supports_russian": True,
+        "quality": 5
     },
-    "gpt2-medium": {
-        "name": "gpt2-medium", 
-        "display_name": "GPT-2 Medium",
-        "description": "Локальная модель GPT-2 Medium (345M параметров)",
+    "qwen3.5-2b": {
+        "name": "qwen3.5-2b",
+        "display_name": "Qwen 3.5 2B",
+        "description": "Локальная модель Qwen 3.5 (2B параметров)",
         "requires_download": True,
-        "size_mb": 1500,
+        "size_mb": 4200,
         "supports_gpu": True,
-        "supports_russian": False,
-        "quality": 4
+        "supports_russian": True,
+        "quality": 5
     },
-    "gpt2-large": {
-        "name": "gpt2-large",
-        "display_name": "GPT-2 Large", 
-        "description": "Локальная модель GPT-2 Large (774M параметров)",
+    "qwen3-1.8b": {
+        "name": "qwen3-1.8b",
+        "display_name": "Qwen 3 1.8B",
+        "description": "Локальная модель Qwen 3 (1.8B параметров)",
         "requires_download": True,
-        "size_mb": 3000,
+        "size_mb": 3600,
         "supports_gpu": True,
-        "supports_russian": False,
+        "supports_russian": True,
         "quality": 5
     }
 }
 
 # Рекомендации по выбору модели
 MODEL_RECOMMENDATIONS = {
-    "fast": "gpt2",
-    "balanced": "gpt2-medium", 
-    "quality": "qwen3.5-0.8b",
+    "fast": "qwen3.5-0.8b",
+    "balanced": "qwen3.5-0.8b", 
+    "quality": "qwen3.5-2b",
     "russian": "qwen3.5-0.8b",
     "gpu": "qwen3.5-0.8b"
 }
@@ -51,11 +51,11 @@ DEFAULT_SETTINGS = {
     "max_memory_gb": 1.5,
     "enable_gpu_tokenization": True,
     "cache_tokens": True,
-    "temperature": 0.4,
-    "top_p": 0.75,
+    "temperature": 0.7,
+    "top_p": 0.9,
     "top_k": 40,
     "no_repeat_ngram_size": 3,
-    "max_tokens": 200
+    "max_new_tokens": 2048
 }
 
 def get_model_config(model_name: str) -> dict:

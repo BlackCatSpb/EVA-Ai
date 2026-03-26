@@ -173,7 +173,7 @@ class QwenAPIClient:
             return False
         try:
             # Test with minimal request
-            self.generate("Hi", max_tokens=5)
+            self.generate("Hi", max_new_tokens=5)
             return True
         except QwenAPIAuthenticationError:
             return False

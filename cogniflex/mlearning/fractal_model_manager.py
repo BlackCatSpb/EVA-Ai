@@ -158,7 +158,7 @@ class FractalModelManager:
                 return self._get_fallback_response(query)
             
             # Ограничиваем генерацию
-            max_tokens = min(max_tokens, 30)
+            max_tokens = min(max_tokens, 2048)  # Allow up to 2048 tokens per DESIGN.md
             
             # Токенизируем
             inputs = self.tokenizer(

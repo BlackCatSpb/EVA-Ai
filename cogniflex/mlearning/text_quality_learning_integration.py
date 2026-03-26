@@ -447,7 +447,7 @@ class TextQualityLearningIntegration:
             
             # Тестируем генерацию на простом запросе
             test_query = "Привет, как дела?"
-            response = self.fractal_model_manager.generate_response(test_query, max_tokens=50)
+            response = self.fractal_model_manager.generate_response(test_query, max_new_tokens=50)
             
             # Анализируем качество
             quality_metrics = self.fractal_model_manager.quality_improver.analyze_text_quality(response)

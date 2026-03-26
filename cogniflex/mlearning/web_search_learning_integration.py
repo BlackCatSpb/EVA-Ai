@@ -257,7 +257,7 @@ class WebSearchLearningIntegration:
             # Генерируем улучшенный ответ
             enhanced_response = self.fractal_model_manager.generate_response(
                 enhanced_prompt, 
-                max_tokens=min(200, len(base_response) + 100)
+                max_new_tokens=min(200, len(base_response) + 100)
             )
             
             # Очищаем ответ
@@ -417,7 +417,7 @@ class WebSearchLearningIntegration:
                     combined_info = "\n".join([r.get("snippet", "") for r in search_results[:3]])
                     summary_prompt = f"На основе следующей информации о '{topic}', создай краткое обобщение:\n{combined_info}"
                     
-                    summary = self.fractal_model_manager.generate_response(summary_prompt, max_tokens=150)
+                    summary = self.fractal_model_manager.generate_response(summary_prompt, max_new_tokens=150)
                     training_texts.append(f"Тема: {topic}\nОбобщение: {summary}")
                 
             except Exception as e:
