@@ -108,6 +108,11 @@ class ChatModule:
         # Инициализация флага рассуждений
         if not hasattr(self.gui, 'reasoning_active'):
             self.gui.reasoning_active = True
+        
+        # Инициализация состояний
+        self._suppress_history_append = False
+        self._ml_ready_cached = False
+        self._import_pipeline = None  # Lazy initialized import pipeline
             
         logger.info("Модуль чата инициализирован")
     
