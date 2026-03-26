@@ -782,6 +782,32 @@ class MemoryManager:
         # Сортируем по времени и ограничиваем
         interactions.sort(key=lambda x: x["timestamp"], reverse=True)
         return interactions[:limit]
+
+    def get_conversation_history(self, user_id: str = "default_user", limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Get conversation history for context retrieval.
+        
+        Args:
+            user_id: User identifier
+            limit: Maximum number of exchanges
+            
+        Returns:
+            List of conversation exchanges (query/response pairs)
+        """
+        interactions = self.get_recent_interactions(limit)
+        
+        conversation_history = []
+        for interaction in interactions:
+            if isinstance(interaction, dict):
+                content = interaction.get("content", interaction)
+                if isinstance(content, dict):
+                    conversation_history.append({
+                        "query": content.get("query", ""),
+                        "response": content.get("response", ""),
+                        "timestamp": interaction.get("timestamp", 0)
+                    })
+        
+        return conversation_history
     
     def get_all_users(self) -> List[Dict[str, Any]]:
         """

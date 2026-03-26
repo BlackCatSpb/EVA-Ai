@@ -1037,12 +1037,29 @@ class CogniFlexGUI:
             
             # 9. Вызываем обработку запроса
             # Передаем историю сообщений как контекст для сохранения памяти разговора
-            history_context = None
+            history_context = {}
+
+            # 1. Get from chat module message history
             if hasattr(self, 'chat_module') and hasattr(self.chat_module, 'message_history'):
-                # Ограничиваем историю последними 10 сообщениями для экономии токенов
-                recent_history = self.chat_module.message_history[-10:] if self.chat_module.message_history else []
+                recent_history = self.chat_module.message_history[-10:]
                 if recent_history:
-                    history_context = {"conversation_history": recent_history}
+                    history_context["message_history"] = recent_history
+
+            # 2. Get from MemoryManager for persistent context
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                try:
+                    interactions = self.brain.memory_manager.get_recent_interactions(limit=5)
+                    if interactions:
+                        history_context["conversation_history"] = [
+                            {"query": i.get("query", ""), "response": i.get("response", "")}
+                            for i in interactions[-10:] if i
+                        ]
+                except Exception as e:
+                    self.chat_logger.debug(f"Error getting conversation from memory: {e}")
+
+            # Set to None if empty
+            if not history_context:
+                history_context = None
             
             response_obj = self.brain.process_query(query, context=history_context)
             

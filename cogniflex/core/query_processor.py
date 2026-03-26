@@ -87,6 +87,8 @@ class QueryProcessor:
             "contradictions": []
         }
 
+        conversation_context = self._get_conversation_context()
+
         try:
             # 1) NLP preprocessing (с кэшированием)
             nlp_info = self._process_nlp(query)
@@ -152,6 +154,7 @@ class QueryProcessor:
                     result["evidence"] = evidence
                     result["metrics"] = {"time": time.time() - start_time}
                     self._store_insight(query, response, nlp_info, concept)
+                    self._store_conversation(query, response)
                 else:
                     # Фолбэк: короткий ответ из узлов KG
                     result = self._build_response_from_nodes(result, nodes, start_time)
@@ -177,6 +180,7 @@ class QueryProcessor:
             # 5a) Store insight for autonomous learning
             if response:
                 self._store_insight(query, response, nlp_info, concept)
+                self._store_conversation(query, response)
 
             # 6) Этическая проверка
             if response:
@@ -663,6 +667,30 @@ class QueryProcessor:
             
         except Exception as e:
             logger.debug(f"Error storing insight: {e}")
+
+    def _store_conversation(self, query: str, response: str):
+        """Store conversation exchange in memory for context retention."""
+        try:
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                self.brain.memory_manager.add_interaction(
+                    user_id="default_user",
+                    query=query,
+                    response=response,
+                    context={"source": "query_processor"}
+                )
+                logger.debug(f"Stored conversation in memory")
+        except Exception as e:
+            logger.debug(f"Error storing conversation: {e}")
+
+    def _get_conversation_context(self) -> List[Dict]:
+        """Retrieve recent conversation context from memory."""
+        try:
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                interactions = self.brain.memory_manager.get_recent_interactions(limit=5)
+                return [{"query": i.get("query"), "response": i.get("response")} for i in interactions[-10:] if i]
+        except Exception:
+            pass
+        return []
 
     def __del__(self):
         try:
