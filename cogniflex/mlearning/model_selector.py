@@ -9,24 +9,19 @@ from typing import Optional, Dict, Any
 logger = logging.getLogger(__name__)
 
 # Конфигурация моделей
-# RUGPT3 - только разрешённая модель (остальные отключены)
+# Qwen3.5-0.8b - активная модель (из brain_config.json)
 MODEL_CONFIGS = {
-    "rugpt3large": {
-        "name": "RuGPT-3 Large",
-        "type": "fractal",
-        "params": "760M",
-        "ram": "~2GB",
-        "speed": "медленно",
-        "quality": "средне",
-        "description": "Русская модель (текущая)",
-        "status": "ready",
-        "enabled": True
-    },
     "qwen3.5-0.8b": {
         "name": "Qwen3.5-0.8B",
         "type": "qwen",
         "params": "0.8B",
         "ram": "~1.6GB",
+        "speed": "быстро",
+        "quality": "высоко",
+        "description": "Основная модель (активная)",
+        "status": "ready",
+        "enabled": True
+    },
         "speed": "быстро",
         "quality": "средне",
         "description": "Минимальная мультимодальная",

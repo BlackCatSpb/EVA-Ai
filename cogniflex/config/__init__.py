@@ -4,14 +4,14 @@
 import os
 
 # Model loading flags
-# Set to True to disable all models except RUGPT3
-DISABLE_ALL_MODELS = os.environ.get('COGNIFLEX_DISABLE_MODELS', 'true').lower() == 'true'
+# Set to True to disable all models except Qwen (active model)
+DISABLE_ALL_MODELS = os.environ.get('COGNIFLEX_DISABLE_MODELS', 'false').lower() == 'true'
 DISABLE_EMBEDDINGS = os.environ.get('COGNIFLEX_DISABLE_EMBEDDINGS', 'false').lower() == 'true'
 DISABLE_TOKENIZERS = os.environ.get('COGNIFLEX_DISABLE_TOKENIZERS', 'false').lower() == 'true'
 DISABLE_TRAINING = os.environ.get('COGNIFLEX_DISABLE_TRAINING', 'false').lower() == 'true'
 
-# Allowed models (only RUGPT3 by default - others disabled)
-ALLOWED_MODELS = ['rugpt3', 'rugpt3large', 'sberbank-ai/rugpt3large_based_on_gpt2']
+# Allowed models (only Qwen by default - from brain_config.json)
+ALLOWED_MODELS = ['qwen', 'qwen3.5-0.8b', 'qwen3.5-2b']
 
 # Feature flags
 ENABLE_SELF_LEARNING = os.environ.get('COGNIFLEX_ENABLE_SELF_LEARNING', 'false').lower() == 'true'

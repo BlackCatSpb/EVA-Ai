@@ -66,7 +66,7 @@ MODEL_RECOMMENDATIONS = {
 }
 
 # Настройки по умолчанию
-DEFAULT_MODEL = "rugpt3large"
+DEFAULT_MODEL = "qwen3.5-0.8b"
 DEFAULT_SETTINGS = {
     "max_memory_gb": 1.5,
     "enable_gpu_tokenization": True,

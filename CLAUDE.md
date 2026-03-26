@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working on code in this repository.
 
 ## Commands
 
@@ -9,9 +9,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 pip install -r requirements.txt
 
 # Run the application with GUI
-python cogniflex/run.py
+python -m cogniflex.run
 # or
-python tools/run_gui.py
+python cogniflex/run.py
 
 # Run all tests
 pytest tests/
@@ -41,8 +41,24 @@ python -c "import sqlite3, json; db='cogniflex/core/cogniflex_cache/models/model
 | `TRANSFORMERS_OFFLINE=1` | Strict offline mode — no HF Hub downloads |
 | `HF_HUB_OFFLINE=1` | Same as above, HF Hub level |
 | `COGNIFLEX_DEFAULT_TEXT_GEN` | Override default text generation model alias (HF repo ID, absolute path, or subfolder name in `cogniflex_models/`) |
-| `COGNIFLEX_FORCE_MODEL_REFRESH=1` | Force re-download of ruGPT3 snapshot even if local copy exists |
-| `COGNIFLEX_RUGPT3_LOCAL_NAME` | Override local subfolder name for ruGPT3 (default: `rugpt3_large`) |
+| `COGNIFLEX_DISABLE_MODELS` | Set to 'false' to enable all models (default: 'false') |
+
+## System Status (March 2026)
+
+### Active Model
+**Qwen3.5-0.8b** - Primary local model (from brain_config.json)
+- Path: `cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b`
+- Type: qwen
+- max_length: 32768
+- max_new_tokens: 2048
+
+### Known Issues (Fixed)
+1. ✅ Tokenizer loading with Windows paths - Fixed with fallback logic
+2. ✅ GUI "ML недоступна" - Fixed with ml_unit availability check
+3. ✅ FractalStorage parameter mismatch (storage_path vs storage_dir) - Fixed
+4. ✅ Config import shadowing (config.py vs config/) - Fixed
+5. ✅ max_new_tokens default values - Updated to 2048
+6. ✅ max_length default values - Updated to 32768
 
 ## Architecture
 
@@ -68,37 +84,45 @@ Knowledge is structured at 5 abstraction levels (0: tokens → 4: concepts) with
 
 ### Model Management
 
-`ModelManager` (`cogniflex/mlearning/model_manager.py`) stores model metadata in SQLite at `cogniflex/core/cogniflex_cache/models/models.db`. At first run it provisions ruGPT3 (`sberbank-ai/rugpt3large_based_on_gpt2`) into `cogniflex/mlearning/cogniflex_models/rugpt3_large/`. A local copy is considered valid if it contains `config.json` + weights (`pytorch_model.bin` or `model.safetensors`) + tokenizer files. **Currently only ruGPT3 is enabled** (see `brain_config.json` and recent commits).
+`ModelManager` (`cogniflex/mlearning/model_manager.py`) stores model metadata in SQLite at `cogniflex/core/cogniflex_cache/models/models.db`. **Currently only Qwen3.5-0.8b is enabled** (see `brain_config.json`).
 
 ### Component Subsystems
 
-- **`cogniflex/core/`** — CoreBrain, QueryProcessor, ResponseGenerator, EventSystem, BackgroundCoordinator, TokenProcessor, ResourceManager, ConfigManager, HybridCache
-- **`cogniflex/mlearning/`** — ModelManager, ML inference/training pipeline, custom tokenizer
+- **`cogniflex/core/`** — CoreBrain, QueryProcessor, ResponseGenerator, EventSystem, BackgroundCoordinator, TokenProcessor, ResourceManager, ConfigManager, HybridCache, ComponentInitializer
+- **`cogniflex/mlearning/`** — ModelManager, MLUnit, HybridModelManager, QwenModelManager, UnifiedTextProcessor, FractalModelManager
 - **`cogniflex/memory/`** — MemoryManager, HybridTokenCache, MemoryGraph (NetworkX), FractalStore
-- **`cogniflex/knowledge/`** — KnowledgeGraph, SemanticEngine (sentence-transformers), ConceptExtractor
+- **`cogniflex/knowledge/`** — KnowledgeGraph, SemanticEngine (sentence-transformers), ConceptExtractor, QwenAPIEnhancer, WikipediaSearch
 - **`cogniflex/ethics/`** — EthicsManager with 7 principle categories in `principles/`
 - **`cogniflex/contradiction/`** — ContradictionManager, detection, resolution strategies
-- **`cogniflex/learning/`** — Background learning jobs (disabled by default in `brain_config.json`)
-- **`cogniflex/gui/`** — tkinter GUI: chat, memory visualization, system dashboard
+- **`cogniflex/learning/`** — SelfLearningSystem, SelfDialogLearningSystem, SelfAnalyzer, MemoryGraphTrainer
+- **`cogniflex/gui/`** — tkinter GUI: chat, memory visualization, system dashboard, analytics
 - **`cogniflex/websearch/`** — Multi-engine web search with SQLAlchemy result caching
 
 ### Event-Driven Communication
 
-`EventSystem` (`cogniflex/core/event_system.py`) provides pub/sub coupling between all components. Key events include `text_processor_ready` (triggers `UnifiedTextProcessor` registration in ModelManager), metrics events, and state transitions.
+`EventSystem` (`cogniflex/core/event_system.py`) provides pub/sub coupling between all components. Key events include `text_processor_ready`, `model_ready`, metrics events, and state transitions.
 
 ### Configuration
 
-`brain_config.json` in the repo root is the main system config. Key sections: `hybrid_cache` (VRAM/RAM/SSD tiers), `model` (active model path), `generation` (sampling parameters), `learning` (disabled by default), `system` (background threads disabled).
+`brain_config.json` in the repo root is the main system config. Key sections:
+- `hybrid_cache` (VRAM/RAM/SSD tiers)
+- `model` (active model: qwen3.5-0.8b)
+- `generation` (sampling parameters: temperature 0.7, top_p 0.9, max_new_tokens 2048)
+- `learning` (disabled by default)
+- `system` (background threads, logging)
 
-### Test Structure
+## Test Structure
 
 Tests in `tests/` use pytest with fixtures from `conftest.py` (`temp_cache_dir`, `mock_logger`, `sample_text`). Notable test files:
 - `test_e2e_chat_query.py` — end-to-end query pipeline
 - `test_cogniflex_full_system.py` — full system integration
 - `test_hybrid_cache_async.py` — cache behavior
-- `comprehensive_tests.py` — component-level
-- `test_autopilot_system_health.py` — health monitoring
 
-### Performance Notes
+## Performance Notes
 
 Async tokenization + hybrid cache benchmarks: **9.54× average speedup** (34.59× on simple texts, ~1× on large contexts). Cache hit rate on complex scenarios is a known area for improvement.
+
+## Git Structure
+
+- **Main branch**: `C:/Users/black/OneDrive/Desktop/CogniFlex` - all active development
+- **Worktrees**: Located in `C:/Users/black/.windsurf/worktrees/CogniFlex/` - older snapshots, not used for development
