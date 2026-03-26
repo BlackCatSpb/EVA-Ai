@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.23
+Версия: 1.24
 
 ---
 
@@ -218,6 +218,7 @@ User Query → CoreBrain.process_query()
 | 75 | Full conversation memory | query_processor.py:670+ | _store_conversation, _get_conversation_context |
 | 76 | Conversation memory GUI | core_gui.py:1039+ | Получение из MemoryManager |
 | 77 | get_conversation_history | memory_manager.py:785+ | Новый метод для получения истории |
+| 78 | Reasoning display in GUI | query_processor.py:237+, core_gui.py:1067+ | Извлечение и отображение рассуждений |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -891,7 +892,30 @@ Confidence = (ethics_score × 0.30) +
 
 ---
 
-## 28. Созданные файлы
+## 28. Отображение Рассуждений в GUI (2026-03-26)
+
+### 28.1 QueryProcessor
+
+- `cogniflex/core/query_processor.py:237+`:
+  - Извлечение этапов рассуждения из reasoning_engine.dialogue.steps
+  - Добавление в result["reasoning"] для передачи в GUI
+
+### 28.2 CoreGUI
+
+- `cogniflex/gui/core_gui.py:1067+`:
+  - Извлечение reasoning из response_obj
+  - Отправка в chat_module._set_reasoning_content() для отображения
+
+### 28.3 Как работает
+
+1. QueryProcessor собирает этапы рассуждения после обработки
+2. Результат с reasoning передается в CoreGUI
+3. CoreGUI извлекает reasoning и отправляет в панель рассуждений чата
+4. Пользователь видит этапы обработки запроса в панели "Рассуждения"
+
+---
+
+## 29. Созданные файлы
 
 | Файл | Описание |
 |------|-----------|
