@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.11
+Версия: 1.12
 
 ---
 
@@ -171,6 +171,14 @@ User Query → CoreBrain.process_query()
 | 28 | current_manager max_length | current_manager.py:150 | 128 → 32768 |
 | 29 | fractal_model_manager default model | fractal_model_manager.py:337,348 | gpt2 → qwen3.5-0.8b |
 | 30 | core_brain rugpt3 path | core_brain.py:345 | rugpt3_small_fractal → qwen3.5-0.8b |
+| 31 | current_manager generation params | current_manager.py:515-522 | top_k/p, removed beam search |
+| 32 | optimized_fractal_model_manager params | optimized_fractal_model_manager.py:559-566 | temp 0.8→0.7, rep_pen 1.2→1.1 |
+| 33 | fractal_model_manager params | fractal_model_manager.py:181-185 | do_sample True, rep_pen 1.1 |
+| 34 | hybrid_model_manager params | hybrid_model_manager.py:495-501 | do_sample True, rep_pen 1.1 |
+| 35 | knowledge_graph max_length | knowledge_graph.py:3833,6345,6468,6596,7017 | 200-1200 → 32768 |
+| 36 | knowledge_graph temperature | knowledge_graph.py:3834,6346,6469,6597,7018 | 0.3-0.5 → 0.7 |
+| 37 | generation_coordinator do_sample | generation_coordinator.py:458 | False → True |
+| 38 | text_quality_trainer params | text_quality_trainer.py:315-318 | top_p 0.9, top_k 50 |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -589,3 +597,35 @@ Confidence = (ethics_score × 0.30) +
 - [x] python -m cogniflex.run - успешный запуск
 - [x] GUI (1280x800) - запускается
 - [x] HybridModelManager - импортируется корректно
+
+---
+
+## 20. Последние Исправления (2026-03-26) - AI Agent Round 11
+
+### 20.1 Model Managers generation params
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| current_manager.py | 515-522 | top_k=40, top_p=0.85, beam search | top_k=50, top_p=0.9 |
+| optimized_fractal_model_manager.py | 559-566 | temp=0.8, rep_pen=1.2 | temp=0.7, rep_pen=1.1 |
+| fractal_model_manager.py | 181-185 | do_sample=False, rep_pen=2.0 | do_sample=True, rep_pen=1.1 |
+| hybrid_model_manager.py | 495-501 | do_sample=False, rep_pen=2.0 | do_sample=True, rep_pen=1.1 |
+
+### 20.2 KnowledgeGraph hardcoded values
+
+| Параметр | Линии | Было | Стало |
+|----------|-------|------|-------|
+| max_length | 3833,6345,6468,6596,7017 | 200-1200 | 32768 |
+| temperature | 3834,6346,6469,6597,7018 | 0.3-0.5 | 0.7 |
+
+### 20.3 Generation Coordinator и Text Trainer
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| generation_coordinator.py | 458 | do_sample=False | do_sample=True |
+| text_quality_trainer.py | 315-318 | top_p=0.85, top_k=40 | top_p=0.9, top_k=50 |
+
+### 20.4 Тестирование
+
+- [x] python -c "from cogniflex.mlearning.fractal_model_manager import FractalModelManager" - OK
+- [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
