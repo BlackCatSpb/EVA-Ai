@@ -35,7 +35,7 @@ class TrainingConfig:
 class TextDataset(Dataset):
     """Датасет для обучения текстовой модели"""
     
-    def __init__(self, texts: List[str], tokenizer, max_length: int = 128):
+    def __init__(self, texts: List[str], tokenizer, max_length: int = 32768):
         self.texts = texts
         self.tokenizer = tokenizer
         self.max_length = max_length

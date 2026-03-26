@@ -96,7 +96,7 @@ class DummyTokenizer:
 @dataclass
 class TokenizationConfig:
     priority_strategy: str = "initial_response"
-    max_length: int = 512
+    max_length: int = 32768
     padding: bool = True
     truncation: bool = True
     return_tensors: str = "pt"

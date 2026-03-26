@@ -679,7 +679,7 @@ class ResponseGenerator:
                     return_tensors="pt", 
                     padding=True, 
                     truncation=True, 
-                    max_length=1024
+                    max_length=32768
                 ).to(device)
             else:
                 inputs = tokenizer.encode(
@@ -687,7 +687,7 @@ class ResponseGenerator:
                     return_tensors="pt", 
                     padding=True, 
                     truncation=True, 
-                    max_length=1024
+                    max_length=32768
                 ).to(device)
             
             return inputs
@@ -698,7 +698,7 @@ class ResponseGenerator:
     def _prepare_generation_kwargs(self, kwargs: Dict) -> Dict[str, Any]:
         """Подготавливает параметры генерации."""
         return {
-            "max_length": kwargs.get('max_length', 2048),
+            "max_length": kwargs.get('max_length', 32768),
             "temperature": kwargs.get('temperature', 0.7),
             "top_p": kwargs.get('top_p', 0.9),
             "do_sample": kwargs.get('do_sample', True),
@@ -761,7 +761,7 @@ class ResponseGenerator:
         """Безопасная токенизация текста."""
         try:
             if tokenizer and hasattr(tokenizer, 'encode'):
-                return tokenizer.encode(text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+                return tokenizer.encode(text, return_tensors='pt', padding=True, truncation=True, max_length=32768)
             else:
                 return text.split()
         except Exception as e:
