@@ -22,13 +22,6 @@ MODEL_CONFIGS = {
         "status": "ready",
         "enabled": True
     },
-        "speed": "быстро",
-        "quality": "средне",
-        "description": "Минимальная мультимодальная",
-        "status": "disabled",
-        "requires": "transformers>=4.51",
-        "enabled": False
-    },
     "qwen3.5-2b": {
         "name": "Qwen3.5-2B",
         "type": "qwen",
@@ -36,7 +29,7 @@ MODEL_CONFIGS = {
         "ram": "~4GB",
         "speed": "средне",
         "quality": "хорошо",
-        "description": "Оптимально для CPU",
+        "description": "Увеличенная версия",
         "status": "disabled",
         "enabled": False
     },
