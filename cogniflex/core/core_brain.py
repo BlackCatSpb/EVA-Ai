@@ -342,7 +342,7 @@ class CoreBrain:
             from ..mlearning.fractal_model_manager import FractalModelManager
             # Динамически определяем путь относительно расположения brain_config.json или текущей директории
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            model_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "rugpt3_small_fractal", "model")
+            model_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "qwen3.5-0.8b", "model")
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
             self.query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
         except (ImportError, Exception) as e:

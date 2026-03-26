@@ -188,7 +188,7 @@ class QwenModelManager:
     
     def __init__(
         self, 
-        model_size: str = "qwen3.5-2b",
+        model_size: str = "qwen3.5-0.8b",
         device: str = "auto",
         cache_dir: Optional[str] = None,
         quantize: bool = True,
@@ -371,7 +371,7 @@ class QwenModelManager:
                     )
                     
                     # Переносим на GPU если есть место
-                    config_device = self.config.get('device', 'cpu')
+                    config_device = self.device
                     if torch.cuda.is_available():
                         try:
                             self.model = self.model.to(config_device if config_device.startswith('cuda') else 'cuda')

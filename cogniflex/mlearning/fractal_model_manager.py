@@ -334,7 +334,7 @@ class FractalModelManager:
             "device": self.device,
             "model_type": "GPT-2" if self.initialized else "None",
             "total_parameters": 124000000,  # 124M для GPT-2
-            "model_name": (self.config.get("model", {}) or {}).get("name", "gpt2") if self.config else "gpt2"
+            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b"
         }
     
     def is_ready(self) -> bool:
@@ -345,7 +345,7 @@ class FractalModelManager:
         """Возвращает статистику производительности"""
         return {
             "initialized": self.initialized,
-            "model_name": (self.config.get("model", {}) or {}).get("name", "gpt2") if self.config else "gpt2",
+            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b",
             "device": str(self.device)
         }
     

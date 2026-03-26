@@ -147,7 +147,7 @@ class OptimizedFractalModelManager:
                     learning_rate=3e-5,
                     batch_size=2,
                     num_epochs=50,
-                    max_length=128,
+                    max_length=32768,
                     warmup_steps=100,
                     weight_decay=0.01,
                     save_steps=200,
