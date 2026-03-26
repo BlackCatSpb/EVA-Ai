@@ -219,10 +219,11 @@ class ModelManager(BaseComponent):
             fractal_levels = int(store_config.get('fractal_levels', 4))
             containers_per_group = int(store_config.get('containers_per_group', 4))
 
+            config_device = self.config.get('device', 'cpu')
             device = 'cpu'
             try:
                 if torch is not None and torch.cuda.is_available() and bool(kwargs.get('use_gpu', True)):
-                    device = 'cuda'
+                    device = config_device if not config_device.startswith('cuda') or torch.cuda.is_available() else 'cpu'
             except Exception:
                 device = 'cpu'
 

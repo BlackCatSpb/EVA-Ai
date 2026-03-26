@@ -44,7 +44,8 @@ class FractalWeightStore:
         self.total_memory = 0
         
         try:
-            use_cuda = (device != "cpu")
+            config_device = getattr(self, 'config', {}).get('device', 'cpu') if hasattr(self, 'config') else device
+            use_cuda = (config_device != "cpu") if isinstance(config_device, str) else False
             if use_cuda and torch.cuda.is_available():
                 self.device = "cuda"
             else:

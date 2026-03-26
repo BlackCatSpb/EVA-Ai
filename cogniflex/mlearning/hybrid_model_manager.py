@@ -211,9 +211,10 @@ class HybridModelManager:
         try:
             with self._lock:
                 # Определяем тип окна на основе приоритета и доступных ресурсов
+                config_device = self.config.get('device', 'cpu')
                 if priority <= 2 and self.total_vram_gb > 0:
                     window_type = WindowType.HOT_VRAM
-                    device = "cuda"
+                    device = config_device if config_device.startswith('cuda') else "cuda" if torch.cuda.is_available() else "cpu"
                 elif priority <= 5:
                     window_type = WindowType.WARM_SSD
                     device = "cpu"

@@ -371,11 +371,12 @@ class QwenModelManager:
                     )
                     
                     # Переносим на GPU если есть место
+                    config_device = self.config.get('device', 'cpu')
                     if torch.cuda.is_available():
                         try:
-                            self.model = self.model.to('cuda')
-                            self.device = 'cuda'
-                            logger.info("Модель перенесена на GPU")
+                            self.model = self.model.to(config_device if config_device.startswith('cuda') else 'cuda')
+                            self.device = config_device if config_device.startswith('cuda') else 'cuda'
+                            logger.info(f"Модель перенесена на {self.device}")
                         except Exception as e3:
                             logger.warning(f"Не удалось перенести на GPU: {e3}, используем CPU")
                             self.device = 'cpu'

@@ -21,7 +21,8 @@ class FractalWeightStore:
         self.hot_window: OrderedDict[str, float] = OrderedDict()
         self.metadata: Dict[str, Any] = {}
         try:
-            use_cuda = (device != "cpu")
+            config_device = self.config.get('device', 'cpu') if hasattr(self, 'config') else device
+            use_cuda = (config_device != "cpu") if isinstance(config_device, str) else False
             if use_cuda and torch.cuda.is_available():
                 self.device = "cuda"
             else:

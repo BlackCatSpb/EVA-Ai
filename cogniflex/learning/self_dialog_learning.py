@@ -189,8 +189,8 @@ class SelfDialogLearningSystem:
                 try:
                     task = self.dialog_queue.get(timeout=1)
                     self._process_task(task)
-                except queue.Empty:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Queue timeout in learning cycle: {e}")
                 
                 if self.auto_execute_enabled:
                     self._check_and_execute_learning_opportunities()
@@ -373,8 +373,8 @@ class SelfDialogLearningSystem:
                         "evidence": evidence
                     }
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error updating knowledge graph in _learn_refining: {e}")
         
         return refinement_text
     
@@ -393,8 +393,8 @@ class SelfDialogLearningSystem:
                         concept,
                         {"updated": True, "updated_at": time.time()}
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error updating adaptation: {e}")
             
             if hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
@@ -406,8 +406,8 @@ class SelfDialogLearningSystem:
                             "source": "self_dialog_learning"
                         }
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error updating knowledge graph in _learn_updating: {e}")
         
         return update_text
     
@@ -432,8 +432,8 @@ class SelfDialogLearningSystem:
                         "evidence": evidence
                     }
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Error adding node in _learn_integration: {e}")
         
         return integration_text
     
@@ -463,8 +463,8 @@ class SelfDialogLearningSystem:
                             "source": "self_dialog_learning"
                         }
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Error storing learned content: {e}")
                     
         except Exception as e:
             logger.debug(f"Ошибка сохранения изученного контента: {e}")
@@ -512,16 +512,16 @@ class SelfDialogLearningSystem:
                     ''', (json.dumps(result), time.time(), opportunity_id))
                     conn.commit()
                     conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error marking opportunity executed: {e}")
     
     def _mark_in_learning_manager(self, opportunity_id: str, result: Dict[str, Any]):
         """Отмечает возможность как выполненную в learning_opportunity_manager."""
         try:
             if hasattr(self.brain.learning_opportunity_manager, 'execute_learning_opportunity'):
                 self.brain.learning_opportunity_manager.execute_learning_opportunity(opportunity_id)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error in _mark_in_learning_manager: {e}")
     
     def _process_task(self, task: Dict[str, Any]):
         """Обрабатывает задачу из очереди."""

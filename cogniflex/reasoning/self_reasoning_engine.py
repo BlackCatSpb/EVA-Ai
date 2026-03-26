@@ -123,8 +123,8 @@ class SelfReasoningEngine:
                     "source": "self_reasoning_engine",
                     "processing_time": time.time() - start_time
                 }
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error in process_query fallback: {e}")
         
         logger.info(f"Начинаем рассуждение для запроса: {query[:50]}...")
         
@@ -249,8 +249,8 @@ class SelfReasoningEngine:
                             device='auto',
                             load_in_8bit=True
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to initialize Qwen: {e}")
                 
                 self._qwen_cached = qwen
             
@@ -355,8 +355,8 @@ class SelfReasoningEngine:
                             content = best.get('content', best.get('text', ''))
                             if content:
                                 return f"Известно: {content[:200]}..."
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error in process_query fallback: {e}")
         return None
     
     def _analyze_response(self, query: str, response: str) -> AnalysisResult:
