@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Параметры из DESIGN.md
 MAX_ITERATIONS = 5
-DEFAULT_MAX_TOKENS = 256
+DEFAULT_MAX_TOKENS = 2048
 MAX_RECURSION_DEPTH = 3
 
 
