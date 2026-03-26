@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.15
+Версия: 1.16
 
 ---
 
@@ -193,6 +193,7 @@ User Query → CoreBrain.process_query()
 | 50 | qwen_api_client max_tokens | qwen_api_client.py:176 | max_tokens → max_new_tokens |
 | 51 | web_search_learning_integration max_tokens | web_search_learning_integration.py:260,420 | max_tokens → max_new_tokens |
 | 52 | text_quality_learning_integration max_tokens | text_quality_learning_integration.py:450 | max_tokens → max_new_tokens |
+| 53 | Import path resolution | component_initializer.py:276,312 | Добавлен _ensure_cogniflex_path() перед импортами |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -728,3 +729,40 @@ Confidence = (ethics_score × 0.30) +
 
 - [x] python -c "from cogniflex.mlearning.model_config import DEFAULT_SETTINGS" - OK
 - [x] python -c "from cogniflex.mlearning.fractal_model_manager import FractalModelManager" - OK
+
+---
+
+## 24. Исправление Import Path Resolution (2026-03-26) - Критическое
+
+### Проблема
+
+При запуске из директории проекта (`python -m cogniflex.run`) система показывала 46.2% успешности:
+- `[FAIL] knowledge_graph: No module named 'cogniflex.knowledge.knowledge_graph_integrated'`
+- `[FAIL] text_processor: No module named 'cogniflex.mlearning.unified_text_processor'`
+- Каскадный отказ 14 компонентов
+
+При запуске из другой директории (`cd C:/Users/black && python -m cogniflex.run`) - всё работает (26+ компонентов).
+
+**Причина:**Editable install (pip install -e) некорректно резолвит пути при запуске модуля `-m` из директории проекта.
+
+### Решение
+
+Добавлен вызов `_ensure_cogniflex_path()` перед проблемными импортами в `component_initializer.py`:
+
+- `create_knowledge_graph()` - line 276
+- `create_text_processor()` - line 312
+
+### Тестирование
+
+- [x] python -m cogniflex.run из директории проекта - система запускается
+- [x] 26+ компонентов инициализировано
+- [x] MLUnit: healthy, score: 1.00
+- [x] GUI запускается
+
+---
+
+## 25. Созданные файлы
+
+| Файл | Описание |
+|------|-----------|
+| LOG_ANALYSIS.md | Анализ лога ошибки запуска пользователя |
