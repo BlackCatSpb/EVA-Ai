@@ -699,6 +699,7 @@ class ResponseGenerator:
         """Подготавливает параметры генерации."""
         return {
             "max_length": kwargs.get('max_length', 32768),
+            "max_new_tokens": kwargs.get('max_new_tokens', 2048),
             "temperature": kwargs.get('temperature', 0.7),
             "top_p": kwargs.get('top_p', 0.9),
             "do_sample": kwargs.get('do_sample', True),

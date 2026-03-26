@@ -53,7 +53,7 @@ DEFAULT_SETTINGS = {
     "cache_tokens": True,
     "temperature": 0.7,
     "top_p": 0.9,
-    "top_k": 40,
+    "top_k": 50,  # Was 40
     "no_repeat_ngram_size": 3,
     "max_new_tokens": 2048
 }

@@ -68,7 +68,7 @@ class QwenAPIClient:
         prompt: str,
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_new_tokens: int = 1024,
         stream: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
@@ -79,7 +79,7 @@ class QwenAPIClient:
             prompt: Текстовый промпт
             system_prompt: Системный промпт
             temperature: Температура генерации (0.0-1.0)
-            max_tokens: Максимальное количество токенов
+            max_new_tokens: Максимальное количество токенов
             stream: Использовать потоковую генерацию
             **kwargs: Дополнительные параметры
             
