@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.13
+Версия: 1.14
 
 ---
 
@@ -184,6 +184,9 @@ User Query → CoreBrain.process_query()
 | 41 | optimized_fractal_model_manager max_new_tokens | optimized_fractal_model_manager.py:518 | max_tokens → max_new_tokens |
 | 42 | unified_fractal_manager parameter | unified_fractal_manager.py:106 | max_tokens → max_new_tokens |
 | 43 | ml_unit test code max_new_tokens | ml_unit.py:449-455 | Добавлен max_new_tokens=2048 |
+| 44 | generation_coordinator num_beams conflict | generation_coordinator.py:459 | Удалён num_beams при do_sample=True |
+| 45 | hybrid_model_manager max_tokens default | hybrid_model_manager.py:404,481,495 | max_tokens → max_new_tokens, default 2048 |
+| 46 | text_quality_improver num_beams | text_quality_improver.py:95,103,116 | Удалён beam search |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -661,3 +664,27 @@ Confidence = (ethics_score × 0.30) +
 
 - [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
 - [x] python -c "from cogniflex.knowledge.knowledge_graph import KnowledgeGraph" - OK
+
+---
+
+## 22. Последние Исправления (2026-03-26) - AI Agent Round 13
+
+### 22.1 Generation Coordinator num_beams conflict
+
+- `generation_coordinator.py:459` - Удалён `num_beams=2` при использовании `do_sample=True`
+
+### 22.2 Hybrid Model Manager max_new_tokens
+
+| Линия | Было | Стало |
+|-------|------|-------|
+| 404 | max_tokens default 500 | max_new_tokens default 2048 |
+| 481, 495 | max_tokens | max_new_tokens |
+
+### 22.3 Text Quality Improver beam search
+
+- `text_quality_improver.py:95,103,116` - Удалён beam search (num_beams, length_penalty, early_stopping)
+
+### 22.4 Тестирование
+
+- [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
+- [x] python -c "from cogniflex.mlearning.hybrid_model_manager import HybridModelManager" - OK
