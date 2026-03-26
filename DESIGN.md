@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.16
+Версия: 1.17
 
 ---
 
@@ -194,6 +194,9 @@ User Query → CoreBrain.process_query()
 | 51 | web_search_learning_integration max_tokens | web_search_learning_integration.py:260,420 | max_tokens → max_new_tokens |
 | 52 | text_quality_learning_integration max_tokens | text_quality_learning_integration.py:450 | max_tokens → max_new_tokens |
 | 53 | Import path resolution | component_initializer.py:276,312 | Добавлен _ensure_cogniflex_path() перед импортами |
+| 54 | qwen_api_client max_tokens | qwen_api_client.py:71 | max_tokens → max_new_tokens |
+| 55 | model_config.py top_k | model_config.py:56 | 40 → 50 |
+| 56 | response_generator max_new_tokens | response_generator.py:700-708 | Добавлен max_new_tokens параметр |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -761,7 +764,29 @@ Confidence = (ethics_score × 0.30) +
 
 ---
 
-## 25. Созданные файлы
+## 25. Исправления Round 15 (2026-03-26)
+
+### 25.1 QwenAPIClient max_tokens
+
+- `cogniflex/mlearning/qwen_api_client.py:71` - max_tokens → max_new_tokens
+
+### 25.2 Model Config top_k
+
+- `cogniflex/mlearning/model_config.py:56` - top_k: 40 → 50
+
+### 25.3 ResponseGenerator max_new_tokens
+
+- `cogniflex/core/response_generator.py:700-708` - добавлен параметр max_new_tokens
+
+### 25.4 Тестирование
+
+- [x] python -c "from cogniflex.mlearning.model_config import DEFAULT_SETTINGS; print(DEFAULT_SETTINGS.get('top_k'))" - OK (50)
+- [x] python -c "from cogniflex.core.response_generator import ResponseGenerator" - OK
+- [x] python -m cogniflex.run - система запускается
+
+---
+
+## 26. Созданные файлы
 
 | Файл | Описание |
 |------|-----------|
