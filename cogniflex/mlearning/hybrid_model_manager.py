@@ -91,6 +91,12 @@ class HybridModelManager:
         self.max_vram_gb = max_vram_gb
         self.max_ssd_gb = max_ssd_gb
         
+        # Load config from brain or use defaults
+        if brain and hasattr(brain, 'config'):
+            self.config = brain.config.get('model', {})
+        else:
+            self.config = {'device': 'cuda'}
+        
         # Пулы окон
         self.hot_windows: Dict[str, ModelWindow] = {}
         self.warm_windows: Dict[str, ModelWindow] = {}
