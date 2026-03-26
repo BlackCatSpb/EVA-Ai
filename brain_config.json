@@ -99,8 +99,7 @@
     "weights": {
       "ethics": 0.30,
       "contradiction": 0.30,
-      "knowledge": 0.20,
-      "quality": 0.20
+      "knowledge": 0.40
     }
   }
 }

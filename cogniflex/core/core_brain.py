@@ -621,6 +621,21 @@ class CoreBrain:
             # Установка флага инициализации
             self.initialized = True
             
+            # Интеграция Self-Reasoning Engine с CoreBrain (DESIGN.md раздел 7)
+            try:
+                from cogniflex.reasoning.integration import ReasoningIntegration
+                reasoning_integration = ReasoningIntegration(self)
+                if reasoning_integration.integrate_with_brain():
+                    self.query_logger.info("SelfReasoningEngine интегрирован с CoreBrain")
+                    self.reasoning_integration = reasoning_integration
+                    self.components['reasoning_integration'] = reasoning_integration
+                else:
+                    self.query_logger.debug("SelfReasoningEngine не интегрирован (отключен в конфигурации)")
+            except ImportError as e:
+                self.query_logger.debug(f"ReasoningIntegration недоступен: {e}")
+            except Exception as e:
+                self.query_logger.warning(f"Ошибка интеграции SelfReasoningEngine: {e}")
+            
             # Обновляем состояние системы на готовность
             if self.state_manager:
                 self.state_manager.set_state(SystemState.READY, "Инициализация завершена успешно")
