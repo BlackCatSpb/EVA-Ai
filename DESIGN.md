@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.24
+Версия: 1.25
 
 ---
 
@@ -219,6 +219,9 @@ User Query → CoreBrain.process_query()
 | 76 | Conversation memory GUI | core_gui.py:1039+ | Получение из MemoryManager |
 | 77 | get_conversation_history | memory_manager.py:785+ | Новый метод для получения истории |
 | 78 | Reasoning display in GUI | query_processor.py:237+, core_gui.py:1067+ | Извлечение и отображение рассуждений |
+| 79 | generation_coordinator defaults | generation_coordinator.py:20-27,182-184 | max_tokens 2048, temp 0.7, top_p 0.9, top_k 50, do_sample True |
+| 80 | core_gui context handling | core_gui.py:1051,1061-1062 | limit 10, {} вместо None |
+| 81 | query_processor defensive checks | query_processor.py:698-706 | Проверки на None, isinstance |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -915,7 +918,39 @@ Confidence = (ethics_score × 0.30) +
 
 ---
 
-## 29. Созданные файлы
+## 29. Исправления Round 18 (2026-03-26)
+
+### 29.1 GenerationCoordinator Defaults
+
+- `cogniflex/core/generation_coordinator.py:20-27`:
+  - max_new_tokens: 150 → 2048
+  - temperature: 0.8 → 0.7
+  - top_p: 0.95 → 0.9
+  - top_k: добавлен с default 50
+  - do_sample: False → True
+- `cogniflex/core/generation_coordinator.py:182-184`:
+  - Исправлены те же параметры в методе generate
+
+### 29.2 CoreGUI Context Handling
+
+- `cogniflex/gui/core_gui.py:1051`: limit=5 → limit=10
+- `cogniflex/gui/core_gui.py:1061-1062`: history_context = {} вместо None
+
+### 29.3 QueryProcessor Defensive Checks
+
+- `cogniflex/core/query_processor.py:698-706`:
+  - Добавлены проверки на None и isinstance
+  - Добавлены значения по умолчанию для .get()
+  - Изменен limit с 5 на 10
+
+### 29.4 Тестирование
+
+- [x] python -m cogniflex.run - система запускается
+- [x] Все параметры соответствуют DESIGN.md
+
+---
+
+## 30. Созданные файлы
 
 | Файл | Описание |
 |------|-----------|
