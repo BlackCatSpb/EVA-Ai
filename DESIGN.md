@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.8
+Версия: 1.9
 
 ---
 
@@ -51,7 +51,63 @@
 | AdaptationManager | ✅ | Адаптация системы |
 | GUI (CogniFlexGUI) | ✅ | Tkinter интерфейс |
 
-### 2.2 Конфигурация Модели (brain_config.json)
+### 2.2 Зависимости Модулей
+
+```
+CoreBrain
+├── ComponentInitializer
+│   ├── QueryProcessor → TextProcessor, KnowledgeGraph
+│   ├── ResponseGenerator → Tokenizer
+│   ├── MemoryManager
+│   ├── KnowledgeGraph
+│   └── EventBus
+├── ModelManager (Qwen)
+│   └── QwenModelManager
+├── ReasoningEngine (core/)
+│   └── SelfReasoningEngine (reasoning/)
+└── GUI
+```
+
+### 2.4 Поток Данных и Обработка Запросов
+
+```
+User Query → CoreBrain.process_query()
+                    ↓
+         QueryProcessor.process_query()
+                    ↓
+         ┌──────────┴──────────┐
+         ↓                     ↓
+   TextProcessor          KnowledgeGraph
+   (токенизация)          (поиск контекста)
+         ↓                     ↓
+         └──────────┬──────────┘
+                    ↓
+         SelfReasoningEngine
+         (цикл: generate → analyze → clarify)
+                    ↓
+         ┌──────────┴──────────┐
+         ↓                     ↓
+   EthicsFramework      ContradictionManager
+         ↓                     ↓
+         └──────────┬──────────┘
+                    ↓
+         ResponseGenerator
+                    ↓
+               Final Response → GUI
+```
+
+### 2.5 Ключевые Классы и Их Методы
+
+| Класс | Файл | Основные Методы |
+|-------|------|----------------|
+| CoreBrain | core_brain.py | process_query(), initialize_components() |
+| QueryProcessor | query_processor.py | process_query(), _generate_response() |
+| ResponseGenerator | response_generator.py | generate(), _prepare_generation_kwargs() |
+| SelfReasoningEngine | self_reasoning_engine.py | reason(), _reasoning_loop() |
+| KnowledgeGraph | knowledge_graph.py | query(), search_nodes() |
+| MemoryManager | memory_manager.py | store(), retrieve(), get_context() |
+| ModelManager | model_manager.py | get_model(), generate() |
+| EventSystem | event_system.py | publish(), subscribe(), emit()
 
 ```json
 {
@@ -102,6 +158,10 @@
 | 15 | HybridModelManager.config | hybrid_model_manager.py | Добавлен атрибут config |
 | 16 | max_new_tokens в model секции | brain_config.json | Добавлен в model секцию |
 | 17 | Hardcoded C:\\ paths | system_monitor.py | Используется os.environ |
+| 18 | ResponseGenerator max_length | response_generator.py:101 | 512 → 32768 |
+| 19 | ResponseGenerator generation params | response_generator.py:698-707 | Исправлены на brain_config.json значения |
+| 20 | brain_config.json weights | weights section | knowledge: 0.20 → 0.40, quality удалён |
+| 21 | SelfReasoning интеграция | core_brain.py:626 | Добавлен вызов ReasoningIntegration |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -363,6 +423,39 @@ Confidence = (ethics_score × 0.30) +
 | 1.6 | 2026-03-26 | Исправлена синтаксическая ошибка в model_selector.py |
 | 1.7 | 2026-03-26 | Массовые исправления: brain_config.json, max_length/max_new_tokens, RUGPT3→Qwen, HybridModelManager.config |
 | 1.8 | 2026-03-26 | Добавлен max_new_tokens в model секцию, исправлены hardcoded пути в system_monitor.py, пропущены устаревшие e2e тесты |
+| 1.9 | 2026-03-26 | Исправлены ResponseGenerator defaults, weights, SelfReasoning интеграция |
+
+---
+
+## 17. Последние Исправления (2026-03-26) - AI Agent Round 8
+
+### 17.1 ResponseGenerator max_length
+
+- `cogniflex/core/response_generator.py` line 101: `max_length: 512` → `32768`
+- `cogniflex/core/response_generator.py` line 698-707: исправлены параметры генерации:
+  - max_length: 200 → 2048
+  - temperature: 0.8 → 0.7
+  - top_p: 0.95 → 0.9
+  - do_sample: False → True
+  - repetition_penalty: 2.0 → 1.1
+
+### 17.2 brain_config.json weights
+
+- Исправлены веса уверенности согласно DESIGN.md:
+  - ethics: 0.30 (без изменений)
+  - contradiction: 0.30 (без изменений)
+  - knowledge: 0.20 → 0.40
+  - quality: удалён (не соответствует DESIGN.md)
+
+### 17.3 SelfReasoningEngine Интеграция
+
+- Добавлен вызов `ReasoningIntegration.integrate_with_brain()` в `core_brain.py:626`
+- Интеграция выполняется после `self.initialized = True`, перед `SystemState.READY`
+
+### 17.4 Тестирование
+
+- [x] python -c "from cogniflex.core.core_brain import CoreBrain" - OK
+- [x] Все импорты работают корректно
 
 ---
 
