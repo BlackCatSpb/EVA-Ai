@@ -211,7 +211,7 @@ class GenerationCoordinator:
     def generate_response(
         self,
         prompt: str,
-        max_new_tokens: int = 150,
+        max_new_tokens: int = 2048,
         temperature: float = 0.3,
         top_k: int = 30,
         top_p: float = 0.8,
@@ -450,7 +450,7 @@ def main():
         
         result = coordinator.generate_response(
             prompt=prompt,
-            max_new_tokens=1000,  # Увеличили лимит токенов
+            max_new_tokens=2048,  # Увеличили лимит токенов
             temperature=0.3,
             top_p=0.8,
             top_k=30,

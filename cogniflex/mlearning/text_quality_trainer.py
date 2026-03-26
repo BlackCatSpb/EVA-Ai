@@ -24,7 +24,7 @@ class TrainingConfig:
     learning_rate: float = 5e-5
     batch_size: int = 4
     num_epochs: int = 3
-    max_length: int = 128
+    max_length: int = 32768
     warmup_steps: int = 100
     weight_decay: float = 0.01
     save_steps: int = 500

@@ -54,7 +54,7 @@ class DummyTokenizer:
         self.eos_token = "[EOS]"
         self.bos_token = "[BOS]"
         self.unk_token = "[UNK]"
-        self.model_max_length = 512
+        self.model_max_length = 32768
         self.pad_token_id = 0
         self.eos_token_id = 1
         self.bos_token_id = 2

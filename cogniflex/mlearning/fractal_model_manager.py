@@ -166,7 +166,7 @@ class FractalModelManager:
                 return_tensors="pt",
                 padding=False,
                 truncation=True,
-                max_length=200
+                max_length=32768
             )
             
             # Правильное устройство
