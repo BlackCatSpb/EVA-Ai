@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.5
+Версия: 1.7
 
 ---
 
@@ -95,6 +95,11 @@
 | 8 | Empty pass statements | multiple files | Заменены на logger.warning |
 | 9 | Hardcoded device | model_manager.py | Используется из config |
 | 10 | Error masking | ml_unit.py:709,713 | Возвращает False при ошибке |
+| 11 | brain_config.json | max_context_length, qwen_only_mode, disable_fallback | Исправлены значения |
+| 12 | max_length = 100/200/512 | ml_unit.py, fractal_model_manager.py, tokenizer | Исправлено на 32768 |
+| 13 | max_new_tokens = 150/1000 | generation_coordinator.py | Исправлено на 2048 |
+| 14 | RUGPT3 ссылки | model_selector.py, model_config.py | Заменены на Qwen |
+| 15 | HybridModelManager.config | hybrid_model_manager.py | Добавлен атрибут config |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -353,5 +358,51 @@ Confidence = (ethics_score × 0.30) +
 | 1.3 | 2026-03-25 | max_new_tokens/max_length фиксы, pass statement исправления |
 | 1.4 | 2026-03-25 | Config alignment, device management, hardcoded values |
 | 1.5 | 2026-03-26 | Qwen-only модель (убраны RUGPT3 ссылки), обновлён CLAUDE.md |
-| 1.6 | 2026-03-26 | Исправлена синтаксическая ошибка в model_selector.py
-- **Worktrees**: `C:/Users/black/.windsurf/worktrees/CogniFlex/` - старые снимки, не используются
+| 1.6 | 2026-03-26 | Исправлена синтаксическая ошибка в model_selector.py |
+| 1.7 | 2026-03-26 | Массовые исправления: brain_config.json, max_length/max_new_tokens, RUGPT3→Qwen, HybridModelManager.config |
+
+---
+
+## 15. Последние Исправления (2026-03-26) - AI Agent Round 5
+
+### 15.1 Конфигурация (brain_config.json)
+
+| Параметр | Было | Стало |
+|----------|------|-------|
+| max_context_length | 1024 | 32768 |
+| qwen_only_mode | false | true |
+| disable_fallback | false | true |
+
+### 15.2 max_length исправления
+
+| Файл | Было | Стало |
+|------|------|-------|
+| ml_unit.py | 100 | 32768 |
+| fractal_model_manager.py | 200 | 32768 |
+| cogniflex_tokenizer.py | 512 | 32768 |
+| text_quality_trainer.py | 128 | 32768 |
+
+### 15.3 max_new_tokens исправления
+
+| Файл | Было | Стало |
+|------|------|-------|
+| generation_coordinator.py (line 214) | 150 | 2048 |
+| generation_coordinator.py (line 453) | 1000 | 2048 |
+
+### 15.4 Qwen-only модель
+
+- Удалены RUGPT3 ссылки из model_selector.py
+- Удалена RUGPT3 конфигурация из model_config.py
+- Обновлён fractal_model_manager.py
+- Обновлён generation_coordinator.py
+
+### 15.5 Device управления
+
+- Добавлен config атрибут в HybridModelManager
+- Используется config для device вместо hardcoded значений
+
+### 15.6 Тестирование
+
+- [x] python -m cogniflex.run - успешный запуск
+- [x] GUI (1280x800) - запускается
+- [x] HybridModelManager - импортируется корректно
