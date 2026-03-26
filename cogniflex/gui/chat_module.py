@@ -851,6 +851,9 @@ class ChatModule:
             
             self.chat_display.insert(tk.END, "\n")
             self.chat_display.config(state=tk.DISABLED)
+            
+            # Force widget to update/refresh to prevent display artifacts
+            self.chat_display.update_idletasks()
             self.chat_display.see(tk.END)
             
         except tk.TclError:
