@@ -212,7 +212,7 @@ class GenerationCoordinator:
         self,
         prompt: str,
         max_new_tokens: int = 2048,
-        temperature: float = 0.3,
+        temperature: float = 0.7,
         top_k: int = 30,
         top_p: float = 0.8,
         repetition_penalty: float = 2.0,

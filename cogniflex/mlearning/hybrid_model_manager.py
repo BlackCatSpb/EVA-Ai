@@ -401,14 +401,14 @@ class HybridModelManager:
                 model_name = list(available_models.keys())[0]
                 
                 # Извлекаем параметры
-                max_tokens = kwargs.get('max_tokens', kwargs.get('max_new_tokens', kwargs.get('max_length', 2048)))
+                max_new_tokens = kwargs.get('max_new_tokens', kwargs.get('max_tokens', kwargs.get('max_length', 2048)))
                 temperature = kwargs.get('temperature', 0.7)
                 
                 # Генерируем ответ через внутренний метод
                 response_text = self._generate_response_internal(
                     model_name=model_name,
                     prompt=prompt,
-                    max_tokens=max_tokens,
+                    max_new_tokens=max_new_tokens,
                     temperature=temperature
                 )
                 

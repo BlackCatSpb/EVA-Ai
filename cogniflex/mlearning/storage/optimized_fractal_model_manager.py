@@ -702,7 +702,7 @@ class OptimizedFractalModelManager:
             try:
                 # Тестируем генерацию для оценки качества
                 test_query = "Привет, как дела?"
-                response = self.generate_response(test_query, max_tokens=50)
+                response = self.generate_response(test_query, max_new_tokens=50)
                 
                 if response and response != "Модель не инициализирована":
                     metrics = self.quality_improver.analyze_text_quality(response)

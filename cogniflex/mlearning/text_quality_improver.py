@@ -95,7 +95,7 @@ class TextQualityImprover:
         
         # Адаптируем параметры на основе метрик
         if metrics.coherence_score < 0.5:
-            params['temperature'] = 0.6  # Более предсказуемая генерация
+            params['temperature'] = 0.7  # Более предсказуемая генерация
             params['top_k'] = 30
             
         if metrics.diversity_score < 0.3:
@@ -103,14 +103,14 @@ class TextQualityImprover:
             params['repetition_penalty'] = 1.3
             
         if metrics.length_score < 0.4:
-            params['max_tokens'] = 150
+            params['max_new_tokens'] = 150
             
         # Специфичные параметры для разных типов запросов
         if '?' in query:
-            params['temperature'] = 0.65  # Более точные ответы на вопросы
+            params['temperature'] = 0.7  # Более точные ответы на вопросы
             
         if 'расскажи' in query.lower() or 'опиши' in query.lower():
-            params['max_tokens'] = 200
+            params['max_new_tokens'] = 200
             
         return params
     
