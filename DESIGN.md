@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.9
+Версия: 1.10
 
 ---
 
@@ -162,6 +162,9 @@ User Query → CoreBrain.process_query()
 | 19 | ResponseGenerator generation params | response_generator.py:698-707 | Исправлены на brain_config.json значения |
 | 20 | brain_config.json weights | weights section | knowledge: 0.20 → 0.40, quality удалён |
 | 21 | SelfReasoning интеграция | core_brain.py:626 | Добавлен вызов ReasoningIntegration |
+| 22 | ResponseGenerator max_length | response_generator.py:682,690,701,764 | 1024/512/2048 → 32768 |
+| 23 | TokenizationConfig max_length | cogniflex_tokenizer.py:99 | 512 → 32768 |
+| 24 | TextDataset max_length | text_quality_trainer.py:38 | 128 → 32768 |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -454,6 +457,31 @@ Confidence = (ethics_score × 0.30) +
 
 ### 17.4 Тестирование
 
+- [x] python -c "from cogniflex.core.core_brain import CoreBrain" - OK
+
+---
+
+## 18. Последние Исправления (2026-03-26) - AI Agent Round 9
+
+### 18.1 ResponseGenerator max_length исправления
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| response_generator.py | 682, 690 | 1024 | 32768 |
+| response_generator.py | 701 | 2048 | 32768 |
+| response_generator.py | 764 | 512 | 32768 |
+
+### 18.2 TokenizationConfig max_length
+
+- `cogniflex/mlearning/cogniflex_tokenizer.py:99` - 512 → 32768
+
+### 18.3 TextDataset max_length
+
+- `cogniflex/mlearning/text_quality_trainer.py:38` - 128 → 32768
+
+### 18.4 Тестирование
+
+- [x] python -c "from cogniflex.core.response_generator import ResponseGenerator" - OK
 - [x] python -c "from cogniflex.core.core_brain import CoreBrain" - OK
 - [x] Все импорты работают корректно
 
