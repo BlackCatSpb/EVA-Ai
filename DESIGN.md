@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.22
+Версия: 1.23
 
 ---
 
@@ -215,6 +215,9 @@ User Query → CoreBrain.process_query()
 | 72 | ChatModule display artifacts | chat_module.py:854 | Добавлен update_idletasks() |
 | 73 | ChatModule keyboard shortcuts | chat_module.py:687-700 | Добавлены Ctrl+C/V/X |
 | 74 | Conversation context | core_gui.py:1039 | Передача истории в brain.process_query |
+| 75 | Full conversation memory | query_processor.py:670+ | _store_conversation, _get_conversation_context |
+| 76 | Conversation memory GUI | core_gui.py:1039+ | Получение из MemoryManager |
+| 77 | get_conversation_history | memory_manager.py:785+ | Новый метод для получения истории |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -849,9 +852,46 @@ Confidence = (ethics_score × 0.30) +
 - [x] Chat display artifacts fix applied
 - [x] Keyboard shortcuts Ctrl+C/V/X добавлены
 
+### 26.10 Тестирование
+
+- [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
+- [x] python -m cogniflex.run - система запускается
+- [x] ChatModule _import_pipeline инициализирован
+- [x] Chat display artifacts fix applied
+- [x] Keyboard shortcuts Ctrl+C/V/X добавлены
+- [x] Conversation memory integration complete
+
 ---
 
-## 27. Созданные файлы
+## 27. Полная Поддержка Памяти Разговора (2026-03-26)
+
+### 27.1 QueryProcessor интеграция
+
+- `cogniflex/core/query_processor.py:670+`:
+  - `_store_conversation()` - сохранение запроса/ответа в MemoryManager
+  - `_get_conversation_context()` - получение контекста перед обработкой
+  - Интеграция в process_query() для автоматического сохранения
+
+### 27.2 CoreGUI интеграция
+
+- `cogniflex/gui/core_gui.py:1039+`:
+  - Получение истории из MemoryManager помимо message_history
+  - Объединение контекста из обоих источников
+
+### 27.3 MemoryManager дополнение
+
+- `cogniflex/memory/memory_manager.py:785+`:
+  - `get_conversation_history()` - новый метод для получения истории
+
+### 27.4 Как работает
+
+1. После каждого ответа сохраняется в MemoryManager через `add_interaction()`
+2. При новом запросе извлекается последние 10 обменов из памяти
+3. Контекст передается в модель для понимания предыдущих сообщений
+
+---
+
+## 28. Созданные файлы
 
 | Файл | Описание |
 |------|-----------|
