@@ -179,10 +179,9 @@ class FractalModelManager:
                     input_ids=inputs['input_ids'],
                     attention_mask=inputs.get('attention_mask'),
                     max_new_tokens=max_tokens,
-                    do_sample=False,
+                    do_sample=True,
                     pad_token_id=self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else 0,
-                    no_repeat_ngram_size=3,
-                    repetition_penalty=2.0,
+                    repetition_penalty=1.1,
                 )
             
             # Декодируем

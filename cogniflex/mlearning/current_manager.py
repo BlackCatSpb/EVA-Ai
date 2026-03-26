@@ -514,15 +514,11 @@ class OptimizedFractalModelManager:
                     num_return_sequences=1,
                     do_sample=True,
                     temperature=0.7,
-                    top_k=40,
-                    top_p=0.85,
+                    top_k=50,
+                    top_p=0.9,
                     pad_token_id=self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    no_repeat_ngram_size=2,
-                    repetition_penalty=1.1,
-                    length_penalty=1.2,
-                    num_beams=3,
-                    early_stopping=True
+                    repetition_penalty=1.1
                 )
             
             # Декодируем ответ

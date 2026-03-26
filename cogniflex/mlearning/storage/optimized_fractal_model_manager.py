@@ -557,13 +557,12 @@ class OptimizedFractalModelManager:
                     max_length=input_ids.shape[1] + max_tokens,
                     num_return_sequences=1,
                     do_sample=True,
-                    temperature=0.8,
+                    temperature=0.7,
                     top_k=50,
                     top_p=0.9,
                     pad_token_id=self.tokenizer.pad_token_id if self.tokenizer.pad_token_id else self.tokenizer.eos_token_id,
                     eos_token_id=self.tokenizer.eos_token_id,
-                    no_repeat_ngram_size=2,
-                    repetition_penalty=1.2
+                    repetition_penalty=1.1
                 )
             
             # Декодируем ответ

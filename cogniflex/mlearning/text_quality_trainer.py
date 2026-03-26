@@ -314,8 +314,8 @@ class TextQualityTrainer:
                         num_return_sequences=1,
                         do_sample=True,
                         temperature=0.7,
-                        top_k=40,
-                        top_p=0.85,
+                        top_k=50,
+                        top_p=0.9,
                         pad_token_id=self.tokenizer.eos_token_id,
                         eos_token_id=self.tokenizer.eos_token_id,
                         early_stopping=True

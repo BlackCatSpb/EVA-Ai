@@ -494,9 +494,8 @@ class HybridModelManager:
                     inputs,
                     max_length=inputs.shape[1] + max_tokens,
                     temperature=temperature,
-                    do_sample=False,
-                    repetition_penalty=2.0,
-                    no_repeat_ngram_size=3,
+                    do_sample=True,
+                    repetition_penalty=1.1,
                     pad_token_id=tokenizer.eos_token_id,
                     attention_mask=torch.ones_like(inputs)
                 )

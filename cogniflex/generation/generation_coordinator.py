@@ -455,7 +455,7 @@ def main():
             top_p=0.8,
             top_k=30,
             use_cache=True,
-            do_sample=False,  # Отключено для стабильности
+            do_sample=True,  # Отключено для стабильности
             num_beams=2  # Используем beam search для более качественной генерации
         )
         

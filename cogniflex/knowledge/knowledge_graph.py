@@ -3830,8 +3830,8 @@ class KnowledgeGraph:
             # Генерируем ответ
             response = self.ml_unit.generate_response(
                 prompt=prompt,
-                max_length=200,
-                temperature=0.3,
+                max_length=32768,
+                temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
             )
@@ -6342,7 +6342,7 @@ class KnowledgeGraph:
             # Генерируем ответ
             response = self.ml_unit.generate_response(
                 prompt=prompt,
-                max_length=800,
+                max_length=32768,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
@@ -6465,8 +6465,8 @@ class KnowledgeGraph:
             # Генерируем ответ
             response = self.ml_unit.generate_response(
                 prompt=prompt,
-                max_length=1000,
-                temperature=0.5,
+                max_length=32768,
+                temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
             )
@@ -6593,8 +6593,8 @@ class KnowledgeGraph:
             # Генерируем ответ
             response = self.ml_unit.generate_response(
                 prompt=prompt,
-                max_length=800,
-                temperature=0.4,
+                max_length=32768,
+                temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
             )
@@ -7014,8 +7014,8 @@ class KnowledgeGraph:
             # Генерируем ответ
             response = self.ml_unit.generate_response(
                 prompt=prompt,
-                max_length=1200,
-                temperature=0.5,
+                max_length=32768,
+                temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
             )
