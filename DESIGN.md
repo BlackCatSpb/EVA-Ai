@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.21
+Версия: 1.22
 
 ---
 
@@ -213,6 +213,8 @@ User Query → CoreBrain.process_query()
 | 70 | qwen_api_enhancer max_tokens | qwen_api_enhancer.py:177 | max_tokens → max_new_tokens |
 | 71 | ChatModule _import_pipeline | chat_module.py:114 | Добавлена инициализация в __init__ |
 | 72 | ChatModule display artifacts | chat_module.py:854 | Добавлен update_idletasks() |
+| 73 | ChatModule keyboard shortcuts | chat_module.py:687-700 | Добавлены Ctrl+C/V/X |
+| 74 | Conversation context | core_gui.py:1039 | Передача истории в brain.process_query |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -831,12 +833,21 @@ Confidence = (ethics_score × 0.30) +
 
 - `cogniflex/gui/chat_module.py:854` - Добавлен update_idletasks() для предотвращения артефактов отображения
 
-### 26.7 Тестирование
+### 26.7 Chat Keyboard Shortcuts
+
+- `cogniflex/gui/chat_module.py:687-700` - Явно добавлены бинды для Ctrl+C, Ctrl+V, Ctrl+X
+
+### 26.8 Conversation Context
+
+- `cogniflex/gui/core_gui.py:1039` - Передача последних 10 сообщений в brain.process_query() как conversation_history
+
+### 26.9 Тестирование
 
 - [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
 - [x] python -m cogniflex.run - система запускается
 - [x] ChatModule _import_pipeline инициализирован
 - [x] Chat display artifacts fix applied
+- [x] Keyboard shortcuts Ctrl+C/V/X добавлены
 
 ---
 
