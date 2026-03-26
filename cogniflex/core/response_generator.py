@@ -331,10 +331,20 @@ class ResponseGenerator:
                 logger.info("Токенизатор инициализирован")
                 return True
             
-            # Fallback: пробуем загрузить напрямую из модели (qwen3.5-0.8b - активная модель из brain_config.json)
+            # Fallback: пробуем загрузить напрямую из модели (используем путь из brain_config.json)
             try:
                 from transformers import AutoTokenizer
-                model_path = "C:/Users/black/OneDrive/Desktop/CogniFlex/cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b"
+                cfg = {}
+                try:
+                    import json
+                    config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'brain_config.json')
+                    if os.path.exists(config_path):
+                        with open(config_path, 'r', encoding='utf-8') as f:
+                            cfg = json.load(f)
+                except Exception:
+                    pass
+                model_rel_path = cfg.get('model', {}).get('path', 'cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b')
+                model_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), model_rel_path)
                 if os.path.exists(model_path):
                     try:
                         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)

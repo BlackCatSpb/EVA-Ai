@@ -152,8 +152,8 @@ class CoreBrain:
         self.status_queue = queue.Queue()
         self.deferred_commands = []
         
-        # Настройки троттлинга логов (по умолчанию 30 секунд)
-        self.log_throttle_seconds = int(self.config.get("log_throttle_seconds", 30))
+        # Настройки троттлинга логов
+        self.log_throttle_seconds = int(self.config.get("system", {}).get("log_throttle_seconds", 30))
         self._log_throttle: Dict[str, float] = {}
         
         # Инициализация системы отложенных команд
