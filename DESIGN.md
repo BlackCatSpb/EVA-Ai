@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.14
+Версия: 1.15
 
 ---
 
@@ -187,6 +187,12 @@ User Query → CoreBrain.process_query()
 | 44 | generation_coordinator num_beams conflict | generation_coordinator.py:459 | Удалён num_beams при do_sample=True |
 | 45 | hybrid_model_manager max_tokens default | hybrid_model_manager.py:404,481,495 | max_tokens → max_new_tokens, default 2048 |
 | 46 | text_quality_improver num_beams | text_quality_improver.py:95,103,116 | Удалён beam search |
+| 47 | fractal_model_manager max_tokens cap | fractal_model_manager.py:161 | 30 → 2048 |
+| 48 | model_config.py DEFAULT_SETTINGS | model_config.py:50-59 | temp 0.7, top_p 0.9, max_new_tokens 2048 |
+| 49 | model_config.py MODEL_CONFIGS | model_config.py:6-37 | GPT-2 → Qwen models |
+| 50 | qwen_api_client max_tokens | qwen_api_client.py:176 | max_tokens → max_new_tokens |
+| 51 | web_search_learning_integration max_tokens | web_search_learning_integration.py:260,420 | max_tokens → max_new_tokens |
+| 52 | text_quality_learning_integration max_tokens | text_quality_learning_integration.py:450 | max_tokens → max_new_tokens |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -688,3 +694,37 @@ Confidence = (ethics_score × 0.30) +
 
 - [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
 - [x] python -c "from cogniflex.mlearning.hybrid_model_manager import HybridModelManager" - OK
+
+---
+
+## 23. Последние Исправления (2026-03-26) - AI Agent Round 14
+
+### 23.1 Fractal Model Manager max_tokens cap
+
+- `fractal_model_manager.py:161` - Изменён cap с 30 на 2048 токенов
+
+### 23.2 Model Config DEFAULT_SETTINGS
+
+| Параметр | Было | Стало |
+|----------|------|-------|
+| temperature | 0.4 | 0.7 |
+| top_p | 0.75 | 0.9 |
+| max_tokens | 200 | max_new_tokens: 2048 |
+
+### 23.3 Model Config MODEL_CONFIGS
+
+- MODEL_CONFIGS: GPT-2 → Qwen модели (qwen3.5-0.8b, qwen3.5-2b, qwen3-1.8b)
+
+### 23.4 max_tokens → max_new_tokens
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| qwen_api_client.py | 176 | max_tokens=5 | max_new_tokens=5 |
+| web_search_learning_integration.py | 260 | max_tokens | max_new_tokens |
+| web_search_learning_integration.py | 420 | max_tokens=150 | max_new_tokens=150 |
+| text_quality_learning_integration.py | 450 | max_tokens=50 | max_new_tokens=50 |
+
+### 23.5 Тестирование
+
+- [x] python -c "from cogniflex.mlearning.model_config import DEFAULT_SETTINGS" - OK
+- [x] python -c "from cogniflex.mlearning.fractal_model_manager import FractalModelManager" - OK
