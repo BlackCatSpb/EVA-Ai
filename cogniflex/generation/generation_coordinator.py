@@ -451,9 +451,9 @@ def main():
         result = coordinator.generate_response(
             prompt=prompt,
             max_new_tokens=2048,  # Увеличили лимит токенов
-            temperature=0.3,
-            top_p=0.8,
-            top_k=30,
+            temperature=0.7,
+            top_p=0.9,
+            top_k=50,
             use_cache=True,
             do_sample=True,  # Отключено для стабильности
             num_beams=2  # Используем beam search для более качественной генерации

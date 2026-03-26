@@ -103,9 +103,9 @@ class UnifiedFractalManager:
         # По умолчанию используем оптимизированный
         return True
     
-    def generate_response(self, query: str, max_tokens: int = 100) -> str:
+    def generate_response(self, query: str, max_new_tokens: int = 100) -> str:
         """Генерирует ответ"""
-        return self.manager.generate_response(query, max_tokens)
+        return self.manager.generate_response(query, max_new_tokens)
     
     def get_quality_metrics(self) -> Dict[str, Any]:
         """Возвращает метрики качества"""

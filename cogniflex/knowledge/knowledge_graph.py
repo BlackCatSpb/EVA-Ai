@@ -3831,6 +3831,7 @@ class KnowledgeGraph:
             response = self.ml_unit.generate_response(
                 prompt=prompt,
                 max_length=32768,
+                max_new_tokens=2048,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
@@ -6343,6 +6344,7 @@ class KnowledgeGraph:
             response = self.ml_unit.generate_response(
                 prompt=prompt,
                 max_length=32768,
+                max_new_tokens=2048,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
@@ -6466,6 +6468,7 @@ class KnowledgeGraph:
             response = self.ml_unit.generate_response(
                 prompt=prompt,
                 max_length=32768,
+                max_new_tokens=2048,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
@@ -6594,6 +6597,7 @@ class KnowledgeGraph:
             response = self.ml_unit.generate_response(
                 prompt=prompt,
                 max_length=32768,
+                max_new_tokens=2048,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"
@@ -7015,6 +7019,7 @@ class KnowledgeGraph:
             response = self.ml_unit.generate_response(
                 prompt=prompt,
                 max_length=32768,
+                max_new_tokens=2048,
                 temperature=0.7,
                 top_p=0.9,
                 task="text-generation"

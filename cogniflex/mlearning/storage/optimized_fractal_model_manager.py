@@ -515,15 +515,15 @@ class OptimizedFractalModelManager:
         
         return all_results
     
-    def generate_response(self, query: str, max_tokens: int = 100) -> str:
+    def generate_response(self, query: str, max_new_tokens: int = 100) -> str:
         """Генерирует ответ (обратная совместимость)"""
-        return self.generate_response_optimized(query, max_tokens)
+        return self.generate_response_optimized(query, max_new_tokens)
     
-    def generate_text(self, query: str, max_length: int = 100) -> str:
+    def generate_text(self, query: str, max_new_tokens: int = 100) -> str:
         """Генерирует текст (основной метод для совместимости)"""
-        return self.generate_response_optimized(query, max_length)
+        return self.generate_response_optimized(query, max_new_tokens)
     
-    def generate_response_optimized(self, query: str, max_tokens: int = 100) -> str:
+    def generate_response_optimized(self, query: str, max_new_tokens: int = 100) -> str:
         """Оптимизированная генерация ответа"""
         
         if not self.initialized:
@@ -554,7 +554,7 @@ class OptimizedFractalModelManager:
                 output = self.model.generate(
                     input_ids,
                     attention_mask=attention_mask,
-                    max_length=input_ids.shape[1] + max_tokens,
+                    max_new_tokens=max_new_tokens,
                     num_return_sequences=1,
                     do_sample=True,
                     temperature=0.7,
