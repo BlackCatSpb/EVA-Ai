@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.10
+Версия: 1.11
 
 ---
 
@@ -165,6 +165,12 @@ User Query → CoreBrain.process_query()
 | 22 | ResponseGenerator max_length | response_generator.py:682,690,701,764 | 1024/512/2048 → 32768 |
 | 23 | TokenizationConfig max_length | cogniflex_tokenizer.py:99 | 512 → 32768 |
 | 24 | TextDataset max_length | text_quality_trainer.py:38 | 128 → 32768 |
+| 25 | QwenModelManager self.config | qwen_model_manager.py:374 | self.config → self.device |
+| 26 | QwenModelManager default model | qwen_model_manager.py:191 | qwen3.5-2b → qwen3.5-0.8b |
+| 27 | optimized_fractal_model_manager max_length | optimized_fractal_model_manager.py:159 | 128 → 32768 |
+| 28 | current_manager max_length | current_manager.py:150 | 128 → 32768 |
+| 29 | fractal_model_manager default model | fractal_model_manager.py:337,348 | gpt2 → qwen3.5-0.8b |
+| 30 | core_brain rugpt3 path | core_brain.py:345 | rugpt3_small_fractal → qwen3.5-0.8b |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -484,6 +490,36 @@ Confidence = (ethics_score × 0.30) +
 - [x] python -c "from cogniflex.core.response_generator import ResponseGenerator" - OK
 - [x] python -c "from cogniflex.core.core_brain import CoreBrain" - OK
 - [x] Все импорты работают корректно
+
+---
+
+## 19. Последние Исправления (2026-03-26) - AI Agent Round 10
+
+### 19.1 QwenModelManager исправления
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| qwen_model_manager.py | 191 | qwen3.5-2b | qwen3.5-0.8b |
+| qwen_model_manager.py | 374 | self.config.get(...) | self.device |
+
+### 19.2 Storage Managers max_length
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| optimized_fractal_model_manager.py | 159 | 128 | 32768 |
+| current_manager.py | 150 | 128 | 32768 |
+
+### 19.3 FractalModelManager и CoreBrain
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| fractal_model_manager.py | 337, 348 | gpt2 | qwen3.5-0.8b |
+| core_brain.py | 345 | rugpt3_small_fractal | qwen3.5-0.8b |
+
+### 19.4 Тестирование
+
+- [x] python -c "from cogniflex.mlearning.qwen_model_manager import QwenModelManager" - OK
+- [x] python -c "from cogniflex.mlearning.fractal_model_manager import FractalModelManager" - OK
 
 ---
 
