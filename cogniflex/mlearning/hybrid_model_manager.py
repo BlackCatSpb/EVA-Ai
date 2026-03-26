@@ -401,7 +401,7 @@ class HybridModelManager:
                 model_name = list(available_models.keys())[0]
                 
                 # Извлекаем параметры
-                max_tokens = kwargs.get('max_tokens', kwargs.get('max_length', 500))
+                max_tokens = kwargs.get('max_tokens', kwargs.get('max_new_tokens', kwargs.get('max_length', 2048)))
                 temperature = kwargs.get('temperature', 0.7)
                 
                 # Генерируем ответ через внутренний метод
@@ -478,7 +478,7 @@ class HybridModelManager:
         
         return 'Интересный вопрос! Расскажите подробнее.'
     
-    def _generate_with_model(self, model, tokenizer, prompt: str, max_tokens: int,
+    def _generate_with_model(self, model, tokenizer, prompt: str, max_new_tokens: int,
                            temperature: float, device: str, **kwargs) -> str:
         """Генерирует текст с моделью"""
         try:
@@ -492,7 +492,7 @@ class HybridModelManager:
             with torch.no_grad():
                 outputs = model.generate(
                     inputs,
-                    max_length=inputs.shape[1] + max_tokens,
+                    max_length=inputs.shape[1] + max_new_tokens,
                     temperature=temperature,
                     do_sample=True,
                     repetition_penalty=1.1,

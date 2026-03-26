@@ -90,33 +90,26 @@ class TextQualityImprover:
             'top_k': 40,
             'top_p': 0.85,
             'repetition_penalty': 1.1,
-            'length_penalty': 1.2,
             'no_repeat_ngram_size': 2,
-            'num_beams': 3,
-            'early_stopping': True
         }
         
         # Адаптируем параметры на основе метрик
         if metrics.coherence_score < 0.5:
             params['temperature'] = 0.6  # Более предсказуемая генерация
             params['top_k'] = 30
-            params['num_beams'] = 5
             
         if metrics.diversity_score < 0.3:
             params['temperature'] = 0.8  # Более разнообразная генерация
             params['repetition_penalty'] = 1.3
             
         if metrics.length_score < 0.4:
-            params['length_penalty'] = 1.5  # Более длинные ответы
             params['max_tokens'] = 150
             
         # Специфичные параметры для разных типов запросов
         if '?' in query:
             params['temperature'] = 0.65  # Более точные ответы на вопросы
-            params['num_beams'] = 4
             
         if 'расскажи' in query.lower() or 'опиши' in query.lower():
-            params['length_penalty'] = 1.8  # Более развернутые ответы
             params['max_tokens'] = 200
             
         return params
