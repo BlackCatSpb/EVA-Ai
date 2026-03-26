@@ -684,8 +684,14 @@ class ChatModule:
         self.input_text.bind("<Down>", self._on_history_down)
         
         # Горячие клавиши - используем стандартное поведение + свои обработчики
-        # Ctrl+C, Ctrl+V, Ctrl+X работают по умолчанию в Text виджетах
-        # Дополнительные клавиши
+        # Явно добавляем Ctrl+C, Ctrl+V, Ctrl+X для надежности
+        self.input_text.bind("<Control-c>", self._on_copy_shortcut)
+        self.input_text.bind("<Control-C>", self._on_copy_shortcut)
+        self.input_text.bind("<Control-v>", self._on_paste_shortcut)
+        self.input_text.bind("<Control-V>", self._on_paste_shortcut)
+        self.input_text.bind("<Control-x>", self._on_cut_shortcut)
+        self.input_text.bind("<Control-X>", self._on_cut_shortcut)
+        # Ctrl+A для выделения всего
         self.input_text.bind("<Control-a>", self._on_select_all_shortcut)
         self.input_text.bind("<Control-A>", self._on_select_all_shortcut)
         self.input_text.bind("<Control-q>", 

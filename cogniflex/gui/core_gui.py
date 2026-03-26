@@ -1036,7 +1036,15 @@ class CogniFlexGUI:
             self.chat_logger.info(f"Начало обработки запроса в ядре. Токенов: {len(tokens)}")
             
             # 9. Вызываем обработку запроса
-            response_obj = self.brain.process_query(query)
+            # Передаем историю сообщений как контекст для сохранения памяти разговора
+            history_context = None
+            if hasattr(self, 'chat_module') and hasattr(self.chat_module, 'message_history'):
+                # Ограничиваем историю последними 10 сообщениями для экономии токенов
+                recent_history = self.chat_module.message_history[-10:] if self.chat_module.message_history else []
+                if recent_history:
+                    history_context = {"conversation_history": recent_history}
+            
+            response_obj = self.brain.process_query(query, context=history_context)
             
             # Извлекаем текст из ответа (может быть dict или str)
             if isinstance(response_obj, dict):
