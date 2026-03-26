@@ -422,7 +422,7 @@ def main():
         # Инициализируем координатор
         print("Инициализация координатора генерации...")
         coordinator = GenerationCoordinator(
-            model_name="sberbank-ai/rugpt3large_based_on_gpt2",
+            model_name="qwen3.5-0.8b",
             num_workers=4,
             cache_dir="./cache",
             max_cache_size_gb=50

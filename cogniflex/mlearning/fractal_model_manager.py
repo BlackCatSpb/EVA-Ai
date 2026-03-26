@@ -422,18 +422,18 @@ class FractalModelManager:
         
         # Возвращаем информацию о текущей модели
         model_info = {
-            "name": (self.config.get("model", {}) or {}).get("name", "rugpt3large") if self.config else "rugpt3large",
-            "display_name": "Qwen3.5-2B",
+            "name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b",
+            "display_name": "Qwen3.5-0.8B",
             "type": "text-generation",
             "status": "loaded" if self.model and self.tokenizer else "error",
             "device": str(self.device) if hasattr(self, 'device') else "unknown",
             "initialized": self.initialized,
             "has_fractal_support": True,
             "model_path": self.model_path,
-            "description": "Qwen3.5-2B для генерации текста"
+            "description": "Qwen3.5-0.8B для генерации текста"
         }
         
-        # Возвращаем только одну модель - ruGPT-3 Large
+        # Возвращаем только одну модель - Qwen
         return {
-            "rugpt3_small_fractal": model_info
+            "qwen3.5-0.8b_fractal": model_info
         }

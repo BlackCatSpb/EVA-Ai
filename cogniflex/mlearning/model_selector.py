@@ -53,7 +53,7 @@ class ModelSelector:
     
     def __init__(self, cache_dir: Optional[str] = None):
         self.cache_dir = cache_dir or os.path.join(os.getcwd(), "cogniflex_cache", "models")
-        self.current_model = "rugpt3large"
+        self.current_model = "qwen3.5-0.8b"
         self.loaded_model = None
         
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -72,7 +72,7 @@ class ModelSelector:
         Переключается на указанную модель
         
         Args:
-            model_name: Имя модели (rugpt3large, qwen3.5-0.8b, qwen3.5-2b, bitnet-2b)
+            model_name: Имя модели (qwen3.5-0.8b, qwen3.5-2b, bitnet-2b)
             
         Returns:
             True если успешно
@@ -106,12 +106,8 @@ class ModelSelector:
             logger.warning(f"Модель {model_name} отключена конфигурацией")
             return False
         
-        if model_name == "rugpt3large":
-            # Текущая модель уже загружена
-            return True
-        
         # Загружать другие модели запрещено
-        logger.warning(f"Модель {model_name} недоступна - разрешена только RUGPT3")
+        logger.warning(f"Модель {model_name} недоступна")
         return False
     
     def _load_qwen(self, model_name: str) -> bool:
@@ -177,7 +173,7 @@ class ModelSelector:
         
         # Возвращаем статус
         for name in MODEL_CONFIGS:
-            if name != "rugpt3large":
+            if name != "qwen3.5-0.8b":
                 MODEL_CONFIGS[name]["status"] = "not_loaded"
     
     def get_recommendation(self) -> str:

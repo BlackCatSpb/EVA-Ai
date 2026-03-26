@@ -33,26 +33,6 @@ MODEL_CONFIGS = {
         "supports_gpu": True,
         "supports_russian": False,
         "quality": 5
-    },
-    "rugpt3large": {
-        "name": "sberbank-ai/rugpt3large_based_on_gpt2",
-        "display_name": "ruGPT-3 Small",
-        "description": "Русская модель от Сбера (125M параметров)",
-        "requires_download": True,
-        "size_mb": 600,
-        "supports_gpu": True,
-        "supports_russian": True,
-        "quality": 6
-    },
-    "rugpt3large": {
-        "name": "sberbank-ai/rugpt3large_based_on_gpt2",
-        "display_name": "ruGPT-3 Medium",
-        "description": "Русская модель от Сбера (355M параметров)",
-        "requires_download": True,
-        "size_mb": 1500,
-        "supports_gpu": True,
-        "supports_russian": True,
-        "quality": 7
     }
 }
 
@@ -60,9 +40,9 @@ MODEL_CONFIGS = {
 MODEL_RECOMMENDATIONS = {
     "fast": "gpt2",
     "balanced": "gpt2-medium", 
-    "quality": "rugpt3large",
-    "russian": "rugpt3large",
-    "gpu": "rugpt3large"
+    "quality": "qwen3.5-0.8b",
+    "russian": "qwen3.5-0.8b",
+    "gpu": "qwen3.5-0.8b"
 }
 
 # Настройки по умолчанию
