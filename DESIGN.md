@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.12
+Версия: 1.13
 
 ---
 
@@ -179,6 +179,11 @@ User Query → CoreBrain.process_query()
 | 36 | knowledge_graph temperature | knowledge_graph.py:3834,6346,6469,6597,7018 | 0.3-0.5 → 0.7 |
 | 37 | generation_coordinator do_sample | generation_coordinator.py:458 | False → True |
 | 38 | text_quality_trainer params | text_quality_trainer.py:315-318 | top_p 0.9, top_k 50 |
+| 39 | generation_coordinator main() params | generation_coordinator.py:454-459 | temp 0.7, top_p 0.9, top_k 50 |
+| 40 | knowledge_graph max_new_tokens | knowledge_graph.py:3831,6343,6466,6594,7015 | Добавлен max_new_tokens=2048 |
+| 41 | optimized_fractal_model_manager max_new_tokens | optimized_fractal_model_manager.py:518 | max_tokens → max_new_tokens |
+| 42 | unified_fractal_manager parameter | unified_fractal_manager.py:106 | max_tokens → max_new_tokens |
+| 43 | ml_unit test code max_new_tokens | ml_unit.py:449-455 | Добавлен max_new_tokens=2048 |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -629,3 +634,30 @@ Confidence = (ethics_score × 0.30) +
 
 - [x] python -c "from cogniflex.mlearning.fractal_model_manager import FractalModelManager" - OK
 - [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
+
+---
+
+## 21. Последние Исправления (2026-03-26) - AI Agent Round 12
+
+### 21.1 Generation Coordinator main() params
+
+| Линия | Было | Стало |
+|-------|------|-------|
+| 454-459 | temp=0.3, top_p=0.8, top_k=30 | temp=0.7, top_p=0.9, top_k=50 |
+
+### 21.2 KnowledgeGraph max_new_tokens
+
+Добавлен `max_new_tokens=2048` к 5 вызовам ml_unit.generate_response() в строках 3831, 6343, 6466, 6594, 7015
+
+### 21.3 Fractal Managers max_new_tokens
+
+| Файл | Линия | Было | Стало |
+|------|-------|------|-------|
+| optimized_fractal_model_manager.py | 518 | max_length=max_tokens pattern | max_new_tokens |
+| unified_fractal_manager.py | 106 | max_tokens | max_new_tokens |
+| ml_unit.py | 449-455 | (test code missing) | Добавлен max_new_tokens=2048 |
+
+### 21.4 Тестирование
+
+- [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
+- [x] python -c "from cogniflex.knowledge.knowledge_graph import KnowledgeGraph" - OK
