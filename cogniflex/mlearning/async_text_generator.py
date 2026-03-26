@@ -7,10 +7,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 import os
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
+
+logger = logging.getLogger("cogniflex.async_text_generator")
 
 import torch
 from cogniflex.memory.disk_cache import DiskCache
@@ -121,8 +124,8 @@ class AsyncTextGenerator:
         try:
             kv_max_items = int(cache_opts.get("kv_max_items", self.kv_cache.max_items))
             self.kv_cache.max_items = max(2, kv_max_items)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to set KV cache max_items: {e}")
 
         # Lazy init disk caches if enabled
         if enable_prompt_cache and enable_disk_prompt_cache and self._disk_prompt_cache is None:
@@ -131,12 +134,14 @@ class AsyncTextGenerator:
                     disk_cache_dir,
                     max_size_gb=float(cache_opts.get("disk_max_gb", 20.0)),
                 )
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Disk prompt cache init failed: {e}")
                 self._disk_prompt_cache = None
         if self._disk_kv_meta_cache is None:
             try:
                 self._disk_kv_meta_cache = DiskCache(os.path.join(disk_cache_dir, "kv_meta"), max_size_gb=1.0)
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Disk KV meta cache init failed: {e}")
                 self._disk_kv_meta_cache = None
 
         # Build cache keys
@@ -196,8 +201,8 @@ class AsyncTextGenerator:
                             "attention_mask": attn_mask.detach().cpu() if attn_mask is not None else None,
                             "created_at": time.time(),
                         })
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Disk prompt cache put failed: {e}")
 
         eos_token_id = tokenizer.eos_token_id if getattr(tokenizer, "eos_token_id", None) is not None else None
 
@@ -212,8 +217,8 @@ class AsyncTextGenerator:
                 if _TF_DynamicCache is not None and past_key_values is not None and isinstance(past_key_values, (list, tuple)):
                     try:
                         past_key_values = _TF_DynamicCache.from_legacy_cache(past_key_values)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to convert legacy cache to DynamicCache: {e}")
 
         # Try reuse KV cache (after prefill we store it under kv_key)
         if enable_kv_cache:
@@ -233,8 +238,8 @@ class AsyncTextGenerator:
                                 "tok": tokenizer_key,
                                 "prompt_hash": prompt_key,
                             })
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"Disk KV meta cache put failed: {e}")
 
         # Decode loop
         generated_ids: List[int] = []
@@ -255,8 +260,8 @@ class AsyncTextGenerator:
                     if _TF_DynamicCache is not None and pkv_new is not None and isinstance(pkv_new, (list, tuple)):
                         try:
                             pkv_new = _TF_DynamicCache.from_legacy_cache(pkv_new)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"Failed to convert legacy cache to DynamicCache in decode: {e}")
                     past_key_values = pkv_new
 
             next_id = _sample_token(logits, cfg)
