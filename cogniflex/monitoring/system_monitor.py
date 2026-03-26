@@ -248,7 +248,7 @@ class SystemMonitor:
                 
                 # Определяем корневой диск для Windows и Unix
                 if platform.system() == 'Windows':
-                    disk_path = 'C:\\'
+                    disk_path = os.environ.get('SystemDrive', 'C:') + '\\'
                 else:
                     disk_path = '/'
                 
@@ -392,7 +392,7 @@ class SystemMonitor:
             self.metrics_collector.record_metric("system.memory_used_gb", memory.used / (1024**3))
 
             # Disk
-            disk = psutil.disk_usage('/') if platform.system() != 'Windows' else psutil.disk_usage('C:\\')
+            disk = psutil.disk_usage('/') if platform.system() != 'Windows' else psutil.disk_usage(os.environ.get('SystemDrive', 'C:') + '\\')
             self.metrics_collector.record_metric("system.disk_percent", disk.percent)
 
             # Network (если доступно)
