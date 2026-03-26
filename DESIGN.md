@@ -324,3 +324,34 @@ Confidence = (ethics_score × 0.30) +
 
 - **Main branch**: `C:/Users/black/OneDrive/Desktop/CogniFlex` - активная разработка
 - **Worktrees**: `C:/Users/black/.windsurf/worktrees/CogniFlex/` - старые снимки, не используются
+
+---
+
+## 13. Последние Исправления (2026-03-26)
+
+### 13.1 Исправленные Ошибки
+
+| # | Проблема | Файл | Исправление |
+|---|----------|------|-------------|
+| 1 | Синтаксическая ошибка в модели | model_selector.py | Удалены orphaned dictionary entries |
+
+### 13.2 Тестирование
+
+- [x] python -m cogniflex.run - успешный запуск
+- [x] GUI (1280x800) - запускается  
+- [x] model_selector.py - импортируется корректно
+
+---
+
+## 14. История Версий (Полная)
+
+| Версия | Дата | Описание |
+|--------|------|----------|
+| 1.0 | 2026-03-23 | Начальная версия плана |
+| 1.1 | 2026-03-23 | Реализация: fractal_base.py, confidence_scorer.py, clarification_generator.py, reasoning_types.py, self_reasoning_engine.py, integration.py |
+| 1.2 | 2026-03-25 | AI Agent исправления: Tokenizer, GUI, FractalStorage, Config imports |
+| 1.3 | 2026-03-25 | max_new_tokens/max_length фиксы, pass statement исправления |
+| 1.4 | 2026-03-25 | Config alignment, device management, hardcoded values |
+| 1.5 | 2026-03-26 | Qwen-only модель (убраны RUGPT3 ссылки), обновлён CLAUDE.md |
+| 1.6 | 2026-03-26 | Исправлена синтаксическая ошибка в model_selector.py
+- **Worktrees**: `C:/Users/black/.windsurf/worktrees/CogniFlex/` - старые снимки, не используются
