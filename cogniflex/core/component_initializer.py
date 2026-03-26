@@ -273,6 +273,7 @@ class ComponentInitializer:
         
         def create_knowledge_graph():
             try:
+                _ensure_cogniflex_path()
                 from cogniflex.knowledge.knowledge_graph_integrated import IntegratedKnowledgeGraph
                 event_bus = getattr(self.core_brain, 'event_bus', None)
                 knowledge_graph = IntegratedKnowledgeGraph(
@@ -308,6 +309,7 @@ class ComponentInitializer:
         
         def create_text_processor():
             try:
+                _ensure_cogniflex_path()
                 from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
                 text_processor = UnifiedTextProcessor(brain=self.core_brain)
                 hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
