@@ -8,6 +8,7 @@ from . import storage
 from .model_manager import ModelManager
 from .cogniflex_tokenizer import CogniFlexTokenizer
 from .async_text_generator import AsyncTextGenerator
+from .unified_text_processor import UnifiedTextProcessor
 
 # Fractal Transformer components
 from .fractal_transformer import FractalTransformer, FractalConfig
@@ -23,6 +24,7 @@ __all__ = [
     "ModelManager",
     "CogniFlexTokenizer",
     "AsyncTextGenerator",
+    "UnifiedTextProcessor",
     
     # Fractal Transformer components
     "FractalTransformer",
