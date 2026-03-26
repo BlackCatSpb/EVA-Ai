@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.18
+Версия: 1.19
 
 ---
 
@@ -207,6 +207,10 @@ User Query → CoreBrain.process_query()
 | 64 | enhanced_learning_integration max_tokens | enhanced_learning_integration.py:387 | max_tokens → max_new_tokens, 100→2048 |
 | 65 | comprehensive_learning_system max_tokens | comprehensive_learning_system.py:377 | max_tokens → max_new_tokens, 100→2048 |
 | 66 | optimized_fractal_model_manager max_tokens | optimized_fractal_model_manager.py:770 | max_tokens → max_new_tokens, 100→2048 |
+| 67 | generation_coordinator temperature | generation_coordinator.py:215 | 0.3 → 0.7 |
+| 68 | text_quality_improver temperature | text_quality_improver.py:98,110 | 0.6, 0.65 → 0.7 |
+| 69 | text_quality_improver max_tokens | text_quality_improver.py:106,113 | max_tokens → max_new_tokens |
+| 70 | qwen_api_enhancer max_tokens | qwen_api_enhancer.py:177 | max_tokens → max_new_tokens |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -796,7 +800,35 @@ Confidence = (ethics_score × 0.30) +
 
 ---
 
-## 26. Созданные файлы
+## 26. Исправления Round 17 (2026-03-26)
+
+### 26.1 Generation Coordinator Temperature
+
+- `cogniflex/generation/generation_coordinator.py:215` - temperature: 0.3 → 0.7
+
+### 26.2 Text Quality Improver
+
+- `cogniflex/mlearning/text_quality_improver.py:98` - temperature: 0.6 → 0.7
+- `cogniflex/mlearning/text_quality_improver.py:106` - max_tokens → max_new_tokens
+- `cogniflex/mlearning/text_quality_improver.py:110` - temperature: 0.65 → 0.7
+- `cogniflex/mlearning/text_quality_improver.py:113` - max_tokens → max_new_tokens
+
+### 26.3 Hybrid Model Manager
+
+- `cogniflex/mlearning/hybrid_model_manager.py:404` - Fixed fallback priority for max_new_tokens
+
+### 26.4 Qwen API Enhancer
+
+- `cogniflex/knowledge/qwen_api_enhancer.py:177` - max_tokens → max_new_tokens
+
+### 26.5 Тестирование
+
+- [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
+- [x] python -m cogniflex.run - система запускается
+
+---
+
+## 27. Созданные файлы
 
 | Файл | Описание |
 |------|-----------|
