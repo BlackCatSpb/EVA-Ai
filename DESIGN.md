@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.19
+Версия: 1.20
 
 ---
 
@@ -211,6 +211,7 @@ User Query → CoreBrain.process_query()
 | 68 | text_quality_improver temperature | text_quality_improver.py:98,110 | 0.6, 0.65 → 0.7 |
 | 69 | text_quality_improver max_tokens | text_quality_improver.py:106,113 | max_tokens → max_new_tokens |
 | 70 | qwen_api_enhancer max_tokens | qwen_api_enhancer.py:177 | max_tokens → max_new_tokens |
+| 71 | ChatModule _import_pipeline | chat_module.py:114 | Добавлена инициализация в __init__ |
 
 ### 3.2 Конфигурационные Исправления
 
@@ -821,10 +822,15 @@ Confidence = (ethics_score × 0.30) +
 
 - `cogniflex/knowledge/qwen_api_enhancer.py:177` - max_tokens → max_new_tokens
 
-### 26.5 Тестирование
+### 26.5 ChatModule ImportPipeline
+
+- `cogniflex/gui/chat_module.py:114` - Добавлена инициализация _import_pipeline в __init__
+
+### 26.6 Тестирование
 
 - [x] python -c "from cogniflex.generation.generation_coordinator import GenerationCoordinator" - OK
 - [x] python -m cogniflex.run - система запускается
+- [x] ChatModule _import_pipeline инициализирован
 
 ---
 
