@@ -234,6 +234,19 @@ class QueryProcessor:
             if ambiguity_info.get("has_ambiguities"):
                 result["ambiguities"] = ambiguity_info
 
+            # 10) Добавляем рассуждения для отображения в GUI
+            try:
+                if hasattr(self.brain, 'reasoning_engine') and self.brain.reasoning_engine:
+                    if hasattr(self.brain.reasoning_engine, 'dialogue') and self.brain.reasoning_engine.dialogue:
+                        steps = self.brain.reasoning_engine.dialogue.steps
+                        if steps:
+                            reasoning_text = "Этапы рассуждения:\n"
+                            for i, step in enumerate(steps[:5], 1):
+                                reasoning_text += f"{i}. {step.phase.value}\n"
+                            result["reasoning"] = reasoning_text
+            except Exception as e:
+                logger.debug(f"Error adding reasoning steps: {e}")
+
             return result
 
         except Exception as e:

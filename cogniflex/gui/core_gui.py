@@ -1066,8 +1066,11 @@ class CogniFlexGUI:
             # Извлекаем текст из ответа (может быть dict или str)
             if isinstance(response_obj, dict):
                 response = response_obj.get('text') or response_obj.get('response') or str(response_obj)
+                # Извлекаем рассуждения для отображения
+                reasoning = response_obj.get('reasoning') or response_obj.get('thinking') or response_obj.get('metadata', {}).get('reasoning_steps', '')
             else:
                 response = str(response_obj) if response_obj else "нет ответа"
+                reasoning = ""
             
             # 10. Логируем время обработки
             processing_time = time.time() - processing_start
@@ -1088,6 +1091,13 @@ class CogniFlexGUI:
             # 13. Логируем сохранение в историю
             self.chat_logger.debug("Сохранение запроса и ответа в историю")
             self._save_to_history(query, response)
+            
+            # 15. Отображаем рассуждения системы если есть
+            if reasoning and hasattr(self, 'chat_module'):
+                try:
+                    self.gui_queue.put(lambda r=reasoning: self.chat_module._set_reasoning_content(r, auto_expand=True))
+                except Exception as e:
+                    self.chat_logger.debug(f"Error displaying reasoning: {e}")
             
             # 14. Логируем общее время обработки запроса
             total_time = time.time() - start_time
