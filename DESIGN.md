@@ -1,7 +1,7 @@
 # CogniFlex Архитектура: Фрактальное Хранилище + Self-Reasoning
 
 ## Дата: 2026-03-26
-Версия: 1.17
+Версия: 1.18
 
 ---
 
@@ -197,6 +197,16 @@ User Query → CoreBrain.process_query()
 | 54 | qwen_api_client max_tokens | qwen_api_client.py:71 | max_tokens → max_new_tokens |
 | 55 | model_config.py top_k | model_config.py:56 | 40 → 50 |
 | 56 | response_generator max_new_tokens | response_generator.py:700-708 | Добавлен max_new_tokens параметр |
+| 57 | SelfReasoningEngine config key | self_reasoning_engine.py:24,48 | DEFAULT_MAX_NEW_TOKENS, max_new_tokens |
+| 58 | SelfReasoningEngine top_k | self_reasoning_engine.py:259-265 | Добавлен top_k=50 |
+| 59 | fractal_model_manager max_tokens | fractal_model_manager.py:135,161 | max_tokens → max_new_tokens, 512→2048 |
+| 60 | hybrid_model_manager max_tokens | hybrid_model_manager.py:438 | max_tokens → max_new_tokens, 500→2048 |
+| 61 | unified_fractal_manager max_tokens | unified_fractal_manager.py:142 | max_tokens → max_new_tokens, 100→2048 |
+| 62 | current_manager max_tokens | current_manager.py:494 | max_tokens → max_new_tokens, 100→2048 |
+| 63 | web_search_learning_integration max_tokens | web_search_learning_integration.py:65 | max_tokens → max_new_tokens, 100→2048 |
+| 64 | enhanced_learning_integration max_tokens | enhanced_learning_integration.py:387 | max_tokens → max_new_tokens, 100→2048 |
+| 65 | comprehensive_learning_system max_tokens | comprehensive_learning_system.py:377 | max_tokens → max_new_tokens, 100→2048 |
+| 66 | optimized_fractal_model_manager max_tokens | optimized_fractal_model_manager.py:770 | max_tokens → max_new_tokens, 100→2048 |
 
 ### 3.2 Конфигурационные Исправления
 
