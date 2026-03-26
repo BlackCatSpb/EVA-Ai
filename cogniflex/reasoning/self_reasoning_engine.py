@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Параметры из DESIGN.md
 MAX_ITERATIONS = 5
-DEFAULT_MAX_TOKENS = 2048
+DEFAULT_MAX_NEW_TOKENS = 2048
 MAX_RECURSION_DEPTH = 3
 
 
@@ -45,7 +45,7 @@ class SelfReasoningEngine:
         # Параметры
         self.max_iterations = self.config.get('max_iterations', MAX_ITERATIONS)
         self.confidence_threshold = self.config.get('confidence_threshold', CONFIDENCE_THRESHOLD)
-        self.max_tokens = self.config.get('max_tokens', DEFAULT_MAX_TOKENS)
+        self.max_new_tokens = self.config.get('max_new_tokens', DEFAULT_MAX_NEW_TOKENS)
         self.max_recursion_depth = self.config.get('max_recursion_depth', MAX_RECURSION_DEPTH)
         
         # Компоненты
@@ -258,9 +258,10 @@ class SelfReasoningEngine:
                 messages = [{"role": "user", "content": prompt}]
                 response = self._qwen_cached.generate(
                     messages,
-                    max_new_tokens=self.max_tokens,
+                    max_new_tokens=self.max_new_tokens,
                     temperature=0.7,
                     top_p=0.9,
+                    top_k=50,
                     repetition_penalty=1.1
                 )
                 if response:

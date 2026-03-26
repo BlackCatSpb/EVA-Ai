@@ -62,13 +62,13 @@ class WebSearchLearningIntegration:
         
         logger.info("WebSearchLearningIntegration инициализирована")
     
-    def search_and_enhance_response(self, query: str, max_tokens: int = 100) -> Dict[str, Any]:
+    def search_and_enhance_response(self, query: str, max_new_tokens: int = 2048) -> Dict[str, Any]:
         """
         Выполняет поиск и улучшает ответ на основе найденной информации
         
         Args:
             query: Запрос пользователя
-            max_tokens: Максимальное количество токенов для ответа
+            max_new_tokens: Максимальное количество токенов для ответа
             
         Returns:
             Dict[str, Any]: Результат с улучшенным ответом и метаданными

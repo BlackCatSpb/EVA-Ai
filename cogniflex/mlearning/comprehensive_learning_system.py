@@ -374,14 +374,14 @@ class ComprehensiveLearningSystem:
         
         self.system_stats["last_update"] = time.time()
     
-    def generate_enhanced_response(self, query: str, max_tokens: int = 100, 
+    def generate_enhanced_response(self, query: str, max_new_tokens: int = 2048, 
                                 use_web_search: bool = True) -> Dict[str, Any]:
         """
         Генерирует улучшенный ответ с использованием веб-поиска
         
         Args:
             query: Запрос пользователя
-            max_tokens: Максимальное количество токенов
+            max_new_tokens: Максимальное количество токенов
             use_web_search: Использовать веб-поиск
             
         Returns:

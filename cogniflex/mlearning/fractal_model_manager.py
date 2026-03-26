@@ -132,13 +132,13 @@ class FractalModelManager:
         else:
             return f"Вопрос: {query}\nКраткий ответ:"
     
-    def generate_response(self, query: str, max_tokens: int = 512, **kwargs) -> str:
+    def generate_response(self, query: str, max_new_tokens: int = 2048, **kwargs) -> str:
         """
         Генерирует ответ с использованием модели.
         
         Args:
             query: Запрос для генерации
-            max_tokens: Максимальное количество токенов
+            max_new_tokens: Максимальное количество токенов
             **kwargs: Дополнительные параметры
             
         Returns:
@@ -158,7 +158,7 @@ class FractalModelManager:
                 return self._get_fallback_response(query)
             
             # Ограничиваем генерацию
-            max_tokens = min(max_tokens, 2048)  # Allow up to 2048 tokens per DESIGN.md
+            max_new_tokens = min(max_new_tokens, 2048)  # Allow up to 2048 tokens per DESIGN.md
             
             # Токенизируем
             inputs = self.tokenizer(

@@ -491,7 +491,7 @@ class OptimizedFractalModelManager:
         
         return all_results
     
-    def generate_response_optimized(self, query: str, max_tokens: int = 100) -> str:
+    def generate_response_optimized(self, query: str, max_new_tokens: int = 2048) -> str:
         """Оптимизированная генерация ответа"""
         
         if not self.initialized:

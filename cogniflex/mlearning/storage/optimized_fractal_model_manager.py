@@ -767,7 +767,7 @@ class OptimizedFractalModelManager:
                 "message": f"Ошибка улучшения: {str(e)}"
             }
     
-    def generate_response_with_web_search(self, query: str, max_tokens: int = 100, 
+    def generate_response_with_web_search(self, query: str, max_new_tokens: int = 2048, 
                                           use_web_search: bool = True) -> Dict[str, Any]:
         """Генерирует ответ с использованием веб-поиска"""
         

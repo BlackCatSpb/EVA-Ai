@@ -435,7 +435,7 @@ class HybridModelManager:
                 "error": str(e)
             }
     
-    def _generate_response_internal(self, model_name: str, prompt: str, max_tokens: int = 500,
+    def _generate_response_internal(self, model_name: str, prompt: str, max_new_tokens: int = 2048,
                                    temperature: float = 0.7, **kwargs) -> str:
         """Внутренний метод генерации ответа"""
         try:
