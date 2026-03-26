@@ -696,13 +696,15 @@ class QueryProcessor:
             logger.debug(f"Error storing conversation: {e}")
 
     def _get_conversation_context(self) -> List[Dict]:
-        """Retrieve recent conversation context from memory."""
         try:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
-                interactions = self.brain.memory_manager.get_recent_interactions(limit=5)
-                return [{"query": i.get("query"), "response": i.get("response")} for i in interactions[-10:] if i]
-        except Exception:
-            pass
+                interactions = self.brain.memory_manager.get_recent_interactions(limit=10)
+                if not interactions:
+                    return []
+                return [{"query": i.get("query", ""), "response": i.get("response", "")} 
+                        for i in interactions if i and isinstance(i, dict)]
+        except Exception as e:
+            logger.debug(f"Error getting conversation context: {e}")
         return []
 
     def __del__(self):

@@ -17,14 +17,16 @@ class GenerationRequest:
     
     def __init__(self, text: str, **kwargs):
         self.text = text
-        self.max_tokens = kwargs.get('max_tokens', 150)  # Уменьшено для скорости
-        self.temperature = kwargs.get('temperature', 0.8)
+        self.max_tokens = kwargs.get('max_tokens', 2048)
+        self.temperature = kwargs.get('temperature', 0.7)
+        self.top_p = kwargs.get('top_p', 0.9)
+        self.top_k = kwargs.get('top_k', 50)
         self.context = kwargs.get('context')
         self.user_context = kwargs.get('user_context')
         self.source = kwargs.get('source', 'unknown')
         self.priority = kwargs.get('priority', 'normal')
         self.metadata = kwargs.get('metadata', {})
-        self.do_sample = kwargs.get('do_sample', False)  # Greedy для стабильности
+        self.do_sample = kwargs.get('do_sample', True)
 
 
 class GenerationResponse:
@@ -178,10 +180,10 @@ class FractalModelProvider(GenerationProvider):
             response_text = self.fractal_model_manager.generate_response(
                 request.text, 
                 max_tokens=request.max_tokens,
-                temperature=getattr(request, 'temperature', 0.8),
-                top_p=getattr(request, 'top_p', 0.95),
-                top_k=getattr(request, 'top_k', 40),
-                do_sample=False,  # Greedy для стабильности
+                temperature=getattr(request, 'temperature', 0.7),
+                top_p=getattr(request, 'top_p', 0.9),
+                top_k=getattr(request, 'top_k', 50),
+                do_sample=True,  # Sampling для разнообразия
                 no_repeat_ngram_size=3
             )
             

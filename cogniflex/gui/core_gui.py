@@ -1048,7 +1048,7 @@ class CogniFlexGUI:
             # 2. Get from MemoryManager for persistent context
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
                 try:
-                    interactions = self.brain.memory_manager.get_recent_interactions(limit=5)
+                    interactions = self.brain.memory_manager.get_recent_interactions(limit=10)
                     if interactions:
                         history_context["conversation_history"] = [
                             {"query": i.get("query", ""), "response": i.get("response", "")}
@@ -1057,9 +1057,9 @@ class CogniFlexGUI:
                 except Exception as e:
                     self.chat_logger.debug(f"Error getting conversation from memory: {e}")
 
-            # Set to None if empty
+            # Set to empty dict if empty
             if not history_context:
-                history_context = None
+                history_context = {}
             
             response_obj = self.brain.process_query(query, context=history_context)
             
