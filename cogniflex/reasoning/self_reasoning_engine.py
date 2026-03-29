@@ -853,7 +853,7 @@ class SelfReasoningEngine:
     def _get_knowledge_response(self, prompt: str) -> Optional[str]:
         """Попытка получить ответ из knowledge graph"""
         try:
-            if hasattr(self.brain, 'knowledge_graph'):
+            if self.brain and hasattr(self.brain, 'knowledge_graph'):
                 kg = self.brain.knowledge_graph
                 # Try search_nodes first (proper method)
                 if hasattr(kg, 'search_nodes'):

@@ -6,6 +6,13 @@ import re
 from typing import Dict, Any, Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    logger.setLevel(logging.INFO)
+    ch = logging.StreamHandler()
+    ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(ch)
+
 try:
     import torch  # для демо-интеграции пула инференса
     TORCH_AVAILABLE = True
@@ -16,17 +23,10 @@ except (ImportError, ModuleNotFoundError, RuntimeError):
 try:
     from cogniflex.knowledge.context_entity import EntityExtractor
     from cogniflex.knowledge.ambiguity_resolver import AmbiguityResolver
-except ImportError:
+except ImportError as e:
+    logger.warning(f"Failed to import EntityExtractor or AmbiguityResolver: {e}")
     EntityExtractor = None
     AmbiguityResolver = None
-
-# Настройка логгера для этого модуля
-logger = logging.getLogger(__name__)
-if not logger.handlers:
-    logger.setLevel(logging.INFO)
-    ch = logging.StreamHandler()
-    ch.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-    logger.addHandler(ch)
 
 
 class QueryProcessor:
@@ -46,9 +46,9 @@ class QueryProcessor:
 
         try:
             # Получаем гибридный кэш из MemoryManager, затем из текстового процессора
-            if getattr(self.brain, "memory_manager", None) and hasattr(self.brain.memory_manager, "get_hybrid_cache"):
+            if getattr(self.brain, "memory_manager", None) is not None and hasattr(self.brain.memory_manager, "get_hybrid_cache"):
                 self.hybrid_cache = self.brain.memory_manager.get_hybrid_cache()
-            if not self.hybrid_cache and getattr(self.brain, "text_processor", None):
+            if not self.hybrid_cache and getattr(self.brain, "text_processor", None) is not None:
                 self.hybrid_cache = getattr(self.brain.text_processor, "hybrid_cache", None)
         except (AttributeError, TypeError, RuntimeError) as e:
             logger.debug(f"Ошибка инициализации hybrid_cache: {e}")
@@ -77,6 +77,20 @@ class QueryProcessor:
         Returns:
             Dict[str, Any]: Структурированный ответ с результатами
         """
+        if not query or not query.strip():
+            return {
+                "response": "Пожалуйста, введите текст запроса.",
+                "source": "none",
+                "evidence": [],
+                "metrics": {},
+                "error": None,
+                "contradictions": [],
+                "ethics": {"score": 1.0, "violations": [], "recommendations": []},
+                "ambiguities": None,
+                "reasoning": "",
+                "contradiction_detected": False
+            }
+        
         start_time = time.time()
         result: Dict[str, Any] = {
             "response": None,
@@ -117,7 +131,11 @@ class QueryProcessor:
 
                 if augment_web and self.brain.components.get("web_search_engine"):
                     try:
-                        web_results = self.brain.components["web_search_engine"].search(query, max_results=3)
+                        web_engine = self.brain.components["web_search_engine"]
+                        if hasattr(web_engine, 'search'):
+                            web_results = web_engine.search(query, max_results=3)
+                        else:
+                            web_results = None
                         if isinstance(web_results, list):
                             # Фильтруем web результаты - убираем мусор
                             for result in web_results:
@@ -145,7 +163,8 @@ class QueryProcessor:
 
                 # Генерируем ответ через ML-модуль, если доступен; иначе — краткий ответ из KG
                 response = None
-                if self.brain.components.get("ml_unit"):
+                ml_unit = self.brain.components.get("ml_unit") if self.brain and self.brain.components else None
+                if ml_unit is not None:
                     response = self._generate_response(query, evidence, nlp_info, concept, user_context)
 
                 if response:
@@ -166,6 +185,9 @@ class QueryProcessor:
                 except (AttributeError, TypeError, ValueError) as e:
                     logger.debug(f"Ошибка обновления метрик после пути KG->генерация: {e}")
 
+                # Добавляем рассуждения для отображения в GUI
+                self._add_reasoning_to_result(result)
+                
                 return result
 
             # 4) Параллельный поиск в памяти и вебе (с кэшированием)
@@ -195,21 +217,8 @@ class QueryProcessor:
 
             # 8) Обновление метрик
             processing_time = time.time() - start_time
-            # Собираем макроблок-метрики, если ядро их предоставляет
+            # get_macroblocks_stats method doesn't exist in CoreBrain - removed
             macroblocks_stats = {}
-            try:
-                if hasattr(self.brain, "get_macroblocks_stats"):
-                    logger.debug("[QueryProcessor] Collecting macroblocks stats from CoreBrain")
-                    mb = self.brain.get_macroblocks_stats()
-                    if isinstance(mb, dict):
-                        macroblocks_stats = mb
-                        try:
-                            logger.debug("[QueryProcessor] Macroblocks stats modules=%s", list(mb.keys()))
-                        except (AttributeError, TypeError) as e:
-                            logger.debug(f"Ошибка логирования macroblocks stats: {e}")
-            except (AttributeError, TypeError, ValueError) as e:
-                logger.debug(f"Ошибка получения macroblocks stats: {e}")
-                macroblocks_stats = {}
             
             logger.debug("[QueryProcessor] Emitting metrics with macroblocks=%s", 
                         list(macroblocks_stats.keys()) if isinstance(macroblocks_stats, dict) else type(macroblocks_stats))
@@ -235,17 +244,7 @@ class QueryProcessor:
                 result["ambiguities"] = ambiguity_info
 
             # 10) Добавляем рассуждения для отображения в GUI
-            try:
-                if hasattr(self.brain, 'reasoning_engine') and self.brain.reasoning_engine:
-                    if hasattr(self.brain.reasoning_engine, 'dialogue') and self.brain.reasoning_engine.dialogue:
-                        steps = self.brain.reasoning_engine.dialogue.steps
-                        if steps:
-                            reasoning_text = "Этапы рассуждения:\n"
-                            for i, step in enumerate(steps[:5], 1):
-                                reasoning_text += f"{i}. {step.phase.value}\n"
-                            result["reasoning"] = reasoning_text
-            except Exception as e:
-                logger.debug(f"Error adding reasoning steps: {e}")
+            result["reasoning"] = self._get_reasoning_text()
 
             return result
 
@@ -290,9 +289,11 @@ class QueryProcessor:
                 except (AttributeError, TypeError, ValueError) as e:
                     logger.debug(f"Ошибка получения данных из кэша NLP: {e}")
 
-            if self.brain.components.get("ml_unit"):
+            if self.brain and self.brain.components and self.brain.components.get("ml_unit"):
                 try:
-                    nlp_info = self.brain.components["ml_unit"].process_text(query)
+                    ml_unit = self.brain.components["ml_unit"]
+                    if hasattr(ml_unit, 'process_text'):
+                        nlp_info = ml_unit.process_text(query)
                     # Сохраняем в кэш
                     if self.hybrid_cache and cache_key:
                         try:
@@ -317,21 +318,26 @@ class QueryProcessor:
                     item = {"input_ids": ids}
                     # Кладём в модуль "default"
                     if hasattr(self.brain, "nlp_enqueue"):
-                        self.brain.nlp_enqueue(item, module="default")
-                        # Форсируем выпуск оставшегося батча
-                        self.brain.nlp_flush(module="default")
-                        # Неблокирующий забор результатов (один раз для краткости)
-                        res = self.brain.nlp_try_get_result(module="default", timeout_s=0.0)
-                        if isinstance(res, dict):
-                            # Сохраняем компактный след в метаданные nlp_info
-                            try:
-                                val = res.get("logits")
-                                if hasattr(val, 'detach'):
-                                    val = val.detach().cpu().flatten().tolist()[:3]
-                                nlp_info.setdefault("pool_demo", {})["preview"] = val
-                            except (AttributeError, TypeError, ValueError) as e:
-                                logger.debug(f"Ошибка обработки результатов пула: {e}")
-                                nlp_info.setdefault("pool_demo", {})["preview"] = "ok"
+                        try:
+                            self.brain.nlp_enqueue(item, module="default")
+                            # Форсируем выпуск оставшегося батча
+                            if hasattr(self.brain, "nlp_flush"):
+                                self.brain.nlp_flush(module="default")
+                            # Неблокирующий забор результатов (один раз для краткости)
+                            if hasattr(self.brain, "nlp_try_get_result"):
+                                res = self.brain.nlp_try_get_result(module="default", timeout_s=0.0)
+                                if isinstance(res, dict):
+                                    # Сохраняем компактный след в метаданные nlp_info
+                                    try:
+                                        val = res.get("logits")
+                                        if hasattr(val, 'detach'):
+                                            val = val.detach().cpu().flatten().tolist()[:3]
+                                        nlp_info.setdefault("pool_demo", {})["preview"] = val
+                                    except (AttributeError, TypeError, ValueError) as e:
+                                        logger.debug(f"Ошибка обработки результатов пула: {e}")
+                                        nlp_info.setdefault("pool_demo", {})["preview"] = "ok"
+                        except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+                            logger.debug(f"Ошибка в демо-интеграции пула инференса: {e}")
                 except (AttributeError, TypeError, ValueError, RuntimeError) as e:
                     logger.debug(f"Ошибка в демо-интеграции пула инференса: {e}")
                     # Демонстрационная часть не должна ломать основной путь
@@ -376,7 +382,9 @@ class QueryProcessor:
         try:
             if self.brain.components.get("adaptation_manager"):
                 try:
-                    concept = self.brain.components["adaptation_manager"]._extract_concept_from_query(query)
+                    adaptation_manager = self.brain.components["adaptation_manager"]
+                    if hasattr(adaptation_manager, '_extract_concept_from_query'):
+                        concept = adaptation_manager._extract_concept_from_query(query)
                 except Exception as e:
                     logger.warning(f"Ошибка извлечения концепта: {e}")
         except (AttributeError, TypeError, RuntimeError) as e:
@@ -398,7 +406,7 @@ class QueryProcessor:
                 return []
 
             # Проверяем кэш
-            cache_key = None
+            cache_key = ""
             if self.hybrid_cache:
                 try:
                     cache_key = f"kg:{hashlib.md5((query + '|' + str(limit)).encode('utf-8')).hexdigest()}"
@@ -436,6 +444,7 @@ class QueryProcessor:
                             return []
         except (AttributeError, TypeError, RuntimeError) as e:
             logger.debug(f"Ошибка в _search_knowledge_graph: {e}")
+            logger.error(f"Не удалось выполнить поиск в графе знаний для запроса '{query[:50]}...': {e}")
         return []
 
     def _build_response_from_nodes(self, result: Dict, nodes: List[Any], start_time: float) -> Dict[str, Any]:
@@ -451,10 +460,20 @@ class QueryProcessor:
         """
         try:
             resp = "Найдены концепты:\n" + "\n".join(f"• {getattr(n, 'content', str(n))[:200]}" for n in nodes[:3])
+            evidence_list = []
+            for n in nodes:
+                try:
+                    node_dict = getattr(n, "__dict__", None)
+                    if node_dict is not None:
+                        evidence_list.append({**node_dict, "_repr": str(n)})
+                    else:
+                        evidence_list.append({"repr": str(n)})
+                except (AttributeError, TypeError, ValueError) as e:
+                    evidence_list.append({"repr": str(n)})
             result.update({
                 "response": resp,
                 "source": "knowledge_graph",
-                "evidence": [getattr(n, "__dict__", lambda: {"repr": str(n)})() for n in nodes],
+                "evidence": evidence_list,
                 "metrics": {"time": time.time() - start_time}
             })
         except (AttributeError, TypeError, ValueError, RuntimeError) as e:
@@ -497,9 +516,10 @@ class QueryProcessor:
                 exec_ref = ThreadPoolExecutor(max_workers=2)
             
             # Поиск в памяти
-            if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search'):
+            if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search_memories_by_entity'):
                 try:
-                    futures.append(exec_ref.submit(self.brain.components["memory_manager"].search, query))
+                    entity_term = query.split()[0] if query else ""
+                    futures.append(exec_ref.submit(self.brain.components["memory_manager"].search_memories_by_entity, entity_term))
                 except (AttributeError, TypeError, RuntimeError) as e:
                     logger.debug(f"Ошибка добавления поиска memory_manager: {e}")
 
@@ -563,13 +583,28 @@ class QueryProcessor:
             if ml_unit and hasattr(ml_unit, 'generate'):
                 result = ml_unit.generate(query, context=gen_context)
                 if result and isinstance(result, dict):
-                    return result.get('text', result.get('generated_text', 'Ошибка обработки'))
+                    text = result.get('text')
+                    if text and isinstance(text, str):
+                        return text
+                    generated = result.get('generated_text')
+                    if generated and isinstance(generated, str):
+                        return generated
+                    return "Ошибка обработки"
                 elif isinstance(result, str):
                     return result
-                return "Ошибка обработки ответа"
+                return "Ошибка обработки"
             
             return "Извините, модуль генерации недоступен."
             
+        except AttributeError as e:
+            logger.error(f"Ошибка генерации ответа - отсутствует атрибут: {e}")
+            return "Извините, компонент генерации недоступен."
+        except TypeError as e:
+            logger.error(f"Ошибка генерации ответа - некорректный тип данных: {e}")
+            return "Извините, произошла внутренняя ошибка обработки."
+        except ValueError as e:
+            logger.error(f"Ошибка генерации ответа - некорректное значение: {e}")
+            return "Извините, получены некорректные данные."
         except Exception as e:
             logger.exception(f"Ошибка генерации ответа: {e}")
             return "Извините, произошла ошибка при генерации ответа. Пожалуйста, попробуйте еще раз."
@@ -633,8 +668,12 @@ class QueryProcessor:
                     # Или проверяем все активные противоречия
                     elif hasattr(resolver, "get_active_contradictions"):
                         contradictions = resolver.get_active_contradictions()
+                    else:
+                        logger.debug("contradiction_resolver found but no compatible methods, skipping")
                 except Exception as e:
                     logger.warning(f"Ошибка проверки противоречий: {e}")
+            else:
+                logger.debug("No contradiction_resolver available, skipping contradiction check")
         except (AttributeError, TypeError, ValueError, RuntimeError) as e:
             logger.debug(f"Ошибка при попытке доступа к contradiction_resolver в _check_contradictions: {e}")
 
@@ -675,7 +714,8 @@ class QueryProcessor:
                 'concept': concept
             }
             
-            mgml.add_insight(insight_text, query, metadata)
+            if hasattr(mgml, 'add_insight'):
+                mgml.add_insight(insight_text, query, metadata)
             logger.debug(f"Stored insight from query: {query[:50]}...")
             
         except Exception as e:
@@ -697,8 +737,12 @@ class QueryProcessor:
 
     def _get_conversation_context(self) -> List[Dict]:
         try:
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
-                interactions = self.brain.memory_manager.get_recent_interactions(limit=10)
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+                memory_manager = self.brain.memory_manager
+                if hasattr(memory_manager, 'get_recent_interactions'):
+                    interactions = memory_manager.get_recent_interactions(limit=10)
+                else:
+                    interactions = None
                 if not interactions:
                     return []
                 return [{"query": i.get("query", ""), "response": i.get("response", "")} 
@@ -706,10 +750,127 @@ class QueryProcessor:
         except Exception as e:
             logger.debug(f"Error getting conversation context: {e}")
         return []
+    
+    def _add_reasoning_to_result(self, result: Dict[str, Any]):
+        """Добавляет рассуждения в результат для GUI."""
+        try:
+            reasoning_text = self._get_reasoning_text()
+            if reasoning_text:
+                result["reasoning"] = reasoning_text
+        except Exception as e:
+            logger.debug(f"Error adding reasoning to result: {e}")
+    
+    def _get_reasoning_text(self) -> str:
+        """Извлекает текст рассуждений из brain/reasoning_engine."""
+        try:
+            if hasattr(self.brain, 'reasoning_engine') and self.brain.reasoning_engine:
+                reasoning_engine = self.brain.reasoning_engine
+                
+                # Пробуем process_query если доступен
+                if hasattr(reasoning_engine, 'process_query'):
+                    try:
+                        result = reasoning_engine.process_query(self.current_query if hasattr(self, 'current_query') else "")
+                        if result:
+                            if isinstance(result, dict):
+                                return self._format_reasoning_dict(result)
+                            elif isinstance(result, str):
+                                return result
+                    except Exception as e:
+                        logger.debug(f"Error calling reasoning_engine.process_query: {e}")
+                
+                # Пробуем получить steps из result
+                if hasattr(reasoning_engine, 'last_result') and reasoning_engine.last_result:
+                    last_result = reasoning_engine.last_result
+                    if isinstance(last_result, dict):
+                        return self._format_reasoning_dict(last_result)
+                
+                # Пробуем dialogue.steps
+                if hasattr(reasoning_engine, 'dialogue') and reasoning_engine.dialogue:
+                    if hasattr(reasoning_engine.dialogue, 'steps') and reasoning_engine.dialogue.steps:
+                        steps = reasoning_engine.dialogue.steps
+                        if steps:
+                            return self._format_steps(steps)
+            
+            if hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine:
+                sre = self.brain.self_reasoning_engine
+                if hasattr(sre, 'last_result') and sre.last_result:
+                    last_result = sre.last_result
+                    if isinstance(last_result, dict):
+                        return self._format_reasoning_dict(last_result)
+        except Exception as e:
+            logger.debug(f"Error getting reasoning text: {e}")
+        return ""
+    
+    def _format_reasoning_dict(self, reasoning_dict: Dict) -> str:
+        """Форматирует словарь рассуждений в строку."""
+        if not reasoning_dict:
+            return ""
+        
+        lines = []
+        
+        if 'steps' in reasoning_dict and reasoning_dict['steps']:
+            lines.append("Этапы рассуждения:")
+            for i, step in enumerate(reasoning_dict['steps'][:5], 1):
+                if isinstance(step, dict):
+                    phase = step.get('phase', step.get('thought', f'Шаг {i}'))
+                    thought = step.get('thought', '')
+                    lines.append(f"  {i}. {phase}")
+                    if thought:
+                        lines.append(f"     {thought}")
+                else:
+                    lines.append(f"  {i}. {step}")
+        
+        if 'iterations' in reasoning_dict:
+            lines.append(f"Итераций: {reasoning_dict['iterations']}")
+        
+        if 'confidence' in reasoning_dict:
+            lines.append(f"Уверенность: {reasoning_dict['confidence']:.2f}")
+        
+        return "\n".join(lines) if lines else str(reasoning_dict)
+    
+    def _format_steps(self, steps) -> str:
+        """Форматирует steps в строку для отображения."""
+        if not steps:
+            return ""
+        
+        lines = ["Этапы рассуждения:"]
+        for i, step in enumerate(steps[:5], 1):
+            try:
+                if hasattr(step, 'phase'):
+                    phase = step.phase.value if hasattr(step.phase, 'value') else str(step.phase)
+                    lines.append(f"  {i}. {phase}")
+                elif hasattr(step, 'thought'):
+                    lines.append(f"  {i}. {step.thought}")
+                else:
+                    lines.append(f"  {i}. {step}")
+            except Exception:
+                lines.append(f"  {i}. {step}")
+        
+        return "\n".join(lines)
+
+    def close(self):
+        """Закрывает и освобождает ресурсы executor."""
+        try:
+            if self._own_executor and self.executor:
+                self.executor.shutdown(wait=True)
+                self.executor = None
+                self._own_executor = False
+        except (AttributeError, TypeError, RuntimeError, OSError) as e:
+            logger.debug(f"Ошибка при shutdown executor: {e}")
+        logger.debug("QueryProcessor ресурсы освобождены")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
 
     def __del__(self):
         try:
             if self._own_executor and self.executor:
                 self.executor.shutdown(wait=False)
-        except (AttributeError, TypeError, RuntimeError, OSError) as e:
-            logger.debug(f"Ошибка при shutdown executor: {e}")
+                self.executor = None
+                self._own_executor = False
+        except Exception:
+            pass

@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-29
-Версия: 1.6 (третий цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
+Версия: 1.7 (четвёртый цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
 
 ---
 
@@ -979,6 +979,16 @@ AuthManager (server.py):
 | 8 | self_reasoning_engine.py | Qwen cache хранит None после неудачной инициализации | ✅ |
 | 9 | core_brain.py | token_cache/hybrid_cache не определены при ошибке импорта | ✅ |
 
+### 12.6 Исправления v1.7 (четвёртый цикл аудита)
+
+| # | Файл | Проблема | Статус |
+|---|------|----------|--------|
+| 1 | query_processor.py | _get_reasoning_text возвращает пустую строку вместо вызова process_query | ✅ |
+| 2 | self_reasoning_engine.py | Отсутствует проверка brain на None перед доступом к knowledge_graph | ✅ |
+| 3 | knowledge_graph.py | pass в exception handler без логирования | ✅ |
+| 4 | knowledge_graph.py | Добавлен метод get_sources_for_node для learning_scheduler | ✅ |
+| 5 | server.py | EthicsChecker.__init__ содержит только pass | ✅ |
+
 ---
 
 ## 13. Заключение
@@ -1008,3 +1018,4 @@ AuthManager (server.py):
 | 1.4 | 2026-03-29 | Аудит AI Архитектора: 7 критических ошибок, 4 новых метода |
 | 1.5 | 2026-03-29 | Второй цикл: 8 исправлений (memory_manager dict, learning_scheduler try/except, ml_unit проверка модели, SRE улучшения) |
 | 1.6 | 2026-03-29 | Третий цикл: 9 исправлений (ml_unit training_mode, learning_scheduler attribute validation, SRE Qwen cache, core_brain import handling) |
+| 1.7 | 2026-03-29 | Четвёртый цикл: 5 исправлений (query_processor reasoning, SRE brain null check, knowledge_graph get_sources_for_node, server EthicsChecker) |

@@ -180,7 +180,7 @@ class EntityExtractor:
 
 class EthicsChecker:
     def __init__(self):
-        pass
+        self.blocked_patterns = ['взлом', 'хакер', 'вирус', 'наркотик', 'оружие', 'убийство']
     
     def check_message(self, text: str) -> Dict[str, Any]:
         result = {'allowed': True, 'warnings': [], 'blocked': False, 'reason': None}

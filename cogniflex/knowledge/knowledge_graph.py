@@ -1826,6 +1826,41 @@ class KnowledgeGraph:
         """
         return self.nodes.get(node_id)
     
+    def get_sources_for_node(self, node_id: str) -> List[Dict[str, Any]]:
+        """
+        Возвращает источники для узла.
+        
+        Args:
+            node_id: ID узла
+            
+        Returns:
+            List[Dict[str, Any]]: Список источников с атрибутами
+        """
+        node = self.nodes.get(node_id)
+        if not node:
+            return []
+        
+        sources = node.meta.get('sources', [])
+        result = []
+        for source in sources:
+            if isinstance(source, dict):
+                result.append({
+                    'name': source.get('source', 'unknown'),
+                    'reliability': source.get('reliability', 0.5),
+                    'timestamp': source.get('timestamp', 0),
+                    'user_id': source.get('user_id'),
+                    'version': source.get('version', 1)
+                })
+            elif hasattr(source, 'source'):
+                result.append({
+                    'name': getattr(source, 'source', 'unknown'),
+                    'reliability': getattr(source, 'reliability', 0.5),
+                    'timestamp': getattr(source, 'timestamp', 0),
+                    'user_id': getattr(source, 'user_id', None),
+                    'version': getattr(source, 'version', 1)
+                })
+        return result
+    
     def get_node_by_name(self, name: str) -> Optional[KnowledgeNode]:
         """
         Возвращает узел по имени.
@@ -1944,9 +1979,8 @@ class KnowledgeGraph:
                 self._update_node_in_db(node)
             else:
                 self.nodes[node.id] = node
-        except Exception:
-            # Логирование уже есть на уровне вызывающих методов
-            pass
+        except Exception as e:
+            logger.debug(f"Error updating node: {e}")
 
     def prioritize_nodes(self, query: str, nodes: List["KnowledgeNode"]) -> List[Tuple["KnowledgeNode", float]]:
         """Возвращает узлы, отсортированные по динамическому весу для данного запроса."""
