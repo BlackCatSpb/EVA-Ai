@@ -182,7 +182,7 @@ class KnowledgeGraph:
             return False
         
         node = self.nodes[node_id]
-        if hasattr(node, 'meta'):
+        if node.meta and isinstance(node.meta, dict):
             node.meta['ambiguity'] = ambiguity_info
         else:
             node.meta = {'ambiguity': ambiguity_info}
@@ -641,6 +641,8 @@ class KnowledgeGraph:
                 
                 # Объединяем метаданные
                 if duplicate.meta and isinstance(duplicate.meta, dict):
+                    if not primary_node.meta or not isinstance(primary_node.meta, dict):
+                        primary_node.meta = {}
                     for source in duplicate.meta.get('sources', []):
                         if 'sources' not in primary_node.meta:
                             primary_node.meta['sources'] = []
@@ -827,8 +829,9 @@ class KnowledgeGraph:
                     outdated_count += 1
                     
                     # Отмечаем как устаревшее
-                    if 'status' not in node.meta:
-                        node.meta['status'] = 'outdated'
+                    if node.meta and isinstance(node.meta, dict):
+                        if 'status' not in node.meta:
+                            node.meta['status'] = 'outdated'
                     
                     # Добавляем в SelfAnalyzer
                     if self.brain and hasattr(self.brain, 'self_analyzer'):
@@ -978,6 +981,8 @@ class KnowledgeGraph:
                 full_text = f"{name} {description or ''}"
                 ambiguous_entities = self.entity_extractor.extract_ambiguous_terms(full_text)
                 if ambiguous_entities:
+                    if not node.meta or not isinstance(node.meta, dict):
+                        node.meta = {}
                     node.meta['ambiguities'] = [
                         {"text": e.text, "type": e.ambiguity_type.value if hasattr(e, 'ambiguity_type') and hasattr(e.ambiguity_type, 'value') else str(e.ambiguity_type)}
                         for e in ambiguous_entities
@@ -985,6 +990,10 @@ class KnowledgeGraph:
             
             # Добавляем источник
             if source:
+                if not node.meta or not isinstance(node.meta, dict):
+                    node.meta = {}
+                if 'sources' not in node.meta:
+                    node.meta['sources'] = []
                 node.meta['sources'].append({
                     'source': source,
                     'timestamp': time.time(),
@@ -1433,6 +1442,10 @@ class KnowledgeGraph:
             
             # Добавляем источник
             if source:
+                if not edge.meta or not isinstance(edge.meta, dict):
+                    edge.meta = {}
+                if 'sources' not in edge.meta:
+                    edge.meta['sources'] = []
                 edge.meta['sources'].append({
                     'source': source,
                     'timestamp': time.time(),
@@ -5551,7 +5564,7 @@ class KnowledgeGraph:
                         total_modifications += 1
             
             # Депрекации (если есть пометка)
-            if "status" in node.meta and node.meta["status"] == "deprecated":
+            if node.meta and "status" in node.meta and node.meta["status"] == "deprecated":
                 for i, (start, end) in enumerate(intervals):
                     if start <= node.last_updated <= end:
                         trends["concept_deprecations"][i] += 1
@@ -7033,6 +7046,8 @@ class KnowledgeGraph:
         
         entity_node = self.get_node(entity_node_id)
         if entity_node:
+            if entity_node.meta is None:
+                entity_node.meta = {}
             entity_node.meta["clarification_status"] = "resolved"
             entity_node.meta["last_clarification"] = time.time()
             self._update_node_in_db(entity_node)

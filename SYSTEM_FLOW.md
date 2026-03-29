@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-29
-Версия: 1.10 (шестой цикл аудита)
+Версия: 1.11 (седьмой цикл аудита - meta validation)
 
 ---
 
@@ -1060,3 +1060,4 @@ AuthManager (server.py):
 | 1.8 | 2026-03-29 | Разделение модулей: knowledge_graph_types/search, knowledge_metrics, core_brain_types, memory_types, learning_types, gui_types, ethics_types, contradiction_types, ml_types, server_types, backup директория |
 | 1.9 | 2026-03-29 | Пятый цикл аудита: 68 исправлений (27 HIGH, 38 MEDIUM, 3 LOW) - knowledge_graph, knowledge_integrator, learning_scheduler, memory_manager, self_dialog_learning, contradiction_manager, chat_module, ethics_core, self_reasoning_engine и др. |
 | 1.10 | 2026-03-29 | Шестой цикл аудита: from_dict и config validation исправления - knowledge_graph_types, knowledge_core, knowledge_integrator, comprehensive_learning_system, enhanced_learning_integration, optimized_fractal_model_manager, learning_scheduler, entity_fractal_store, health_monitor и др. |
+| 1.11 | 2026-03-29 | Седьмой цикл аудита: meta validation исправления - knowledge_graph, knowledge_integrator, knowledge_analyzer, knowledge_graph_integrated, knowledge_core, knowledge_nodes - добавлены проверки meta на None перед доступом |

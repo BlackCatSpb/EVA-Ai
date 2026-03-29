@@ -50,6 +50,8 @@ class KnowledgeNode:
         
         # Для отслеживания истории изменений
         self.history = []
+        if self.meta is None:
+            self.meta = {}
         if 'sources' not in self.meta:
             self.meta['sources'] = []
         
@@ -102,6 +104,10 @@ class KnowledgeNode:
         
         # Добавляем источник
         if source:
+            if self.meta is None:
+                self.meta = {}
+            if 'sources' not in self.meta:
+                self.meta['sources'] = []
             self.meta['sources'].append({
                 'source': source,
                 'timestamp': time.time(),
@@ -268,6 +274,8 @@ class KnowledgeEdge:
         
         # Добавляем источник
         if source:
+            if self.meta is None:
+                self.meta = {}
             if 'sources' not in self.meta:
                 self.meta['sources'] = []
             self.meta['sources'].append({

@@ -1545,6 +1545,8 @@ class KnowledgeIntegrator:
             
             elif correction_type == "missing_info":
                 # Добавляем недостающую информацию к существующему описанию
+                if not node.meta or not isinstance(node.meta, dict):
+                    return False
                 new_description = f"{node.meta['description']}\n\nДополнение: {correction}"
                 updated = self.knowledge_graph.update_concept(
                     node.id,
@@ -1615,9 +1617,11 @@ class KnowledgeIntegrator:
             strength_change = (rating - 3) * 0.05
             new_strength = max(0.1, min(1.0, node.strength + strength_change))
             
+            if not node.meta or not isinstance(node.meta, dict) or "description" not in node.meta:
+                return False
             return self.knowledge_graph.update_concept(
                 node.id,
-                new_description=node.meta["description"],
+                new_description=node.meta.get("description", ""),
                 strength=new_strength,
                 user_id=user_id
             )

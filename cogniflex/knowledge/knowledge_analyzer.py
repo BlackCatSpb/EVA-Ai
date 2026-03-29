@@ -776,7 +776,7 @@ class KnowledgeAnalyzer:
             # Анализируем неактуальные источники
             outdated_sources = []
             for node in outdated_nodes:
-                if hasattr(node, 'meta') and 'sources' in node.meta:
+                if hasattr(node, 'meta') and isinstance(node.meta, dict) and 'sources' in node.meta:
                     for source in node.meta['sources']:
                         if source.get('timestamp', 0) < outdated_threshold:
                             outdated_sources.append({

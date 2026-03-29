@@ -85,6 +85,8 @@ class KnowledgeNode:
         
         # Учитываем репутацию источника, если она предоставлена
         if source_reputation is not None:
+            if self.meta is None:
+                self.meta = {}
             self.meta['source_reputation'] = source_reputation
             source_factor = 0.5 + source_reputation * 0.5
         else:
@@ -97,6 +99,8 @@ class KnowledgeNode:
         self.timestamp = time.time()
         
         # Сохраняем факторы в метаданных
+        if self.meta is None:
+            self.meta = {}
         self.meta['verification_factor'] = verification_factor
         self.meta['last_update'] = self.timestamp
     
@@ -108,6 +112,8 @@ class KnowledgeNode:
             context: Контекстное описание
         """
         self.context = context
+        if self.meta is None:
+            self.meta = {}
         self.meta['context'] = context
     
     def get_content_summary(self, max_length: int = 100) -> str:
@@ -907,6 +913,8 @@ class KnowledgeGraph:
                 node.timestamp = kwargs["timestamp"]
             if "meta" in kwargs:
                 node.meta = kwargs["meta"]
+                if node.meta is None:
+                    node.meta = {}
                 node.context = node.meta.get('context', '')
                 
                 # Обновляем контекстные ссылки

@@ -329,8 +329,12 @@ class IntegratedKnowledgeGraph(BaseComponent):
             
             # Добавляем user_id и source в метаданные
             if user_id:
+                if node.meta is None:
+                    node.meta = {}
                 node.meta['user_id'] = user_id
             if source:
+                if node.meta is None:
+                    node.meta = {}
                 node.meta['source'] = source
             
             # Добавляем в память
@@ -406,8 +410,12 @@ class IntegratedKnowledgeGraph(BaseComponent):
             
             # Добавляем user_id и source в метаданные
             if user_id:
+                if edge.meta is None:
+                    edge.meta = {}
                 edge.meta['user_id'] = user_id
             if source:
+                if edge.meta is None:
+                    edge.meta = {}
                 edge.meta['source'] = source
             
             # Добавляем в память
@@ -570,6 +578,34 @@ class IntegratedKnowledgeGraph(BaseComponent):
     def get_all_nodes(self) -> List[KnowledgeNode]:
         """Возвращает все узлы графа знаний."""
         return list(self.nodes.values())
+    
+    def get_all_concepts(self) -> List[Dict[str, Any]]:
+        """
+        Возвращает все концепты в формате для MemoryGraphML.
+        
+        Returns:
+            List[Dict]: Список концептов с id, type, description
+        """
+        concepts = []
+        for node in self.nodes.values():
+            concepts.append({
+                'id': node.id,
+                'type': node.node_type,
+                'description': node.description or node.meta.get('description', ''),
+                'domain': node.domain,
+                'properties': node.meta
+            })
+        
+        for edge in self.edges.values():
+            concepts.append({
+                'id': edge.id,
+                'type': 'relation',
+                'description': f"{edge.source_id} -> {edge.target_id}: {edge.relation_type}",
+                'domain': 'general',
+                'properties': edge.meta
+            })
+        
+        return concepts
     
     def get_all_edges(self) -> List[KnowledgeEdge]:
         """Возвращает все связи графа знаний."""
