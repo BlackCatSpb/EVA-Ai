@@ -708,37 +708,40 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения связанных концептов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "related_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "related_concepts": concepts
+                    }
+                )
             
             # Добавляем связанные концепты в граф знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                for related_concept in concepts:
-                    # Создаем узел для связанного концепта
-                    self.brain.knowledge_graph.add_node(
-                        f"concept_{hash(related_concept) % 1000000}",
-                        related_concept,
-                        node_type="concept",
-                        domain=task.metadata.get("domain", "general")
-                    )
-                    
-                    # Создаем связь с основным концептом
-                    self.brain.knowledge_graph.add_edge(
-                        task.concept,
-                        related_concept,
-                        "related_to",
-                        strength=0.7,
-                        weight=0.7,
-                        metadata={"source": "domain_expansion"}
-                    )
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    for related_concept in concepts:
+                        self.brain.knowledge_graph.add_node(
+                            f"concept_{hash(related_concept) % 1000000}",
+                            related_concept,
+                            node_type="concept",
+                            domain=task.metadata.get("domain", "general")
+                        )
+                        self.brain.knowledge_graph.add_edge(
+                            task.concept,
+                            related_concept,
+                            "related_to",
+                            strength=0.7,
+                            weight=0.7,
+                            metadata={"source": "domain_expansion"}
+                        )
+                except Exception as e:
+                    logger.debug(f"Ошибка добавления в knowledge_graph: {e}")
             
             return {
                 "concept": concept,
@@ -767,19 +770,23 @@ class LearningScheduler:
         try:
             # Получаем связи из графа знаний
             connections = []
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                edges = self.brain.knowledge_graph.get_edges(concept)
-                for edge in edges:
-                    related_concept = edge.target if edge.source == concept else edge.source
-                    connections.append({
-                        "concept": related_concept,
-                        "relation": edge.relation,
-                        "strength": edge.strength,
-                        "weight": edge.weight
-                    })
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    edges = self.brain.knowledge_graph.get_edges(concept)
+                    for edge in edges:
+                        related_concept = edge.target if edge.source == concept else edge.source
+                        connections.append({
+                            "concept": related_concept,
+                            "relation": edge.relation,
+                            "strength": edge.strength,
+                            "weight": edge.weight
+                        })
+                except Exception as e:
+                    logger.debug(f"Ошибка get_edges: {e}")
             
             # Если связей мало, используем MLUnit для поиска дополнительных
-            if len(connections) < 3 and self.brain and hasattr(self.brain, 'ml_unit'):
+            related_concepts = []
+            if len(connections) < 3 and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 related_concepts = self.brain.ml_unit.extract_concepts(concept)
                 for related_concept in related_concepts:
                     if related_concept != concept:
@@ -791,13 +798,14 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "connections": connections
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "connections": connections
+                    }
+                )
             
             return {
                 "concept": concept,
@@ -825,54 +833,43 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения фактов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "updated_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "updated_concepts": concepts
+                    }
+                )
             
             # Обновляем информацию в графе знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                # Получаем узел концепта
-                nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                if nodes:
-                    node = nodes[0]
-                    
-                    # Обновляем надежность информации
-                    new_reliability = min(1.0, node.reliability + 0.1)
-                    self.brain.knowledge_graph.add_node(
-                        node.id,
-                        node.content,
-                        node.node_type,
-                        node.domain,
-                        node.metadata,
-                        new_reliability
-                    )
-                
-                # Добавляем новые факты
-                for updated_concept in concepts:
-                    self.brain.knowledge_graph.add_node(
-                        f"fact_{hash(updated_concept) % 1000000}",
-                        updated_concept,
-                        node_type="fact",
-                        domain=task.metadata.get("domain", "general"),
-                        reliability=0.8
-                    )
-                    
-                    # Создаем связь с основным концептом
-                    self.brain.knowledge_graph.add_edge(
-                        concept,
-                        updated_concept,
-                        "contains",
-                        strength=0.8,
-                        weight=0.8,
-                        metadata={"source": "knowledge_update"}
-                    )
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
+                    if nodes:
+                        node = nodes[0]
+                        new_reliability = min(1.0, node.reliability + 0.1)
+                        self.brain.knowledge_graph.add_node(
+                            node.id, node.content, node.node_type,
+                            node.domain, node.metadata, new_reliability
+                        )
+                    for updated_concept in concepts:
+                        self.brain.knowledge_graph.add_node(
+                            f"fact_{hash(updated_concept) % 1000000}",
+                            updated_concept, node_type="fact",
+                            domain=task.metadata.get("domain", "general"), reliability=0.8
+                        )
+                        self.brain.knowledge_graph.add_edge(
+                            concept, updated_concept, "contains",
+                            strength=0.8, weight=0.8, metadata={"source": "knowledge_update"}
+                        )
+                except Exception as e:
+                    logger.debug(f"Ошибка обновления knowledge_graph: {e}")
             
             return {
                 "concept": concept,
@@ -901,16 +898,19 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения концептов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "verified_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "verified_concepts": concepts
+                    }
+                )
             
             # Проверяем источники в графе знаний
             verified_sources = 0
@@ -955,42 +955,37 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения концептов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "integrated_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "integrated_concepts": concepts
+                    }
+                )
             
             # Интегрируем знания в граф
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                for integrated_concept in concepts:
-                    # Проверяем, существует ли уже узел
-                    nodes = self.brain.knowledge_graph.search_nodes(integrated_concept, limit=1)
-                    
-                    if not nodes:
-                        # Создаем новый узел
-                        self.brain.knowledge_graph.add_node(
-                            f"concept_{hash(integrated_concept) % 1000000}",
-                            integrated_concept,
-                            node_type="concept",
-                            domain=task.metadata.get("domain", "general"),
-                            reliability=0.85
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    for integrated_concept in concepts:
+                        nodes = self.brain.knowledge_graph.search_nodes(integrated_concept, limit=1)
+                        if not nodes:
+                            self.brain.knowledge_graph.add_node(
+                                f"concept_{hash(integrated_concept) % 1000000}",
+                                integrated_concept, node_type="concept",
+                                domain=task.metadata.get("domain", "general"), reliability=0.85
+                            )
+                        self.brain.knowledge_graph.add_edge(
+                            concept, integrated_concept, "integrates",
+                            strength=0.8, weight=0.8, metadata={"source": "knowledge_integration"}
                         )
-                    
-                    # Создаем связи с основным концептом
-                    self.brain.knowledge_graph.add_edge(
-                        concept,
-                        integrated_concept,
-                        "integrates",
-                        strength=0.8,
-                        weight=0.8,
-                        metadata={"source": "knowledge_integration"}
-                    )
+                except Exception as e:
+                    logger.debug(f"Ошибка интеграции в knowledge_graph: {e}")
             
             return {
                 "concept": concept,
@@ -1018,38 +1013,34 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения концептов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "deepened_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "deepened_concepts": concepts
+                    }
+                )
             
             # Добавляем детали в граф знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                for detail in concepts:
-                    # Создаем узел для детали
-                    self.brain.knowledge_graph.add_node(
-                        f"detail_{hash(detail) % 1000000}",
-                        detail,
-                        node_type="detail",
-                        domain=task.metadata.get("domain", "general"),
-                        reliability=0.8
-                    )
-                    
-                    # Создаем связь с основным концептом
-                    self.brain.knowledge_graph.add_edge(
-                        concept,
-                        detail,
-                        "details",
-                        strength=0.85,
-                        weight=0.85,
-                        metadata={"source": "concept_deepening"}
-                    )
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    for detail in concepts:
+                        self.brain.knowledge_graph.add_node(
+                            f"detail_{hash(detail) % 1000000}", detail,
+                            node_type="detail", domain=task.metadata.get("domain", "general"), reliability=0.8
+                        )
+                        self.brain.knowledge_graph.add_edge(
+                            concept, detail, "details",
+                            strength=0.85, weight=0.85, metadata={"source": "concept_deepening"}
+                        )
+                except Exception as e:
+                    logger.debug(f"Ошибка добавления деталей в knowledge_graph: {e}")
             
             return {
                 "concept": concept,
@@ -1078,38 +1069,36 @@ class LearningScheduler:
         
         try:
             # Используем MLUnit для извлечения концептов
-            concepts = self.brain.ml_unit.extract_concepts(concept)
+            concepts = []
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "synthesized_concepts": concepts
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "synthesized_concepts": concepts
+                    }
+                )
             
             # Синтезируем знания в графе
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                # Создаем узел для синтезированного знания
-                self.brain.knowledge_graph.add_node(
-                    f"synthesis_{hash(concept) % 1000000}",
-                    f"Синтез: {concept}",
-                    node_type="synthesis",
-                    domain=task.metadata.get("domain", "general"),
-                    reliability=0.9
-                )
-                
-                # Создаем связи с исходными концептами
-                for synthesized_concept in concepts:
-                    self.brain.knowledge_graph.add_edge(
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    self.brain.knowledge_graph.add_node(
                         f"synthesis_{hash(concept) % 1000000}",
-                        synthesized_concept,
-                        "derived_from",
-                        strength=0.9,
-                        weight=0.9,
-                        metadata={"source": "knowledge_synthesis"}
+                        f"Синтез: {concept}", node_type="synthesis",
+                        domain=task.metadata.get("domain", "general"), reliability=0.9
                     )
+                    for synthesized_concept in concepts:
+                        self.brain.knowledge_graph.add_edge(
+                            f"synthesis_{hash(concept) % 1000000}",
+                            synthesized_concept, "derived_from",
+                            strength=0.9, weight=0.9, metadata={"source": "knowledge_synthesis"}
+                        )
+                except Exception as e:
+                    logger.debug(f"Ошибка синтеза в knowledge_graph: {e}")
             
             return {
                 "concept": concept,
@@ -1140,18 +1129,22 @@ class LearningScheduler:
             connections = []
             
             # Получаем связи из графа знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                edges = self.brain.knowledge_graph.get_edges(concept)
-                for edge in edges:
-                    related_concept = edge.target if edge.source == concept else edge.source
-                    connections.append({
-                        "concept": related_concept,
-                        "relation": edge.relation,
-                        "strength": edge.strength
-                    })
+            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+                try:
+                    edges = self.brain.knowledge_graph.get_edges(concept)
+                    for edge in edges:
+                        related_concept = edge.target if edge.source == concept else edge.source
+                        connections.append({
+                            "concept": related_concept,
+                            "relation": edge.relation,
+                            "strength": edge.strength
+                        })
+                except Exception as e:
+                    logger.debug(f"Ошибка get_edges: {e}")
             
             # Если связей мало, используем MLUnit для поиска дополнительных
-            if len(connections) < 5 and self.brain and hasattr(self.brain, 'ml_unit'):
+            related_concepts = []
+            if len(connections) < 5 and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 related_concepts = self.brain.ml_unit.extract_concepts(concept)
                 for related_concept in related_concepts:
                     if related_concept != concept:
@@ -1162,13 +1155,14 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            self.brain.memory_manager.store_user_profile(
-                user_id="system",
-                profile={
-                    "concept": concept,
-                    "connections": connections
-                }
-            )
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
+                self.brain.memory_manager.store_user_profile(
+                    user_id="system",
+                    profile={
+                        "concept": concept,
+                        "connections": connections
+                    }
+                )
             
             return {
                 "concept": concept,
@@ -1199,53 +1193,60 @@ class LearningScheduler:
             knowledge_status = "actual"
             maintenance_needed = False
             
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                # Получаем узел концепта
-                nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                if nodes:
-                    # Проверяем, не устарели ли источники
-                    sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
-                    for source in sources:
-                        # Если источник старше 1 года, считаем его устаревшим
-                        if time.time() - source.timestamp > 365 * 86400:
-                            knowledge_status = "outdated"
-                            maintenance_needed = True
-                            break
-            
-            # Если требуется обслуживание, обновляем знания
-            if maintenance_needed and self.brain and hasattr(self.brain, 'ml_unit'):
-                concepts = self.brain.ml_unit.extract_concepts(concept)
-                
+            try:
                 if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                    # Обновляем узел концепта
+                    # Получаем узел концепта
+                    nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
                     if nodes:
-                        self.brain.knowledge_graph.add_node(
-                            nodes[0].id,
-                            nodes[0].content,
-                            nodes[0].node_type,
-                            nodes[0].domain,
-                            nodes[0].metadata,
-                            reliability=0.9  # Увеличиваем надежность после обновления
-                        )
-                    
-                    # Добавляем новые источники
-                    for updated_concept in concepts:
-                        self.brain.knowledge_graph.add_node(
-                            f"fact_{hash(updated_concept) % 1000000}",
-                            updated_concept,
-                            node_type="fact",
-                            domain=task.metadata.get("domain", "general"),
-                            reliability=0.85
-                        )
-                        
-                        self.brain.knowledge_graph.add_edge(
-                            concept,
-                            updated_concept,
-                            "contains",
-                            strength=0.85,
-                            weight=0.85,
-                            metadata={"source": "knowledge_maintenance"}
-                        )
+                        # Проверяем, не устарели ли источники
+                        sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
+                        for source in sources:
+                            # Если источник старше 1 года, считаем его устаревшим
+                            if time.time() - source.timestamp > 365 * 86400:
+                                knowledge_status = "outdated"
+                                maintenance_needed = True
+                                break
+            except Exception as e:
+                logger.error(f"Ошибка при обращении к knowledge_graph в maintain_knowledge: {e}")
+
+            # Если требуется обслуживание, обновляем знания
+            concepts = []
+            if maintenance_needed and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+                concepts = self.brain.ml_unit.extract_concepts(concept)
+
+                try:
+                    if self.brain and hasattr(self.brain, 'knowledge_graph'):
+                        # Обновляем узел концепта
+                        if nodes:
+                            self.brain.knowledge_graph.add_node(
+                                nodes[0].id,
+                                nodes[0].content,
+                                nodes[0].node_type,
+                                nodes[0].domain,
+                                nodes[0].metadata,
+                                reliability=0.9  # Увеличиваем надежность после обновления
+                            )
+
+                        # Добавляем новые источники
+                        for updated_concept in concepts:
+                            self.brain.knowledge_graph.add_node(
+                                f"fact_{hash(updated_concept) % 1000000}",
+                                updated_concept,
+                                node_type="fact",
+                                domain=task.metadata.get("domain", "general"),
+                                reliability=0.85
+                            )
+
+                            self.brain.knowledge_graph.add_edge(
+                                concept,
+                                updated_concept,
+                                "contains",
+                                strength=0.85,
+                                weight=0.85,
+                                metadata={"source": "knowledge_maintenance"}
+                            )
+                except Exception as e:
+                    logger.error(f"Ошибка при записи в knowledge_graph в maintain_knowledge: {e}")
             
             return {
                 "concept": concept,
@@ -1385,29 +1386,32 @@ class LearningScheduler:
         
         # Если доступен граф знаний, используем его данные
         if self.brain and hasattr(self.brain, 'knowledge_graph'):
-            # Получаем узел концепта
-            nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-            
-            if nodes:
-                # Оцениваем глубину (на основе количества связанных узлов)
-                edges = self.brain.knowledge_graph.get_edges(nodes[0].id)
-                depth = min(0.9, len(edges) * 0.1)
-                
-                # Оцениваем ширину (на основе разнообразия доменов)
-                domains = set()
-                for edge in edges:
-                    related_node = self.brain.knowledge_graph.get_node(edge.target if edge.source == nodes[0].id else edge.source)
-                    if related_node:
-                        domains.add(related_node.domain)
-                breadth = min(0.9, len(domains) * 0.2)
-                
-                # Оцениваем актуальность (на основе времени последнего обновления)
-                time_diff = time.time() - nodes[0].last_updated
-                recency = max(0.1, 1.0 - min(1.0, time_diff / (365 * 86400)))
-                
-                # Оцениваем связность (на основе когерентности графа)
-                kg_health = self.brain.knowledge_graph.get_graph_health()
-                coherence = kg_health["statistics"]["coherence"]
+            try:
+                # Получаем узел концепта
+                nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
+
+                if nodes:
+                    # Оцениваем глубину (на основе количества связанных узлов)
+                    edges = self.brain.knowledge_graph.get_edges(nodes[0].id)
+                    depth = min(0.9, len(edges) * 0.1)
+
+                    # Оцениваем ширину (на основе разнообразия доменов)
+                    domains = set()
+                    for edge in edges:
+                        related_node = self.brain.knowledge_graph.get_node(edge.target if edge.source == nodes[0].id else edge.source)
+                        if related_node:
+                            domains.add(related_node.domain)
+                    breadth = min(0.9, len(domains) * 0.2)
+
+                    # Оцениваем актуальность (на основе времени последнего обновления)
+                    time_diff = time.time() - nodes[0].last_updated
+                    recency = max(0.1, 1.0 - min(1.0, time_diff / (365 * 86400)))
+
+                    # Оцениваем связность (на основе когерентности графа)
+                    kg_health = self.brain.knowledge_graph.get_graph_health()
+                    coherence = kg_health["statistics"]["coherence"]
+            except Exception as e:
+                logger.error(f"Ошибка при обращении к knowledge_graph: {e}")
         
         # Общая оценка
         overall = (depth * 0.3 + breadth * 0.3 + recency * 0.2 + coherence * 0.2)

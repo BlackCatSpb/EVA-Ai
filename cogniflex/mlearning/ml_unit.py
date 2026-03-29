@@ -115,9 +115,10 @@ class MLUnit:
         # Get hybrid_cache_size from config if not provided
         hc_config = _get_hybrid_cache_config()
         if hybrid_cache_size is None:
-            # Use max_hot_tokens from config (default 8192) * estimated token size (4096)
             max_hot_tokens = hc_config.get('max_hot_tokens', 8192)
-            hybrid_cache_size = max_hot_tokens * 4096
+            token_size_multiplier = hc_config.get('token_size_multiplier', 4096)
+            available_memory = hc_config.get('available_memory_mb', 512) * 1024 * 1024
+            hybrid_cache_size = min(max_hot_tokens * token_size_multiplier, available_memory // 2)
         
         self.hybrid_cache_size = hybrid_cache_size
         logger.info(f"MLUnit hybrid_cache_size: {self.hybrid_cache_size} (from config: max_hot_tokens={hc_config.get('max_hot_tokens', 8192)})")
@@ -171,12 +172,15 @@ class MLUnit:
         try:
             from cogniflex.nlp.text_processor import TextProcessor
             
-            # Используем правильную директорию с моделью и токенизатором Qwen
             project_root = _get_project_root()
             model_dir = os.path.join(project_root, "cogniflex", "mlearning", "cogniflex_models", "qwen3.5-0.8b")
             
+            if not os.path.exists(model_dir):
+                logger.warning(f"Модель не найдена: {model_dir}")
+                return False
+            
             self.text_processor = TextProcessor(
-                model_name=model_dir,  # Используем полный путь к директории
+                model_name=model_dir,
                 cache_dir=os.path.join(self.cache_dir, "text_processor_cache")
             )
             

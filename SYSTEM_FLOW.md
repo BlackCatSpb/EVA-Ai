@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-29
-Версия: 1.4 (исправления критических ошибок - AI Архитектор + 3 Девелопера + Тестировщик)
+Версия: 1.5 (второй цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
 
 ---
 
@@ -946,6 +946,19 @@ AuthManager (server.py):
     └─> user_id = hashlib.md5(username.encode()).hexdigest()
 ```
 
+### 12.4 Исправления v1.5 (второй цикл аудита)
+
+| # | Файл | Проблема | Статус |
+|---|------|----------|--------|
+| 1 | memory_manager.py | get_memory() некорректно работает с dict | ✅ |
+| 2 | memory_manager.py | delete_memory() некорректно работает с dict | ✅ |
+| 3 | memory_manager.py | _optimize_memory_lists() некорректно работает с dict | ✅ |
+| 4 | learning_scheduler.py | knowledge_graph вызовы без try/except | ✅ |
+| 5 | ml_unit.py | Отсутствует проверка существования модели | ✅ |
+| 6 | self_reasoning_engine.py | _evaluate_logic_factor слишком простая | ✅ |
+| 7 | self_reasoning_engine.py | Отсутствует analyze_response() алиас | ✅ |
+| 8 | server.py | Отсутствует логирование извлечения текста | ✅ |
+
 ### 12.3 Архитектурные улучшения
 
 1. **Fallback для reasoning**: process_query() теперь проверяет reasoning_integration если self_reasoning_engine=None
@@ -978,4 +991,5 @@ AuthManager (server.py):
 | 1.1 | 2026-03-27 | Расширенная документация |
 | 1.2 | 2026-03-29 | Исправления багов (greeting handler, self-dialog loop) |
 | 1.3 | 2026-03-29 | Веб-интерфейс (Flask), загрузка файлов, OCR, логические факторы рассуждения |
-| 1.4 | 2026-03-29 | Аудит AI Архитектора: 7 критических ошибок, 4 новых метода, архитектурные улучшения |
+| 1.4 | 2026-03-29 | Аудит AI Архитектора: 7 критических ошибок, 4 новых метода |
+| 1.5 | 2026-03-29 | Второй цикл: 8 исправлений (memory_manager dict, learning_scheduler try/except, ml_unit проверка модели, SRE улучшения) |

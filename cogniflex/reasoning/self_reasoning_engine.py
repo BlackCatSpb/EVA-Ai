@@ -519,33 +519,110 @@ class SelfReasoningEngine:
     
     def _evaluate_logic_factor(self, query: str, response: str) -> Dict[str, Any]:
         """Оценка логического фактора"""
-        score = 0.8
+        score = 1.0
         issues = []
         
-        # Проверяем базовую логическую согласованность
-        # 1. Есть ли явные логические ошибки
-        logical_markers = ['однако', 'но', 'поэтому', 'следовательно', 'значит']
+        resp_lower = response.lower()
+        query_lower = query.lower()
+        resp_sentences = [s.strip() for s in response.replace('!', '.').replace('?', '.').split('.') if s.strip()]
         
+        contradiction_pairs = [
+            ('да', 'нет'), ('верно', 'неверно'), ('правильно', 'неправильно'),
+            ('возможно', 'невозможно'), ('всегда', 'никогда'), ('все', 'никто'),
+            ('можно', 'нельзя'), ('истина', 'ложь'), ('согласен', 'не согласен'),
+            ('увеличивается', 'уменьшается'), ('растёт', 'падает'), ('лучше', 'хуже'),
+            ('положительно', 'отрицательно'), ('выше', 'ниже'), ('больше', 'меньше'),
+        ]
+        
+        detected_contradictions = []
+        for pos, neg in contradiction_pairs:
+            if pos in resp_lower and neg in resp_lower:
+                pos_sentences = [s for s in resp_sentences if pos in s.lower()]
+                neg_sentences = [s for s in resp_sentences if neg in s.lower()]
+                if pos_sentences and neg_sentences:
+                    detected_contradictions.append(f'"{pos}" vs "{neg}"')
+        
+        if detected_contradictions:
+            penalty = min(0.3, len(detected_contradictions) * 0.1)
+            score -= penalty
+            issues.append(f'Обнаружены противоречия: {", ".join(detected_contradictions)}')
+        
+        if '?' in query:
+            answer_indicators = ['да,', 'нет,', 'ответ:', 'результат:', 'значит', 'составляет', 'равен']
+            has_direct_answer = any(ind in resp_lower for ind in answer_indicators)
+            
+            if '?' in query and '?' not in resp_lower and not has_direct_answer:
+                if len(response) < 150:
+                    score -= 0.15
+                    issues.append('Вопрос требует развёрнутого ответа, но ответ неполный')
+            
+            query_type = None
+            question_words = {
+                'почему': 'причинный', 'зачем': 'причинный', 'отчего': 'причинный',
+                'как': 'процессуальный', 'каким образом': 'процессуальный',
+                'когда': 'временной', 'где': 'пространственный',
+                'сколько': 'количественный', 'какой': 'описательный',
+                'кто': 'идентификационный', 'что': 'идентификационный',
+                'сравни': 'сравнительный', 'чем отличается': 'сравнительный',
+            }
+            for word, qtype in question_words.items():
+                if word in query_lower:
+                    query_type = qtype
+                    break
+            
+            if query_type == 'причинный':
+                because_words = ['потому что', 'так как', 'из-за', 'вследствие', 'причина', 'по причине']
+                if not any(w in resp_lower for w in because_words):
+                    score -= 0.1
+                    issues.append('Вопрос о причине, но ответ не содержит причинно-следственной связи')
+            
+            elif query_type == 'сравнительный':
+                comparison_words = ['отличие', 'разница', 'в отличие', 'сравнение', 'различие', 'по сравнению']
+                if not any(w in resp_lower for w in comparison_words):
+                    score -= 0.1
+                    issues.append('Вопрос требует сравнения, но ответ не содержит сравнительного анализа')
+        
+        logical_markers = ['однако', 'но', 'поэтому', 'следовательно', 'значит', 'таким образом']
         for marker in logical_markers:
-            if marker in query.lower() and marker not in response.lower():
-                if marker in ['поэтому', 'следовательно', 'значит']:
+            if marker in query_lower and marker not in resp_lower:
+                if marker in ['поэтому', 'следовательно', 'значит', 'таким образом']:
                     issues.append(f'Отсутствует логическая связка: {marker}')
                     score -= 0.05
         
-        # 2. Проверяем длину ответа относительно запроса
         if len(response) < len(query) * 0.5:
-            issues.append('Ответ слишком короткий')
+            issues.append('Ответ слишком короткий относительно запроса')
             score -= 0.1
         
         if '?' in query and '?' not in response and len(response) < 100:
             issues.append('Вопрос требовал ответа, но ответ слишком короткий')
             score -= 0.1
         
+        negations = ['не', 'нет', 'нельзя', 'невозможно', 'отсутствует', 'нету']
+        double_negatives = 0
+        for sent in resp_lower.split('.'):
+            neg_count = sum(1 for n in negations if n in sent.split())
+            if neg_count >= 2:
+                double_negatives += 1
+        if double_negatives > 0:
+            score -= 0.1
+            issues.append(f'Обнаружена двойная отрицательная конструкция ({double_negatives})')
+        
+        premise_conclusion_markers = ['если', 'то', 'когда', 'тогда', 'при условии', 'в случае если']
+        has_premise = any(m in resp_lower for m in ['если', 'при условии', 'когда'])
+        has_conclusion = any(m in resp_lower for m in ['то', 'тогда', 'следует'])
+        if has_premise and not has_conclusion:
+            score -= 0.1
+            issues.append('Ответ содержит предпосылку без вывода')
+        
         return {
             'score': max(0, min(1, score)),
             'issues': issues,
             'factor': 'logic'
         }
+    
+    def analyze_response(self, query: str, response: str) -> Dict[str, Any]:
+        """Анализ ответа по логическим факторам"""
+        return self._analyze_logical_factors(query, response)
     
     def _find_alternative_reasoning_branches(self, query: str, current_response: str, factors_result: Dict) -> List[Dict]:
         """

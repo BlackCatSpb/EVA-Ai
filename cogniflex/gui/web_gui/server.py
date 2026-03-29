@@ -533,6 +533,9 @@ def api_upload():
     # Extract text from file
     extracted_text = extract_text_from_file(filepath, ext)
     
+    if extracted_text:
+        logger.info(f"Текст извлечён из файла {file.filename} (метод: {ext})")
+
     return jsonify({
         'file_id': file_id,
         'filename': file.filename,

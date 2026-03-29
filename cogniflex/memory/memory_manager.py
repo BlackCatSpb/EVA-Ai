@@ -446,14 +446,17 @@ class MemoryManager:
         try:
             cutoff = time.time() - 7 * 24 * 3600  # 7 days
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                mem_list = getattr(self, mem_type, [])
-                original_len = len(mem_list)
-                if isinstance(mem_list, list):
-                    mem_list[:] = [e for e in mem_list if e.get('timestamp', 0) > cutoff]
-                elif isinstance(mem_list, dict):
-                    mem_list = {k: v for k, v in mem_list.items() if v.get('timestamp', 0) > cutoff}
-                    setattr(self, mem_type, mem_list)
-                if len(mem_list) < original_len:
+                mem_obj = getattr(self, mem_type, None)
+                if mem_obj is None:
+                    continue
+                original_len = len(mem_obj)
+                if isinstance(mem_obj, list):
+                    mem_obj[:] = [e for e in mem_obj if isinstance(e, dict) and e.get('timestamp', 0) > cutoff]
+                elif isinstance(mem_obj, dict):
+                    keys_to_remove = [k for k, v in mem_obj.items() if isinstance(v, dict) and v.get('timestamp', 0) <= cutoff]
+                    for k in keys_to_remove:
+                        del mem_obj[k]
+                if len(mem_obj) < original_len:
                     self._save_memory(mem_type.replace("_memory", ""))
         except Exception as e:
             logger.debug(f"Ошибка оптимизации списков памяти: {e}")
@@ -463,14 +466,17 @@ class MemoryManager:
         try:
             cutoff = time.time() - max_age_days * 24 * 3600
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                mem_list = getattr(self, mem_type, [])
-                original_len = len(mem_list)
-                if isinstance(mem_list, list):
-                    mem_list[:] = [entry for entry in mem_list if entry.get('timestamp', 0) > cutoff]
-                elif isinstance(mem_list, dict):
-                    mem_list = {k: v for k, v in mem_list.items() if v.get('timestamp', 0) > cutoff}
-                    setattr(self, mem_type, mem_list)
-                if len(mem_list) < original_len:
+                mem_obj = getattr(self, mem_type, None)
+                if mem_obj is None:
+                    continue
+                original_len = len(mem_obj)
+                if isinstance(mem_obj, list):
+                    mem_obj[:] = [entry for entry in mem_obj if isinstance(entry, dict) and entry.get('timestamp', 0) > cutoff]
+                elif isinstance(mem_obj, dict):
+                    keys_to_remove = [k for k, v in mem_obj.items() if isinstance(v, dict) and v.get('timestamp', 0) <= cutoff]
+                    for k in keys_to_remove:
+                        del mem_obj[k]
+                if len(mem_obj) < original_len:
                     self._save_memory(mem_type.replace("_memory", ""))
             logger.info(f"Очищены неактивные кэши старше {max_age_days} дней")
         except Exception as e:
@@ -479,19 +485,33 @@ class MemoryManager:
     def compress_data(self):
         """Сжимает данные в памяти."""
         try:
-            # Простое сжатие: удаление дубликатов по содержимому
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                mem_list = getattr(self, mem_type, [])
+                mem_obj = getattr(self, mem_type, None)
+                if mem_obj is None:
+                    continue
                 seen = set()
-                compressed = []
-                for entry in mem_list:
-                    content_hash = hash(str(entry.get('content', '')))
-                    if content_hash not in seen:
-                        seen.add(content_hash)
-                        compressed.append(entry)
-                if len(compressed) < len(mem_list):
-                    setattr(self, mem_type, compressed)
-                    self._save_memory(mem_type.replace("_memory", ""))
+                if isinstance(mem_obj, dict):
+                    keys_to_remove = []
+                    for key, entry in mem_obj.items():
+                        content_hash = hash(str(entry.get('content', '')) if isinstance(entry, dict) else str(entry))
+                        if content_hash in seen:
+                            keys_to_remove.append(key)
+                        else:
+                            seen.add(content_hash)
+                    for key in keys_to_remove:
+                        del mem_obj[key]
+                    if keys_to_remove:
+                        self._save_memory(mem_type.replace("_memory", ""))
+                elif isinstance(mem_obj, list):
+                    compressed = []
+                    for entry in mem_obj:
+                        content_hash = hash(str(entry.get('content', '')) if isinstance(entry, dict) else str(entry))
+                        if content_hash not in seen:
+                            seen.add(content_hash)
+                            compressed.append(entry)
+                    if len(compressed) < len(mem_obj):
+                        mem_obj[:] = compressed
+                        self._save_memory(mem_type.replace("_memory", ""))
             logger.info("Данные в памяти сжаты")
         except Exception as e:
             logger.error(f"Ошибка сжатия данных: {e}")
@@ -608,13 +628,14 @@ class MemoryManager:
                 memory_obj = getattr(self, f"{memory_type}_memory", None)
                 if memory_obj is None:
                     continue
-                if not hasattr(memory_obj, '__iter__'):
-                    continue
-                for entry in memory_obj:
-                    if not isinstance(entry, dict):
-                        continue
-                    if entry.get("id") == memory_id:
+                if isinstance(memory_obj, dict):
+                    entry = memory_obj.get(memory_id)
+                    if isinstance(entry, dict):
                         return entry.copy()
+                elif isinstance(memory_obj, list):
+                    for entry in memory_obj:
+                        if isinstance(entry, dict) and entry.get("id") == memory_id:
+                            return entry.copy()
         return None
     
     def delete_memory(self, memory_id: str, memory_type: Optional[str] = None) -> bool:
@@ -630,13 +651,20 @@ class MemoryManager:
         """
         if memory_type:
             with self.memory_locks[memory_type]:
-                memory_list = getattr(self, f"{memory_type}_memory")
-                for i, entry in enumerate(memory_list):
-                    if entry["id"] == memory_id:
-                        del memory_list[i]
+                memory_obj = getattr(self, f"{memory_type}_memory")
+                if isinstance(memory_obj, dict):
+                    if memory_id in memory_obj:
+                        del memory_obj[memory_id]
                         self._save_memory(memory_type)
                         logger.debug(f"Удалена информация из {memory_type} памяти: {memory_id}")
                         return True
+                elif isinstance(memory_obj, list):
+                    for i, entry in enumerate(memory_obj):
+                        if isinstance(entry, dict) and entry.get("id") == memory_id:
+                            memory_obj.pop(i)
+                            self._save_memory(memory_type)
+                            logger.debug(f"Удалена информация из {memory_type} памяти: {memory_id}")
+                            return True
                 return False
         else:
             for memory_type in ["working", "semantic", "episodic"]:
@@ -764,19 +792,27 @@ class MemoryManager:
                 memory_obj = getattr(self, f"{memory_type}_memory", None)
                 if memory_obj is None:
                     continue
-                if not hasattr(memory_obj, '__iter__'):
-                    continue
-                for entry in memory_obj:
-                    if not isinstance(entry, dict):
-                        continue
-                    content = entry.get("content")
-                    if not isinstance(content, dict):
-                        continue
-                    if entry.get("id") == interaction_id and "type" in entry.get("metadata", {}) and entry["metadata"]["type"] == "interaction":
-                        content["response"] = response
-                        self._save_memory(memory_type)
-                        logger.debug(f"Ответ в истории обновлен: {interaction_id}")
-                        return True
+                if isinstance(memory_obj, dict):
+                    entry = memory_obj.get(interaction_id)
+                    if isinstance(entry, dict):
+                        content = entry.get("content")
+                        if isinstance(content, dict) and entry.get("metadata", {}).get("type") == "interaction":
+                            content["response"] = response
+                            self._save_memory(memory_type)
+                            logger.debug(f"Ответ в истории обновлен: {interaction_id}")
+                            return True
+                elif isinstance(memory_obj, list):
+                    for entry in memory_obj:
+                        if not isinstance(entry, dict):
+                            continue
+                        content = entry.get("content")
+                        if not isinstance(content, dict):
+                            continue
+                        if entry.get("id") == interaction_id and entry.get("metadata", {}).get("type") == "interaction":
+                            content["response"] = response
+                            self._save_memory(memory_type)
+                            logger.debug(f"Ответ в истории обновлен: {interaction_id}")
+                            return True
         
         # Ищем в профилях пользователей
         with self.memory_locks["user_profiles"]:
@@ -1294,9 +1330,44 @@ class MemoryManager:
 
     def get_graph_data(self) -> Dict:
         nodes = []
-        for mem_type in ('working_memory', 'semantic_memory'):
-            mem = getattr(self, mem_type, {})
-            if isinstance(mem, dict):
-                for key, value in list(mem.items())[:50]:
-                    nodes.append({'id': key, 'label': str(value)[:50], 'type': mem_type})
-        return {'nodes': nodes, 'edges': [], 'stats': {'total_nodes': len(nodes)}}
+        edges = []
+        node_ids = set()
+
+        if isinstance(self.working_memory, dict):
+            for key, value in self.working_memory.items():
+                if isinstance(value, dict):
+                    label = str(value.get("content", ""))[:50]
+                    nodes.append({'id': key, 'label': label, 'type': 'working'})
+                    node_ids.add(key)
+
+        if isinstance(self.semantic_memory, dict):
+            for key, value in self.semantic_memory.items():
+                if isinstance(value, dict):
+                    label = str(value.get("content", ""))[:50]
+                    nodes.append({'id': key, 'label': label, 'type': 'semantic'})
+                    node_ids.add(key)
+
+        if isinstance(self.episodic_memory, list):
+            for entry in self.episodic_memory:
+                if isinstance(entry, dict) and entry.get("id"):
+                    eid = entry["id"]
+                    label = str(entry.get("content", ""))[:50]
+                    session_id = entry.get("session_id")
+                    nodes.append({'id': eid, 'label': label, 'type': 'episodic'})
+                    node_ids.add(eid)
+                    if session_id:
+                        edges.append({'source': eid, 'target': f"session:{session_id}", 'label': 'belongs_to'})
+
+        if isinstance(self.user_profiles, dict):
+            for user_id, profile in self.user_profiles.items():
+                uid = f"user:{user_id}"
+                nodes.append({'id': uid, 'label': user_id, 'type': 'user_profile'})
+                node_ids.add(uid)
+                if isinstance(profile, dict):
+                    for interaction in profile.get("interaction_history", []):
+                        if isinstance(interaction, dict) and interaction.get("id"):
+                            iid = interaction["id"]
+                            if iid in node_ids:
+                                edges.append({'source': uid, 'target': iid, 'label': 'performed'})
+
+        return {'nodes': nodes, 'edges': edges, 'stats': {'total_nodes': len(nodes), 'total_edges': len(edges)}}
