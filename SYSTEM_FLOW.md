@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-29
-Версия: 1.7 (четвёртый цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
+Версия: 1.8 (разделение больших модулей + пятый цикл аудита)
 
 ---
 
@@ -1004,6 +1004,44 @@ AuthManager (server.py):
 4. **Механизм самостоятельного рассуждения** позволяет системе итеративно улучшать качество ответов через анализ и уточнение.
 
 5. **Управление памятью** реализует многоуровневую архитектуру с персистентным хранением и эффективным кэшированием.
+
+---
+
+## 14. Разделение больших модулей
+
+### 14.1 Стратегия разделения
+
+Большие модули (>500 строк) разделяются на логические подмодули для:
+- Улучшения поддерживаемости кода
+- Упрощения навигации по коду
+- Возможности параллельной разработки
+- Повторного использования компонентов
+
+### 14.2 Созданные подмодули
+
+| Оригинальный модуль | Подмодуль | Описание |
+|---------------------|-----------|----------|
+| knowledge_graph.py | knowledge_graph_types.py | Типы NodeType, RelationType, KnowledgeNode, KnowledgeEdge |
+| knowledge_graph.py | knowledge_graph_search.py | Методы поиска (search_nodes, get_edges, get_sources_for_node) |
+
+### 14.3 Резервное копирование
+
+Все рабочие модули скопированы в директорию `cogniflex_backup/`:
+- cogniflex_backup/knowledge/knowledge_graph.py
+- cogniflex_backup/core/core_brain.py
+- cogniflex_backup/gui/chat_module.py
+- cogniflex_backup/gui/learning_module.py
+- cogniflex_backup/learning/learning_scheduler.py
+- cogniflex_backup/learning/self_dialog_learning.py
+- cogniflex_backup/memory/memory_manager.py
+- cogniflex_backup/mlearning/training_orchestrator.py
+- cogniflex_backup/reasoning/self_reasoning_engine.py
+
+### 14.4 Принципы обратной совместимости
+
+- Оригинальные модули сохраняют полную функциональность
+- Новые подмодули импортируются в основные модули
+- Все существующие импорты продолжают работать
 
 ---
 
