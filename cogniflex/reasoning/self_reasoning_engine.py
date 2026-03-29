@@ -754,10 +754,12 @@ class SelfReasoningEngine:
                             device='auto',
                             load_in_8bit=True
                         )
+                        # Кэшируем только успешно инициализированный объект
+                        if qwen is not None:
+                            self._qwen_cached = qwen
                     except Exception as e:
                         logger.warning(f"Failed to initialize Qwen: {e}")
-                
-                self._qwen_cached = qwen
+                        # Не кэшируем неудачную попытку - оставляем None для повтора
             
             if self._qwen_cached and getattr(self._qwen_cached, 'initialized', False):
                 messages = [{"role": "user", "content": prompt}]

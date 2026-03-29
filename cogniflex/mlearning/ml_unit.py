@@ -117,7 +117,10 @@ class MLUnit:
         if hybrid_cache_size is None:
             max_hot_tokens = hc_config.get('max_hot_tokens', 8192)
             token_size_multiplier = hc_config.get('token_size_multiplier', 4096)
-            available_memory = hc_config.get('available_memory_mb', 512) * 1024 * 1024
+            available_memory_mb = hc_config.get('available_memory_mb')
+            if available_memory_mb is None:
+                available_memory_mb = 512
+            available_memory = available_memory_mb * 1024 * 1024
             hybrid_cache_size = min(max_hot_tokens * token_size_multiplier, available_memory // 2)
         
         self.hybrid_cache_size = hybrid_cache_size
@@ -135,6 +138,7 @@ class MLUnit:
         # Состояние
         self.running = False
         self.models_ready = False
+        self.training_mode = False
         
         # Статистика
         self.stats = {
@@ -363,7 +367,8 @@ class MLUnit:
                     self.response_generator.model_manager = self.model_manager
                 if self.text_processor and not self.response_generator.text_processor:
                     self.response_generator.text_processor = self.text_processor
-                self.response_generator.ml_core = self.ml_core
+                if self.ml_core:
+                    self.response_generator.ml_core = self.ml_core
             
             logger.info("Компоненты MLUnit успешно связаны.")
             

@@ -1133,11 +1133,15 @@ class LearningScheduler:
                 try:
                     edges = self.brain.knowledge_graph.get_edges(concept)
                     for edge in edges:
+                        if not hasattr(edge, 'source') or not hasattr(edge, 'target'):
+                            continue
                         related_concept = edge.target if edge.source == concept else edge.source
+                        strength = getattr(edge, 'strength', 0.5) if hasattr(edge, 'strength') else 0.5
+                        relation = getattr(edge, 'relation', 'related_to') if hasattr(edge, 'relation') else 'related_to'
                         connections.append({
                             "concept": related_concept,
-                            "relation": edge.relation,
-                            "strength": edge.strength
+                            "relation": relation,
+                            "strength": strength
                         })
                 except Exception as e:
                     logger.debug(f"Ошибка get_edges: {e}")
@@ -1390,26 +1394,38 @@ class LearningScheduler:
                 # Получаем узел концепта
                 nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
 
-                if nodes:
+                if nodes and len(nodes) > 0:
+                    first_node = nodes[0]
+                    node_id = getattr(first_node, 'id', None) if hasattr(first_node, 'id') else None
+                    if node_id is None:
+                        node_id = concept
+                    
                     # Оцениваем глубину (на основе количества связанных узлов)
-                    edges = self.brain.knowledge_graph.get_edges(nodes[0].id)
+                    edges = self.brain.knowledge_graph.get_edges(node_id)
                     depth = min(0.9, len(edges) * 0.1)
 
                     # Оцениваем ширину (на основе разнообразия доменов)
                     domains = set()
                     for edge in edges:
-                        related_node = self.brain.knowledge_graph.get_node(edge.target if edge.source == nodes[0].id else edge.source)
-                        if related_node:
+                        if not hasattr(edge, 'source') or not hasattr(edge, 'target'):
+                            continue
+                        target_id = edge.target if edge.source == node_id else edge.source
+                        related_node = self.brain.knowledge_graph.get_node(target_id)
+                        if related_node and hasattr(related_node, 'domain'):
                             domains.add(related_node.domain)
                     breadth = min(0.9, len(domains) * 0.2)
 
                     # Оцениваем актуальность (на основе времени последнего обновления)
-                    time_diff = time.time() - nodes[0].last_updated
+                    last_updated = getattr(first_node, 'last_updated', time.time()) if hasattr(first_node, 'last_updated') else time.time()
+                    time_diff = time.time() - last_updated
                     recency = max(0.1, 1.0 - min(1.0, time_diff / (365 * 86400)))
 
                     # Оцениваем связность (на основе когерентности графа)
-                    kg_health = self.brain.knowledge_graph.get_graph_health()
-                    coherence = kg_health["statistics"]["coherence"]
+                    try:
+                        kg_health = self.brain.knowledge_graph.get_graph_health()
+                        coherence = kg_health["statistics"]["coherence"]
+                    except Exception:
+                        coherence = 0.5
             except Exception as e:
                 logger.error(f"Ошибка при обращении к knowledge_graph: {e}")
         
@@ -1740,8 +1756,13 @@ class LearningScheduler:
     
     def _get_user_profile(self, user_id: str) -> Dict:
         """Получает профиль пользователя."""
-        if self.brain and hasattr(self.brain, 'adaptation_manager'):
-            return self.brain.adaptation_manager.get_user_profile(user_id).to_dict()
+        if self.brain and hasattr(self.brain, 'adaptation_manager') and self.brain.adaptation_manager:
+            try:
+                profile_obj = self.brain.adaptation_manager.get_user_profile(user_id)
+                if profile_obj and hasattr(profile_obj, 'to_dict'):
+                    return profile_obj.to_dict()
+            except Exception as e:
+                logger.debug(f"Ошибка получения профиля пользователя: {e}")
         return {
             "user_id": user_id,
             "preferences": {},
@@ -1773,7 +1794,8 @@ class LearningScheduler:
         }
         
         # Получаем интересы пользователя
-        user_interests = user_profile["preferences"].get("preferred_domains", ["technology"])
+        preferences = user_profile.get("preferences") if isinstance(user_profile.get("preferences"), dict) else {}
+        user_interests = preferences.get("preferred_domains", ["technology"]) if isinstance(preferences, dict) else ["technology"]
         
         # Определяем области для улучшения
         weak_areas = [

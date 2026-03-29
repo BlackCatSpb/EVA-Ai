@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-29
-Версия: 1.5 (второй цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
+Версия: 1.6 (третий цикл аудита - AI Архитектор + 3 Девелопера + Тестировщик)
 
 ---
 
@@ -965,6 +965,20 @@ AuthManager (server.py):
 2. **Greeting handler**: пропускает обработку при наличии "прикрепил файл" в запросе
 3. **Персистентные сессии**: user_id теперь детерминированный на основе имени пользователя
 
+### 12.5 Исправления v1.6 (третий цикл аудита)
+
+| # | Файл | Проблема | Статус |
+|---|------|----------|--------|
+| 1 | ml_unit.py | training_mode attribute never defined - _is_training_mode() всегда возвращает False | ✅ |
+| 2 | ml_unit.py | Potential TypeError при available_memory_mb = None | ✅ |
+| 3 | ml_unit.py | response_generator.ml_core может получить None без проверки | ✅ |
+| 4 | learning_scheduler.py | edge attribute validation - edge.target, edge.source, edge.strength без проверки | ✅ |
+| 5 | learning_scheduler.py | _assess_knowledge_state - nodes[0].id, .domain, .last_updated без проверки | ✅ |
+| 6 | learning_scheduler.py | _get_user_profile - get_user_profile().to_dict() без проверки | ✅ |
+| 7 | learning_scheduler.py | user_profile["preferences"].get() без проверки типа | ✅ |
+| 8 | self_reasoning_engine.py | Qwen cache хранит None после неудачной инициализации | ✅ |
+| 9 | core_brain.py | token_cache/hybrid_cache не определены при ошибке импорта | ✅ |
+
 ---
 
 ## 13. Заключение
@@ -993,3 +1007,4 @@ AuthManager (server.py):
 | 1.3 | 2026-03-29 | Веб-интерфейс (Flask), загрузка файлов, OCR, логические факторы рассуждения |
 | 1.4 | 2026-03-29 | Аудит AI Архитектора: 7 критических ошибок, 4 новых метода |
 | 1.5 | 2026-03-29 | Второй цикл: 8 исправлений (memory_manager dict, learning_scheduler try/except, ml_unit проверка модели, SRE улучшения) |
+| 1.6 | 2026-03-29 | Третий цикл: 9 исправлений (ml_unit training_mode, learning_scheduler attribute validation, SRE Qwen cache, core_brain import handling) |

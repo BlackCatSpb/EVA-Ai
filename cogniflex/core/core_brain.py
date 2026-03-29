@@ -345,6 +345,12 @@ class CoreBrain:
                 cache_stats = self.token_cache.get_cache_stats()
         except ImportError as e:
             self.query_logger.warning(f"Ошибка импорта гибридного кэша: {e}")
+            self.token_cache = None
+            self.hybrid_cache = None
+        except Exception as e:
+            self.query_logger.warning(f"Ошибка инициализации гибридного кэша: {e}")
+            self.token_cache = None
+            self.hybrid_cache = None
         
         self.fractal_ready = False  # Флаг готовности фрактальной модели
         self.qwen_ready = False  # Флаг готовности Qwen модели
