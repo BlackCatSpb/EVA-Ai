@@ -21,7 +21,7 @@
     "max_new_tokens": 2048,
     "device": "cuda",
     "quantization": "int8",
-    "qwen_only_mode": true,
+    "qwen_only_mode": false,
     "disable_fallback": true
   },
   "generation": {
@@ -69,7 +69,8 @@
     "disable_learning_threads": false,
     "disable_background_training": false,
     "max_concurrent_operations": 4,
-    "log_throttle_seconds": 30
+    "log_throttle_seconds": 30,
+    "query_timeout": 30
   },
   "logging": {
     "level": "INFO",

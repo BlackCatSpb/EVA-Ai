@@ -28,6 +28,14 @@ pypdf = _safe_import("pypdf") or _safe_import("PyPDF2")
 pytesseract = _safe_import("pytesseract")
 PIL = _safe_import("PIL")
 
+# Configure Tesseract path for OCR
+if pytesseract:
+    try:
+        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        logger.info("Tesseract path configured in import_pipeline")
+    except Exception as e:
+        logger.warning(f"Failed to configure Tesseract path: {e}")
+
 
 @dataclass
 class ImportedDocument:

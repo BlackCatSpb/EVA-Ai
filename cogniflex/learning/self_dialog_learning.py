@@ -9,6 +9,7 @@ import time
 import threading
 import queue
 import json
+import os
 from typing import Dict, List, Any, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
@@ -79,8 +80,8 @@ class SelfDialogLearningSystem:
         self.enabled = self.config.get("enabled", True)
         self.auto_dialog_interval = self.config.get("auto_dialog_interval", 300)
         self.auto_learning_interval = self.config.get("auto_learning_interval", 60)
-        self.max_dialog_turns = self.config.get("max_dialog_turns", 10)
-        self.min_quality_threshold = self.config.get("min_quality_threshold", 0.6)
+        self.max_dialog_turns = self.config.get("max_dialog_turns", 15)
+        self.min_quality_threshold = self.config.get("min_quality_threshold", 0.9)
         self.auto_execute_enabled = self.config.get("auto_execute_enabled", True)
         
         # Порог приоритета для выполнения обучения (снижен с 0.3 до 0.1)
@@ -94,8 +95,15 @@ class SelfDialogLearningSystem:
         self.running = False
         self.stop_event = threading.Event()
         self.last_learning_check = 0
+        self.last_dialog_check = 0
+        
+        self._in_self_dialog = False
         
         self.learning_callbacks: List[Callable] = []
+        
+        # Track recently processed topics to avoid duplicates
+        self._recently_processed_topics: Dict[str, float] = {}
+        self._topic_ttl = 600  # 10 minutes TTL for topics
         
         self.stats = {
             "total_dialogs": 0,
@@ -133,7 +141,7 @@ class SelfDialogLearningSystem:
         logger.info("Система самообучения запущена")
         return True
     
-    def stop(self):
+    def stop(self) -> None:
         """Останавливает систему самообучения."""
         if not self.running:
             return
@@ -143,6 +151,8 @@ class SelfDialogLearningSystem:
         
         if hasattr(self, 'worker_thread') and self.worker_thread.is_alive():
             self.worker_thread.join(timeout=5.0)
+            if self.worker_thread.is_alive():
+                logger.warning("Worker thread did not stop within timeout, continuing shutdown")
         
         logger.info("Система самообучения остановлена")
     
@@ -163,22 +173,21 @@ class SelfDialogLearningSystem:
                     conn = getattr(analyzer_core, 'db_path', None)
                     if conn:
                         import sqlite3
-                        db_conn = sqlite3.connect(conn)
-                        cursor = db_conn.cursor()
-                        cursor.execute('''
-                            UPDATE learning_opportunities 
-                            SET executed = 1, execution = ?, last_updated = ?
-                            WHERE priority < 0.3
-                        ''', (json.dumps({"skipped": True, "reason": "low_priority_startup"}), time.time()))
-                        deleted = cursor.rowcount
-                        db_conn.commit()
-                        db_conn.close()
-                        if deleted > 0:
-                            logger.info(f"Очищено {deleted} возможностей с низким приоритетом")
+                        with sqlite3.connect(conn) as db_conn:
+                            cursor = db_conn.cursor()
+                            cursor.execute('''
+                                UPDATE learning_opportunities 
+                                SET executed = 1, execution = ?, last_updated = ?
+                                WHERE priority < 0.3
+                            ''', (json.dumps({"skipped": True, "reason": "low_priority_startup"}), time.time()))
+                            deleted = cursor.rowcount
+                            db_conn.commit()
+                            if deleted > 0:
+                                logger.info(f"Очищено {deleted} возможностей с низким приоритетом")
                 except Exception as e:
-                    logger.debug(f"Ошибка очистки низкоприоритетных возможностей: {e}")
+                    logger.warning(f"Ошибка очистки низкоприоритетных возможностей: {type(e).__name__}: {e}", exc_info=True)
         except Exception as e:
-            logger.debug(f"Ошибка при очистке: {e}")
+            logger.warning(f"Ошибка при очистке: {type(e).__name__}: {e}", exc_info=True)
     
     def _worker_loop(self):
         """Основной рабочий цикл системы."""
@@ -189,13 +198,18 @@ class SelfDialogLearningSystem:
                 try:
                     task = self.dialog_queue.get(timeout=1)
                     self._process_task(task)
-                except Exception as e:
-                    logger.warning(f"Queue timeout in learning cycle: {e}")
+                except queue.Empty:
+                    pass
                 
                 if self.auto_execute_enabled:
                     self._check_and_execute_learning_opportunities()
                 
-                time.sleep(0.1)
+                # Only generate dialogs every 5 minutes, not every loop
+                current_time = time.time()
+                if current_time - self.last_dialog_check > 300:  # 5 minutes
+                    self._generate_dialog_from_conversations()
+                
+                time.sleep(1)  # Increased from 0.1 to reduce CPU usage
                 
             except Exception as e:
                 logger.error(f"Ошибка в рабочем цикле самообучения: {e}")
@@ -203,7 +217,7 @@ class SelfDialogLearningSystem:
         
         logger.info("Рабочий цикл самообучения завершен")
     
-    def _check_and_execute_learning_opportunities(self):
+    def _check_and_execute_learning_opportunities(self) -> None:
         """Проверяет и автоматически выполняет возможности для обучения."""
         current_time = time.time()
         if current_time - self.last_learning_check < self.auto_learning_interval:
@@ -215,6 +229,7 @@ class SelfDialogLearningSystem:
             opportunities = self._get_learning_opportunities()
             
             if not opportunities:
+                self._generate_dialog_from_conversations()
                 return
             
             self.stats["opportunities_found"] += len(opportunities)
@@ -225,6 +240,65 @@ class SelfDialogLearningSystem:
                 
         except Exception as e:
             logger.error(f"Ошибка при проверке возможностей для обучения: {e}")
+    
+    def _generate_dialog_from_conversations(self) -> None:
+        """Generates self-dialog from recent conversation history."""
+        if not self.brain:
+            return
+        
+        if not hasattr(self.brain, 'memory_manager') or not self.brain.memory_manager:
+            return
+        
+        current_time = time.time()
+        
+        # Cleanup old entries from recently processed topics
+        self._recently_processed_topics = {
+            k: v for k, v in self._recently_processed_topics.items()
+            if current_time - v < self._topic_ttl
+        }
+        
+        if current_time - self.last_dialog_check < self.auto_dialog_interval:
+            return
+        
+        self.last_dialog_check = current_time
+        
+        try:
+            if (self.brain and hasattr(self.brain, 'memory_manager') and 
+                self.brain.memory_manager and 
+                hasattr(self.brain.memory_manager, 'get_conversation_history')):
+                conversation_history = self.brain.memory_manager.get_conversation_history(user_id="default_user", limit=10)
+            else:
+                conversation_history = []
+            
+            if not conversation_history or not isinstance(conversation_history, list):
+                logger.debug("No conversation history available for self-dialog generation")
+                return
+            
+            if not all(isinstance(conv, dict) and 'query' in conv for conv in conversation_history):
+                logger.debug("Invalid conversation history structure")
+                return
+            
+            # Find a topic that hasn't been recently processed
+            topics = []
+            for conv in conversation_history:
+                query = conv.get('query', '')
+                if query and len(query) > 10:
+                    topic = query[:100]
+                    # Skip if recently processed
+                    if topic not in self._recently_processed_topics:
+                        topics.append(topic)
+            
+            if topics:
+                topic = topics[0]
+                self._recently_processed_topics[topic] = current_time
+                logger.info(f"Creating self-dialog from conversation: {topic[:50]}...")
+                self.create_dialog(topic=topic, context={"source": "conversation_history"})
+                self.stats["total_dialogs"] += 1
+            else:
+                logger.debug("All recent topics already processed, skipping dialog generation")
+                
+        except Exception as e:
+            logger.debug(f"Error generating dialog from conversations: {e}")
     
     def _get_learning_opportunities(self) -> List[Dict[str, Any]]:
         """Получает невыполненные возможности для обучения."""
@@ -276,6 +350,8 @@ class SelfDialogLearningSystem:
         """Выполняет возможность для обучения."""
         try:
             opportunity_id = opportunity.get('id')
+            if not opportunity_id:
+                return
             concept = opportunity.get('concept', 'unknown')
             opportunity_type = opportunity.get('opportunity_type', 'expansion')
             priority = opportunity.get('priority', 0.5)
@@ -332,19 +408,22 @@ class SelfDialogLearningSystem:
         """Расширяет знания по концепту."""
         suggested_actions = opportunity.get('suggested_actions', [])
         
-        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+        knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
+        if knowledge_graph:
             try:
-                self.brain.knowledge_graph.add_node(
-                    concept,
-                    node_type="learned_knowledge",
-                    domain=domain,
-                    metadata={
-                        "learned_at": time.time(),
-                        "type": "expansion",
-                        "source": "self_dialog_learning"
-                    }
-                )
-                logger.debug(f"Добавлен узел знаний: {concept}")
+                add_node = getattr(knowledge_graph, 'add_node', None)
+                if add_node:
+                    add_node(
+                        concept,
+                        node_type="learned_knowledge",
+                        domain=domain,
+                        metadata={
+                            "learned_at": time.time(),
+                            "type": "expansion",
+                            "source": "self_dialog_learning"
+                        }
+                    )
+                    logger.debug(f"Добавлен узел знаний: {concept}")
             except Exception as e:
                 logger.debug(f"Ошибка добавления узла: {e}")
         
@@ -362,19 +441,38 @@ class SelfDialogLearningSystem:
         if evidence:
             refinement_text += f". Основание: {'; '.join(evidence[:2])}"
         
-        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+        knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
+        if knowledge_graph:
             try:
-                self.brain.knowledge_graph.update_node(
-                    concept,
-                    metadata={
-                        "refined_at": time.time(),
+                update_node = getattr(knowledge_graph, 'update_node', None)
+                if update_node:
+                    update_node(
+                        concept,
+                        f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
+                        source="self_dialog_learning"
+                    )
+            except Exception as e:
+                logger.warning(f"Error updating knowledge graph in _learn_refining: {e}")
+        
+        if not self.brain:
+            return refinement_text
+        
+        memory_manager = getattr(self.brain, 'memory_manager', None)
+        if memory_manager and hasattr(memory_manager, 'add_memory'):
+            try:
+                memory_manager.add_memory(
+                    f"refinement_{concept}",
+                    {
+                        "concept": concept,
                         "type": "refinement",
-                        "source": "self_dialog_learning",
-                        "evidence": evidence
+                        "domain": domain,
+                        "evidence": evidence,
+                        "refined_at": time.time(),
+                        "source": "self_dialog_learning"
                     }
                 )
             except Exception as e:
-                logger.warning(f"Error updating knowledge graph in _learn_refining: {e}")
+                logger.debug(f"Error storing refinement: {e}")
         
         return refinement_text
     
@@ -387,25 +485,26 @@ class SelfDialogLearningSystem:
             update_text += f". Необходимые действия: {'; '.join(suggested_actions[:2])}"
         
         if self.brain:
-            if hasattr(self.brain, 'adaptation_manager') and self.brain.adaptation_manager:
+            adaptation_manager = getattr(self.brain, 'adaptation_manager', None)
+            if adaptation_manager:
                 try:
-                    self.brain.adaptation_manager.update_adaptation(
-                        concept,
-                        {"updated": True, "updated_at": time.time()}
-                    )
+                    update_adaptation = getattr(adaptation_manager, 'update_adaptation', None)
+                    if update_adaptation:
+                        update_adaptation(
+                            concept,
+                            {"updated": True, "updated_at": time.time()}
+                        )
                 except Exception as e:
                     logger.warning(f"Error updating adaptation: {e}")
             
             if hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
-                    self.brain.knowledge_graph.update_node(
-                        concept,
-                        metadata={
-                            "updated_at": time.time(),
-                            "type": "updating",
-                            "source": "self_dialog_learning"
-                        }
-                    )
+                    if hasattr(self.brain.knowledge_graph, 'update_node'):
+                        self.brain.knowledge_graph.update_node(
+                            concept,
+                            f"Updated at {time.time()}, type: updating",
+                            source="self_dialog_learning"
+                        )
                 except Exception as e:
                     logger.warning(f"Error updating knowledge graph in _learn_updating: {e}")
         
@@ -421,17 +520,18 @@ class SelfDialogLearningSystem:
         
         if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
             try:
-                self.brain.knowledge_graph.add_node(
-                    concept,
-                    node_type="integrated_knowledge",
-                    domain=domain,
-                    metadata={
-                        "integrated_at": time.time(),
-                        "type": "integration",
-                        "source": "self_dialog_learning",
-                        "evidence": evidence
-                    }
-                )
+                if hasattr(self.brain.knowledge_graph, 'add_node'):
+                    self.brain.knowledge_graph.add_node(
+                        concept,
+                        node_type="integrated_knowledge",
+                        domain=domain,
+                        metadata={
+                            "integrated_at": time.time(),
+                            "type": "integration",
+                            "source": "self_dialog_learning",
+                            "evidence": evidence
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error adding node in _learn_integration: {e}")
         
@@ -453,16 +553,19 @@ class SelfDialogLearningSystem:
             return
         
         try:
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
+            memory_manager = getattr(self.brain, 'memory_manager', None)
+            if memory_manager:
                 try:
-                    self.brain.memory_manager.store(
-                        f"learned_{result['concept']}",
-                        {
-                            **result,
-                            "stored_at": time.time(),
-                            "source": "self_dialog_learning"
-                        }
-                    )
+                    add_memory = getattr(memory_manager, 'add_memory', None)
+                    if add_memory:
+                        add_memory(
+                            f"learned_{result['concept']}",
+                            {
+                                **result,
+                                "stored_at": time.time(),
+                                "source": "self_dialog_learning"
+                            }
+                        )
                 except Exception as e:
                     logger.warning(f"Error storing learned content: {e}")
                     
@@ -501,24 +604,23 @@ class SelfDialogLearningSystem:
             
             if analyzer_core:
                 db_path = getattr(analyzer_core, 'db_path', None)
-                if db_path:
+                if db_path and os.path.exists(db_path):
                     import sqlite3
-                    conn = sqlite3.connect(db_path)
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        UPDATE learning_opportunities 
-                        SET executed = 1, execution = ?, last_updated = ?
-                        WHERE id = ?
-                    ''', (json.dumps(result), time.time(), opportunity_id))
-                    conn.commit()
-                    conn.close()
+                    with sqlite3.connect(db_path) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            UPDATE learning_opportunities 
+                            SET executed = 1, execution = ?, last_updated = ?
+                            WHERE id = ?
+                        ''', (json.dumps(result), time.time(), opportunity_id))
+                        conn.commit()
         except Exception as e:
             logger.warning(f"Error marking opportunity executed: {e}")
     
     def _mark_in_learning_manager(self, opportunity_id: str, result: Dict[str, Any]):
         """Отмечает возможность как выполненную в learning_opportunity_manager."""
         try:
-            if hasattr(self.brain.learning_opportunity_manager, 'execute_learning_opportunity'):
+            if getattr(self.brain, 'learning_opportunity_manager', None) and hasattr(self.brain.learning_opportunity_manager, 'execute_learning_opportunity'):
                 self.brain.learning_opportunity_manager.execute_learning_opportunity(opportunity_id)
         except Exception as e:
             logger.warning(f"Error in _mark_in_learning_manager: {e}")
@@ -577,13 +679,16 @@ class SelfDialogLearningSystem:
         """Выполняет самодиалог."""
         assistant_prompt = self._generate_assistant_prompt(dialog.topic, context)
         
+        # Получаем историю диалогов для контекста
+        conversation_context = self._get_conversation_context()
+        
         turn_count = 0
         while turn_count < self.max_dialog_turns and len(dialog.turns) < self.max_dialog_turns:
             turn_count += 1
             
             if turn_count == 1:
                 role = DialogRole.ASSISTANT
-                content = self._simulate_assistant_response(assistant_prompt)
+                content = self._simulate_assistant_response(assistant_prompt, conversation_context)
             elif turn_count == 2:
                 role = DialogRole.CRITIC
                 content = self._simulate_critic_response(dialog.turns, dialog.topic)
@@ -626,26 +731,84 @@ class SelfDialogLearningSystem:
         prompt += "\nСистема анализирует эту тему..."
         return prompt
     
-    def _simulate_assistant_response(self, prompt: str) -> str:
+    def _get_conversation_context(self) -> Dict[str, Any]:
+        """Получает контекст из истории диалогов для использования в самодиалоге."""
+        context = {"conversation_history": []}
+        
+        if not self.brain:
+            return context
+        
+        if not hasattr(self.brain, 'memory_manager') or not self.brain.memory_manager:
+            return context
+        
+        try:
+            if hasattr(self.brain.memory_manager, 'get_conversation_history'):
+                history = self.brain.memory_manager.get_conversation_history(
+                    user_id="default_user", 
+                    limit=10
+                )
+                if history and isinstance(history, list):
+                    context["conversation_history"] = [
+                        {"role": "user" if i % 2 == 0 else "assistant", "content": h.get('query', h.get('response', ''))}
+                        for i, h in enumerate(history)
+                    ]
+                    logger.info(f"Получено {len(context['conversation_history'])} сообщений из истории")
+        except Exception as e:
+            logger.debug(f"Ошибка получения истории диалогов: {e}")
+        
+        return context
+    
+    def _simulate_assistant_response(self, prompt: str, context: Optional[Dict] = None) -> str:
         """Симулирует ответ ассистента с использованием SelfReasoningEngine."""
         topic_match = prompt.split("Тема:")[1].split("\n")[0].strip() if "Тема:" in prompt else "тему"
         
-        # Пробуем использовать SelfReasoningEngine
-        if self.brain and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine:
+        # Сначала ищем релевантный контекст из knowledge graph
+        relevant_context = ""
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
             try:
-                result = self.brain.self_reasoning_engine.process_query(f"Объясни: {topic_match}")
-                if result and result.get('response'):
-                    return result['response'][:500]
+                kg = self.brain.knowledge_graph
+                if hasattr(kg, 'search'):
+                    results = kg.search(topic_match, limit=3)
+                    if results:
+                        relevant_context = "Известная информация: " + "; ".join([r.get('content', '')[:100] for r in results[:2]])
+                        logger.info(f"Найден контекст из knowledge graph: {len(results)} результатов")
             except Exception as e:
-                logger.debug(f"Не удалось использовать SelfReasoningEngine: {e}")
+                logger.debug(f"Ошибка поиска в knowledge graph: {e}")
         
-        # Пробуем использовать process_query
+        # Формируем расширенный запрос с контекстом
+        full_query = f"Объясни: {topic_match}"
+        if relevant_context:
+            full_query = relevant_context + "\n\n" + full_query
+        
+        # Защита от рекурсии - не вызываем process_query если уже в самодиалоге
+        if self._in_self_dialog:
+            logger.debug("Рекурсия в _simulate_assistant_response - использую fallback")
+            return f"Анализ темы '{topic_match}': система исследует базовые аспекты проблемы."
+        
+        # Пробуем использовать SelfReasoningEngine с контекстом
+        if self.brain and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine:
+            if hasattr(self.brain.self_reasoning_engine, 'process_query'):
+                try:
+                    result = self.brain.self_reasoning_engine.process_query(
+                        full_query,
+                        user_context=context if context else {}
+                    )
+                    if result and result.get('response'):
+                        return result['response'][:500]
+                except Exception as e:
+                    logger.debug(f"Не удалось использовать SelfReasoningEngine: {e}")
+        
+        # Пробуем использовать process_query с защитой от рекурсии
         if self.brain and hasattr(self.brain, 'process_query'):
             try:
-                response = self.brain.process_query(f"Объясни: {topic_match}")
-                if response and isinstance(response, dict):
-                    response = response.get('response', response.get('text', ''))
-                return response[:500] if response and len(response) > 500 else (response or '')
+                self._in_self_dialog = True
+                try:
+                    response = self.brain.process_query(full_query, user_context=context if context else {})
+                    if response and isinstance(response, dict):
+                        response = response.get('response', response.get('text', ''))
+                    return response[:500] if response and len(response) > 500 else (response or '')
+                finally:
+                    self._in_self_dialog = False
             except Exception as e:
                 logger.debug(f"Не удалось получить ответ от brain: {e}")
         
@@ -661,7 +824,9 @@ class SelfDialogLearningSystem:
         
         # Проверяем противоречия если доступен ContradictionManager
         contradictions_found = []
-        if self.brain and hasattr(self.brain, 'contradiction_manager') and self.brain.contradiction_manager:
+        if (self.brain and hasattr(self.brain, 'contradiction_manager') and 
+            self.brain.contradiction_manager and 
+            hasattr(self.brain.contradiction_manager, 'detect_contradictions')):
             try:
                 contr_result = self.brain.contradiction_manager.detect_contradictions()
                 if contr_result and isinstance(contr_result, dict):
@@ -864,7 +1029,7 @@ class SelfDialogLearningSystem:
         
         return False
     
-    def _analyze_dialog_outcome(self, dialog: SelfDialog):
+    def _analyze_dialog_outcome(self, dialog: SelfDialog) -> None:
         """Анализирует исход диалога."""
         if not dialog.turns:
             dialog.outcome = "no_content"
@@ -936,22 +1101,23 @@ class SelfDialogLearningSystem:
         
         logger.info(f"Самодиалог завершен: {dialog.id}, исход: {dialog.outcome}")
     
-    def _trigger_learning(self, gap: str):
+    def _trigger_learning(self, gap: str) -> None:
         """Запускает процесс обучения для указанного пробела."""
         if not self.brain:
             return
         
         try:
             if hasattr(self.brain, 'analyzer_core') and self.brain.analyzer_core:
-                self.brain.analyzer_core.add_learning_opportunity(
-                    concept=gap,
-                    opportunity_type="expansion",
-                    priority=0.7,
-                    domain="self_dialog_learning",
-                    evidence=[f"Выявлено в самодиалоге: {gap}"],
-                    suggested_actions=[f"Изучить {gap}", "Обновить связанные знания"]
-                )
-                logger.info(f"Добавлена возможность обучения: {gap}")
+                if hasattr(self.brain.analyzer_core, 'add_learning_opportunity'):
+                    self.brain.analyzer_core.add_learning_opportunity(
+                        concept=gap,
+                        opportunity_type="expansion",
+                        priority=0.7,
+                        domain="self_dialog_learning",
+                        evidence=[f"Выявлено в самодиалоге: {gap}"],
+                        suggested_actions=[f"Изучить {gap}", "Обновить связанные знания"]
+                    )
+                    logger.info(f"Добавлена возможность обучения: {gap}")
         except Exception as e:
             logger.error(f"Ошибка добавления возможности обучения: {e}")
     

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CogniFlex AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <!-- Login -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-box">
+            <div class="login-logo">CogniFlex</div>
+            <div class="login-sub">AI</div>
+            <form class="login-form" id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Пользователь" autocomplete="username">
+                <input type="password" id="loginPassword" placeholder="Пароль" autocomplete="current-password">
+                <button type="submit" class="login-btn">Войти</button>
+            </form>
+            <div class="login-error" id="loginError"></div>
+            <div class="login-hint">admin / cogniflex</div>
+        </div>
+    </div>
+
+    <!-- App -->
+    <div class="app" id="appContainer" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <button class="new-chat-btn" id="newChatBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Новый чат</span>
+                </button>
+            </div>
+            <div class="sidebar-sessions" id="sessionList"></div>
+            <div class="sidebar-nav">
+                <button class="nav-item active" data-view="chat">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Чат</span>
+                </button>
+                <button class="nav-item" data-view="memory">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    <span>Память</span>
+                </button>
+                <button class="nav-item" data-view="analytics">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                    <span>Аналитика</span>
+                </button>
+                <button class="nav-item" data-view="learning">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    <span>Обучение</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                    <span>Настройки</span>
+                </button>
+            </div>
+            <div class="sidebar-user">
+                <div class="status-indicator" id="systemStatus" title="Статус системы">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ожидание</span>
+                </div>
+                <span class="user-name" id="userName">—</span>
+                <button class="logout-btn" id="logoutBtn" title="Выход">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <!-- Chat View -->
+            <div class="view active" id="chatView">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-wrap">
+                    <div class="chat-input-box">
+                        <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        </button>
+                        <input type="file" id="fileInput" style="display:none" accept=".txt,.pdf,.docx,.py,.js,.ts,.java,.cpp,.c,.h,.html,.css,.json,.xml,.yaml,.yml,.md,.jpg,.jpeg,.png,.gif,.bmp">
+                        <div id="filePreview" class="file-preview" style="display:none">
+                            <span id="fileName"></span>
+                            <button id="removeFile" class="remove-file">&times;</button>
+                        </div>
+                        <textarea id="chatInput" placeholder="Сообщение..." rows="1" autocomplete="off"></textarea>
+                        <button class="send-btn" id="sendBtn" title="Отправить">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Memory View -->
+            <div class="view" id="memoryView" style="display:none">
+                <div class="view-header">
+                    <h2>Память</h2>
+                    <button class="refresh-btn" id="refreshMemory">Обновить</button>
+                </div>
+                <div class="memory-stats">
+                    <div class="stat"><span class="stat-val" id="totalNodes">0</span><span class="stat-lbl">Узлов</span></div>
+                    <div class="stat"><span class="stat-val" id="totalEdges">0</span><span class="stat-lbl">Связей</span></div>
+                </div>
+                <div class="memory-graph" id="memoryGraph"></div>
+            </div>
+
+            <!-- Analytics View -->
+            <div class="view" id="analyticsView" style="display:none">
+                <div class="view-header">
+                    <h2>Аналитика</h2>
+                    <button class="refresh-btn" id="refreshAnalytics">Обновить</button>
+                </div>
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Производительность</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsQueries">0</span><span class="stat-lbl">Запросов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsAvgTime">0ms</span><span class="stat-lbl">Среднее время</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsSuccess">0%</span><span class="stat-lbl">Успешных</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Система</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsCPU">0%</span><span class="stat-lbl">CPU</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsMemory">0%</span><span class="stat-lbl">RAM</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsVRAM">0%</span><span class="stat-lbl">VRAM</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Обучение</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsDialogs">0</span><span class="stat-lbl">Диалогов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsGaps">0</span><span class="stat-lbl">Пробелов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsLearned">0</span><span class="stat-lbl">Изучено</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card full-width">
+                        <h3>История активности</h3>
+                        <div class="activity-list" id="activityList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Learning View -->
+            <div class="view" id="learningView" style="display:none">
+                <div class="view-header">
+                    <h2>Обучение</h2>
+                    <button class="refresh-btn" id="refreshLearning">Обновить</button>
+                </div>
+                <div class="learning-grid">
+                    <div class="learning-card">
+                        <h3>Возможности обучения</h3>
+                        <div class="opportunities-list" id="opportunitiesList">
+                            <div class="empty-state">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div class="learning-card">
+                        <h3>Статистика обучения</h3>
+                        <div class="learning-stats">
+                            <div class="stat"><span class="stat-val" id="learnTotal">0</span><span class="stat-lbl">Всего</span></div>
+                            <div class="stat"><span class="stat-val" id="learnSuccess">0</span><span class="stat-lbl">Успешно</span></div>
+                            <div class="stat"><span class="stat-val" id="learnPending">0</span><span class="stat-lbl">В ожидании</span></div>
+                        </div>
+                    </div>
+                    <div class="learning-card full-width">
+                        <h3>Недавние диалоги</h3>
+                        <div class="dialogs-list" id="dialogsList">
+                            <div class="empty-state">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view" id="settingsView" style="display:none">
+                <div class="view-header">
+                    <h2>Настройки</h2>
+                </div>
+                <div class="settings-body">
+                    <div class="setting-group">
+                        <h3>Аккаунт</h3>
+                        <div class="setting-row">
+                            <label>Пользователь</label>
+                            <span id="settingsUser">—</span>
+                        </div>
+                        <div class="setting-row">
+                            <label>Сессия</label>
+                            <span id="settingsSession">—</span>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Система</h3>
+                        <div class="setting-row">
+                            <label>Автообучение</label>
+                            <div class="toggle-switch active" id="toggleAutoLearn"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>SRE (Reasoning)</label>
+                            <div class="toggle-switch active" id="toggleSRE"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>Контекстная память</label>
+                            <div class="toggle-switch active" id="toggleMemory"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Интерфейс</h3>
+                        <div class="setting-row">
+                            <label>Тёмная тема</label>
+                            <div class="toggle-switch active" id="toggleTheme"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>Звуковые уведомления</label>
+                            <div class="toggle-switch" id="toggleSound"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>О системе</h3>
+                        <div class="setting-row">
+                            <label>Версия</label>
+                            <span>1.0.0</span>
+                        </div>
+                        <div class="setting-row">
+                            <label>Модель</label>
+                            <span>Qwen3.5-0.8B</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

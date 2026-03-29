@@ -100,7 +100,7 @@ class SelfReasoningEngine:
         
         Args:
             query: Запрос пользователя
-            user_context: Дополнительный контекст
+            user_context: Дополнительный контекст (может содержать conversation_history)
             
         Returns:
             Dict с полями: response, reasoning (для GUI), confidence, iterations
@@ -108,12 +108,21 @@ class SelfReasoningEngine:
         start_time = time.time()
         self.total_queries += 1
         
+        # Извлекаем историю диалогов из контекста
+        conversation_history = []
+        if user_context and 'conversation_history' in user_context:
+            conversation_history = user_context['conversation_history']
+            logger.info(f"Получена история диалогов: {len(conversation_history)} сообщений")
+        
+        # Формируем расширенный промпт с историей
+        enhanced_query = self._build_contextual_query(query, conversation_history)
+        
         # Быстрая проверка - сразу используем fallback если модели недоступны
         try:
             qwen = getattr(self.brain, 'qwen_model_manager', None)
             if qwen is None or not getattr(qwen, 'initialized', False):
                 # Qwen недоступен - используем простой ответ напрямую
-                simple_response = self._generate_simple_response(query)
+                simple_response = self._generate_simple_response(enhanced_query)
                 return {
                     "response": simple_response,
                     "text": simple_response,
@@ -121,7 +130,8 @@ class SelfReasoningEngine:
                     "confidence": 0.5,
                     "reasoning": {"source": "simple_fallback"},
                     "source": "self_reasoning_engine",
-                    "processing_time": time.time() - start_time
+                    "processing_time": time.time() - start_time,
+                    "conversation_history_used": len(conversation_history) > 0
                 }
         except Exception as e:
             logger.warning(f"Error in process_query fallback: {e}")
@@ -191,6 +201,74 @@ class SelfReasoningEngine:
             
             result.confidence = confidence
             
+            # === ВЕТВЛЕНИЕ РАССУЖДЕНИЙ ===
+            # Анализируем логические факторы
+            try:
+                factors_result = self._analyze_logical_factors(current_query, response, user_context)
+                
+                # Добавляем шаг анализа факторов
+                factor_summary = []
+                for factor_name, factor_data in factors_result.get('details', {}).items():
+                    factor_info = self.LOGICAL_FACTORS.get(factor_name, {})
+                    fname = factor_info.get('name', factor_name)
+                    fscore = factor_data.get('score', 0)
+                    factor_summary.append(f"{fname}: {fscore:.2f}")
+                    logger.info(f"Фактор {fname}: {fscore:.2f}")
+                
+                # Добавляем шаг с анализом факторов в цепочку
+                step = ReasoningStep(
+                    phase="logical_analysis",
+                    thought=f"Анализ факторов: {', '.join(factor_summary)}",
+                    confidence=factors_result.get('overall', {}).get('score', confidence)
+                )
+                result.steps.append(step)
+                
+                # Проверяем условие для альтернативной ветви
+                if self._should_use_alternative_branch(factors_result):
+                    logger.info("Условие выполнено: используем альтернативную ветвь рассуждения")
+                    
+                    # Находим альтернативы
+                    alternatives = self._find_alternative_reasoning_branches(current_query, response, factors_result)
+                    
+                    if alternatives:
+                        # Логируем найденные альтернативы
+                        for alt in alternatives:
+                            logger.info(f"Альтернатива: {alt['factor_name']} (приоритет: {alt['priority']:.2f})")
+                        
+                        # Генерируем альтернативные ответы
+                        for alt in alternatives:
+                            try:
+                                alt_response = self._generate_with_qwen(alt['alternative'])
+                                alt['generated_response'] = alt_response
+                            except Exception as e:
+                                logger.debug(f"Ошибка генерации альтернативы: {e}")
+                        
+                        # Объединяем результаты
+                        response = self._merge_reasoning_branches(response, alternatives, factors_result)
+                        
+                        # Добавляем информацию о ветвлении в шаг
+                        step = ReasoningStep(
+                            phase=ReasoningPhase.FINAL_SYNTHESIS.value,
+                            thought=f"Ветвление рассуждений: использовано {len(alternatives)} альтернатив",
+                            confidence=factors_result['overall']['score']
+                        )
+                        result.steps.append(step)
+                        
+                        # Добавляем детали каждой альтернативы как отдельные шаги
+                        for alt in alternatives:
+                            alt_detail = f"Альтернатива [{alt['factor_name']}]: {alt.get('condition', '')}"
+                            if alt.get('generated_response'):
+                                alt_detail += f" → {alt['generated_response'][:100]}..."
+                            
+                            step = ReasoningStep(
+                                phase="alternative_branch",
+                                thought=alt_detail,
+                                confidence=alt.get('priority', 0.5)
+                            )
+                            result.steps.append(step)
+            except Exception as e:
+                logger.debug(f"Ошибка анализа факторов: {e}")
+            
             # Шаг 4: Проверка на завершение
             if should_terminate(confidence, self.confidence_threshold):
                 logger.info(f"Достаточная уверенность {confidence:.2f} >= {self.confidence_threshold}. Завершаем.")
@@ -230,6 +308,354 @@ class SelfReasoningEngine:
             "source": "self_reasoning_engine",
             "processing_time": result.processing_time
         }
+    
+    def _build_contextual_query(self, query: str, conversation_history: List[Dict]) -> str:
+        """
+        Формирует расширенный промпт с историей диалогов.
+        
+        Args:
+            query: Текущий запрос пользователя
+            conversation_history: История предыдущих сообщений
+            
+        Returns:
+            Расширенный промпт с контекстом
+        """
+        if not conversation_history:
+            return query
+        
+        # Берем последние 5 сообщений для контекста
+        recent_history = conversation_history[-10:]
+        
+        context_parts = []
+        for msg in recent_history:
+            role = msg.get('role', 'user')
+            content = msg.get('content', '')
+            if content:
+                role_label = 'Пользователь' if role == 'user' else 'Ассистент'
+                context_parts.append(f"{role_label}: {content[:200]}")
+        
+        if not context_parts:
+            return query
+        
+        # Формируем расширенный промпт
+        context_str = "\n".join(context_parts)
+        enhanced = f"""Предыдущий контекст разговора:
+{context_str}
+
+Текущий вопрос: {query}
+
+Дай ответ с учетом контекста предыдущего разговора."""
+        
+        logger.info(f"Сформирован расширенный промпт с {len(recent_history)} сообщениями истории")
+        return enhanced
+    
+    # === Логическое рассуждение с факторами ===
+    
+    LOGICAL_FACTORS = {
+        'ethics': {
+            'name': 'Этика',
+            'weight': 0.2,
+            'description': 'Соответствие этическим нормам'
+        },
+        'knowledge': {
+            'name': 'Знания',
+            'weight': 0.25,
+            'description': 'Фактическая точность информации'
+        },
+        'contradiction': {
+            'name': 'Противоречия',
+            'weight': 0.2,
+            'description': 'Отсутствие внутренних противоречий'
+        },
+        'context': {
+            'name': 'Контекст',
+            'weight': 0.15,
+            'description': 'Учёт контекста запроса'
+        },
+        'logic': {
+            'name': 'Логика',
+            'weight': 0.2,
+            'description': 'Логическая согласованность'
+        }
+    }
+    
+    def _analyze_logical_factors(self, query: str, response: str, context: Dict = None) -> Dict[str, Any]:
+        """
+        Анализирует ответ по всем логическим факторам системы.
+        
+        Returns:
+            Dict с оценками каждого фактора и рекомендациями
+        """
+        factors_result = {}
+        
+        # Фактор 1: Этика
+        factors_result['ethics'] = self._evaluate_ethics_factor(query, response)
+        
+        # Фактор 2: Знания
+        factors_result['knowledge'] = self._evaluate_knowledge_factor(query, response)
+        
+        # Фактор 3: Противоречия
+        factors_result['contradiction'] = self._evaluate_contradiction_factor(response)
+        
+        # Фактор 4: Контекст
+        factors_result['context'] = self._evaluate_context_factor(query, response, context)
+        
+        # Фактор 5: Логика
+        factors_result['logic'] = self._evaluate_logic_factor(query, response)
+        
+        # Рассчитываем общую оценку
+        total_score = 0
+        for factor_name, factor_data in factors_result.items():
+            weight = self.LOGICAL_FACTORS.get(factor_name, {}).get('weight', 0.1)
+            total_score += factor_data['score'] * weight
+        
+        factors_result['overall'] = {
+            'score': total_score,
+            'details': factors_result
+        }
+        
+        return factors_result
+    
+    def _evaluate_ethics_factor(self, query: str, response: str) -> Dict[str, Any]:
+        """Оценка этического фактора"""
+        score = 1.0
+        warnings = []
+        
+        # Проверяем через ethics_checker если доступен
+        if self.brain and hasattr(self.brain, 'ethics_checker'):
+            try:
+                result = self.brain.ethics_checker.check(response)
+                if result and result.get('warnings'):
+                    warnings = result['warnings']
+                    score = 1.0 - (len(warnings) * 0.1)
+            except:
+                pass
+        
+        return {
+            'score': max(0, min(1, score)),
+            'warnings': warnings,
+            'factor': 'ethics'
+        }
+    
+    def _evaluate_knowledge_factor(self, self_response: str, response: str) -> Dict[str, Any]:
+        """Оценка фактора знаний"""
+        score = 0.8  # Базовый балл
+        sources = []
+        
+        # Проверяем через knowledge_graph
+        if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+            try:
+                kg = self.brain.knowledge_graph
+                # Ищем релевантную информацию
+                if hasattr(kg, 'search'):
+                    # Простой поиск по ключевым словам из ответа
+                    words = self_response.split()[:5]
+                    found = False
+                    for word in words:
+                        if len(word) > 4:
+                            results = kg.search(word, limit=1)
+                            if results:
+                                found = True
+                                sources.append(word)
+                                break
+                    if found:
+                        score = 0.9
+            except:
+                pass
+        
+        return {
+            'score': score,
+            'sources': sources,
+            'factor': 'knowledge'
+        }
+    
+    def _evaluate_contradiction_factor(self, response: str) -> Dict[str, Any]:
+        """Оценка фактора противоречий"""
+        score = 1.0
+        contradictions = []
+        
+        # Проверяем через contradiction_manager
+        if self.brain and hasattr(self.brain, 'contradiction_manager'):
+            try:
+                result = self.brain.contradiction_manager.detect_contradictions()
+                if result and result.get('contradictions'):
+                    contradictions = result['contradictions'][:3]
+                    score = 1.0 - (len(contradictions) * 0.2)
+            except:
+                pass
+        
+        return {
+            'score': max(0, min(1, score)),
+            'contradictions': contradictions,
+            'factor': 'contradiction'
+        }
+    
+    def _evaluate_context_factor(self, query: str, response: str, context: Dict = None) -> Dict[str, Any]:
+        """Оценка фактора контекста"""
+        score = 0.7
+        
+        # Проверяем, отвечает ли ответ на запрос
+        query_lower = query.lower()
+        response_lower = response.lower()
+        
+        # Простая проверка - есть ли ключевые слова запроса в ответе
+        query_words = [w for w in query_lower.split() if len(w) > 3]
+        matched_words = [w for w in query_words if w in response_lower]
+        
+        if query_words:
+            match_ratio = len(matched_words) / len(query_words)
+            score = 0.5 + (match_ratio * 0.5)
+        
+        # Учитываем историю диалога
+        if context and context.get('conversation_history'):
+            score = min(1.0, score + 0.1)
+        
+        return {
+            'score': score,
+            'matched_words': matched_words,
+            'factor': 'context'
+        }
+    
+    def _evaluate_logic_factor(self, query: str, response: str) -> Dict[str, Any]:
+        """Оценка логического фактора"""
+        score = 0.8
+        issues = []
+        
+        # Проверяем базовую логическую согласованность
+        # 1. Есть ли явные логические ошибки
+        logical_markers = ['однако', 'но', 'поэтому', 'следовательно', 'значит']
+        
+        for marker in logical_markers:
+            if marker in query.lower() and marker not in response.lower():
+                # Запрос содержал логическую связку, а ответ - нет
+                pass  # Это может быть нормально
+        
+        # 2. Проверяем длину ответа относительно запроса
+        if len(response) < len(query) * 0.5:
+            issues.append('Ответ слишком короткий')
+            score -= 0.1
+        
+        if '?' in query and '?' not in response and len(response) < 100:
+            issues.append('Вопрос требовал ответа, но ответ слишком короткий')
+            score -= 0.1
+        
+        return {
+            'score': max(0, min(1, score)),
+            'issues': issues,
+            'factor': 'logic'
+        }
+    
+    def _find_alternative_reasoning_branches(self, query: str, current_response: str, factors_result: Dict) -> List[Dict]:
+        """
+        Находит альтернативные ветви рассуждения на основе слабых факторов.
+        
+        Returns:
+            Список альтернативных ветвей с условиями
+        """
+        alternatives = []
+        
+        # Анализируем факторы с низкими оценками
+        weak_factors = []
+        for factor_name, factor_data in factors_result.get('details', {}).items():
+            if factor_data.get('score', 1.0) < 0.7:
+                weak_factors.append({
+                    'factor': factor_name,
+                    'score': factor_data.get('score', 0),
+                    'issue': factor_data.get('warnings', factor_data.get('contradictions', factor_data.get('issues', [])))
+                })
+        
+        # Генерируем альтернативы для слабых факторов
+        for weak in weak_factors:
+            factor_name = weak['factor']
+            factor_info = self.LOGICAL_FACTORS.get(factor_name, {})
+            
+            alt = {
+                'factor': factor_name,
+                'factor_name': factor_info.get('name', factor_name),
+                'current_score': weak['score'],
+                'condition': f"ЕСЛИ оценка {factor_name} < 0.7",
+                'alternative': self._generate_alternative_for_factor(factor_name, query, current_response),
+                'priority': 1.0 - weak['score']  # Приоритет = чем ниже оценка, тем выше
+            }
+            alternatives.append(alt)
+        
+        # Сортируем по приоритету
+        alternatives.sort(key=lambda x: x['priority'], reverse=True)
+        
+        return alternatives[:3]  # Максимум 3 альтернативы
+    
+    def _generate_alternative_for_factor(self, factor_name: str, query: str, current_response: str) -> str:
+        """Генерирует промпт для альтернативной ветви рассуждения"""
+        
+        if factor_name == 'ethics':
+            return f"""Переформулируй следующий ответ, учитывая этические аспекты:
+Ответ: {current_response}
+Запрос: {query}
+
+Дай этически корректный вариант ответа."""
+        
+        elif factor_name == 'knowledge':
+            return f"""Проверь и дополни следующий ответ на основе фактических знаний:
+Ответ: {current_response}
+Запрос: {query}
+
+Дай более точный ответ с фактической информацией."""
+        
+        elif factor_name == 'contradiction':
+            return f"""Переформулируй ответ, устранив возможные противоречия:
+Ответ: {current_response}
+
+Дай непротиворечивый вариант."""
+        
+        elif factor_name == 'context':
+            return f"""Переформулируй ответ с учетом контекста запроса:
+Запрос: {query}
+Ответ: {current_response}
+
+Дай ответ, более точно отвечающий на запрос."""
+        
+        elif factor_name == 'logic':
+            return f"""Проверь логическую согласованность ответа и исправь ошибки:
+Ответ: {current_response}
+
+Дай логически согласованный ответ."""
+        
+        return f"Пересмотри ответ: {current_response}"
+    
+    def _should_use_alternative_branch(self, factors_result: Dict, threshold: float = 0.7) -> bool:
+        """
+        Определяет, нужно ли использовать альтернативную ветвь рассуждения.
+        
+        Conditions:
+        - ЕСЛИ хотя бы один фактор < threshold
+        - ИЛИ ЕСЛИ общая оценка < threshold + 0.1
+        """
+        overall = factors_result.get('overall', {}).get('score', 1.0)
+        
+        if overall < threshold + 0.1:
+            return True
+        
+        for factor_data in factors_result.get('details', {}).values():
+            if factor_data.get('score', 1.0) < threshold:
+                return True
+        
+        return False
+    
+    def _merge_reasoning_branches(self, primary_response: str, alternatives: List[Dict], factors_result: Dict) -> str:
+        """
+        Объединяет результаты основной и альтернативных ветвей рассуждения.
+        """
+        if not alternatives:
+            return primary_response
+        
+        # Формируем финальный ответ с учётом альтернатив
+        final_parts = [primary_response]
+        
+        for alt in alternatives:
+            if alt.get('alternative'):
+                final_parts.append(f"\n\n[Альтернативный вариант ({alt['factor_name']})]: {alt['alternative']}")
+        
+        return "\n".join(final_parts)
     
     def _generate_with_qwen(self, prompt: str) -> str:
         """
@@ -348,16 +774,30 @@ class SelfReasoningEngine:
         try:
             if hasattr(self.brain, 'knowledge_graph'):
                 kg = self.brain.knowledge_graph
-                if hasattr(kg, 'search'):
-                    results = kg.search(prompt, limit=3)
+                # Try search_nodes first (proper method)
+                if hasattr(kg, 'search_nodes'):
+                    results = kg.search_nodes(prompt, limit=3)
                     if results:
                         best = results[0]
                         if isinstance(best, dict):
                             content = best.get('content', best.get('text', ''))
                             if content:
                                 return f"Известно: {content[:200]}..."
+                        elif hasattr(best, 'content') or hasattr(best, 'description'):
+                            content = getattr(best, 'content', None) or getattr(best, 'description', '')
+                            if content:
+                                return f"Известно: {content[:200]}..."
+                # Try search_by_concept as fallback
+                elif hasattr(kg, 'search_by_concept'):
+                    results = kg.search_by_concept(prompt, limit=3)
+                    if results:
+                        best = results[0]
+                        if hasattr(best, 'content') or hasattr(best, 'description'):
+                            content = getattr(best, 'content', None) or getattr(best, 'description', '')
+                            if content:
+                                return f"Известно: {content[:200]}..."
         except Exception as e:
-            logger.warning(f"Error in process_query fallback: {e}")
+            logger.debug(f"Knowledge search error: {e}")
         return None
     
     def _analyze_response(self, query: str, response: str) -> AnalysisResult:
