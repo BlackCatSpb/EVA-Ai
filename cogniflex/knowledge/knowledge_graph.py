@@ -23,41 +23,81 @@ from collections import defaultdict, deque
 
 logger = logging.getLogger("cogniflex.knowledge_graph")
 
-# Импорты типов из分离 модуля
-from cogniflex.knowledge.knowledge_graph_types import (
-    KnowledgeNode,
-    KnowledgeEdge,
-    NodeType,
-    RelationType,
-    safe_json_loads
-)
+# Lazy imports для избежания циклических зависимостей
+def _get_knowledge_graph_types():
+    """Lazy import для типов графа знаний."""
+    from cogniflex.knowledge.knowledge_graph_types import (
+        KnowledgeNode,
+        KnowledgeEdge,
+        NodeType,
+        RelationType,
+        safe_json_loads
+    )
+    return KnowledgeNode, KnowledgeEdge, NodeType, RelationType, safe_json_loads
 
-# Импорты для интеграции с другими модулями
-try:
-    from cogniflex.memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
-    logger.debug("HybridTokenCache и get_shared_cache импортированы успешно")
-except ImportError:
-    logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
-    HybridTokenCache = None
+def _get_hybrid_token_cache():
+    """Lazy import для гибридного кэша."""
+    try:
+        from cogniflex.memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
+        return HybridTokenCache, get_shared_cache
+    except ImportError:
+        logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
+        return None, None
 
-try:
-    from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
-    logger.debug("UnifiedTextProcessor импортирован успешно")
-except ImportError:
-    logger.warning("UnifiedTextProcessor недоступен, токенизация будет ограничена")
-    UnifiedTextProcessor = None
+def _get_unified_text_processor():
+    """Lazy import для текстового процессора."""
+    try:
+        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        return UnifiedTextProcessor
+    except ImportError:
+        logger.warning("UnifiedTextProcessor недоступен, токенизация будет ограничена")
+        return None
 
-try:
-    from cogniflex.mlearning.ml_unit import MLUnit
-    logger.debug("MLUnit импортирован успешно")
-except ImportError:
-    logger.warning("MLUnit недоступен, автоматическое обновление знаний ограничено")
-    MLUnit = None
+def _get_ml_unit():
+    """Lazy import для MLUnit."""
+    try:
+        from cogniflex.mlearning.ml_unit import MLUnit
+        return MLUnit
+    except ImportError:
+        logger.warning("MLUnit недоступен, автоматическое обновление знаний ограничено")
+        return None
 
-try:
-    from cogniflex.knowledge.context_entity import EntityExtractor
-except ImportError:
-    EntityExtractor = None
+def _get_entity_extractor():
+    """Lazy import для экстрактора сущностей."""
+    try:
+        from cogniflex.knowledge.context_entity import EntityExtractor
+        return EntityExtractor
+    except ImportError:
+        return None
+
+# Загружаем модули лениво при первом использовании
+KnowledgeNode = None
+KnowledgeEdge = None
+NodeType = None
+RelationType = None
+safe_json_loads = None
+HybridTokenCache = None
+get_shared_cache = None
+UnifiedTextProcessor = None
+MLUnit = None
+EntityExtractor = None
+
+def _ensure_imports():
+    """Ensures all lazy imports are loaded."""
+    global KnowledgeNode, KnowledgeEdge, NodeType, RelationType, safe_json_loads
+    global HybridTokenCache, get_shared_cache
+    global UnifiedTextProcessor, MLUnit, EntityExtractor
+    
+    if KnowledgeNode is None:
+        KnowledgeNode, KnowledgeEdge, NodeType, RelationType, safe_json_loads = _get_knowledge_graph_types()
+    if HybridTokenCache is None:
+        HybridTokenCache, get_shared_cache = _get_hybrid_token_cache()
+    if UnifiedTextProcessor is None:
+        UnifiedTextProcessor = _get_unified_text_processor()
+    if MLUnit is None:
+        MLUnit = _get_ml_unit()
+    if EntityExtractor is None:
+        EntityExtractor = _get_entity_extractor()
 
 # Импорт типов из分离 модулей для совместимости
 from cogniflex.knowledge.knowledge_graph_types import (
@@ -138,12 +178,15 @@ class KnowledgeGraph:
     
     def _init_integration_components(self, hybrid_cache: Optional[Any], text_processor: Optional[Any]):
         """Инициализирует компоненты для интеграции с другими модулями."""
+        _ensure_imports()
+        
         # Гибридный кэш
         self.hybrid_cache = hybrid_cache
         if self.hybrid_cache is None:
             try:
-                from ..memory.hybrid_token_cache import get_shared_cache
-                self.hybrid_cache = get_shared_cache(self.brain, "knowledge_graph")
+                _, gs_cache = _get_hybrid_token_cache()
+                if gs_cache:
+                    self.hybrid_cache = gs_cache(self.brain, "knowledge_graph")
             except Exception as e:
                 logger.warning(f"Не удалось получить гибридный кэш: {e}")
         

@@ -29,7 +29,9 @@ def _ensure_cogniflex_path():
     
     try:
         os.chdir(cogniflex_root)
-    except:
+    except OSError:
+        pass
+    except Exception:
         pass
     
     return cogniflex_root
@@ -111,6 +113,7 @@ class ComponentInitializer:
         self.component_instances: Dict[str, Any] = {}
         self.component_states: Dict[str, Dict[str, Any]] = {}
         self.logger = logging.getLogger("cogniflex.component_initializer")
+        self.component_configs: Dict[str, Any] = {}
         
         # Определяем зависимости между компонентами
         self._define_dependencies()
@@ -119,6 +122,42 @@ class ComponentInitializer:
         self._register_component_factories()
         
         self.logger.info("ComponentInitializer инициализирован")
+    
+    def _validate_dependencies(self, component_name: str) -> Tuple[bool, List[str]]:
+        """
+        Проверяет и валидирует зависимости компонента перед инициализацией.
+        
+        Args:
+            component_name: Имя компонента для проверки
+            
+        Returns:
+            Tuple[bool, List[str]]: (валидность, список проблем)
+        """
+        issues = []
+        
+        if component_name not in self.component_dependencies:
+            issues.append(f"Component {component_name} not found in dependencies")
+            return False, issues
+        
+        dependencies = self.component_dependencies[component_name]
+        
+        for dep in dependencies:
+            if dep not in self.component_factories:
+                issues.append(f"Dependency {dep} not registered as factory")
+                continue
+                
+            if dep in self.failed_components:
+                issues.append(f"Dependency {dep} previously failed to initialize")
+                
+            if dep not in self.initialized_components and dep not in self.failed_components:
+                issues.append(f"Dependency {dep} not yet initialized")
+        
+        is_valid = len(issues) == 0
+        
+        if not is_valid:
+            self.logger.warning(f"Dependency validation failed for {component_name}: {issues}")
+        
+        return is_valid, issues
     
     def _define_dependencies(self):
         """Определяет зависимости между компонентами."""
@@ -181,6 +220,7 @@ class ComponentInitializer:
                 return event_bus
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания event_bus: {e}", exc_info=True)
+                self.failed_components.add('event_bus')
                 return None
         
         def create_resource_manager():
@@ -193,6 +233,7 @@ class ComponentInitializer:
                 return resource_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания resource_manager: {e}", exc_info=True)
+                self.failed_components.add('resource_manager')
                 return None
         
         def create_config_manager():
@@ -204,6 +245,7 @@ class ComponentInitializer:
                 return config_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания config_manager: {e}", exc_info=True)
+                self.failed_components.add('config_manager')
                 return None
         
         # ===== ПАМЯТЬ И КЭШИРОВАНИЕ =====
@@ -221,13 +263,16 @@ class ComponentInitializer:
                     cache_dir=cache_dir
                 )
                 if hasattr(memory_manager, 'initialize'):
-                    memory_manager.initialize()
+                    init_result = memory_manager.initialize()
+                    if init_result is False:
+                        self.logger.warning("[WARN] MemoryManager.initialize() вернул False - возможны проблемы")
                 self.memory_manager = memory_manager
                 self.core_brain.memory_manager = memory_manager
                 self.logger.info("[OK] MemoryManager создан")
                 return memory_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания memory_manager: {e}", exc_info=True)
+                self.failed_components.add('memory_manager')
                 raise
         
         def create_hybrid_cache():
@@ -267,6 +312,7 @@ class ComponentInitializer:
                 
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания hybrid_cache: {e}", exc_info=True)
+                self.failed_components.add('hybrid_cache')
                 return None
         
         # ===== ЗНАНИЯ И ОБРАБОТКА =====
@@ -305,6 +351,7 @@ class ComponentInitializer:
                 return enhancer
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания qwen_api_enhancer: {e}", exc_info=True)
+                self.failed_components.add('qwen_api_enhancer')
                 return None
         
         def create_text_processor():
@@ -323,6 +370,7 @@ class ComponentInitializer:
                 return text_processor
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания text_processor: {e}", exc_info=True)
+                self.failed_components.add('text_processor')
                 return None
         
         # ===== ML КОМПОНЕНТЫ =====
@@ -368,14 +416,25 @@ class ComponentInitializer:
                 )
                 
                 self.logger.info("Вызов initialize()...")
+                init_result = None
                 try:
-                    if not model_manager.initialize():
-                        self.logger.error("[FAIL] Не удалось инициализировать HybridModelManager")
+                    if hasattr(model_manager, 'initialize'):
+                        init_result = model_manager.initialize()
+                    else:
+                        init_result = True
+                    
+                    if init_result is False:
+                        self.logger.error("[FAIL] Не удалось инициализировать HybridModelManager - initialize() вернул False")
                         self.logger.warning("[WARN] Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
+                        self.failed_components.add('model_manager')
                         return None
+                    
+                    self.logger.info("[OK] ModelManager успешно инициализирован")
+                    
                 except Exception as init_error:
-                    self.logger.error(f"[FAIL] Исключение при инициализации ModelManager: {init_error}")
+                    self.logger.error(f"[FAIL] Исключение при инициализации ModelManager: {init_error}", exc_info=True)
                     self.logger.warning("[WARN] Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
+                    self.failed_components.add('model_manager')
                     return None
                     
                 self.model_manager = model_manager
@@ -393,12 +452,15 @@ class ComponentInitializer:
                 from cogniflex.core.query_processor import QueryProcessor
                 query_processor = QueryProcessor(brain=self.core_brain)
                 if hasattr(query_processor, 'initialize'):
-                    query_processor.initialize()
+                    init_result = query_processor.initialize()
+                    if init_result is False:
+                        self.logger.warning("[WARN] QueryProcessor.initialize() вернул False")
                 self.core_brain.query_processor = query_processor
                 self.logger.info("[OK] QueryProcessor создан")
                 return query_processor
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания query_processor: {e}", exc_info=True)
+                self.failed_components.add('query_processor')
                 return None
         
         def create_response_generator():
@@ -412,6 +474,7 @@ class ComponentInitializer:
                 return response_generator
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания response_generator: {e}", exc_info=True)
+                self.failed_components.add('response_generator')
                 return None
         
         def create_reasoning_engine():
@@ -425,6 +488,7 @@ class ComponentInitializer:
                 return reasoning_engine
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания reasoning_engine: {e}", exc_info=True)
+                self.failed_components.add('reasoning_engine')
                 return None
         
         # ===== ОБУЧЕНИЕ =====
@@ -440,8 +504,9 @@ class ComponentInitializer:
                 return training_orchestrator
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания training_orchestrator: {e}", exc_info=True)
+                self.failed_components.add('training_orchestrator')
                 return None
-        
+
         def create_learning_manager():
             try:
                 from cogniflex.learning.learning_manager import LearningManager
@@ -453,6 +518,7 @@ class ComponentInitializer:
                 return learning_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания learning_manager: {e}", exc_info=True)
+                self.failed_components.add('learning_manager')
                 return None
         
         def create_learning_scheduler():
@@ -460,18 +526,22 @@ class ComponentInitializer:
                 from cogniflex.core.learning_scheduler import LearningScheduler
                 attention_system = getattr(self.core_brain, 'attention_system', None)
                 if attention_system is None:
+                    self.logger.warning("[WARN] attention_system не найден - используется DummyAttentionSystem")
                     class DummyAttentionSystem:
                         def __init__(self):
                             self.pending_opportunities = []
                     attention_system = DummyAttentionSystem()
                 learning_scheduler = LearningScheduler(attention_system)
                 if hasattr(learning_scheduler, 'initialize'):
-                    learning_scheduler.initialize()
+                    init_result = learning_scheduler.initialize()
+                    if init_result is False:
+                        self.logger.warning("[WARN] LearningScheduler.initialize() вернул False")
                 self.core_brain.learning_scheduler = learning_scheduler
                 self.logger.info("[OK] LearningScheduler создан")
                 return learning_scheduler
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания learning_scheduler: {e}", exc_info=True)
+                self.failed_components.add('learning_scheduler')
                 return None
         
         # ===== АНАЛИТИКА =====
@@ -487,6 +557,7 @@ class ComponentInitializer:
                 return analytics_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания analytics_manager: {e}", exc_info=True)
+                self.failed_components.add('analytics_manager')
                 return None
         
         def create_system_monitor():
@@ -500,19 +571,29 @@ class ComponentInitializer:
                 return system_monitor
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания system_monitor: {e}", exc_info=True)
+                self.failed_components.add('system_monitor')
                 return None
         
         def create_metrics_collector():
             try:
-                from cogniflex.core.metrics_collector import MetricsCollector
+                try:
+                    from cogniflex.core.metrics_collector import MetricsCollector
+                except ImportError:
+                    from cogniflex.analytics.analytics_manager import AnalyticsManager as MetricsCollector
                 metrics_collector = MetricsCollector(brain=self.core_brain)
                 if hasattr(metrics_collector, 'initialize'):
-                    metrics_collector.initialize()
+                    try:
+                        init_result = metrics_collector.initialize()
+                        if init_result is False:
+                            self.logger.warning("[WARN] MetricsCollector.initialize() вернул False")
+                    except Exception as init_err:
+                        self.logger.warning(f"[WARN] Ошибка инициализации MetricsCollector: {init_err}")
                 self.core_brain.metrics_collector = metrics_collector
                 self.logger.info("[OK] MetricsCollector создан")
                 return metrics_collector
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания metrics_collector: {e}", exc_info=True)
+                self.failed_components.add('metrics_collector')
                 return None
         
         # ===== СПЕЦИАЛИЗИРОВАННЫЕ =====
@@ -528,6 +609,7 @@ class ComponentInitializer:
                 return contradiction_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания contradiction_manager: {e}", exc_info=True)
+                self.failed_components.add('contradiction_manager')
                 return None
         
         def create_adaptation_manager():
@@ -541,6 +623,7 @@ class ComponentInitializer:
                 return adaptation_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания adaptation_manager: {e}", exc_info=True)
+                self.failed_components.add('adaptation_manager')
                 return None
         
         def create_ethics_framework():
@@ -552,6 +635,7 @@ class ComponentInitializer:
                 return ethics_framework
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания ethics_framework: {e}", exc_info=True)
+                self.failed_components.add('ethics_framework')
                 return None
         
         def create_gui():
@@ -565,6 +649,7 @@ class ComponentInitializer:
                 return gui
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания gui: {e}", exc_info=True)
+                self.failed_components.add('gui')
                 return None
         
         def create_web_search_engine():
@@ -576,6 +661,7 @@ class ComponentInitializer:
                 return web_search
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания web_search_engine: {e}", exc_info=True)
+                self.failed_components.add('web_search_engine')
                 return None
         
         # ===== FRACTAL REASONING КОМПОНЕНТЫ =====
@@ -583,7 +669,12 @@ class ComponentInitializer:
         def create_fractal_storage():
             """Создает FractalStorage для хранения цепочек рассуждений."""
             try:
-                from cogniflex.reasoning.fractal_ml import FractalStorage
+                try:
+                    from cogniflex.reasoning.fractal_ml import FractalStorage
+                except ImportError:
+                    self.logger.warning("[WARN] FractalStorage не найден в fractal_ml - пропускаем")
+                    self.failed_components.add('fractal_storage')
+                    return None
                 
                 storage_dir = os.path.join(
                     getattr(self.core_brain, 'cache_dir', './cache'),
@@ -604,13 +695,24 @@ class ComponentInitializer:
                 return fractal_storage
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания fractal_storage: {e}", exc_info=True)
+                self.failed_components.add('fractal_storage')
                 return None
         
         def create_self_reasoning_engine():
             """Создает Self-Reasoning Engine для саморассуждений с поддержкой рекурсии."""
             try:
-                from cogniflex.reasoning import SelfReasoningEngine
-                from cogniflex.reasoning.integration import ReasoningIntegration
+                try:
+                    from cogniflex.reasoning import SelfReasoningEngine
+                except ImportError:
+                    self.logger.warning("[WARN] SelfReasoningEngine не найден в cogniflex.reasoning - пропускаем")
+                    self.failed_components.add('self_reasoning_engine')
+                    return None
+                
+                try:
+                    from cogniflex.reasoning.integration import ReasoningIntegration
+                except ImportError:
+                    ReasoningIntegration = None
+                    self.logger.debug("ReasoningIntegration не найден - интеграция недоступна")
                 
                 # Получаем конфигурацию из brain_config
                 reasoning_config = self.core_brain.config.get('reasoning', {}) if hasattr(self.core_brain, 'config') else {}
@@ -634,15 +736,15 @@ class ComponentInitializer:
                     self_reasoning_engine._init_retriever()
                 
                 # Также пробуем интеграцию через ReasoningIntegration
-                try:
-                    reasoning_integration = ReasoningIntegration(self.core_brain)
-                    # Reuse existing SelfReasoningEngine instead of creating new one
-                    reasoning_integration.reasoning_engine = self_reasoning_engine
-                    reasoning_integration.enabled = True
-                    self.core_brain.reasoning_integration = reasoning_integration
-                    self.logger.info("[OK] ReasoningIntegration также создан")
-                except Exception as e:
-                    self.logger.debug(f"ReasoningIntegration не создан: {e}")
+                if ReasoningIntegration:
+                    try:
+                        reasoning_integration = ReasoningIntegration(self.core_brain)
+                        reasoning_integration.reasoning_engine = self_reasoning_engine
+                        reasoning_integration.enabled = True
+                        self.core_brain.reasoning_integration = reasoning_integration
+                        self.logger.info("[OK] ReasoningIntegration также создан")
+                    except Exception as e:
+                        self.logger.debug(f"ReasoningIntegration не создан: {e}")
                 
                 # Регистрируем в core_brain
                 self.core_brain.self_reasoning_engine = self_reasoning_engine
@@ -651,6 +753,7 @@ class ComponentInitializer:
                 return self_reasoning_engine
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания self_reasoning_engine: {e}", exc_info=True)
+                self.failed_components.add('self_reasoning_engine')
                 return None
         
         # Регистрируем все фабрики

@@ -19,7 +19,7 @@ app = Flask(__name__,
             template_folder='templates',
             static_folder='static',
             static_url_path='/static')
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'cogniflex-dev-secret')
+app.config['SECRET_KEY'] = os.environ.get('COGNIFLEX_SECRET_KEY', os.urandom(32).hex())
 app.config['JSON_AS_ASCII'] = False
 
 # Configure Tesseract path for OCR
@@ -285,18 +285,21 @@ class WebGUI:
             'conversation_history': conversation_history
         }
         
+        result = None
         if self.integrator:
             result = self.integrator.process_query(query, user_context)
-            response_text = result.get('response', response_text)
+            if result:
+                response_text = result.get('response', response_text)
         elif self.brain and hasattr(self.brain, 'process_query'):
             debug_info["has_process_query"] = True
-            debug_info["brain_loaded"] = hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
+            debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
             result = self.brain.process_query(query, user_context)
             debug_info["result_keys"] = list(result.keys()) if result else []
             debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result else None
             debug_info["result_source"] = result.get('source') if result else None
-            logger.info(f"DEBUG brain result: source={result.get('source')}, reasoning={str(result.get('reasoning'))[:50]}")
-            response_text = result.get('response', result.get('text', response_text))
+            logger.info(f"DEBUG brain result: source={result.get('source') if result else 'None'}, reasoning={str(result.get('reasoning'))[:50] if result else 'None'}")
+            if result:
+                response_text = result.get('response', result.get('text', response_text))
         else:
             debug_info["reason"] = "no brain or no process_query"
         

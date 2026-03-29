@@ -46,6 +46,11 @@ class AdaptationManager:
         self.concept_cache: Dict[str, str] = {}
         self.concept_usage: defaultdict = defaultdict(int)
         
+        # Profile cleanup settings
+        self._max_profiles = 1000
+        self._profile_cleanup_threshold = 0.9
+        self._profile_lock = threading.Lock()
+        
         # Параметры адаптации
         self.adaptation_params = {
             "default_profile_type": "standard",
@@ -127,6 +132,20 @@ class AdaptationManager:
         except Exception as e:
             logger.error(f"Ошибка загрузки данных адаптации: {e}", exc_info=True)
     
+    def _cleanup_profiles(self):
+        """Очищает старые профили при превышении лимита."""
+        with self._profile_lock:
+            if len(self.user_profiles) > self._max_profiles:
+                threshold = int(self._max_profiles * self._profile_cleanup_threshold)
+                sorted_profiles = sorted(
+                    self.user_profiles.items(),
+                    key=lambda x: x[1].last_updated if hasattr(x[1], 'last_updated') else 0
+                )
+                profiles_to_remove = sorted_profiles[:len(self.user_profiles) - threshold]
+                for user_id, _ in profiles_to_remove:
+                    del self.user_profiles[user_id]
+                logger.info(f"Очищено {len(profiles_to_remove)} профилей пользователей")
+    
     def _save_data(self):
         """Сохранение данных в файлы."""
         try:
@@ -183,6 +202,11 @@ class AdaptationManager:
         try:
             # Обновление адаптационных уровней
             for user_id, profile in self.user_profiles.items():
+                # Validate profile structure
+                if not hasattr(profile, 'interaction_history') or not isinstance(profile.interaction_history, list):
+                    logger.warning(f"Профиль {user_id} имеет неверную структуру, пропускаем")
+                    continue
+                    
                 if len(profile.interaction_history) > 10:
                     # Анализ истории взаимодействий
                     recent_interactions = profile.interaction_history[-50:]
@@ -223,10 +247,12 @@ class AdaptationManager:
             
             # Расчет общего уровня адаптации
             if self.user_profiles:
-                avg_adaptation = sum(
-                    p.adaptation_level for p in self.user_profiles.values()
-                ) / len(self.user_profiles)
-                self.stats["adaptation_level"] = avg_adaptation
+                valid_profiles = [p for p in self.user_profiles.values() if hasattr(p, 'adaptation_level')]
+                if valid_profiles:
+                    avg_adaptation = sum(
+                        p.adaptation_level for p in valid_profiles
+                    ) / len(valid_profiles)
+                    self.stats["adaptation_level"] = avg_adaptation
             
         except Exception as e:
             logger.error(f"Ошибка обновления статистики: {e}", exc_info=True)
@@ -303,30 +329,36 @@ class AdaptationManager:
             bool: Успешно ли обновлено
         """
         try:
-            if user_id not in self.user_profiles:
-                self.user_profiles[user_id] = UserProfile(
-                    user_id=user_id,
-                    preferences={},
-                    interaction_history=[],
-                    adaptation_level=0.5,
-                    learning_style="balanced",
-                    knowledge_level=0.5,
-                    response_preferences={"formal": 0.5, "casual": 0.5},
-                    cultural_profile={}
-                )
-            
-            profile = self.user_profiles[user_id]
-            
-            # Применение обновлений
-            for key, value in updates.items():
-                if hasattr(profile, key):
-                    setattr(profile, key, value)
-                elif key == 'preferences' and isinstance(value, dict):
-                    profile.preferences.update(value)
-            
-            profile.last_updated = time.time()
-            return True
-            
+            with self._profile_lock:
+                if user_id not in self.user_profiles:
+                    self.user_profiles[user_id] = UserProfile(
+                        user_id=user_id,
+                        preferences={},
+                        interaction_history=[],
+                        adaptation_level=0.5,
+                        learning_style="balanced",
+                        knowledge_level=0.5,
+                        response_preferences={"formal": 0.5, "casual": 0.5},
+                        cultural_profile={}
+                    )
+                
+                profile = self.user_profiles[user_id]
+                
+                # Применение обновлений
+                for key, value in updates.items():
+                    if hasattr(profile, key):
+                        setattr(profile, key, value)
+                    elif key == 'preferences' and isinstance(value, dict):
+                        profile.preferences.update(value)
+                
+                profile.last_updated = time.time()
+                
+                # Check if cleanup is needed
+                if len(self.user_profiles) > self._max_profiles:
+                    self._cleanup_profiles()
+                
+                return True
+                
         except Exception as e:
             logger.error(f"Ошибка обновления профиля пользователя: {e}", exc_info=True)
             return False

@@ -66,6 +66,53 @@ class QueryProcessor:
 
         self.entity_extractor = EntityExtractor() if EntityExtractor else None
         self.ambiguity_resolver = AmbiguityResolver() if AmbiguityResolver else None
+        
+        # Model and tokenizer references (may be None if not loaded)
+        self.model = None
+        self.tokenizer = None
+        
+        # Embeddings cache with size limit
+        self.embeddings: Dict[str, Any] = {}
+        self._embeddings_max_size = 1000
+        
+        # Initialize model and tokenizer if available in brain
+        self._initialize_model_components()
+    
+    def _initialize_model_components(self):
+        """Initialize model and tokenizer from brain components."""
+        try:
+            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit:
+                ml_unit = self.brain.ml_unit
+                if hasattr(ml_unit, 'model'):
+                    self.model = ml_unit.model
+                    logger.debug("Model loaded into QueryProcessor")
+                if hasattr(ml_unit, 'tokenizer'):
+                    self.tokenizer = ml_unit.tokenizer
+                    logger.debug("Tokenizer loaded into QueryProcessor")
+        except Exception as e:
+            logger.debug(f"Could not initialize model components: {e}")
+    
+    def _get_embedding(self, key: str) -> Optional[Any]:
+        """Get embedding from cache with LRU eviction."""
+        if key in self.embeddings:
+            embedding = self.embeddings[key]
+            if embedding is None:
+                return None
+            # Move to end (most recently used)
+            self.embeddings[key] = self.embeddings.pop(key)
+            return embedding
+        return None
+    
+    def _set_embedding(self, key: str, embedding: Any):
+        """Set embedding in cache with size limit."""
+        if embedding is None:
+            return
+        # Evict oldest if at capacity
+        if len(self.embeddings) >= self._embeddings_max_size:
+            oldest_key = next(iter(self.embeddings))
+            self.embeddings.pop(oldest_key, None)
+            logger.debug(f"Evicted oldest embedding key: {oldest_key}")
+        self.embeddings[key] = embedding
 
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через конвейер обработки.
@@ -576,7 +623,14 @@ class QueryProcessor:
             }
             
             if not self.brain.components.get("ml_unit"):
+                logger.debug("ml_unit not available in components")
                 return "Извините, модуль генерации недоступен."
+            
+            # Validate model and tokenizer if they should be used
+            if self.model is None:
+                logger.debug("Self.model is None - model not loaded")
+            if self.tokenizer is None:
+                logger.debug("Self.tokenizer is None - tokenizer not loaded")
             
             # Используем ml_unit напрямую вместо brain.process_query() чтобы избежать бесконечного цикла
             ml_unit = self.brain.components.get("ml_unit")
@@ -585,15 +639,19 @@ class QueryProcessor:
                 if result and isinstance(result, dict):
                     text = result.get('text')
                     if text and isinstance(text, str):
+                        logger.info(f"Response generated successfully via ml_unit")
                         return text
                     generated = result.get('generated_text')
                     if generated and isinstance(generated, str):
+                        logger.info(f"Response generated successfully via ml_unit (generated_text)")
                         return generated
                     return "Ошибка обработки"
                 elif isinstance(result, str):
                     return result
                 return "Ошибка обработки"
             
+            # Fallback logging
+            logger.info("Falling back to basic response - ml_unit generation failed")
             return "Извините, модуль генерации недоступен."
             
         except AttributeError as e:

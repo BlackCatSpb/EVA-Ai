@@ -149,6 +149,9 @@ class MLUnit:
             "last_request_time": 0.0
         }
         
+        self.model = None
+        self._model_initialized = False
+        
         # Очередь для GUI
         self.gui_queue = queue.Queue()
         

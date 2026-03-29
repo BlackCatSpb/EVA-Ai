@@ -58,15 +58,20 @@ class WebSearchEngine:
         
         # Кэш поисковых запросов
         self.search_cache = {}
+        self._cache_timestamps = {}
+        self._cache_max_size = 1000
         self._load_cache()
         
         # Очередь поисковых запросов
         self.search_queue = queue.Queue()
         self.search_tasks = {}
         
-        # Фоновый процесс
+        # Фоновый процесс - инициализировать ДО _init_cache_cleanup
         self.running = False
         self.search_thread = None
+        
+        # Запустить очистку кэша после инициализации running
+        self._init_cache_cleanup()
         
         # Инициализация базы данных для хранения истории поиска
         try:
@@ -168,6 +173,9 @@ class WebSearchEngine:
         """Обновляет статистику запросов из базы данных."""
         try:
             conn = self._get_connection()
+            if conn is None:
+                logger.warning("Нет подключения к базе данных для обновления статистики")
+                return
             cursor = conn.cursor()
             
             # Получаем общую статистику
@@ -199,6 +207,8 @@ class WebSearchEngine:
             if os.path.exists(cache_path):
                 with open(cache_path, 'r', encoding='utf-8') as f:
                     self.search_cache = json.load(f)
+                # Initialize timestamps
+                self._cache_timestamps = {k: time.time() for k in self.search_cache.keys()}
                 logger.debug(f"Загружено {len(self.search_cache)} кэшированных запросов")
         except Exception as e:
             logger.error(f"Ошибка загрузки кэша поиска: {e}")
@@ -211,6 +221,45 @@ class WebSearchEngine:
                 json.dump(self.search_cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения кэша поиска: {e}")
+    
+    def _init_cache_cleanup(self):
+        """Инициализирует очистку кэша по TTL."""
+        self._cache_cleanup_thread = threading.Thread(target=self._cache_cleanup_worker, daemon=True)
+        self._cache_cleanup_thread.start()
+    
+    def _cache_cleanup_worker(self):
+        """Фоновый процесс очистки устаревших записей кэша."""
+        while self.running:
+            time.sleep(3600)  # Проверяем каждый час
+            try:
+                self._cleanup_expired_cache()
+            except Exception as e:
+                logger.debug(f"Ошибка очистки кэша: {e}")
+    
+    def _cleanup_expired_cache(self):
+        """Очищает устаревшие записи кэша."""
+        current_time = time.time()
+        ttl = self.search_settings.get("cache_ttl", 86400)
+        
+        expired_keys = [
+            key for key, ts in self._cache_timestamps.items()
+            if current_time - ts > ttl
+        ]
+        
+        for key in expired_keys:
+            self.search_cache.pop(key, None)
+            self._cache_timestamps.pop(key, None)
+        
+        # Also enforce max cache size
+        if len(self.search_cache) > self._cache_max_size:
+            sorted_keys = sorted(self._cache_timestamps.items(), key=lambda x: x[1])
+            keys_to_remove = sorted_keys[:len(self.search_cache) - self._cache_max_size]
+            for key, _ in keys_to_remove:
+                self.search_cache.pop(key, None)
+                self._cache_timestamps.pop(key, None)
+        
+        if expired_keys or len(self.search_cache) > self._cache_max_size:
+            logger.info(f"Очищено {len(expired_keys)} записей кэша")
     
     def set_search_engines(self, use_google: bool = True, use_yandex: bool = True, use_bing: bool = True):
         """
@@ -411,18 +460,25 @@ class WebSearchEngine:
                 self.stats["failed_queries"] += 1
             
             # Обновляем среднее время обработки
-            total_time = self.stats["avg_processing_time"] * (self.stats["total_queries"] - 1)
-            self.stats["avg_processing_time"] = (total_time + processing_time) / self.stats["total_queries"]
+            if self.stats["total_queries"] > 0:
+                total_time = self.stats["avg_processing_time"] * (self.stats["total_queries"] - 1)
+                self.stats["avg_processing_time"] = (total_time + processing_time) / self.stats["total_queries"]
+            else:
+                self.stats["avg_processing_time"] = processing_time
             
             self.stats["last_query"] = query
             self.stats["last_update"] = time.time()
             
             # Сохраняем в базу данных
-            if hasattr(self, 'db') and self.db:
-                db_manager = DatabaseManager(self.cache_dir)
-                db_manager.save_query(query, status, results, 
-                                    f"Processed {len(results)} results", processing_time)
-                db_manager.update_stats(self.stats)
+            if hasattr(self, 'db') and self.db is not None:
+                try:
+                    db_manager = DatabaseManager(self.cache_dir)
+                    if db_manager is not None:
+                        db_manager.save_query(query, status, results, 
+                                            f"Processed {len(results)} results", processing_time)
+                        db_manager.update_stats(self.stats)
+                except Exception as db_error:
+                    logger.warning(f"Не удалось сохранить в БД: {db_error}")
             
         except Exception as e:
             logger.error(f"Ошибка обновления статистики: {e}")

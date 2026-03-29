@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
-## Дата: 2026-03-29
-Версия: 1.11 (седьмой цикл аудита - meta validation)
+## Дата: 2026-03-30
+Версия: 1.13 (восьмой цикл аудита - 68 исправлений)
 
 ---
 
@@ -1061,3 +1061,136 @@ AuthManager (server.py):
 | 1.9 | 2026-03-29 | Пятый цикл аудита: 68 исправлений (27 HIGH, 38 MEDIUM, 3 LOW) - knowledge_graph, knowledge_integrator, learning_scheduler, memory_manager, self_dialog_learning, contradiction_manager, chat_module, ethics_core, self_reasoning_engine и др. |
 | 1.10 | 2026-03-29 | Шестой цикл аудита: from_dict и config validation исправления - knowledge_graph_types, knowledge_core, knowledge_integrator, comprehensive_learning_system, enhanced_learning_integration, optimized_fractal_model_manager, learning_scheduler, entity_fractal_store, health_monitor и др. |
 | 1.11 | 2026-03-29 | Седьмой цикл аудита: meta validation исправления - knowledge_graph, knowledge_integrator, knowledge_analyzer, knowledge_graph_integrated, knowledge_core, knowledge_nodes - добавлены проверки meta на None перед доступом |
+
+---
+
+## 15. Структура проекта
+
+### 15.1 Основные модули
+
+| Модуль | Описание | Ключевые файлы |
+|--------|----------|----------------|
+| **core** | Ядро системы | core_brain.py, component_initializer.py, query_processor.py, event_system.py, system_state.py |
+| **knowledge** | Граф знаний | knowledge_graph.py, knowledge_core.py, knowledge_nodes.py, knowledge_integrator.py, knowledge_analyzer.py |
+| **memory** | Управление памятью | memory_manager.py, memory_types.py |
+| **learning** | Системы обучения | learning_scheduler.py, self_dialog_learning.py, self_analyzer.py |
+| **mlearning** | Машинное обучение | ml_unit.py, training_orchestrator.py, model_manager.py, fractal_model_manager.py |
+| **reasoning** | Рассуждение | self_reasoning_engine.py, integration.py, clarification_generator.py |
+| **gui** | Графический интерфейс | Tkinter: widgets.py, gui_modules.py; Web: server.py |
+| **ethics** | Этический фреймворк | ethics_manager.py, safety_checks.py |
+| **contradiction** | Противоречия | contradiction_manager.py, contradiction_detection.py |
+| **websearch** | Веб-поиск | web_search_engine.py, search_engines.py, cache_manager.py |
+| **adaptation** | Адаптация | adaptation_manager.py, adaptation_core.py, adaptation_profiles.py |
+| **nlp** | Обработка текста | text_processor.py |
+| **fractal** | Фрактальные структуры | fractal_model_manager.py, fractal_transformer.py |
+| **storage** | Хранилище | fractal_storage.py, storage_types.py |
+| **system** | Системные компоненты | system_monitor.py, resource_manager.py |
+| **distributed** | Распределённые вычисления | distributed_manager.py |
+| **analytics** | Аналитика | analytics_manager.py |
+| **security** | Безопасность | security_manager.py |
+| **monitoring** | Мониторинг | system_monitor.py |
+| **neuromorphic** | Нейроморфные вычисления | neuromorphic_simulator.py, neuromorphic_memory.py |
+| **adapters** | Адаптеры интерфейсов | kg_adapter.py, torch_adapter.py |
+| **tools** | Инструменты | document_reader.py, import_pipeline.py |
+| **utils** | Утилиты | text_quality.py |
+| **recovery** | Восстановление | recovery_manager.py |
+| **runtime** | Среда выполнения | worker_pool.py |
+
+### 15.2 Файлы типов (*_types.py)
+
+- knowledge_graph_types.py - Типы узлов и связей графа знаний
+- memory_types.py - Типы памяти
+- learning_types.py - Типы обучения
+- gui_types.py - Типы GUI
+- ethics_types.py - Типы этики
+- contradiction_types.py - Типы противоречий
+- ml_types.py - Типы ML
+- adaptation_types.py - Типы адаптации
+- reasoning_types.py - Типы рассуждения
+- storage_types.py - Типы хранилища
+- search_types.py - Типы поиска
+- training_types.py - Типы обучения
+
+### 15.3 Backup директория
+
+Резервные копии рабочих модулей: cogniflex_backup/
+
+---
+
+## 16. Сводка аудитов
+
+| Аудит | Версия | Кол-во исправлений | Описание |
+|-------|--------|-------------------|----------|
+| 1 | v1.4 | 7 | 7 критических ошибок, 4 новых метода |
+| 2 | v1.5 | 8 | memory_manager dict, learning_scheduler try/except |
+| 3 | v1.6 | 9 | ml_unit training_mode, attribute validation |
+| 4 | v1.7 | 5 | query_processor reasoning, SRE brain null check |
+| 5 | v1.9 | 68 | 27 HIGH, 38 MEDIUM, 3 LOW |
+| 6 | v1.10 | 15 | from_dict и config validation |
+| 7 | v1.11 | 7 | meta validation (проверки на None) |
+| 8 | v1.12 | - | Добавлена полная структура проекта (15 разделов) |
+| 9 | v1.13 | 68+ | Восьмой цикл: core (query_processor, core_brain, component_initializer), knowledge, memory, learning, mlearning, reasoning, contradiction, adaptation, websearch, gui/server - None checks, memory leaks, thread safety, initialization order |
+
+---
+
+## 17. Исправления v1.13 (восьмой цикл аудита)
+
+### 17.1 AI Architect анализ
+
+Проведён полный анализ 15 ключевых модулей. Найдено 68 проблем:
+- **HIGH**: 25 (Missing None Checks, AttributeError Potentials)
+- **MEDIUM**: 28 (Logical Errors, Memory Leaks, Thread Safety)
+- **LOW**: 15 (Unused Variables, Stub Methods)
+
+### 17.2 Исправления AI Developer 1 (core/)
+
+**query_processor.py:**
+- Добавлена инициализация `self.model = None`, `self.tokenizer = None`
+- Добавлен метод `_initialize_model_components()` для загрузки из ml_unit
+- Добавлен `self.embeddings` с лимитом 1000 и LRU eviction
+- Добавлены методы `_get_embedding()` и `_set_embedding()`
+- Добавлена валидация в `_generate_response()`
+
+**core_brain.py:**
+- Добавлен `_model_load_lock` для предотвращения race condition
+- Добавлена валидация `query_processor` в fallback chain
+- Добавлена валидация для `knowledge_graph` property
+- Исправлен Qwen lazy loading с double-check locking
+
+**component_initializer.py:**
+- Добавлен `component_configs` dict
+- Реализован метод `_validate_dependencies()`
+- Исправлена валидация `model_manager.initialize()` и `query_processor.initialize()`
+- Добавлено логирование fallback для attention_system
+
+### 17.3 Исправления AI Developer 2 (knowledge/memory/learning)
+
+**knowledge_graph.py:**
+- Добавлены lazy imports для избежания циклических зависимостей
+- Исправлена динамическая валидация узлов
+
+**memory_manager.py:**
+- Добавлена проверка ключа 'embeddings' перед доступом
+- Добавлена валидация `self.graph` на None
+
+### 17.4 Исправления AI Developer 3 (mlearning/other)
+
+**ml_unit.py:**
+- Добавлена инициализация `self.model = None`
+
+**contradiction_manager.py:**
+- Добавлено логирование для пустых результатов
+- Исправлена валидация типов
+
+**adaptation_manager.py:**
+- Добавлена логика очистки профилей
+- Добавлена thread safety (lock)
+
+**web_search_engine.py:**
+- Добавлена проверка DB на None
+- Добавлен TTL для кэша с cleanup thread
+- Исправлен порядок инициализации (self.running перед _init_cache_cleanup)
+
+**server.py:**
+- Исправлен hardcoded secret key
+- Добавлены None checks для result

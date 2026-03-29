@@ -169,6 +169,9 @@ class CoreBrain:
         self.query_timeout = float(self.config.get("system", {}).get("query_timeout", 30))
         self._log_throttle: Dict[str, float] = {}
         
+        # Lock for thread-safe model loading
+        self._model_load_lock = threading.Lock()
+        
         # Инициализация системы отложенных команд
         try:
             from .deferred_command_system import DeferredCommandSystem
@@ -838,12 +841,16 @@ class CoreBrain:
     @property
     def knowledge_graph(self):
         """Возвращает knowledge_graph компонент."""
-        return self.components.get('knowledge_graph')
+        kg = self.components.get('knowledge_graph')
+        if kg is None:
+            self.query_logger.debug("knowledge_graph не инициализирован или недоступен")
+        return kg
     
     @knowledge_graph.setter
     def knowledge_graph(self, value):
         """Устанавливает knowledge_graph компонент."""
-        self.query_logger.debug(f"Установка компонента knowledge_graph: {value}")
+        if value is not None:
+            self.query_logger.debug(f"Установка компонента knowledge_graph: {type(value).__name__}")
         self.components['knowledge_graph'] = value
     
     @property
@@ -1118,34 +1125,38 @@ class CoreBrain:
         # Уровень 2: QwenModelManager (приоритетная модель для диалогов)
         try:
             # Lazy loading - загружаем модель только при первом запросе
+            # Use lock to prevent race condition during concurrent loading
             if self.qwen_model_manager is None and self._qwen_config is not None:
-                self.query_logger.info("Загрузка QwenModelManager (lazy)...")
-                try:
-                    try:
-                        from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
-                    except ImportError:
-                        from ..mlearning.qwen_model_manager import get_qwen_model_manager
-                    
-                    qwen_device = self._qwen_config.get('device', 'cuda')
-                    
-                    self.qwen_model_manager = get_qwen_model_manager(
-                        model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                        device=qwen_device,
-                        load_in_8bit=True,
-                        load_in_4bit=False
-                    )
-                    
-                    if self.qwen_model_manager and self.qwen_model_manager.initialized:
-                        self.qwen_ready = True
-                        if self.events:
-                            self.events.trigger('qwen_model_ready', self.qwen_model_manager)
-                        self.query_logger.info("QwenModelManager успешно загружен!")
-                    else:
-                        self.qwen_model_manager = None
-                        self.query_logger.warning("QwenModelManager не инициализирован")
-                except Exception as e:
-                    self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
-                    self.qwen_model_manager = None
+                with self._model_load_lock:
+                    # Double-check after acquiring lock
+                    if self.qwen_model_manager is None and self._qwen_config is not None:
+                        self.query_logger.info("Загрузка QwenModelManager (lazy)...")
+                        try:
+                            try:
+                                from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
+                            except ImportError:
+                                from ..mlearning.qwen_model_manager import get_qwen_model_manager
+                            
+                            qwen_device = self._qwen_config.get('device', 'cuda')
+                            
+                            self.qwen_model_manager = get_qwen_model_manager(
+                                model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
+                                device=qwen_device,
+                                load_in_8bit=True,
+                                load_in_4bit=False
+                            )
+                            
+                            if self.qwen_model_manager and self.qwen_model_manager.initialized:
+                                self.qwen_ready = True
+                                if self.events:
+                                    self.events.trigger('qwen_model_ready', self.qwen_model_manager)
+                                self.query_logger.info("QwenModelManager успешно загружен!")
+                            else:
+                                self.qwen_model_manager = None
+                                self.query_logger.warning("QwenModelManager не инициализирован")
+                        except Exception as e:
+                            self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
+                            self.qwen_model_manager = None
             
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
@@ -1243,20 +1254,23 @@ class CoreBrain:
         
         # Уровень 5: Query Processor
         try:
-            query_proc = self.components.get('query_processor') if hasattr(self, 'components') else None
-            if query_proc and hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
-                resp = query_proc.process_query(query, user_context)
-                if isinstance(resp, dict) and 'status' not in resp:
-                    status_val = 'error' if resp.get('error') else 'ok'
-                    try:
-                        resp['status'] = status_val
-                    except Exception:
-                        resp = {"response": str(resp), "status": status_val}
-                
-                resp["fallback_level"] = 3
-                resp["source"] = "query_processor"
-                self.query_logger.info("Успешно использован query_processor")
-                return resp
+            if not hasattr(self, 'query_processor') or self.query_processor is None:
+                self.query_logger.debug("query_processor не инициализирован")
+            else:
+                query_proc = self.query_processor
+                if hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
+                    resp = query_proc.process_query(query, user_context)
+                    if isinstance(resp, dict) and 'status' not in resp:
+                        status_val = 'error' if resp.get('error') else 'ok'
+                        try:
+                            resp['status'] = status_val
+                        except Exception:
+                            resp = {"response": str(resp), "status": status_val}
+                    
+                    resp["fallback_level"] = 3
+                    resp["source"] = "query_processor"
+                    self.query_logger.info("Успешно использован query_processor")
+                    return resp
         except Exception as e:
             self.query_logger.warning(f"Query processor недоступен: {e}")
             error_chain.append({"source": "query_processor", "error": str(e), "type": type(e).__name__})

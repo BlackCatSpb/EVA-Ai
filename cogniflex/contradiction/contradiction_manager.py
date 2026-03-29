@@ -26,27 +26,18 @@ class ContradictionManager(BaseComponent):
         self.contradictions = []
         self.known_concepts = set()
         self.detector = None
-        self._initialize()
+        self._initialize_components()
     
     def _setup_component(self) -> None:
         """Настраивает компонент после проверки зависимостей."""
-        try:
-            # Инициализируем детектор с правильными параметрами
-            self.detector = OptimizedContradictionDetector(
-                knowledge_graph=self.brain.knowledge_graph if hasattr(self.brain, 'knowledge_graph') else None,
-                brain=self.brain,
-                cache_dir=self.cache_dir
-            )
-            logger.info("Детектор противоречий успешно настроен")
-        except Exception as e:
-            logger.error(f"Ошибка при настройке детектора противоречий: {e}")
-            # Продолжаем работу даже при ошибке инициализации детектора
-            self.detector = None
+        self._initialize_components()
 
-    def _initialize(self):
+    def _initialize_components(self):
         """Инициализация базовых компонентов"""
+        if self.detector is not None:
+            logger.debug("Детектор уже инициализирован")
+            return
         try:
-            # Инициализируем детектор с правильными параметрами
             self.detector = OptimizedContradictionDetector(
                 knowledge_graph=self.brain.knowledge_graph if hasattr(self.brain, 'knowledge_graph') else None,
                 brain=self.brain,
@@ -55,7 +46,6 @@ class ContradictionManager(BaseComponent):
             logger.info("Детектор противоречий успешно инициализирован")
         except Exception as e:
             logger.error(f"Ошибка при инициализации детектора противоречий: {e}")
-            # Продолжаем работу даже при ошибке инициализации детектора
             self.detector = None
 
     def get_known_concepts(self) -> List[str]:
@@ -96,6 +86,8 @@ class ContradictionManager(BaseComponent):
         if self.detector is None:
             logger.warning("Детектор противоречий не инициализирован")
             return []
+        
+        logger.debug("Начинаем поиск противоречий...")
             
         try:
             if text:
@@ -148,8 +140,12 @@ class ContradictionManager(BaseComponent):
             
         try:
             # Находим противоречие по ID
+            if not isinstance(self.contradictions, list):
+                logger.error("Список противоречий имеет неверный тип")
+                return False
+                
             contradiction = next((c for c in self.contradictions 
-                               if c.get('id') == contradiction_id), None)
+                               if isinstance(c, dict) and c.get('id') == contradiction_id), None)
             if not contradiction:
                 logger.warning(f"Противоречие с ID {contradiction_id} не найдено")
                 return False
@@ -189,8 +185,8 @@ class ContradictionManager(BaseComponent):
         """
         return {
             'total': len(self.contradictions),
-            'resolved': sum(1 for c in self.contradictions if c.get('resolved', False)),
-            'unresolved': sum(1 for c in self.contradictions if not c.get('resolved', False)),
+            'resolved': sum(1 for c in self.contradictions if c.get('status') == 'resolved'),
+            'unresolved': sum(1 for c in self.contradictions if c.get('status') != 'resolved'),
             'by_type': self._get_contradictions_by_type(),
         }
     
