@@ -65,13 +65,13 @@ class AnalyticsLearningIntegration:
             # Общая эффективность
             effectiveness_scores = []
             
-            if model_analysis.get('improvement_rate', 0) > 0:
+            if isinstance(model_analysis, dict) and model_analysis.get('improvement_rate', 0) > 0:
                 effectiveness_scores.append(model_analysis['improvement_rate'])
             
-            if knowledge_analysis.get('growth_rate', 0) > 0:
+            if isinstance(knowledge_analysis, dict) and knowledge_analysis.get('growth_rate', 0) > 0:
                 effectiveness_scores.append(knowledge_analysis['growth_rate'])
             
-            if contradiction_analysis.get('resolution_rate', 0) > 0:
+            if isinstance(contradiction_analysis, dict) and contradiction_analysis.get('resolution_rate', 0) > 0:
                 effectiveness_scores.append(contradiction_analysis['resolution_rate'])
             
             if effectiveness_scores:

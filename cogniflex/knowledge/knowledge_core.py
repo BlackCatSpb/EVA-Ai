@@ -149,13 +149,13 @@ class KnowledgeNode:
     def from_dict(cls, data: Dict[str, Any]) -> 'KnowledgeNode':
         """Создает узел из словаря."""
         return cls(
-            id=data["id"],
-            content=data["content"],
-            node_type=data["node_type"],
-            domain=data["domain"],
-            strength=data["strength"],
-            timestamp=data["timestamp"],
-            meta=data["meta"]
+            id=data.get("id", ""),
+            content=data.get("content", ""),
+            node_type=data.get("node_type", "fact"),
+            domain=data.get("domain", "general"),
+            strength=data.get("strength", 0.5),
+            timestamp=data.get("timestamp"),
+            meta=data.get("meta")
         )
 
 class KnowledgeEdge:
@@ -214,13 +214,13 @@ class KnowledgeEdge:
     def from_dict(cls, data: Dict[str, Any]) -> 'KnowledgeEdge':
         """Создает связь из словаря."""
         return cls(
-            id=data["id"],
-            source=data["source"],
-            target=data["target"],
-            relation=data["relation"],
-            strength=data["strength"],
-            timestamp=data["timestamp"],
-            meta=data["meta"]
+            id=data.get("id", ""),
+            source=data.get("source", ""),
+            target=data.get("target", ""),
+            relation=data.get("relation", "related_to"),
+            strength=data.get("strength", 0.5),
+            timestamp=data.get("timestamp"),
+            meta=data.get("meta")
         )
 
 class KnowledgeGraph:
@@ -730,6 +730,34 @@ class KnowledgeGraph:
         """
         nodes = list(self.nodes.values())
         return nodes[:limit] if limit else nodes
+    
+    def get_all_concepts(self) -> List[Dict[str, Any]]:
+        """
+        Возвращает все концепты в формате для MemoryGraphML.
+        
+        Returns:
+            List[Dict]: Список концептов с id, type, description
+        """
+        concepts = []
+        for node in self.nodes.values():
+            concepts.append({
+                'id': node.id,
+                'type': node.node_type,
+                'description': node.description or node.meta.get('description', ''),
+                'domain': node.domain,
+                'properties': node.meta
+            })
+        
+        for edge in self.edges.values():
+            concepts.append({
+                'id': edge.id,
+                'type': 'relation',
+                'description': f"{edge.source_id} -> {edge.target_id}: {edge.relation_type}",
+                'domain': 'general',
+                'properties': edge.meta
+            })
+        
+        return concepts
     
     def get_all_edges(self, limit: Optional[int] = None) -> List[KnowledgeEdge]:
         """

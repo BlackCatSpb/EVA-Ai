@@ -162,23 +162,23 @@ class KnowledgeNode:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'KnowledgeNode':
         node = cls(
-            id=data["id"],
-            name=data["name"],
-            description=data["description"],
-            node_type=data["node_type"],
-            domain=data["domain"],
-            strength=data["strength"],
-            timestamp=data["timestamp"],
-            meta=data["meta"],
-            version=data["version"],
-            spatial_info=data["spatial_info"],
-            temporal_info=data["temporal_info"]
+            id=data.get("id", ""),
+            name=data.get("name", ""),
+            description=data.get("description", ""),
+            node_type=data.get("node_type", "fact"),
+            domain=data.get("domain", "general"),
+            strength=data.get("strength", 0.5),
+            timestamp=data.get("timestamp"),
+            meta=data.get("meta"),
+            version=data.get("version", 1),
+            spatial_info=data.get("spatial_info"),
+            temporal_info=data.get("temporal_info")
         )
-        node.last_updated = data["last_updated"]
-        node.history = data["history"]
-        node.contradictions = data["contradictions"]
-        node.keyword_index = data["keyword_index"]
-        node.concept_index = data["concept_index"]
+        node.last_updated = data.get("last_updated", node.timestamp)
+        node.history = data.get("history", [])
+        node.contradictions = data.get("contradictions", [])
+        node.keyword_index = data.get("keyword_index", [])
+        node.concept_index = data.get("concept_index", [])
         return node
     
     def __repr__(self) -> str:
@@ -269,19 +269,19 @@ class KnowledgeEdge:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'KnowledgeEdge':
         edge = cls(
-            id=data["id"],
-            source_id=data["source_id"],
-            target_id=data["target_id"],
-            relation_type=data["relation_type"],
-            strength=data["strength"],
-            timestamp=data["timestamp"],
-            meta=data["meta"],
-            version=data["version"],
-            spatial_info=data["spatial_info"],
-            temporal_info=data["temporal_info"]
+            id=data.get("id", ""),
+            source_id=data.get("source_id", ""),
+            target_id=data.get("target_id", ""),
+            relation_type=data.get("relation_type", "related_to"),
+            strength=data.get("strength", 0.5),
+            timestamp=data.get("timestamp"),
+            meta=data.get("meta"),
+            version=data.get("version", 1),
+            spatial_info=data.get("spatial_info"),
+            temporal_info=data.get("temporal_info")
         )
-        edge.last_updated = data["last_updated"]
-        edge.history = data["history"]
+        edge.last_updated = data.get("last_updated", edge.timestamp)
+        edge.history = data.get("history", [])
         return edge
     
     def __repr__(self) -> str:

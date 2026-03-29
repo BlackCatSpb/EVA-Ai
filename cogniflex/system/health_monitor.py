@@ -167,22 +167,25 @@ class HealthMonitor:
             }
             
             # Добавляем возможность улучшения, если здоровье ухудшается
-            if report["trends"].get("system_health", {}).get("trend") == "decreasing":
-                self.analyzer_core.add_learning_opportunity(
-                    "ml_optimization",
-                    "updating",
-                    0.8,
-                    "system",
-                    ["Здоровье ML ухудшается"],
-                    ["Обновить модели ML", "Проверить источники данных"]
-                )
+            trends = report.get("trends", {})
+            if isinstance(trends, dict):
+                system_health = trends.get("system_health", {})
+                if isinstance(system_health, dict) and system_health.get("trend") == "decreasing":
+                    self.analyzer_core.add_learning_opportunity(
+                        "ml_optimization",
+                        "updating",
+                        0.8,
+                        "system",
+                        ["Здоровье ML ухудшается"],
+                        ["Обновить модели ML", "Проверить источники данных"]
+                    )
             
             # Сохраняем отчет
             self.analyzer_core.analysis_queue.put({
                 "id": f"evolution_{int(time.time())}",
                 "timestamp": time.time(),
                 "findings": [
-                    f"Тренд здоровья: {report['trends'].get('system_health', {}).get('description', 'не определен')}"
+                    f"Тренд здоровья: {system_health.get('description', 'не определен') if isinstance(system_health, dict) else 'не определен'}"
                 ],
                 "recommendations": [],
                 "metrics": {"evolution": report}
@@ -362,10 +365,12 @@ class HealthMonitor:
             # Дополнительный анализ для ML компонентов
             if component_name == "ml_core" and hasattr(component, "get_ml_health_dashboard_data"):
                 ml_health = component.get_ml_health_dashboard_data()
-                analysis["performance_metrics"].update(ml_health.get("statistics", {}))
+                statistics = ml_health.get("statistics", {})
+                if isinstance(statistics, dict):
+                    analysis["performance_metrics"].update(statistics)
                 
                 # Проверяем время ответа
-                if ml_health.get("statistics", {}).get("avg_response_time", 0) > 2.0:
+                if isinstance(statistics, dict) and statistics.get("avg_response_time", 0) > 2.0:
                     analysis["bottlenecks"].append("Высокое время ответа ML")
                     analysis["optimization_opportunities"].append({
                         "description": "Оптимизировать время ответа моделей ML",
@@ -373,8 +378,8 @@ class HealthMonitor:
                     })
                 
                 # Проверяем процент ошибок
-                failed = ml_health.get("statistics", {}).get("failed_requests", 0)
-                total = ml_health.get("statistics", {}).get("total_requests", 1)
+                failed = statistics.get("failed_requests", 0) if isinstance(statistics, dict) else 0
+                total = statistics.get("total_requests", 1) if isinstance(statistics, dict) else 1
                 error_rate = failed / total if total > 0 else 0
                 
                 if error_rate > 0.1:

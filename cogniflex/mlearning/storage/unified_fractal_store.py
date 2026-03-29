@@ -146,10 +146,11 @@ class UnifiedFractalStore:
     
     def _get_batches(self, data: List[Dict]):
         """Generate training batches"""
-        # TODO: Implement proper batching
         batch_size = self.config.batch_size
-        for i in range(0, len(data), batch_size):
-            yield data[i:i + batch_size]
+        data_len = len(data)
+        for i in range(0, data_len, batch_size):
+            batch = data[i:min(i + batch_size, data_len)]
+            yield [item for item in batch if isinstance(item.get("content"), (dict, list)) or "vector" in item]
             
     def _train_step(self, batch: List[Dict], 
                    criterion: nn.Module) -> float:
@@ -160,8 +161,9 @@ class UnifiedFractalStore:
         inputs = []
         targets = []
         for item in batch:
-            # TODO: Implement proper data preparation
-            if isinstance(item["content"], str):
+            if not isinstance(item.get("content"), (dict, list)):
+                continue
+            if "vector" not in item or "target" not in item:
                 continue
             try:
                 x = torch.tensor(item["vector"], 

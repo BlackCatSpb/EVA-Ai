@@ -199,10 +199,14 @@ class EntityFractalStore:
     
     def _update_level_4(self, entity_id: str):
         """Update Level 4 with full understanding synthesis."""
-        level_0 = self._entities.get(entity_id, {}).get(0)
-        level_1 = self._entities.get(entity_id, {}).get(1)
-        level_2 = self._entities.get(entity_id, {}).get(2)
-        level_3 = self._entities.get(entity_id, {}).get(3)
+        entity_data = self._entities.get(entity_id)
+        if not isinstance(entity_data, dict):
+            return
+        
+        level_0 = entity_data.get(0)
+        level_1 = entity_data.get(1)
+        level_2 = entity_data.get(2)
+        level_3 = entity_data.get(3)
         
         if not all([level_0, level_1, level_2, level_3]):
             return
@@ -249,7 +253,10 @@ class EntityFractalStore:
     
     def get_entity_at_level(self, entity_id: str, level: int) -> Optional[EntityLevelData]:
         """Get entity data at specific level."""
-        return self._entities.get(entity_id, {}).get(level)
+        entity_data = self._entities.get(entity_id)
+        if isinstance(entity_data, dict):
+            return entity_data.get(level)
+        return None
     
     def get_entity_full(self, entity_id: str) -> Optional[Dict[int, EntityLevelData]]:
         """Get entity data at all levels."""
@@ -347,7 +354,10 @@ class EntityFractalStore:
         """Save entity to disk for persistence."""
         try:
             entity_data = {}
-            for level, level_obj in self._entities.get(entity_id, {}).items():
+            entity_levels = self._entities.get(entity_id)
+            if not isinstance(entity_levels, dict):
+                return
+            for level, level_obj in entity_levels.items():
                 entity_data[level] = {
                     'data': level_obj.data,
                     'metadata': level_obj.metadata,

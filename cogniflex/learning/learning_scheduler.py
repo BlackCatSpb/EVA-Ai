@@ -99,11 +99,11 @@ class LearningTask:
     def from_dict(cls, data: Dict[str, Any]) -> 'LearningTask':
         """Создает задачу из словаря."""
         return cls(
-            task_id=data["task_id"],
-            task_type=data["task_type"],
-            concept=data["concept"],
-            priority=data["priority"],
-            scheduled_time=data["scheduled_time"],
+            task_id=data.get("task_id", ""),
+            task_type=data.get("task_type", "unknown"),
+            concept=data.get("concept", ""),
+            priority=data.get("priority", 0),
+            scheduled_time=data.get("scheduled_time", 0),
             metadata=data.get("metadata", {}),
             dependencies=data.get("dependencies", []),
             status=data.get("status", "pending"),

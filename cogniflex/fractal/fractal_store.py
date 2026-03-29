@@ -398,7 +398,8 @@ class FractalStore:
             self.block_size = int(index.get("block_size", self.block_size))
             self.graph_metadata = index.get("graph_metadata", {})
             self.containers = {}
-            self.fractal_tree = {int(k): list(v) for k, v in index.get("fractal_tree", {}).items()}
+            fractal_tree = index.get("fractal_tree", {})
+            self.fractal_tree = {int(k): list(v) for k, v in fractal_tree.items()} if isinstance(fractal_tree, dict) else {}
             for ci in index.get("containers", []):
                 cid = ci["id"]
                 level = int(ci["level"])

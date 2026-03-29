@@ -186,14 +186,14 @@ class EnhancedLearningIntegration:
         
         # Настраиваем веб-поиск если доступен
         if self.web_search_integration:
-            self.web_search_integration.configure_integration(**self.config["enhanced_web_search"])
+            self.web_search_integration.configure_integration(**self.config.get("enhanced_web_search", {}))
         
         logger.info("Компоненты инициализированы")
     
     def _start_monitoring(self):
         """Запускает мониторинг"""
         
-        if self.config["monitoring"]["enable_monitoring"]:
+        if self.config.get("monitoring", {}).get("enable_monitoring", True):
             self.monitoring_thread = threading.Thread(
                 target=self._monitoring_loop, daemon=True
             )
@@ -288,13 +288,14 @@ class EnhancedLearningIntegration:
         """Получает темы для обучения"""
         
         all_topics = []
-        all_topics.extend(self.config["learning_topics"]["core_topics"])
-        all_topics.extend(self.config["learning_topics"]["trending_topics"])
-        all_topics.extend(self.config["learning_topics"]["custom_topics"])
+        topics_config = self.config.get("learning_topics", {})
+        all_topics.extend(topics_config.get("core_topics", []))
+        all_topics.extend(topics_config.get("trending_topics", []))
+        all_topics.extend(topics_config.get("custom_topics", []))
         
         # Выбираем случайные темы
         import random
-        max_topics = self.config["enhanced_learning"]["max_topics_per_session"]
+        max_topics = self.config.get("enhanced_learning", {}).get("max_topics_per_session", 10)
         selected_topics = random.sample(all_topics, min(max_topics, len(all_topics)))
         
         return selected_topics
@@ -307,7 +308,7 @@ class EnhancedLearningIntegration:
             return []
         
         try:
-            max_texts = self.config["enhanced_learning"]["max_texts_per_topic"]
+            max_texts = self.config.get("enhanced_learning", {}).get("max_texts_per_topic", 3)
             
             # Используем существующий метод если доступен
             if self.has_training_texts:
@@ -331,8 +332,9 @@ class EnhancedLearningIntegration:
         """Обучает модель с улучшенными параметрами"""
         
         try:
-            epochs = self.config["enhanced_learning"]["training_epochs"]
-            batch_size = self.config["enhanced_learning"]["batch_size"]
+            enhanced_learning_config = self.config.get("enhanced_learning", {})
+            epochs = enhanced_learning_config.get("training_epochs", 3)
+            batch_size = enhanced_learning_config.get("batch_size", 2)
             
             improvement_result = self.fractal_model_manager.improve_quality(
                 training_texts=training_texts,
@@ -376,7 +378,7 @@ class EnhancedLearningIntegration:
             
             # Улучшение качества
             quality_improvement = session.quality_after - session.quality_before
-            if quality_improvement > self.config["enhanced_learning"]["min_improvement_threshold"]:
+            if quality_improvement > self.config.get("enhanced_learning", {}).get("min_improvement_threshold", 0.1):
                 completed = self.system_stats["completed_sessions"]
                 current_avg = self.system_stats["average_quality_improvement"]
                 new_avg = (current_avg * (completed - 1) + quality_improvement) / completed
@@ -498,14 +500,15 @@ class EnhancedLearningIntegration:
     def _monitoring_loop(self):
         """Фоновый цикл мониторинга"""
         
-        interval = self.config["monitoring"]["stats_update_interval"]
+        monitoring_config = self.config.get("monitoring", {})
+        interval = monitoring_config.get("stats_update_interval", 60)
         
         while True:
             try:
                 time.sleep(interval)
                 self._update_system_stats()
                 
-                if self.config["monitoring"]["auto_cleanup"]:
+                if monitoring_config.get("auto_cleanup", True):
                     self._perform_cleanup()
                 
             except Exception as e:
@@ -526,7 +529,7 @@ class EnhancedLearningIntegration:
         
         try:
             current_time = time.time()
-            cleanup_interval = self.config["monitoring"]["cleanup_interval_hours"] * 3600
+            cleanup_interval = self.config.get("monitoring", {}).get("cleanup_interval_hours", 24) * 3600
             
             sessions_to_remove = []
             for session_id, session in self.learning_sessions.items():

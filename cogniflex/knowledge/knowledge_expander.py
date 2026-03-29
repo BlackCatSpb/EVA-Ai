@@ -309,8 +309,10 @@ class KnowledgeExpander:
         node2 = self.knowledge_graph.search_nodes(concept2, limit=1)
         
         if node1 and node2:
-            desc1 = node1[0].meta.get("description", "").lower() if hasattr(node1[0], 'meta') else ""
-            desc2 = node2[0].meta.get("description", "").lower() if hasattr(node2[0], 'meta') else ""
+            meta1 = getattr(node1[0], 'meta', None) or {}
+            meta2 = getattr(node2[0], 'meta', None) or {}
+            desc1 = meta1.get("description", "").lower()
+            desc2 = meta2.get("description", "").lower()
             
             for relation, keywords in common_relations.items():
                 for keyword in keywords:

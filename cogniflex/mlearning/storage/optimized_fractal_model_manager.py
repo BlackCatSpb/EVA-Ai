@@ -49,22 +49,22 @@ class OptimizedFractalModelManager:
         self.config_path = self.config.get("config_path")
         
         # Устройство и память
-        self.device = torch.device(self.config["device"])
-        self.max_memory_tokens = self.config["max_memory_tokens"]
-        self.target_memory_gb = self.config["target_memory_gb"]
+        self.device = torch.device(self.config.get("device", "cpu"))
+        self.max_memory_tokens = self.config.get("max_memory_tokens", 50000)
+        self.target_memory_gb = self.config.get("target_memory_gb", 4.0)
         
         # Оптимизации
-        self.cache_tokenization = self.config["cache_tokenization"]
-        self.parallel_tokenization = self.config["parallel_tokenization"]
-        self.tokenization_workers = self.config["tokenization_workers"]
-        self.memory_optimization = self.config["memory_optimization"]
-        self.use_uint16 = self.config["use_uint16"]
-        self.tensor_pool_size = self.config["tensor_pool_size"]
+        self.cache_tokenization = self.config.get("cache_tokenization", True)
+        self.parallel_tokenization = self.config.get("parallel_tokenization", True)
+        self.tokenization_workers = self.config.get("tokenization_workers", 4)
+        self.memory_optimization = self.config.get("memory_optimization", True)
+        self.use_uint16 = self.config.get("use_uint16", True)
+        self.tensor_pool_size = self.config.get("tensor_pool_size", 1000)
         
         # Генерация
-        self.batch_size = self.config["batch_size"]
-        self.max_length = self.config["max_length"]
-        self.overlap_tokens = self.config["overlap_tokens"]
+        self.batch_size = self.config.get("batch_size", 4)
+        self.max_length = self.config.get("max_length", 32768)
+        self.overlap_tokens = self.config.get("overlap_tokens", 64)
         
         # Компоненты
         self.model = None

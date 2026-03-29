@@ -1767,8 +1767,10 @@ class KnowledgeIntegrator:
                 logger.warning(f"Ошибка вычисления сходства с помощью ML: {e}")
         
         # Текстовый анализ как fallback
-        desc1 = node1.metadata.get("description", node1.content).lower()
-        desc2 = node2.metadata.get("description", node2.content).lower()
+        node1_meta = getattr(node1, 'metadata', None) or {}
+        node2_meta = getattr(node2, 'metadata', None) or {}
+        desc1 = node1_meta.get("description", node1.content).lower()
+        desc2 = node2_meta.get("description", node2.content).lower()
         
         # Удаляем стоп-слова
         stop_words = {'и', 'в', 'на', 'с', 'к', 'от', 'по', 'для', 'о', 'об', 'про',

@@ -173,7 +173,7 @@ class ComprehensiveLearningSystem:
         # Настраиваем веб-поиск
         if self.web_search_integration:
             try:
-                self.web_search_integration.configure_integration(**self.config["web_search"])
+                self.web_search_integration.configure_integration(**self.config.get("web_search", {}))
             except Exception as e:
                 logger.warning(f"Ошибка настройки веб-поиска: {e}")
         
@@ -183,7 +183,7 @@ class ComprehensiveLearningSystem:
         """Запускает фоновые процессы"""
         
         # Авто-обучение
-        if self.config["learning"]["auto_learning_enabled"]:
+        if self.config.get("learning", {}).get("auto_learning_enabled", True):
             self.auto_learning_thread = threading.Thread(
                 target=self._auto_learning_loop, daemon=True
             )
@@ -191,7 +191,7 @@ class ComprehensiveLearningSystem:
             logger.info("Авто-обучение запущено")
         
         # Мониторинг
-        if self.config["monitoring"]["enable_monitoring"]:
+        if self.config.get("monitoring", {}).get("enable_monitoring", True):
             self.monitoring_thread = threading.Thread(
                 target=self._monitoring_loop, daemon=True
             )
@@ -287,18 +287,20 @@ class ComprehensiveLearningSystem:
         
         all_topics = []
         
+        topics_config = self.config.get("topics", {})
+        
         # Основные темы
-        all_topics.extend(self.config["topics"]["core_topics"])
+        all_topics.extend(topics_config.get("core_topics", []))
         
         # Актуальные темы
-        all_topics.extend(self.config["topics"]["trending_topics"])
+        all_topics.extend(topics_config.get("trending_topics", []))
         
         # Пользовательские темы
-        all_topics.extend(self.config["topics"]["custom_topics"])
+        all_topics.extend(topics_config.get("custom_topics", []))
         
         # Выбираем случайные темы
         import random
-        max_topics = self.config["learning"]["max_topics_per_session"]
+        max_topics = self.config.get("learning", {}).get("max_topics_per_session", 10)
         selected_topics = random.sample(all_topics, min(max_topics, len(all_topics)))
         
         return selected_topics
@@ -311,7 +313,7 @@ class ComprehensiveLearningSystem:
             return []
         
         try:
-            max_texts = self.config["learning"]["max_texts_per_topic"]
+            max_texts = self.config.get("learning", {}).get("max_texts_per_topic", 3)
             training_texts = self.web_search_integration.generate_training_texts_from_search(
                 topics, max_texts_per_topic=max_texts
             )
@@ -327,8 +329,9 @@ class ComprehensiveLearningSystem:
         """Обучает модель"""
         
         try:
-            epochs = self.config["learning"]["training_epochs"]
-            batch_size = self.config["learning"]["batch_size"]
+            learning_config = self.config.get("learning", {})
+            epochs = learning_config.get("training_epochs", 3)
+            batch_size = learning_config.get("batch_size", 2)
             
             improvement_result = self.fractal_model_manager.improve_quality(
                 training_texts=training_texts,
@@ -372,7 +375,7 @@ class ComprehensiveLearningSystem:
             
             # Улучшение качества
             quality_improvement = session.quality_after - session.quality_before
-            if quality_improvement > self.config["learning"]["min_improvement_threshold"]:
+            if quality_improvement > self.config.get("learning", {}).get("min_improvement_threshold", 0.1):
                 # Обновляем среднее улучшение
                 completed = self.system_stats["completed_sessions"]
                 current_avg = self.system_stats["average_quality_improvement"]

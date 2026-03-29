@@ -3249,13 +3249,15 @@ class KnowledgeGraph:
         # self.edges = {}
         
         # Импортируем узлы
-        for node_data in data["nodes"]:
+        nodes = data.get("nodes", [])
+        for node_data in nodes:
             node = KnowledgeNode.from_dict(node_data)
             self.nodes[node.id] = node
             self._save_node_to_db(node)
         
         # Импортируем связи
-        for edge_data in data["edges"]:
+        edges = data.get("edges", [])
+        for edge_data in edges:
             edge = KnowledgeEdge.from_dict(edge_data)
             self.edges[edge.id] = edge
             self._save_edge_to_db(edge)
@@ -3263,7 +3265,7 @@ class KnowledgeGraph:
         # Обновляем индексы
         self._init_indexes()
         
-        logger.info(f"Импортировано {len(data['nodes'])} узлов и {len(data['edges'])} связей")
+        logger.info(f"Импортировано {len(nodes)} узлов и {len(edges)} связей")
         return True
     
     def _import_from_graphml(self, data: str) -> bool:
@@ -3758,7 +3760,8 @@ class KnowledgeGraph:
     def _merge_data(self, data: Dict[str, Any], source_name: str, results: Dict[str, Any]):
         """Слияние новых данных с существующим графом."""
         # Добавляем новые узлы
-        for node_data in data["nodes"]:
+        nodes = data.get("nodes", [])
+        for node_data in nodes:
             # Проверяем, существует ли узел
             existing_nodes = self.search_nodes(node_data["name"], limit=1)
             
@@ -3795,7 +3798,8 @@ class KnowledgeGraph:
                     results["new_nodes"] += 1
         
         # Добавляем новые связи
-        for edge_data in data["edges"]:
+        edges = data.get("edges", [])
+        for edge_data in edges:
             # Находим узлы по имени
             source_nodes = self.search_nodes(edge_data["source"], limit=1)
             target_nodes = self.search_nodes(edge_data["target"], limit=1)
