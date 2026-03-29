@@ -307,16 +307,19 @@ class MLUnit:
                 
             except ImportError as import_error:
                 logger.error(f"Не удалось импортировать ResponseGenerator: {import_error}", exc_info=True)
-                self.response_generator = None
+                if not hasattr(self, 'response_generator') or self.response_generator is None:
+                    self.response_generator = None
                 return False
             except Exception as create_error:
                 logger.error(f"Не удалось создать ResponseGenerator: {create_error}", exc_info=True)
-                self.response_generator = None
+                if not hasattr(self, 'response_generator') or self.response_generator is None:
+                    self.response_generator = None
                 return False
                 
         except Exception as e:
             logger.error(f"Ошибка при инициализации ResponseGenerator: {e}", exc_info=True)
-            self.response_generator = None
+            if not hasattr(self, 'response_generator') or self.response_generator is None:
+                self.response_generator = None
             return False
     
     def _init_hybrid_cache(self):

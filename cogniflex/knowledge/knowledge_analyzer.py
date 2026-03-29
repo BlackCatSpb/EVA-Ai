@@ -872,9 +872,11 @@ class KnowledgeAnalyzer:
                     # Проверяем числовые противоречия
                     if node1.node_type == "fact" and node2.node_type == "fact":
                         try:
-                            val1 = float(node1.description)
-                            val2 = float(node2.description)
-                            if abs(val1 - val2) > 0.1 * max(abs(val1), abs(val2)):
+                            val1_str = str(node1.description) if node1.description else ""
+                            val2_str = str(node2.description) if node2.description else ""
+                            val1 = float(val1_str) if val1_str else 0.0
+                            val2 = float(val2_str) if val2_str else 0.0
+                            if val1 and val2 and abs(val1 - val2) > 0.1 * max(abs(val1), abs(val2)):
                                 contradictions.append({
                                     "concept": node1.name,
                                     "values": [val1, val2],
@@ -884,7 +886,7 @@ class KnowledgeAnalyzer:
                                         f"Значение в домене '{node2.domain}': {val2}"
                                     ]
                                 })
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError, AttributeError):
                             pass
             
             # Добавляем обнаруженные противоречия как возможности для обучения

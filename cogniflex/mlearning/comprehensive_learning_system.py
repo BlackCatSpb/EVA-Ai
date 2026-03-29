@@ -159,16 +159,23 @@ class ComprehensiveLearningSystem:
         """Инициализирует компоненты системы"""
         
         # Веб-поиск уже интегрирован в менеджер
-        if hasattr(self.fractal_model_manager, 'web_search_integration'):
-            self.web_search_integration = self.fractal_model_manager.web_search_integration
-            logger.info("Веб-поиск интегрирован")
-        else:
-            logger.warning("Веб-поиск недоступен")
+        try:
+            if hasattr(self.fractal_model_manager, 'web_search_integration'):
+                self.web_search_integration = self.fractal_model_manager.web_search_integration
+                logger.info("Веб-поиск интегрирован")
+            else:
+                logger.warning("Веб-поиск недоступен")
+                self.web_search_integration = None
+        except Exception as e:
+            logger.warning(f"Ошибка инициализации веб-поиска: {e}")
             self.web_search_integration = None
         
         # Настраиваем веб-поиск
         if self.web_search_integration:
-            self.web_search_integration.configure_integration(**self.config["web_search"])
+            try:
+                self.web_search_integration.configure_integration(**self.config["web_search"])
+            except Exception as e:
+                logger.warning(f"Ошибка настройки веб-поиска: {e}")
         
         logger.info("Компоненты инициализированы")
     
@@ -495,6 +502,7 @@ class ComprehensiveLearningSystem:
         
         while True:
             try:
+                time.sleep(1)
                 # Проверяем, не запущена ли уже сессия
                 if self.active_session:
                     time.sleep(300)  # 5 минут
@@ -518,6 +526,7 @@ class ComprehensiveLearningSystem:
         
         while True:
             try:
+                time.sleep(1)
                 time.sleep(interval)
                 
                 # Обновляем статистику

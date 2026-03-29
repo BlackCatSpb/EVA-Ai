@@ -70,9 +70,12 @@ class EthicsFramework:
         self.running = False
         
         # Закрываем компоненты
-        self.situation_handler.close()
-        self.risk_assessor = None
-        self.principles_manager.close()
+        if self.situation_handler:
+            self.situation_handler.close()
+        if self.risk_assessor:
+            self.risk_assessor = None
+        if self.principles_manager:
+            self.principles_manager.close()
         
         logger.info("Этическая рамка остановлена")
     
@@ -143,6 +146,8 @@ class EthicsFramework:
             bool: Требуется ли обзор
         """
         try:
+            if not self.risk_assessor:
+                return True
             # Оцениваем риски
             assessments = self.risk_assessor.assess_risk(context)
             
@@ -219,9 +224,18 @@ class EthicsFramework:
             Dict: Отчет о здоровье
         """
         # Получаем данные от компонентов
-        principles_health = self.principles_manager.get_principles_dashboard_data()
-        risk_health = self.risk_assessor.get_risk_dashboard_data()
-        situation_health = self.situation_handler.get_situation_dashboard_data()
+        try:
+            principles_health = getattr(self.principles_manager, 'get_principles_dashboard_data', lambda: {})()
+        except Exception:
+            principles_health = {}
+        try:
+            risk_health = getattr(self.risk_assessor, 'get_risk_dashboard_data', lambda: {})()
+        except Exception:
+            risk_health = {}
+        try:
+            situation_health = getattr(self.situation_handler, 'get_situation_dashboard_data', lambda: {})()
+        except Exception:
+            situation_health = {}
         
         # Получаем общий отчет о здоровье
         overall_health = self.situation_handler.get_system_health()
@@ -243,9 +257,18 @@ class EthicsFramework:
             Dict: Данные для дашборда
         """
         # Получаем данные от компонентов
-        principles_data = self.principles_manager.get_principles_dashboard_data()
-        risk_data = self.risk_assessor.get_risk_dashboard_data()
-        situation_data = self.situation_handler.get_situation_dashboard_data()
+        try:
+            principles_data = getattr(self.principles_manager, 'get_principles_dashboard_data', lambda: {})()
+        except Exception:
+            principles_data = {}
+        try:
+            risk_data = getattr(self.risk_assessor, 'get_risk_dashboard_data', lambda: {})()
+        except Exception:
+            risk_data = {}
+        try:
+            situation_data = getattr(self.situation_handler, 'get_situation_dashboard_data', lambda: {})()
+        except Exception:
+            situation_data = {}
         
         return {
             "principles": principles_data,
@@ -268,18 +291,26 @@ class EthicsFramework:
         """
         try:
             if component == "principles" or component == "all":
-                return self.principles_manager.generate_ethical_visualization(view_type)
+                vis_method = getattr(self.principles_manager, 'generate_ethical_visualization', None)
+                if vis_method:
+                    return vis_method(view_type)
             elif component == "risk":
-                return self.risk_assessor.generate_risk_visualization(view_type)
+                vis_method = getattr(self.risk_assessor, 'generate_risk_visualization', None)
+                if vis_method:
+                    return vis_method(view_type)
             elif component == "situations":
-                return self.situation_handler.generate_situation_visualization(view_type)
+                vis_method = getattr(self.situation_handler, 'generate_situation_visualization', None)
+                if vis_method:
+                    return vis_method(view_type)
             
             # По умолчанию используем обзор
-            return self.principles_manager.generate_ethical_visualization("compliance")
+            vis_method = getattr(self.principles_manager, 'generate_ethical_visualization', None)
+            if vis_method:
+                return vis_method("compliance")
             
         except Exception as e:
             logger.error(f"Ошибка генерации визуализации этической рамки: {e}")
-            return ""
+        return ""
     
     def export_data(self, file_path: str) -> bool:
         """

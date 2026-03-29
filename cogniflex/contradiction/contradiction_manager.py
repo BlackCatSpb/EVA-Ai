@@ -1,6 +1,11 @@
 import logging
 from typing import List, Dict, Any, Optional
-from ..core.base_component import BaseComponent
+try:
+    from ..core.base_component import BaseComponent
+except ImportError:
+    class BaseComponent:
+        def __init__(self, brain=None):
+            self.brain = brain
 from .contradiction_core import OptimizedContradictionDetector
 
 logger = logging.getLogger(__name__)
@@ -64,11 +69,15 @@ class ContradictionManager(BaseComponent):
         Args:
             contradiction: Словарь с данными о противоречии
         """
-        if contradiction not in self.contradictions:
+        contradiction_id = contradiction.get('id')
+        existing_ids = {c.get('id') for c in self.contradictions}
+        if contradiction_id and contradiction_id not in existing_ids:
             self.contradictions.append(contradiction)
-            # Добавляем концепции в known_concepts
-            if 'concepts' in contradiction:
-                self.known_concepts.update(contradiction['concepts'])
+        elif not contradiction_id:
+            self.contradictions.append(contradiction)
+        # Добавляем концепции в known_concepts
+        if 'concepts' in contradiction:
+            self.known_concepts.update(contradiction['concepts'])
 
     def get_contradictions(self) -> List[Dict[str, Any]]:
         """Возвращает список всех обнаруженных противоречий"""

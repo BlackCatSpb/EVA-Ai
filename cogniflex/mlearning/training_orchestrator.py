@@ -767,7 +767,8 @@ class TrainingOrchestrator:
             
         # Step 3: Process in batches with checkpointing (legacy training)
         start_idx = progress.last_batch_end
-        total_chunks = progress.total_chunks
+        # Recalculate total_chunks from segments to handle cases where progress was saved with 0
+        total_chunks = len(segments) if segments else progress.total_chunks
         logger.info(f"Training document '{doc_id}' with {total_chunks} chunks")
 
         # Emit start event

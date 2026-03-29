@@ -265,8 +265,8 @@ class SelfDialogLearningSystem:
         try:
             if (self.brain and hasattr(self.brain, 'memory_manager') and 
                 self.brain.memory_manager and 
-                hasattr(self.brain.memory_manager, 'get_conversation_history')):
-                conversation_history = self.brain.memory_manager.get_conversation_history(user_id="default_user", limit=10)
+                hasattr(self.brain.memory_manager, 'get_recent_interactions')):
+                conversation_history = self.brain.memory_manager.get_recent_interactions(limit=10)
             else:
                 conversation_history = []
             
@@ -414,10 +414,10 @@ class SelfDialogLearningSystem:
                 add_node = getattr(knowledge_graph, 'add_node', None)
                 if add_node:
                     add_node(
-                        concept,
+                        name=concept,
                         node_type="learned_knowledge",
                         domain=domain,
-                        metadata={
+                        meta={
                             "learned_at": time.time(),
                             "type": "expansion",
                             "source": "self_dialog_learning"
@@ -444,11 +444,11 @@ class SelfDialogLearningSystem:
         knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
         if knowledge_graph:
             try:
-                update_node = getattr(knowledge_graph, 'update_node', None)
+                update_node = getattr(knowledge_graph, 'update_node', None) or getattr(knowledge_graph, 'add_node', None)
                 if update_node:
                     update_node(
-                        concept,
-                        f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
+                        name=concept,
+                        content=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
                         source="self_dialog_learning"
                     )
             except Exception as e:
@@ -461,7 +461,7 @@ class SelfDialogLearningSystem:
         if memory_manager and hasattr(memory_manager, 'add_memory'):
             try:
                 memory_manager.add_memory(
-                    f"refinement_{concept}",
+                    "semantic",
                     {
                         "concept": concept,
                         "type": "refinement",
@@ -469,7 +469,9 @@ class SelfDialogLearningSystem:
                         "evidence": evidence,
                         "refined_at": time.time(),
                         "source": "self_dialog_learning"
-                    }
+                    },
+                    {"type": "refinement"},
+                    None
                 )
             except Exception as e:
                 logger.debug(f"Error storing refinement: {e}")
@@ -499,10 +501,11 @@ class SelfDialogLearningSystem:
             
             if hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
-                    if hasattr(self.brain.knowledge_graph, 'update_node'):
-                        self.brain.knowledge_graph.update_node(
-                            concept,
-                            f"Updated at {time.time()}, type: updating",
+                    update_node = getattr(self.brain.knowledge_graph, 'update_node', None) or getattr(self.brain.knowledge_graph, 'add_node', None)
+                    if update_node:
+                        update_node(
+                            name=concept,
+                            content=f"Updated at {time.time()}, type: updating",
                             source="self_dialog_learning"
                         )
                 except Exception as e:
@@ -522,10 +525,10 @@ class SelfDialogLearningSystem:
             try:
                 if hasattr(self.brain.knowledge_graph, 'add_node'):
                     self.brain.knowledge_graph.add_node(
-                        concept,
+                        name=concept,
                         node_type="integrated_knowledge",
                         domain=domain,
-                        metadata={
+                        meta={
                             "integrated_at": time.time(),
                             "type": "integration",
                             "source": "self_dialog_learning",
@@ -559,12 +562,14 @@ class SelfDialogLearningSystem:
                     add_memory = getattr(memory_manager, 'add_memory', None)
                     if add_memory:
                         add_memory(
-                            f"learned_{result['concept']}",
+                            "semantic",
                             {
                                 **result,
                                 "stored_at": time.time(),
                                 "source": "self_dialog_learning"
-                            }
+                            },
+                            {"type": "learned_content"},
+                            None
                         )
                 except Exception as e:
                     logger.warning(f"Error storing learned content: {e}")
@@ -767,7 +772,12 @@ class SelfDialogLearningSystem:
         if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
             try:
                 kg = self.brain.knowledge_graph
-                if hasattr(kg, 'search'):
+                if hasattr(kg, 'search_nodes'):
+                    results = kg.search_nodes(topic_match, limit=3)
+                    if results:
+                        relevant_context = "Известная информация: " + "; ".join([r.get('content', '')[:100] for r in results[:2]])
+                        logger.info(f"Найден контекст из knowledge graph: {len(results)} результатов")
+                elif hasattr(kg, 'search'):
                     results = kg.search(topic_match, limit=3)
                     if results:
                         relevant_context = "Известная информация: " + "; ".join([r.get('content', '')[:100] for r in results[:2]])

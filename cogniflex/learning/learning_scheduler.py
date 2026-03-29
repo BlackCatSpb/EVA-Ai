@@ -737,7 +737,6 @@ class LearningScheduler:
                             related_concept,
                             "related_to",
                             strength=0.7,
-                            weight=0.7,
                             metadata={"source": "domain_expansion"}
                         )
                 except Exception as e:
@@ -774,12 +773,11 @@ class LearningScheduler:
                 try:
                     edges = self.brain.knowledge_graph.get_edges(concept)
                     for edge in edges:
-                        related_concept = edge.target if edge.source == concept else edge.source
+                        related_concept = edge.target_id if edge.source_id == concept else edge.source_id
                         connections.append({
                             "concept": related_concept,
-                            "relation": edge.relation,
-                            "strength": edge.strength,
-                            "weight": edge.weight
+                            "relation": getattr(edge, 'relation_type', getattr(edge, 'relation', 'related_to')),
+                            "strength": getattr(edge, 'strength', 0.5)
                         })
                 except Exception as e:
                     logger.debug(f"Ошибка get_edges: {e}")
@@ -853,20 +851,23 @@ class LearningScheduler:
                     nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
                     if nodes:
                         node = nodes[0]
-                        new_reliability = min(1.0, node.reliability + 0.1)
+                        new_strength = min(1.0, getattr(node, 'strength', 0.5) + 0.1)
                         self.brain.knowledge_graph.add_node(
-                            node.id, node.content, node.node_type,
-                            node.domain, node.metadata, new_reliability
+                            node.id, getattr(node, 'name', getattr(node, 'content', '')),
+                            getattr(node, 'node_type', 'concept'),
+                            getattr(node, 'domain', 'general'), 
+                            getattr(node, 'meta', getattr(node, 'metadata', {})),
+                            new_strength
                         )
                     for updated_concept in concepts:
                         self.brain.knowledge_graph.add_node(
                             f"fact_{hash(updated_concept) % 1000000}",
                             updated_concept, node_type="fact",
-                            domain=task.metadata.get("domain", "general"), reliability=0.8
+                            domain=task.metadata.get("domain", "general"), strength=0.8
                         )
                         self.brain.knowledge_graph.add_edge(
                             concept, updated_concept, "contains",
-                            strength=0.8, weight=0.8, metadata={"source": "knowledge_update"}
+                            strength=0.8, metadata={"source": "knowledge_update"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка обновления knowledge_graph: {e}")
@@ -920,10 +921,13 @@ class LearningScheduler:
                 # Получаем узел концепта
                 nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
                 if nodes:
-                    sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
+                    sources = []
+                    if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
+                        sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
                     for source in sources:
                         # Проверяем надежность источника
-                        if source.reliability > 0.7:
+                        source_reliability = getattr(source, 'reliability', getattr(source, 'strength', 0.5))
+                        if source_reliability > 0.7:
                             verified_sources += 1
                         else:
                             unverified_sources += 1
@@ -978,11 +982,11 @@ class LearningScheduler:
                             self.brain.knowledge_graph.add_node(
                                 f"concept_{hash(integrated_concept) % 1000000}",
                                 integrated_concept, node_type="concept",
-                                domain=task.metadata.get("domain", "general"), reliability=0.85
+                                domain=task.metadata.get("domain", "general"), strength=0.85
                             )
                         self.brain.knowledge_graph.add_edge(
                             concept, integrated_concept, "integrates",
-                            strength=0.8, weight=0.8, metadata={"source": "knowledge_integration"}
+                            strength=0.8, metadata={"source": "knowledge_integration"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка интеграции в knowledge_graph: {e}")
@@ -1033,11 +1037,11 @@ class LearningScheduler:
                     for detail in concepts:
                         self.brain.knowledge_graph.add_node(
                             f"detail_{hash(detail) % 1000000}", detail,
-                            node_type="detail", domain=task.metadata.get("domain", "general"), reliability=0.8
+                            node_type="detail", domain=task.metadata.get("domain", "general"), strength=0.8
                         )
                         self.brain.knowledge_graph.add_edge(
                             concept, detail, "details",
-                            strength=0.85, weight=0.85, metadata={"source": "concept_deepening"}
+                            strength=0.85, metadata={"source": "concept_deepening"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка добавления деталей в knowledge_graph: {e}")
@@ -1089,13 +1093,13 @@ class LearningScheduler:
                     self.brain.knowledge_graph.add_node(
                         f"synthesis_{hash(concept) % 1000000}",
                         f"Синтез: {concept}", node_type="synthesis",
-                        domain=task.metadata.get("domain", "general"), reliability=0.9
+                        domain=task.metadata.get("domain", "general"), strength=0.9
                     )
                     for synthesized_concept in concepts:
                         self.brain.knowledge_graph.add_edge(
                             f"synthesis_{hash(concept) % 1000000}",
                             synthesized_concept, "derived_from",
-                            strength=0.9, weight=0.9, metadata={"source": "knowledge_synthesis"}
+                            strength=0.9, metadata={"source": "knowledge_synthesis"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка синтеза в knowledge_graph: {e}")
@@ -1133,11 +1137,13 @@ class LearningScheduler:
                 try:
                     edges = self.brain.knowledge_graph.get_edges(concept)
                     for edge in edges:
-                        if not hasattr(edge, 'source') or not hasattr(edge, 'target'):
+                        source_id = getattr(edge, 'source_id', getattr(edge, 'source', None))
+                        target_id = getattr(edge, 'target_id', getattr(edge, 'target', None))
+                        if source_id is None or target_id is None:
                             continue
-                        related_concept = edge.target if edge.source == concept else edge.source
-                        strength = getattr(edge, 'strength', 0.5) if hasattr(edge, 'strength') else 0.5
-                        relation = getattr(edge, 'relation', 'related_to') if hasattr(edge, 'relation') else 'related_to'
+                        related_concept = target_id if source_id == concept else source_id
+                        strength = getattr(edge, 'strength', 0.5)
+                        relation = getattr(edge, 'relation_type', getattr(edge, 'relation', 'related_to'))
                         connections.append({
                             "concept": related_concept,
                             "relation": relation,
@@ -1203,10 +1209,12 @@ class LearningScheduler:
                     nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
                     if nodes:
                         # Проверяем, не устарели ли источники
-                        sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
+                        sources = []
+                        if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
+                            sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
                         for source in sources:
                             # Если источник старше 1 года, считаем его устаревшим
-                            if time.time() - source.timestamp > 365 * 86400:
+                            if time.time() - getattr(source, 'timestamp', time.time()) > 365 * 86400:
                                 knowledge_status = "outdated"
                                 maintenance_needed = True
                                 break
@@ -1224,11 +1232,11 @@ class LearningScheduler:
                         if nodes:
                             self.brain.knowledge_graph.add_node(
                                 nodes[0].id,
-                                nodes[0].content,
-                                nodes[0].node_type,
-                                nodes[0].domain,
-                                nodes[0].metadata,
-                                reliability=0.9  # Увеличиваем надежность после обновления
+                                getattr(nodes[0], 'content', ''),
+                                getattr(nodes[0], 'node_type', 'concept'),
+                                getattr(nodes[0], 'domain', 'general'),
+                                getattr(nodes[0], 'meta', getattr(nodes[0], 'metadata', {})),
+                                strength=0.9
                             )
 
                         # Добавляем новые источники
@@ -1238,7 +1246,7 @@ class LearningScheduler:
                                 updated_concept,
                                 node_type="fact",
                                 domain=task.metadata.get("domain", "general"),
-                                reliability=0.85
+                                strength=0.85
                             )
 
                             self.brain.knowledge_graph.add_edge(
@@ -1246,7 +1254,6 @@ class LearningScheduler:
                                 updated_concept,
                                 "contains",
                                 strength=0.85,
-                                weight=0.85,
                                 metadata={"source": "knowledge_maintenance"}
                             )
                 except Exception as e:
@@ -1396,7 +1403,7 @@ class LearningScheduler:
 
                 if nodes and len(nodes) > 0:
                     first_node = nodes[0]
-                    node_id = getattr(first_node, 'id', None) if hasattr(first_node, 'id') else None
+                    node_id = getattr(first_node, 'id', None)
                     if node_id is None:
                         node_id = concept
                     
@@ -1407,16 +1414,18 @@ class LearningScheduler:
                     # Оцениваем ширину (на основе разнообразия доменов)
                     domains = set()
                     for edge in edges:
-                        if not hasattr(edge, 'source') or not hasattr(edge, 'target'):
+                        source_id = getattr(edge, 'source_id', getattr(edge, 'source', None))
+                        target_id = getattr(edge, 'target_id', getattr(edge, 'target', None))
+                        if source_id is None or target_id is None:
                             continue
-                        target_id = edge.target if edge.source == node_id else edge.source
-                        related_node = self.brain.knowledge_graph.get_node(target_id)
-                        if related_node and hasattr(related_node, 'domain'):
-                            domains.add(related_node.domain)
-                    breadth = min(0.9, len(domains) * 0.2)
+                        related_id = target_id if source_id == node_id else source_id
+                        related_node = self.brain.knowledge_graph.get_node(related_id)
+                        if related_node:
+                            domains.add(getattr(related_node, 'domain', None))
+                    breadth = min(0.9, len([d for d in domains if d is not None]) * 0.2)
 
                     # Оцениваем актуальность (на основе времени последнего обновления)
-                    last_updated = getattr(first_node, 'last_updated', time.time()) if hasattr(first_node, 'last_updated') else time.time()
+                    last_updated = getattr(first_node, 'last_updated', time.time())
                     time_diff = time.time() - last_updated
                     recency = max(0.1, 1.0 - min(1.0, time_diff / (365 * 86400)))
 

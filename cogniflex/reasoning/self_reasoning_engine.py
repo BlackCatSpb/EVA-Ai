@@ -448,13 +448,14 @@ class SelfReasoningEngine:
             try:
                 kg = self.brain.knowledge_graph
                 # Ищем релевантную информацию
-                if hasattr(kg, 'search'):
+                search_method = getattr(kg, 'search_nodes', getattr(kg, 'search', None))
+                if search_method:
                     # Простой поиск по ключевым словам из ответа
                     words = query.split()[:5]
                     found = False
                     for word in words:
                         if len(word) > 4:
-                            results = kg.search(word, limit=1)
+                            results = search_method(word, limit=1)
                             if results:
                                 found = True
                                 sources.append(word)
@@ -856,25 +857,17 @@ class SelfReasoningEngine:
             if self.brain and hasattr(self.brain, 'knowledge_graph'):
                 kg = self.brain.knowledge_graph
                 # Try search_nodes first (proper method)
-                if hasattr(kg, 'search_nodes'):
-                    results = kg.search_nodes(prompt, limit=3)
+                search_method = getattr(kg, 'search_nodes', getattr(kg, 'search', getattr(kg, 'search_by_concept', None)))
+                if search_method:
+                    results = search_method(prompt, limit=3)
                     if results:
                         best = results[0]
                         if isinstance(best, dict):
                             content = best.get('content', best.get('text', ''))
                             if content:
                                 return f"Известно: {content[:200]}..."
-                        elif hasattr(best, 'content') or hasattr(best, 'description'):
-                            content = getattr(best, 'content', None) or getattr(best, 'description', '')
-                            if content:
-                                return f"Известно: {content[:200]}..."
-                # Try search_by_concept as fallback
-                elif hasattr(kg, 'search_by_concept'):
-                    results = kg.search_by_concept(prompt, limit=3)
-                    if results:
-                        best = results[0]
-                        if hasattr(best, 'content') or hasattr(best, 'description'):
-                            content = getattr(best, 'content', None) or getattr(best, 'description', '')
+                        else:
+                            content = getattr(best, 'content', getattr(best, 'description', ''))
                             if content:
                                 return f"Известно: {content[:200]}..."
         except Exception as e:

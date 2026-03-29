@@ -92,6 +92,7 @@ class ChatModule:
         
         # История и очередь запросов
         self.message_history = []
+        self._history_lock = threading.Lock()
         self.history_index = -1
         self.pending_requests = set()
         self.request_queue = queue.Queue()
@@ -106,13 +107,14 @@ class ChatModule:
         self.image_pattern = re.compile(r'\.(?:jpg|jpeg|png|gif|bmp|webp)', re.IGNORECASE)
         
         # Инициализация флага рассуждений
-        if not hasattr(self.gui, 'reasoning_active'):
-            self.gui.reasoning_active = True
+        setattr(self.gui, 'reasoning_active', True)
+        self.gui.reasoning_active = True
         
         # Инициализация состояний
         self._suppress_history_append = False
         self._ml_ready_cached = False
-        self._import_pipeline = None  # Lazy initialized import pipeline
+        self._import_pipeline = None
+        self._draft_text = None
             
         logger.info("Модуль чата инициализирован")
     
@@ -288,17 +290,30 @@ class ChatModule:
                     "system"))
                 return
             
-            has_fractal = hasattr(brain, 'fractal_ready') and brain.fractal_ready
-            has_memory = hasattr(brain, 'memory_manager') and brain.memory_manager
+            components = getattr(brain, 'components', {}) or {}
+            component = components.get('query_processor') if hasattr(brain, 'components') else None
+            has_query_processor = (
+                brain and 
+                component is not None and
+                callable(getattr(component, 'process_query', None))
+            )
+            has_fractal = getattr(brain, 'fractal_ready', False)
+            has_memory = getattr(brain, 'memory_manager', None) is not None
             
-            if not has_fractal and not has_memory:
+            if not has_query_processor and not has_fractal and not has_memory:
+                self.gui.gui_queue.put(lambda: self._add_message(
+                    "CogniFlex",
+                    "Фрактальное хранилище и граф памяти недоступны. Чат не может работать.",
+                    "system"))
+                return
+            elif not has_fractal and not has_memory:
                 self.gui.gui_queue.put(lambda: self._add_message(
                     "CogniFlex",
                     "Фрактальное хранилище и граф памяти недоступны. Чат не может работать.",
                     "system"))
                 return
             
-            if not hasattr(brain, 'process_query'):
+            if brain is None or not hasattr(brain, 'process_query'):
                 self.gui.gui_queue.put(lambda: self._add_message(
                     "CogniFlex",
                     "Метод обработки запросов недоступен в ядре системы.",
@@ -325,12 +340,14 @@ class ChatModule:
             self.gui.gui_queue.put(self._hide_typing)
             
             # Извлечение полей ответа
-            text, tokens, sentiment, reasoning, contradictions, contradiction_flag, metadata = \
-                self._extract_response_fields(response_obj, fallback_input=user_message)
+            extracted = self._extract_response_fields(response_obj, fallback_input=user_message)
+            if len(extracted) == 7:
+                text, tokens, sentiment, reasoning, contradictions, contradiction_flag, metadata = extracted
+            else:
+                text, tokens, sentiment, reasoning, contradictions, contradiction_flag, metadata = "", [], "", [], [], False, {}
             
             # Форматирование ответа
-            display_text = _fix_mojibake(text).strip() if text and str(text).strip() \
-                else "Извините, система не смогла сформировать ответ."
+            display_text = _fix_mojibake(str(text)).strip() if text else "Извините, система не смогла сформировать ответ."
             
             # Аналитика
             analytics_lines = self._build_analytics_lines(tokens, sentiment, contradictions, processing_time)
@@ -553,11 +570,16 @@ class ChatModule:
     def _on_use_selection_as_context(self, event):
         """Обработка Ctrl+Enter или Ctrl+Q - использовать выделенный текст как контекст"""
         try:
+            selected = None
             # Получаем выделенный текст
             try:
-                selected = self.chat_display.get(tk.SEL_FIRST, tk.SEL_LAST)
+                if self.chat_display.tag_ranges(tk.SEL):
+                    selected = self.chat_display.get(tk.SEL_FIRST, tk.SEL_LAST)
             except tk.TclError:
                 # Нет выделения - пробуем получить текущую строку
+                pass
+            
+            if not selected:
                 try:
                     current_pos = self.chat_display.index(tk.INSERT)
                     line_start = f"{current_pos.split('.')[0]}.0"
@@ -578,7 +600,7 @@ class ChatModule:
                 self.input_text.see(tk.INSERT)
                 
                 # Показываем подсказку
-                self.gui.gui_queue.put(lambda: self._show_toast("Контекст добавлен. Введите ваш вопрос.", "info"))
+                self.gui.gui_queue.put(lambda: self.gui.show_toast("Контекст добавлен. Введите ваш вопрос.", "info"))
             
             return "break"
         except Exception as e:
@@ -618,11 +640,11 @@ class ChatModule:
         
         self.input_text = scrolledtext.ScrolledText(
             self.input_frame,
-            height=3,
+            height=5,
             wrap=tk.WORD,
             bg=self.gui.colors['card-bg'],
             fg=self.gui.colors['text'],
-            font=('Segoe UI', 10),
+            font=('Segoe UI', 11),
             insertbackground=self.gui.colors['primary'],
             highlightbackground=self.gui.colors['border'],
             highlightthickness=1
@@ -661,13 +683,13 @@ class ChatModule:
     
     def _create_input_buttons(self):
         """Создает кнопки области ввода."""
-        # Кнопка импорта
+        # Кнопка импорта файла
         self.import_button = ttk.Button(
             self.input_frame,
-            text="Импорт",
+            text="Файл",
             command=self._on_import_document
         )
-        self.import_button.pack(side=tk.RIGHT, padx=(5, 0))
+        self.import_button.pack(side=tk.RIGHT, padx=(3, 0))
         
         # Кнопка отправки
         self.send_button = ttk.Button(
@@ -683,24 +705,23 @@ class ChatModule:
         self.input_text.bind("<Up>", self._on_history_up)
         self.input_text.bind("<Down>", self._on_history_down)
         
-        # Горячие клавиши - используем стандартное поведение + свои обработчики
-        # Явно добавляем Ctrl+C, Ctrl+V, Ctrl+X для надежности
-        self.input_text.bind("<Control-c>", self._on_copy_shortcut)
-        self.input_text.bind("<Control-C>", self._on_copy_shortcut)
-        self.input_text.bind("<Control-v>", self._on_paste_shortcut)
-        self.input_text.bind("<Control-V>", self._on_paste_shortcut)
-        self.input_text.bind("<Control-x>", self._on_cut_shortcut)
-        self.input_text.bind("<Control-X>", self._on_cut_shortcut)
+        # Горячие клавиши - используем bind_all() для перехвата на более высоком уровне
+        self.input_text.bind_all("<Control-c>", self._on_copy_shortcut)
+        self.input_text.bind_all("<Control-C>", self._on_copy_shortcut)
+        self.input_text.bind_all("<Control-v>", self._on_paste_shortcut)
+        self.input_text.bind_all("<Control-V>", self._on_paste_shortcut)
+        self.input_text.bind_all("<Control-x>", self._on_cut_shortcut)
+        self.input_text.bind_all("<Control-X>", self._on_cut_shortcut)
         # Ctrl+A для выделения всего
-        self.input_text.bind("<Control-a>", self._on_select_all_shortcut)
-        self.input_text.bind("<Control-A>", self._on_select_all_shortcut)
-        self.input_text.bind("<Control-q>", 
+        self.input_text.bind_all("<Control-a>", self._on_select_all_shortcut)
+        self.input_text.bind_all("<Control-A>", self._on_select_all_shortcut)
+        self.input_text.bind_all("<Control-q>", 
             lambda e: (self._quote_selection_to_input(), "break"))
-        self.input_text.bind("<Control-Q>", 
+        self.input_text.bind_all("<Control-Q>", 
             lambda e: (self._quote_selection_to_input(), "break"))
         # Ctrl+Shift+V для вставки без форматирования
-        self.input_text.bind("<Control-Shift-V>", self._on_paste_shortcut)
-        self.input_text.bind("<Control-Shift-v>", self._on_paste_shortcut)
+        self.input_text.bind_all("<Control-Shift-V>", self._on_paste_shortcut)
+        self.input_text.bind_all("<Control-Shift-v>", self._on_paste_shortcut)
     
     def _create_status_bar(self):
         """Создает статус-бар с метриками."""
@@ -819,12 +840,19 @@ class ChatModule:
                         safe_extras[k] = str(v)
                 entry.update({"extras": safe_extras})
             
-            self.message_history.append(entry)
-            self._save_history_incremental()
-            
-            # Ограничение размера истории
-            if len(self.message_history) > 500:
-                self.message_history = self.message_history[-500:]
+            with self._history_lock:
+                self.message_history.append(entry)
+                self._save_history_incremental()
+                
+                # Ограничение размера истории
+                if len(self.message_history) > 500:
+                    entry = self.message_history[0]
+                    if isinstance(entry.get("extras"), dict):
+                        large_keys = [k for k, v in entry["extras"].items() 
+                                      if isinstance(v, (list, dict)) and len(str(v)) > 1000]
+                        for k in large_keys:
+                            entry["extras"][k] = f"<truncated {len(entry['extras'][k])} items>"
+                    self.message_history = self.message_history[-500:]
         
         # Отображение
         try:
@@ -1049,6 +1077,9 @@ class ChatModule:
             if not self.reasoning_text:
                 return
             
+            if not isinstance(text, str):
+                text = str(text) if text is not None else ""
+            
             norm = _fix_mojibake(text or "").strip()
             self.reasoning_text.config(state=tk.NORMAL)
             self.reasoning_text.delete("1.0", tk.END)
@@ -1099,7 +1130,7 @@ class ChatModule:
             qwen_status = ""
             if brain and hasattr(brain, 'qwen_api_enhancer') and brain.qwen_api_enhancer:
                 status = brain.qwen_api_enhancer.get_status()
-                if status.get('enabled'):
+                if status and isinstance(status, dict) and status.get('enabled'):
                     source = status.get('current_source', 'unknown')
                     enhancements = status.get('total_enhancements', 0)
                     if source == 'qwen_api':
@@ -1175,7 +1206,7 @@ class ChatModule:
             prog = int(st.get('progress') or 0)
             return f"загрузка {prog}%" if prog and prog < 100 else "недоступно"
             
-        except (AttributeError, TypeError, ValueError):
+        except (AttributeError, TypeError, ValueError, tk.TclError):
             return "недоступно"
     
     def _handle_model_load_event_chat(self, data: Dict[str, Any]):
@@ -1281,7 +1312,8 @@ class ChatModule:
                     with open(history_file, "r", encoding="utf-8") as f:
                         loaded = json.load(f)
                     
-                    self.message_history = list(loaded)
+                    with self._history_lock:
+                        self.message_history = list(loaded)
                     
                     self._suppress_history_append = True
                     try:
@@ -1386,13 +1418,13 @@ class ChatModule:
             fractal_ready = bool(getattr(brain, 'fractal_ready', False)) if brain else False
             has_ml_unit = hasattr(brain, 'ml_unit') and brain.ml_unit is not None if brain else False
             
-            print(f"[DEBUG CHAT] brain={brain is not None}, models_ready={ml_ready}, fractal_ready={fractal_ready}, has_ml_unit={has_ml_unit}")
+            logger.debug(f"[DEBUG CHAT] brain={brain is not None}, models_ready={ml_ready}, fractal_ready={fractal_ready}, has_ml_unit={has_ml_unit}")
             
             # Если есть ml_unit - считаем что система может работать
             if has_ml_unit and not ml_ready:
                 ml_ready = True
                 fractal_ready = True
-                print(f"[DEBUG CHAT] Enabled ml_ready=True because has_ml_unit={has_ml_unit}")
+                logger.debug(f"[DEBUG CHAT] Enabled ml_ready=True because has_ml_unit={has_ml_unit}")
             
             if not ml_ready and not fractal_ready:
                 info = "Модель ещё загружается. Пожалуйста, дождитесь готовности (" + \
@@ -1400,7 +1432,7 @@ class ChatModule:
                 self._add_message("CogniFlex", info, "system")
                 return
         except Exception as e:
-            print(f"[DEBUG CHAT] Exception in check: {e}")
+            logger.debug(f"[DEBUG CHAT] Exception in check: {e}")
         
         # Добавление сообщения
         self._add_message("Вы", message, "user")
@@ -1460,26 +1492,63 @@ class ChatModule:
     # =========================================================================
     
     def _on_copy_shortcut(self, event):
+        """Обработчик Ctrl+C."""
         try:
-            self._copy_text(self.input_text)
+            widget = event.widget
+            if not widget.winfo_exists():
+                return "break"
+            # Проверяем есть ли выделение
+            try:
+                selected = widget.selection_get()
+                if selected:
+                    self.gui.root.clipboard_clear()
+                    self.gui.root.clipboard_append(selected)
+            except tk.TclError:
+                pass  # Нет выделения - ничего не делаем
             return "break"
-        except (AttributeError, tk.TclError):
-            return None
+        except Exception as e:
+            logger.debug(f"Copy error: {e}")
+            return "break"
     
     def _on_paste_shortcut(self, event):
+        """Обработчик Ctrl+V."""
         try:
-            # Используем стандартную вставку
-            self.input_text.event_generate('<<Paste>>')
+            widget = event.widget
+            if not widget.winfo_exists():
+                return "break"
+            # Получаем текст из буфера обмена
+            try:
+                clipboard = self.gui.root.clipboard_get()
+                if clipboard:
+                    # Вставляем в позицию курсора
+                    widget.insert(tk.INSERT, clipboard)
+            except tk.TclError:
+                pass  # Буфер пустой
             return "break"
-        except (AttributeError, tk.TclError):
-            return None
+        except Exception as e:
+            logger.debug(f"Paste error: {e}")
+            return "break"
     
     def _on_cut_shortcut(self, event):
+        """Обработчик Ctrl+X."""
         try:
-            self._cut_text(self.input_text)
+            widget = event.widget
+            if not widget.winfo_exists():
+                return "break"
+            try:
+                selected = widget.selection_get()
+                if selected:
+                    # Копируем в буфер
+                    self.gui.root.clipboard_clear()
+                    self.gui.root.clipboard_append(selected)
+                    # Удаляем выделенный текст
+                    widget.delete(tk.SEL_FIRST, tk.SEL_LAST)
+            except tk.TclError:
+                pass  # Нет выделения
             return "break"
-        except (AttributeError, tk.TclError):
-            return None
+        except Exception as e:
+            logger.debug(f"Cut error: {e}")
+            return "break"
     
     def _on_select_all_shortcut(self, event):
         try:
@@ -1687,7 +1756,9 @@ class ChatModule:
             self.chat_display.config(state=tk.NORMAL)
             self.chat_display.delete("1.0", tk.END)
             self.chat_display.config(state=tk.DISABLED)
-            self.message_history = []
+            
+            with self._history_lock:
+                self.message_history = []
             
             self._show_welcome_message()
             
@@ -1741,8 +1812,9 @@ class ChatModule:
             self.chat_display.delete("end-2l", "end")
             self.chat_display.config(state=tk.DISABLED)
             
-            if self.message_history:
-                self.message_history.pop()
+            with self._history_lock:
+                if self.message_history:
+                    self.message_history.pop()
                 
         except (tk.TclError, Exception) as e:
             logger.error(f"Ошибка удаления последнего сообщения: {e}", exc_info=True)
@@ -1769,15 +1841,22 @@ class ChatModule:
             if not filename:
                 return
             
-            self._add_message("CogniFlex", 
-                f"Импорт файла: {os.path.basename(filename)}", "system")
+            ext = os.path.splitext(filename)[1].lower()
             
-            threading.Thread(
-                target=self._import_and_maybe_train,
-                args=(filename,),
-                name="ImportAndTrain",
-                daemon=True,
-            ).start()
+            # Для текстовых файлов - сначала показать в чате
+            if ext in {'.txt', '.md', '.log', '.json', '.xml', '.csv', '.yaml', '.yml'}:
+                self._display_text_file(filename)
+            else:
+                # Для PDF/EPUB - импорт и обучение
+                self._add_message("CogniFlex", 
+                    f"Импорт файла: {os.path.basename(filename)}", "system")
+                
+                threading.Thread(
+                    target=self._import_and_maybe_train,
+                    args=(filename,),
+                    name="ImportAndTrain",
+                    daemon=True,
+                ).start()
             
         except Exception as e:
             logger.error(f"Ошибка в обработчике импорта: {e}", exc_info=True)
@@ -1785,6 +1864,25 @@ class ChatModule:
                 messagebox.showerror("Импорт", f"Ошибка импорта: {str(e)}")
             except (tk.TclError, RuntimeError, AttributeError):
                 pass
+    
+    def _display_text_file(self, filepath: str):
+        """Отображает содержимое текстового файла в чате."""
+        try:
+            from cogniflex.tools.document_reader import DocumentTextReader
+            
+            reader = DocumentTextReader(max_chars=50000)
+            messages = reader.read_as_messages(filepath, max_lines=150)
+            
+            for msg in messages:
+                self._add_message(
+                    sender=msg["sender"],
+                    message=msg["text"],
+                    msg_type=msg["type"]
+                )
+                
+        except Exception as e:
+            logger.error(f"Ошибка отображения файла: {e}", exc_info=True)
+            self._add_message("CogniFlex", f"Ошибка чтения файла: {str(e)}", "system")
     
     def _import_and_maybe_train(self, path: str):
         """Импортирует документ и запускает обучение."""
@@ -1933,13 +2031,13 @@ class ChatModule:
         
         # Debug logging
         if brain:
-            print(f"[DEBUG CHAT] brain found: {type(brain)}, has process_query: {hasattr(brain, 'process_query')}")
+            logger.debug(f"[DEBUG CHAT] brain found: {type(brain)}, has process_query: {hasattr(brain, 'process_query')}")
             if hasattr(brain, 'ml_unit'):
-                print(f"[DEBUG CHAT] brain.ml_unit found: {type(brain.ml_unit)}")
+                logger.debug(f"[DEBUG CHAT] brain.ml_unit found: {type(brain.ml_unit)}")
             else:
-                print("[DEBUG CHAT] brain.ml_unit NOT FOUND")
+                logger.debug("[DEBUG CHAT] brain.ml_unit NOT FOUND")
         else:
-            print("[DEBUG CHAT] brain is None!")
+            logger.debug("[DEBUG CHAT] brain is None!")
         
         def _select_callable():
             try:
@@ -2075,7 +2173,8 @@ class ChatModule:
                 else:
                     logger.debug("Создан новый KnowledgeIntegrator без brain")
 
-            integrator.integrate_knowledge(concept, depth=1)
+            if hasattr(integrator, 'integrate_knowledge'):
+                integrator.integrate_knowledge(concept, depth=1)
             
         except Exception as e:
             logger.debug(f"Ошибка вызова интеграции знаний: {e}")

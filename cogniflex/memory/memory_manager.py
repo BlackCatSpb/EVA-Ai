@@ -68,6 +68,7 @@ class MemoryManager:
         self.working_memory = {}
         self.semantic_memory = {}
         self.episodic_memory = []
+        self.user_profiles = {}
         self.hybrid_cache = None
         
         self.entity_extractor = EntityExtractor() if EntityExtractor else None
@@ -201,11 +202,16 @@ class MemoryManager:
         При недоступности psutil/ошибках — безопасный откат к прежним приближенным значениям.
         """
         try:
-            total_nodes = sum([
-                len(getattr(self, 'working_memory', [])),
-                len(getattr(self, 'semantic_memory', [])),
-                len(getattr(self, 'episodic_memory', []))
-            ])
+            total_nodes = 0
+            working_mem = getattr(self, 'working_memory', None)
+            if isinstance(working_mem, dict):
+                total_nodes += len(working_mem)
+            semantic_mem = getattr(self, 'semantic_memory', None)
+            if isinstance(semantic_mem, dict):
+                total_nodes += len(semantic_mem)
+            episodic_mem = getattr(self, 'episodic_memory', None)
+            if isinstance(episodic_mem, list):
+                total_nodes += len(episodic_mem)
 
             # Попытка получить реальные метрики памяти
             total_gb: float

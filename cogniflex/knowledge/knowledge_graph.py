@@ -640,10 +640,11 @@ class KnowledgeGraph:
                     primary_node.content = duplicate.description
                 
                 # Объединяем метаданные
-                for source in duplicate.meta.get('sources', []):
-                    if 'sources' not in primary_node.meta:
-                        primary_node.meta['sources'] = []
-                    primary_node.meta['sources'].append(source)
+                if duplicate.meta and isinstance(duplicate.meta, dict):
+                    for source in duplicate.meta.get('sources', []):
+                        if 'sources' not in primary_node.meta:
+                            primary_node.meta['sources'] = []
+                        primary_node.meta['sources'].append(source)
                 
                 # Обновляем основной узел
                 self._update_node_in_db(primary_node)
@@ -978,7 +979,7 @@ class KnowledgeGraph:
                 ambiguous_entities = self.entity_extractor.extract_ambiguous_terms(full_text)
                 if ambiguous_entities:
                     node.meta['ambiguities'] = [
-                        {"text": e.text, "type": e.ambiguity_type.value if hasattr(e.ambiguity_type, 'value') else str(e.ambiguity_type)}
+                        {"text": e.text, "type": e.ambiguity_type.value if hasattr(e, 'ambiguity_type') and hasattr(e.ambiguity_type, 'value') else str(e.ambiguity_type)}
                         for e in ambiguous_entities
                     ]
             
@@ -1485,7 +1486,7 @@ class KnowledgeGraph:
         if not node:
             return []
         
-        sources = node.meta.get('sources', [])
+        sources = node.meta.get('sources', []) if isinstance(node.meta, dict) else []
         result = []
         for source in sources:
             if isinstance(source, dict):
@@ -3306,8 +3307,8 @@ class KnowledgeGraph:
         
         # Импортируем связи
         for edge in graph.findall('graphml:edge', namespace):
-            source_id = edge.get('source')
-            target_id = edge.get('target')
+            source_id = edge.get('source', edge.get('source_id', ''))
+            target_id = edge.get('target', edge.get('target_id', ''))
             edge_id = edge.get('id', f"edge_{hash(edge)}")
             
             # Получаем тип связи
@@ -6535,9 +6536,11 @@ class KnowledgeGraph:
             float: Влияние на связность (0.0-1.0)
         """
         # Простая эвристика
-        if change["type"] == "add_edge":
+        if not isinstance(change, dict):
+            return 0.0
+        if change.get("type") == "add_edge":
             return 0.4
-        elif change["type"] == "update_node" and "strength" in change.get("changes", {}):
+        elif change.get("type") == "update_node" and "strength" in change.get("changes", {}):
             return 0.2
         else:
             return 0.0
@@ -6553,7 +6556,9 @@ class KnowledgeGraph:
             float: Влияние на актуальность (0.0-1.0)
         """
         # Простая эвристика
-        if change["type"] == "update_node" and "description" in change.get("changes", {}):
+        if not isinstance(change, dict):
+            return 0.0
+        if change.get("type") == "update_node" and "description" in change.get("changes", {}):
             return 0.5
         else:
             return 0.0
@@ -6571,7 +6576,7 @@ class KnowledgeGraph:
         risk_level = "low"
         description = "Низкий риск изменений."
         
-        if change["type"] == "update_node":
+        if isinstance(change, dict) and change.get("type") == "update_node":
             if "description" in change.get("changes", {}):
                 # Проверяем, не противоречит ли новое описание существующим связям
                 if self._check_for_new_contradictions(change):

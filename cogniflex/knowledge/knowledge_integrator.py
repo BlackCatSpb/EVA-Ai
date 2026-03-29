@@ -131,9 +131,9 @@ class KnowledgeIntegrator:
             
             # Анализируем историю для обновления надежности
             for event in history:
-                if event["action"] in ["node_update", "node_creation"]:
+                if isinstance(event, dict) and event.get("action") in ["node_update", "node_creation"]:
                     # Обновляем надежность источника на основе успешных обновлений
-                    if event["user_id"]:
+                    if event.get("user_id"):
                         self.update_source_reliability(f"user_{event['user_id']}", 0.1)
             
             logger.debug("История загружена для динамического обновления надежности")
@@ -709,7 +709,7 @@ class KnowledgeIntegrator:
                 score = 0.0
                 
                 # Надежность источника
-                if node.source:
+                if getattr(node, 'source', None):
                     score += self.get_source_reliability(node.source) * 0.4
                 
                 # Актуальность
@@ -731,18 +731,20 @@ class KnowledgeIntegrator:
                 return self._create_generalized_definition(contradiction, nodes_by_domain)
             
             # Усиливаем лучшее определение
-            self.knowledge_graph.update_concept(
+            best_desc = best_node.meta.get("description", "") if isinstance(best_node.meta, dict) else ""
+            self.knowledge_graph.add_node(
                 best_node.id,
-                new_description=best_node.meta["description"],
+                best_desc,
                 strength=min(1.0, best_node.strength + 0.2)
             )
             
             # Ослабляем менее авторитетные определения
             for domain, node in nodes_by_domain.items():
                 if domain != best_domain:
-                    self.knowledge_graph.update_concept(
+                    node_desc = node.meta.get("description", "") if isinstance(node.meta, dict) else ""
+                    self.knowledge_graph.add_node(
                         node.id,
-                        new_description=node.meta["description"],
+                        node_desc,
                         strength=max(0.3, node.strength - 0.1)
                     )
             
@@ -758,7 +760,7 @@ class KnowledgeIntegrator:
             # Связываем контекст с концептом
             concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
             if concept_nodes:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     context_node_id,
                     concept_nodes[0].id,
                     "provides_context_for",
@@ -808,7 +810,7 @@ class KnowledgeIntegrator:
                     
                     # Связываем обобщенное определение с оригинальными
                     for domain, node in nodes_by_domain.items():
-                        self.knowledge_graph.add_connection(
+                        self.knowledge_graph.add_edge(
                             generalized_id,
                             node.id,
                             "generalizes",
@@ -818,7 +820,7 @@ class KnowledgeIntegrator:
                     # Создаем связь с основным концептом
                     concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
                     if concept_nodes:
-                        self.knowledge_graph.add_connection(
+                        self.knowledge_graph.add_edge(
                             concept_nodes[0].id,
                             generalized_id,
                             "has_generalized_definition",
@@ -862,7 +864,7 @@ class KnowledgeIntegrator:
             
             # Связываем обобщенное определение с оригинальными
             for domain, node in nodes_by_domain.items():
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     generalized_id,
                     node.id,
                     "generalizes",
@@ -872,7 +874,7 @@ class KnowledgeIntegrator:
             # Создаем связь с основным концептом
             concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
             if concept_nodes:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     concept_nodes[0].id,
                     generalized_id,
                     "has_generalized_definition",
@@ -949,13 +951,13 @@ class KnowledgeIntegrator:
                 )
                 
                 # Связываем объяснение с концептами
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     explanation_id,
                     source_node[0].id,
                     "explains_resolution_for",
                     strength=0.8
                 )
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     explanation_id,
                     target_node[0].id,
                     "explains_resolution_for",
@@ -1020,7 +1022,7 @@ class KnowledgeIntegrator:
         for concept in concepts[:3]:  # Ограничиваем количество связей
             node = self.knowledge_graph.search_nodes(concept, limit=1)
             if node:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     explanation_id,
                     node[0].id,
                     "explains_nature_of",
@@ -1047,9 +1049,10 @@ class KnowledgeIntegrator:
         
         edges = self.knowledge_graph.get_edges(source_node[0].id)
         for edge in edges:
-            target_node = self.knowledge_graph.get_node(edge.target_id)
+            edge_target = getattr(edge, 'target_id', getattr(edge, 'target', None))
+            target_node = self.knowledge_graph.get_node(edge_target)
             if target_node and target_node.content == target and edge.relation_type == relation:
-                return self._evaluate_statement_strength(source_node[0].id, edge.target_id, relation)
+                return self._evaluate_statement_strength(source_node[0].id, edge_target, relation)
         
         return 0.3
     
@@ -1090,7 +1093,7 @@ class KnowledgeIntegrator:
             # Связываем разрешение с концептом
             concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
             if concept_nodes:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     resolution_id,
                     concept_nodes[0].id,
                     "resolves_conflict_for",
@@ -1112,7 +1115,7 @@ class KnowledgeIntegrator:
             
             # Связываем контекст с концептом
             if concept_nodes:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     context_id,
                     concept_nodes[0].id,
                     "provides_context",
@@ -1137,7 +1140,7 @@ class KnowledgeIntegrator:
                         
                         # Связываем интеграцию с концептом
                         if concept_nodes:
-                            self.knowledge_graph.add_connection(
+                            self.knowledge_graph.add_edge(
                                 integration_id,
                                 concept_nodes[0].id,
                                 "integrates_knowledge",
@@ -1200,7 +1203,7 @@ class KnowledgeIntegrator:
             if concept:
                 concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
                 if concept_nodes:
-                    self.knowledge_graph.add_connection(
+                    self.knowledge_graph.add_edge(
                         contradiction_id,
                         concept_nodes[0].id,
                         "concerns",
@@ -1368,7 +1371,7 @@ class KnowledgeIntegrator:
             # Связываем гипотезу с концептом
             concept_nodes = self.knowledge_graph.search_nodes(concept, limit=1)
             if concept_nodes:
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     hypothesis_id,
                     concept_nodes[0].id,
                     "explains",
@@ -1392,13 +1395,13 @@ class KnowledgeIntegrator:
                 
                 # Связываем контекст с концептом и гипотезой
                 if concept_nodes:
-                    self.knowledge_graph.add_connection(
+                    self.knowledge_graph.add_edge(
                         context_id,
                         concept_nodes[0].id,
                         "provides_context",
                         strength=0.8
                     )
-                self.knowledge_graph.add_connection(
+                self.knowledge_graph.add_edge(
                     context_id,
                     hypothesis_id,
                     "supports",
@@ -1579,7 +1582,7 @@ class KnowledgeIntegrator:
                 target_node = self.knowledge_graph.search_nodes(feedback["target_concept"], limit=1)
                 
                 if source_node and target_node:
-                    self.knowledge_graph.add_connection(
+                    self.knowledge_graph.add_edge(
                         source_node[0].id,
                         target_node[0].id,
                         feedback["relation"],
@@ -1724,7 +1727,7 @@ class KnowledgeIntegrator:
                                 relation_type = self.knowledge_expander._determine_relation_type(node1.content, node2.content)
                             else:
                                 relation_type = "related_to"
-                            self.knowledge_graph.add_connection(
+                            self.knowledge_graph.add_edge(
                                 node1.id,
                                 node2.id,
                                 relation_type,
@@ -1840,7 +1843,7 @@ class KnowledgeIntegrator:
                         relation_type = "related_to"
                     
                     # Создаем связь
-                    self.knowledge_graph.add_connection(
+                    self.knowledge_graph.add_edge(
                         node.id,
                         similar_node.id,
                         relation_type,
