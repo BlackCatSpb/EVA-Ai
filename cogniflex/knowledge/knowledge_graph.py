@@ -542,7 +542,10 @@ class KnowledgeGraph:
         else:
             node.meta = {'ambiguity': ambiguity_info}
         
-        self._save_node_to_db(node)
+        try:
+            self._save_node_to_db(node)
+        except Exception as e:
+            logger.debug(f"Error saving node to DB: {e}")
         return True
     
     def get_disambiguation_candidates(self, ambiguous_term: str) -> List[Dict]:
@@ -649,42 +652,48 @@ class KnowledgeGraph:
             logger.debug("База данных графа знаний инициализирована")
         except Exception as e:
             logger.error(f"Ошибка инициализации базы данных графа знаний: {e}", exc_info=True)
+            raise RuntimeError(f"Не удалось инициализировать базу данных графа знаний: {e}") from e
     
     def _load_nodes(self):
         """Загружает узлы из базы данных."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM nodes")
-            
-            self.nodes = {}
-            for row in cursor.fetchall():
-                node = KnowledgeNode(
-                    id=row[0],
-                    name=row[1],
-                    description=row[2],
-                    node_type=row[3],
-                    domain=row[4],
-                    strength=row[5],
-                    timestamp=row[6],
-                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
-                    version=row[8],
-                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
-                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
-                )
-                node.last_updated = row[7]
-                node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
-                node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
-                node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
-                node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM nodes")
                 
-                self.nodes[node.id] = node
-            
-            # Обновляем статистику
-            self.stats["total_nodes"] = len(self.nodes)
-            
-            logger.info(f"Загружено {len(self.nodes)} узлов в граф знаний")
-            conn.close()
+                self.nodes = {}
+                for row in cursor.fetchall():
+                    node = KnowledgeNode(
+                        id=row[0],
+                        name=row[1],
+                        description=row[2],
+                        node_type=row[3],
+                        domain=row[4],
+                        strength=row[5],
+                        timestamp=row[6],
+                        meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
+                        version=row[8],
+                        spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                        temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
+                    )
+                    node.last_updated = row[7]
+                    try:
+                        node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+                        node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
+                        node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
+                        node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
+                    except (IndexError, TypeError):
+                        node.history = []
+                        node.contradictions = []
+                        node.keyword_index = []
+                        node.concept_index = []
+                    
+                    self.nodes[node.id] = node
+                
+                # Обновляем статистику
+                self.stats["total_nodes"] = len(self.nodes)
+                
+                logger.info(f"Загружено {len(self.nodes)} узлов в граф знаний")
         except Exception as e:
             logger.error(f"Ошибка загрузки узлов графа знаний: {e}", exc_info=True)
             self.nodes = {}
@@ -692,34 +701,33 @@ class KnowledgeGraph:
     def _load_edges(self):
         """Загружает связи из базы данных."""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM edges")
-            
-            self.edges = {}
-            for row in cursor.fetchall():
-                edge = KnowledgeEdge(
-                    id=row[0],
-                    source_id=row[1],
-                    target_id=row[2],
-                    relation_type=row[3],
-                    strength=row[4],
-                    timestamp=row[5],
-                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
-                    version=row[8],
-                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
-                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
-                )
-                edge.last_updated = row[6]
-                edge.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM edges")
                 
-                self.edges[edge.id] = edge
-            
-            # Обновляем статистику
-            self.stats["total_edges"] = len(self.edges)
-            
-            logger.info(f"Загружено {len(self.edges)} связей в граф знаний")
-            conn.close()
+                self.edges = {}
+                for row in cursor.fetchall():
+                    edge = KnowledgeEdge(
+                        id=row[0],
+                        source_id=row[1],
+                        target_id=row[2],
+                        relation_type=row[3],
+                        strength=row[4],
+                        timestamp=row[5],
+                        meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
+                        version=row[8],
+                        spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                        temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
+                    )
+                    edge.last_updated = row[6]
+                    edge.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+                    
+                    self.edges[edge.id] = edge
+                
+                # Обновляем статистику
+                self.stats["total_edges"] = len(self.edges)
+                
+                logger.info(f"Загружено {len(self.edges)} связей в граф знаний")
         except Exception as e:
             logger.error(f"Ошибка загрузки связей графа знаний: {e}", exc_info=True)
             self.edges = {}
@@ -754,7 +762,8 @@ class KnowledgeGraph:
         # Индекс по связям
         self.relation_index = defaultdict(list)
         for edge in self.edges.values():
-            self.relation_index[edge.relation_type].append(edge.id)
+            if edge and hasattr(edge, 'relation_type'):
+                self.relation_index[edge.relation_type].append(edge.id)
         
         # Индекс по временным меткам
         self.temporal_index = []
@@ -779,15 +788,18 @@ class KnowledgeGraph:
             edge: Edge that was added/updated (optional)
         """
         if node is not None:
-            self.domain_index[node.domain].append(node.id)
-            self.node_type_index[node.node_type].append(node.id)
+            if node.id not in self.domain_index.get(node.domain, []):
+                self.domain_index.setdefault(node.domain, []).append(node.id)
+            if node.id not in self.node_type_index.get(node.node_type, []):
+                self.node_type_index.setdefault(node.node_type, []).append(node.id)
             if node.temporal_info:
                 self.temporal_index.append((node.timestamp, node.id, "node"))
             if node.last_updated != node.timestamp:
                 self.temporal_index.append((node.last_updated, node.id, "node"))
         
         if edge is not None:
-            self.relation_index[edge.relation_type].append(edge.id)
+            if edge.id not in self.relation_index.get(edge.relation_type, []):
+                self.relation_index.setdefault(edge.relation_type, []).append(edge.id)
             if edge.temporal_info:
                 self.temporal_index.append((edge.timestamp, edge.id, "edge"))
             if edge.last_updated != edge.timestamp:
@@ -832,38 +844,44 @@ class KnowledgeGraph:
     
     def _background_monitoring(self):
         """Фоновый мониторинг состояния графа знаний."""
+        retry_count = 0
+        max_retries = 3
         while not self.stop_event.is_set():
             try:
-                # Проверяем здоровье каждые 5 минут
                 self.stop_event.wait(300)
                 
-                # Проверяем целостность графа
                 self._check_graph_integrity()
-                
-                # Проверяем противоречия
                 self._check_for_contradictions()
-                
-                # Проверяем устаревшие знания
                 self._check_for_outdated_knowledge()
                 
+                retry_count = 0
+                
             except Exception as e:
-                logger.error(f"Ошибка в фоновом мониторинге KnowledgeGraph: {e}", exc_info=True)
+                retry_count += 1
+                logger.error(f"Ошибка в фоновом мониторинге KnowledgeGraph (попытка {retry_count}/{max_retries}): {e}", exc_info=True)
+                if retry_count >= max_retries:
+                    logger.critical(f"Превышено максимальное количество попыток мониторинга. Требуется вмешательство.")
+                    retry_count = 0
     
     def _background_optimization(self):
         """Фоновая оптимизация использования графа знаний."""
+        retry_count = 0
+        max_retries = 3
         while not self.stop_event.is_set():
             try:
-                # Оптимизируем каждые 10 минут
                 self.stop_event.wait(600)
                 
-                # Оптимизируем индексы
                 self._optimize_indexes()
-                
-                # Очищаем устаревший кэш
                 self._cleanup_cache()
                 
+                retry_count = 0
+                
             except Exception as e:
-                logger.error(f"Ошибка в фоновой оптимизации KnowledgeGraph: {e}", exc_info=True)
+                retry_count += 1
+                logger.error(f"Ошибка в фоновой оптимизации KnowledgeGraph (попытка {retry_count}/{max_retries}): {e}", exc_info=True)
+                if retry_count >= max_retries:
+                    logger.critical(f"Превышено максимальное количество попыток оптимизации. Требуется вмешательство.")
+                    retry_count = 0
     
     def _check_graph_integrity(self):
         """Проверяет целостность графа знаний."""
@@ -897,38 +915,47 @@ class KnowledgeGraph:
     
     def _attempt_recovery(self, missing_node_ids: List[str]):
         """Пытается восстановить отсутствующие узлы."""
+        logger.info(f"Начало восстановления {len(missing_node_ids)} отсутствующих узлов")
         for node_id in set(missing_node_ids):
-            # Попытка найти похожий узел
+            logger.debug(f"Попытка восстановления узла: {node_id}")
             similar_nodes = []
             for existing_id, node in self.nodes.items():
-                # Простая проверка похожести (можно улучшить)
                 if len(node_id) == len(existing_id) and sum(c1 == c2 for c1, c2 in zip(node_id, existing_id)) > len(node_id) * 0.8:
                     similar_nodes.append(node)
             
             if similar_nodes:
-                # Выбираем наиболее подходящий узел
+                logger.debug(f"Найдено {len(similar_nodes)} похожих узлов для {node_id}")
                 best_match = max(similar_nodes, key=lambda n: n.strength)
+                logger.debug(f"Выбран лучший матч: {best_match.id} (strength={best_match.strength})")
                 
-                # Обновляем связи
+                edges_updated = 0
                 for edge in self.edges.values():
-                    if edge.source_id == node_id:
-                        edge.source_id = best_match.id
-                        self._update_edge_in_db(edge)
-                    if edge.target_id == node_id:
-                        edge.target_id = best_match.id
-                        self._update_edge_in_db(edge)
+                    try:
+                        if edge.source_id == node_id:
+                            edge.source_id = best_match.id
+                            self._update_edge_in_db(edge)
+                            edges_updated += 1
+                        if edge.target_id == node_id:
+                            edge.target_id = best_match.id
+                            self._update_edge_in_db(edge)
+                            edges_updated += 1
+                    except Exception as e:
+                        logger.warning(f"Ошибка обновления связи при восстановлении: {e}")
                 
-                logger.info(f"Восстановлена ссылка на узел {node_id} через {best_match.id}")
+                logger.info(f"Восстановлена ссылка на узел {node_id} через {best_match.id} ({edges_updated} связей)")
             else:
-                # Удаляем поврежденные связи
+                logger.debug(f"Похожие узлы не найдены для {node_id}, удаляем связанные edges")
                 edges_to_remove = [
                     edge_id for edge_id, edge in self.edges.items()
                     if edge.source_id == node_id or edge.target_id == node_id
                 ]
                 
                 for edge_id in edges_to_remove:
-                    del self.edges[edge_id]
-                    self._remove_edge_from_db(edge_id)
+                    try:
+                        del self.edges[edge_id]
+                        self._remove_edge_from_db(edge_id)
+                    except Exception as e:
+                        logger.warning(f"Ошибка удаления связи при восстановлении: {e}")
                 
                 logger.warning(f"Удалено {len(edges_to_remove)} связей с отсутствующим узлом {node_id}")
     
@@ -2085,6 +2112,34 @@ class KnowledgeGraph:
             List[KnowledgeNode]: Список всех узлов
         """
         return list(self.nodes.values())
+    
+    def get_all_concepts(self) -> List[Dict[str, Any]]:
+        """
+        Возвращает все концепты в формате для MemoryGraphML.
+        
+        Returns:
+            List[Dict]: Список концептов с id, type, description
+        """
+        concepts = []
+        for node in self.nodes.values():
+            concepts.append({
+                'id': node.id,
+                'type': node.node_type,
+                'description': node.description or node.meta.get('description', ''),
+                'domain': node.domain,
+                'properties': node.meta
+            })
+        
+        for edge in self.edges.values():
+            concepts.append({
+                'id': edge.id,
+                'type': 'relation',
+                'description': f"{edge.source_id} -> {edge.target_id}: {edge.relation_type}",
+                'domain': 'general',
+                'properties': edge.meta
+            })
+        
+        return concepts
 
     def get_nodes_by_domain(self, domain: str) -> List[KnowledgeNode]:
         """
@@ -2146,7 +2201,10 @@ class KnowledgeGraph:
         
         self._update_statistics(start_time, True)
         return results
-    
+
+    def search(self, query: str, limit: int = 5, **kwargs) -> List[Dict]:
+        return self.search_nodes(query, limit=limit, **kwargs)
+
     def _generate_cache_key(self, query: str, domains: Optional[List[str]], 
                            node_types: Optional[List[str]], min_strength: float, 
                            limit: int) -> str:
@@ -2238,8 +2296,12 @@ class KnowledgeGraph:
                     f"SQL={sql} | params={params}"
                 )
 
-            cursor.execute(sql, params)
-            
+            try:
+                cursor.execute(sql, params)
+            except Exception as e:
+                logger.error(f"SQL execution failed: {e}. SQL={sql} | params={params}")
+                return []
+
             results = []
             for row in cursor.fetchall():
                 node = KnowledgeNode(
@@ -3950,7 +4012,7 @@ class KnowledgeGraph:
             logger.error(f"Ошибка обновления из внешнего источника: {e}", exc_info=True)
             self._update_statistics(start_time, False)
             results["error"] = str(e)
-            return results
+            raise
     
     def _process_web_data(self, data: Any) -> Dict[str, Any]:
         """Обрабатывает данные из веб-источника."""

@@ -136,7 +136,8 @@ class AuthManager:
             if user:
                 password_hash = hashlib.sha256(password.encode()).hexdigest()
                 if password_hash == user['password_hash']:
-                    return {'username': username, 'user_id': str(uuid.uuid4())}
+                    user_id = hashlib.md5(username.encode()).hexdigest()
+                    return {'username': username, 'user_id': user_id}
         return None
 
 
@@ -262,7 +263,7 @@ class WebGUI:
                     sanitized = self.ethics_checker.sanitize_entity(entity)
                     self.session_manager.add_entity(session_id, sanitized)
         
-        response_text = "Я получил ваше сообщение. Система в демо-режиме."
+        response_text = "Система обрабатывает запрос..."
         
         result = None
         debug_info = {"brain": self.brain is not None, "has_process_query": False}

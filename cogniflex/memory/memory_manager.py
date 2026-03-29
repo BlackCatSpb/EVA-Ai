@@ -97,24 +97,19 @@ class MemoryManager:
             RuntimeError: Если не удалось инициализировать кэш
         """
         if not hasattr(self, '_hybrid_cache') or not self._hybrid_cache:
-            # Используем единый экземпляр из brain вместо создания нового
             if self.brain and hasattr(self.brain, 'hybrid_cache'):
                 self._hybrid_cache = self.brain.hybrid_cache
-                self.hybrid_cache = self.brain.hybrid_cache  # Also set for compatibility
                 logger.debug("Используем единый HybridTokenCache из brain")
             else:
-                # Fallback - используем get_shared_cache для согласованности
                 try:
                     from .hybrid_token_cache import get_shared_cache
                     self._hybrid_cache = get_shared_cache(self.brain, "memory_manager")
-                    self.hybrid_cache = self._hybrid_cache  # Also set for compatibility
                     logger.info("Гибридный кэш успешно инициализирован через get_shared_cache")
                 except ImportError as e:
                     logger.error(f"Не удалось импортировать get_shared_cache: {e}")
                     raise RuntimeError("Не удалось загрузить модуль гибридного кэша")
                 except Exception as e:
                     logger.error(f"Ошибка инициализации гибридного кэша: {e}")
-                    self._hybrid_cache = None
                     raise RuntimeError(f"Ошибка инициализации гибридного кэша: {e}")
                 
         return self._hybrid_cache
@@ -137,7 +132,7 @@ class MemoryManager:
             if not os.path.exists(self.working_memory_file):
                 return ComponentState.ERROR
             
-            if self.knowledge_graph is not None and not getattr(self.knowledge_graph, 'initialized', False):
+            if self.knowledge_graph is not None and hasattr(self.knowledge_graph, 'is_initialized') and not self.knowledge_graph.is_initialized():
                 return ComponentState.ERROR
             
             return ComponentState.READY
@@ -190,6 +185,9 @@ class MemoryManager:
             self._load_semantic_memory()
             self._load_episodic_memory()
             self._load_user_profiles()
+            
+            # Инициализируем гибридный кэш
+            self._init_hybrid_cache()
             
             self.initialized = True
         except Exception as e:
@@ -271,7 +269,7 @@ class MemoryManager:
         """Возвращает анализ использования памяти для GUI."""
         try:
             domain_distribution: Dict[str, int] = {}
-            for entry in getattr(self, 'semantic_memory', []):
+            for entry in getattr(self, 'semantic_memory', {}).values():
                 domain = entry.get('metadata', {}).get('domain', 'unknown') if isinstance(entry, dict) else 'unknown'
                 domain_distribution[domain] = domain_distribution.get(domain, 0) + 1
 
@@ -355,9 +353,15 @@ class MemoryManager:
         nodes: List[MemoryManager._MemoryNodeShim] = []
         try:
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                for entry in getattr(self, mem_type, []):
-                    if isinstance(entry, dict) and "id" in entry:
-                        nodes.append(MemoryManager._MemoryNodeShim(entry))
+                mem = getattr(self, mem_type, None)
+                if isinstance(mem, dict):
+                    for entry in mem.values():
+                        if isinstance(entry, dict) and "id" in entry:
+                            nodes.append(MemoryManager._MemoryNodeShim(entry))
+                elif isinstance(mem, list):
+                    for entry in mem:
+                        if isinstance(entry, dict) and "id" in entry:
+                            nodes.append(MemoryManager._MemoryNodeShim(entry))
             return nodes
         except Exception as e:
             logger.error(f"Ошибка получения узлов памяти: {e}")
@@ -371,9 +375,15 @@ class MemoryManager:
         """Возвращает узел по ID из различных типов памяти."""
         try:
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                for entry in getattr(self, mem_type, []):
-                    if isinstance(entry, dict) and entry.get("id") == node_id:
-                        return MemoryManager._MemoryNodeShim(entry)
+                mem = getattr(self, mem_type, None)
+                if isinstance(mem, dict):
+                    for entry in mem.values():
+                        if isinstance(entry, dict) and entry.get("id") == node_id:
+                            return MemoryManager._MemoryNodeShim(entry)
+                elif isinstance(mem, list):
+                    for entry in mem:
+                        if isinstance(entry, dict) and entry.get("id") == node_id:
+                            return MemoryManager._MemoryNodeShim(entry)
             return None
         except Exception as e:
             logger.error(f"Ошибка получения узла {node_id}: {e}")
@@ -384,12 +394,22 @@ class MemoryManager:
         removed = False
         try:
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
-                mem_list = getattr(self, mem_type, [])
-                for i, entry in enumerate(list(mem_list)):
-                    if isinstance(entry, dict) and entry.get("id") == node_id:
-                        del mem_list[i]
+                mem = getattr(self, mem_type, None)
+                if isinstance(mem, dict):
+                    key_to_remove = None
+                    for key, entry in mem.items():
+                        if isinstance(entry, dict) and entry.get("id") == node_id:
+                            key_to_remove = key
+                            break
+                    if key_to_remove is not None:
+                        del mem[key_to_remove]
                         removed = True
-                # сохраняем при изменении
+                elif isinstance(mem, list):
+                    for i, entry in enumerate(list(mem)):
+                        if isinstance(entry, dict) and entry.get("id") == node_id:
+                            del mem[i]
+                            removed = True
+                            break
                 if removed:
                     self._save_memory(mem_type.replace("_memory", ""))
             return removed
@@ -428,7 +448,11 @@ class MemoryManager:
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
                 mem_list = getattr(self, mem_type, [])
                 original_len = len(mem_list)
-                mem_list[:] = [e for e in mem_list if e.get('timestamp', 0) > cutoff]
+                if isinstance(mem_list, list):
+                    mem_list[:] = [e for e in mem_list if e.get('timestamp', 0) > cutoff]
+                elif isinstance(mem_list, dict):
+                    mem_list = {k: v for k, v in mem_list.items() if v.get('timestamp', 0) > cutoff}
+                    setattr(self, mem_type, mem_list)
                 if len(mem_list) < original_len:
                     self._save_memory(mem_type.replace("_memory", ""))
         except Exception as e:
@@ -441,7 +465,11 @@ class MemoryManager:
             for mem_type in ("working_memory", "semantic_memory", "episodic_memory"):
                 mem_list = getattr(self, mem_type, [])
                 original_len = len(mem_list)
-                mem_list[:] = [entry for entry in mem_list if entry.get('timestamp', 0) > cutoff]
+                if isinstance(mem_list, list):
+                    mem_list[:] = [entry for entry in mem_list if entry.get('timestamp', 0) > cutoff]
+                elif isinstance(mem_list, dict):
+                    mem_list = {k: v for k, v in mem_list.items() if v.get('timestamp', 0) > cutoff}
+                    setattr(self, mem_type, mem_list)
                 if len(mem_list) < original_len:
                     self._save_memory(mem_type.replace("_memory", ""))
             logger.info(f"Очищены неактивные кэши старше {max_age_days} дней")
@@ -514,7 +542,31 @@ class MemoryManager:
             
         Returns:
             str: ID добавленной информации
+            
+        Raises:
+            ValueError: Если тип памяти неизвестен или контент невалиден
         """
+        if memory_type not in self.memory_locks:
+            raise ValueError(f"Неизвестный тип памяти: {memory_type}")
+        
+        if content is None:
+            raise ValueError("Content cannot be None")
+        
+        if isinstance(content, str):
+            if len(content) > 100000:
+                raise ValueError(f"Content too large: {len(content)} chars (max 100000)")
+            if not content.strip():
+                raise ValueError("Content cannot be empty string")
+        elif isinstance(content, (dict, list)):
+            try:
+                content_str = json.dumps(content)
+                if len(content_str) > 100000:
+                    raise ValueError(f"Content too large: {len(content_str)} chars (max 100000)")
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Content cannot be serialized to JSON: {e}")
+        elif not isinstance(content, (int, float, bool)):
+            raise ValueError(f"Unsupported content type: {type(content).__name__}")
+        
         memory_id = f"mem_{int(time.time())}_{os.urandom(4).hex()}"
         timestamp = time.time()
         
@@ -533,11 +585,10 @@ class MemoryManager:
                 self.semantic_memory[memory_id] = memory_entry
             elif memory_type == "episodic":
                 self.episodic_memory.append(memory_entry)
-            else:
-                raise ValueError(f"Неизвестный тип памяти: {memory_type}")
+            
+            # Сохраняем изменения внутри критической секции
+            self._save_memory(memory_type)
         
-        # Сохраняем изменения
-        self._save_memory(memory_type)
         logger.debug(f"Добавлена информация в {memory_type} память: {memory_id}")
         
         return memory_id
@@ -554,8 +605,15 @@ class MemoryManager:
         """
         for memory_type in ["working", "semantic", "episodic"]:
             with self.memory_locks[memory_type]:
-                for entry in getattr(self, f"{memory_type}_memory"):
-                    if entry["id"] == memory_id:
+                memory_obj = getattr(self, f"{memory_type}_memory", None)
+                if memory_obj is None:
+                    continue
+                if not hasattr(memory_obj, '__iter__'):
+                    continue
+                for entry in memory_obj:
+                    if not isinstance(entry, dict):
+                        continue
+                    if entry.get("id") == memory_id:
                         return entry.copy()
         return None
     
@@ -703,9 +761,19 @@ class MemoryManager:
         # Ищем во временной памяти
         for memory_type in ["working", "semantic", "episodic"]:
             with self.memory_locks[memory_type]:
-                for entry in getattr(self, f"{memory_type}_memory"):
-                    if entry["id"] == interaction_id and "type" in entry["metadata"] and entry["metadata"]["type"] == "interaction":
-                        entry["content"]["response"] = response
+                memory_obj = getattr(self, f"{memory_type}_memory", None)
+                if memory_obj is None:
+                    continue
+                if not hasattr(memory_obj, '__iter__'):
+                    continue
+                for entry in memory_obj:
+                    if not isinstance(entry, dict):
+                        continue
+                    content = entry.get("content")
+                    if not isinstance(content, dict):
+                        continue
+                    if entry.get("id") == interaction_id and "type" in entry.get("metadata", {}) and entry["metadata"]["type"] == "interaction":
+                        content["response"] = response
                         self._save_memory(memory_type)
                         logger.debug(f"Ответ в истории обновлен: {interaction_id}")
                         return True
@@ -825,15 +893,24 @@ class MemoryManager:
         try:
             if os.path.exists(self.working_memory_file):
                 with open(self.working_memory_file, 'r', encoding='utf-8') as f:
-                    self.working_memory = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        self.working_memory = {item["id"]: item for item in data if "id" in item}
+                    else:
+                        self.working_memory = data
         except Exception as e:
             logger.error(f"Ошибка загрузки рабочей памяти: {e}")
+            self.working_memory = {}
     
     def _save_working_memory(self):
         """Сохраняет рабочую память в файл."""
         try:
+            if isinstance(self.working_memory, dict):
+                data = list(self.working_memory.values())
+            else:
+                data = self.working_memory
             with open(self.working_memory_file, 'w', encoding='utf-8') as f:
-                json.dump(self.working_memory, f, ensure_ascii=False, indent=2)
+                json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения рабочей памяти: {e}")
     
@@ -842,15 +919,24 @@ class MemoryManager:
         try:
             if os.path.exists(self.semantic_memory_file):
                 with open(self.semantic_memory_file, 'r', encoding='utf-8') as f:
-                    self.semantic_memory = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, list):
+                        self.semantic_memory = {item["id"]: item for item in data if "id" in item}
+                    else:
+                        self.semantic_memory = data
         except Exception as e:
             logger.error(f"Ошибка загрузки семантической памяти: {e}")
+            self.semantic_memory = {}
     
     def _save_semantic_memory(self):
         """Сохраняет семантическую память в файл."""
         try:
+            if isinstance(self.semantic_memory, dict):
+                data = list(self.semantic_memory.values())
+            else:
+                data = self.semantic_memory
             with open(self.semantic_memory_file, 'w', encoding='utf-8') as f:
-                json.dump(self.semantic_memory, f, ensure_ascii=False, indent=2)
+                json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.error(f"Ошибка сохранения семантической памяти: {e}")
     
@@ -862,6 +948,7 @@ class MemoryManager:
                     self.episodic_memory = json.load(f)
         except Exception as e:
             logger.error(f"Ошибка загрузки эпизодической памяти: {e}")
+            self.episodic_memory = []
     
     def _save_episodic_memory(self):
         """Сохраняет эпизодическую память в файл."""
@@ -1184,7 +1271,7 @@ class MemoryManager:
         """Extract ambiguous entities from text using EntityExtractor."""
         if not self.entity_extractor:
             return []
-        
+
         entities = self.entity_extractor.extract_ambiguous_terms(text)
         return [
             {
@@ -1195,3 +1282,21 @@ class MemoryManager:
             }
             for e in entities
         ]
+
+    def get_session_context(self, session_id: str) -> Dict:
+        if self.episodic_memory:
+            context_messages = []
+            for entry in self.episodic_memory:
+                if isinstance(entry, dict) and entry.get('session_id') == session_id:
+                    context_messages.append(entry.get('content', ''))
+            return {'context': '\n'.join(context_messages[-10:])}
+        return {}
+
+    def get_graph_data(self) -> Dict:
+        nodes = []
+        for mem_type in ('working_memory', 'semantic_memory'):
+            mem = getattr(self, mem_type, {})
+            if isinstance(mem, dict):
+                for key, value in list(mem.items())[:50]:
+                    nodes.append({'id': key, 'label': str(value)[:50], 'type': mem_type})
+        return {'nodes': nodes, 'edges': [], 'stats': {'total_nodes': len(nodes)}}

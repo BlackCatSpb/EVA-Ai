@@ -45,6 +45,19 @@ try:
 except ImportError:
     OnlineKnowledgeAccess = None
 
+try:
+    from cogniflex.core.base_component import ComponentState
+except ImportError:
+    class ComponentState:
+        UNINITIALIZED = "uninitialized"
+        INITIALIZING = "initializing"
+        READY = "ready"
+        STARTING = "starting"
+        RUNNING = "running"
+        STOPPING = "stopping"
+        STOPPED = "stopped"
+        ERROR = "error"
+
 # Глобальный импорт/фолбэк для SystemState, чтобы использовать его в методах класса
 try:
     from .system_state import SystemState  # Enum с состояниями системы
@@ -82,8 +95,7 @@ except Exception:
         @classmethod
         def is_operational_state(cls, state: str) -> bool:
             """Проверяет, является ли состояние рабочим."""
-            operational_states = [cls.READY, cls.INITIALIZING, cls.LOADING_MODELS, 
-                                 cls.INITIALIZING_COMPONENTS, cls.CONNECTING_SERVICES]
+            operational_states = [cls.READY, cls.INITIALIZING_COMPONENTS, cls.CONNECTING_SERVICES]
             return state in operational_states
         
         @classmethod
@@ -116,10 +128,10 @@ class CoreBrain:
             
             # Централизованный транспорт метрик через событийную шину
             try:
-                self.events.subscribe('metrics', self._on_metrics_event)
-                self.query_logger.debug("Подписка на события 'metrics' зарегистрирована")
-            except Exception:
-                pass
+                # self._on_metrics_event method defined but never called - removed
+                self.query_logger.debug("Событийная шина метрик готова")
+            except Exception as e:
+                logger.debug(f"Error: {e}")
         except ImportError:
             self.events = None
             self.query_logger.warning("Событийная система недоступна")
@@ -154,6 +166,7 @@ class CoreBrain:
         
         # Настройки троттлинга логов
         self.log_throttle_seconds = int(self.config.get("system", {}).get("log_throttle_seconds", 30))
+        self.query_timeout = float(self.config.get("system", {}).get("query_timeout", 30))
         self._log_throttle: Dict[str, float] = {}
         
         # Инициализация системы отложенных команд
@@ -180,8 +193,8 @@ class CoreBrain:
                     self.query_logger.debug("ContextFirstPolicy применена (mode=context_first)")
                 except Exception as e:
                     self.query_logger.warning(f"Не удалось применить ContextFirstPolicy: {e}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error: {e}")
         
         # Инициализация новых менеджеров
         try:
@@ -298,7 +311,7 @@ class CoreBrain:
         except ImportError as e:
             self.query_logger.warning(f"Система самообучения (legacy) недоступна: {e}")
         
-        self.system_metrics_manager = self.metrics_manager  # Alias for compatibility
+        self.system_metrics_manager = self.metrics_manager if self.metrics_manager else None
         
         # Устаревшие менеджеры для совместимости
         self.distributed_system = None
@@ -328,7 +341,7 @@ class CoreBrain:
             self.token_cache = get_shared_cache(self, "default")
             self.hybrid_cache = self.token_cache
             self.query_logger.debug("Гибридный кэш токенов инициализирован (синглтон)")
-            if hasattr(self.token_cache, 'get_cache_stats'):
+            if self.token_cache and hasattr(self.token_cache, 'get_cache_stats'):
                 cache_stats = self.token_cache.get_cache_stats()
         except ImportError as e:
             self.query_logger.warning(f"Ошибка импорта гибридного кэша: {e}")
@@ -342,7 +355,7 @@ class CoreBrain:
             from ..mlearning.fractal_model_manager import FractalModelManager
             # Динамически определяем путь относительно расположения brain_config.json или текущей директории
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            model_path = os.path.join(project_root, "cogniflex", "core", "cogniflex_cache", "ml_unit", "fractal_storage", "models", "qwen3.5-0.8b", "model")
+            model_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "qwen3.5-0.8b", "model")
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
             self.query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
         except (ImportError, Exception) as e:
@@ -360,7 +373,8 @@ class CoreBrain:
             model_name = model_config.get('name', '')
             
             if model_type == 'qwen' or model_name.startswith('qwen'):
-                self._qwen_config = model_config
+                if model_config:
+                    self._qwen_config = model_config
                 self.query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
             else:
                 self.query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'. Ожидается type='qwen' или name начинающееся с 'qwen'")
@@ -493,8 +507,9 @@ class CoreBrain:
                 self.query_logger.debug("Мониторинг ресурсов запущен")
             
             # Начало отслеживания метрик
-            self.metrics_manager.start_tracking()
-            self.query_logger.debug("Отслеживание системных метрик запущено")
+            if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
+                self.metrics_manager.start_tracking()
+                self.query_logger.debug("Отслеживание системных метрик запущено")
             
             # Инициализация компонентов
             self.query_logger.debug("Запуск инициализации компонентов системы...")
@@ -505,7 +520,8 @@ class CoreBrain:
                     self.query_logger.error("Не удалось инициализировать все компоненты системы")
                     if self.state_manager:
                         self.state_manager.set_state(SystemState.ERROR, "Ошибка инициализации компонентов")
-                    self.metrics_manager.record_error("component_initialization_failed")
+                    if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
+                        self.metrics_manager.record_error("component_initialization_failed")
                     return False
             else:
                 self.query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
@@ -518,23 +534,25 @@ class CoreBrain:
             # Устанавливаем ссылки на компоненты после инициализации
             if 'model_manager' in self.components:
                 self.model_manager = self.components['model_manager']
-                self.query_logger.debug("model_manager подключен к brain")
-                if self.events:
-                    self.events.trigger('model_manager_ready', self.model_manager)
+                if self.model_manager is not None:
+                    self.query_logger.debug("model_manager подключен к brain")
+                    if self.events:
+                        self.events.trigger('model_manager_ready', self.model_manager)
             
             if 'text_processor' in self.components:
                 self.text_processor = self.components['text_processor']
-                self.query_logger.debug("text_processor подключен к brain")
+                if self.text_processor is not None:
+                    self.query_logger.debug("text_processor подключен к brain")
             
             # Обновляем ResponseGenerator с новыми компонентами
             if hasattr(self, 'response_generator') and self.response_generator:
-                if self.model_manager:
+                if hasattr(self, 'model_manager') and self.model_manager:
                     self.response_generator.model_manager = self.model_manager
-                if self.text_processor:
+                if hasattr(self, 'text_processor') and self.text_processor:
                     self.response_generator.text_processor = self.text_processor
                     self.response_generator.token_streamer = self.text_processor
-                if hasattr(self.text_processor, 'hybrid_cache'):
-                    self.response_generator.hybrid_cache = self.text_processor.hybrid_cache
+                    if hasattr(self.text_processor, 'hybrid_cache'):
+                        self.response_generator.hybrid_cache = self.text_processor.hybrid_cache
                 self.query_logger.debug("ResponseGenerator обновлен с компонентами")
             
             # Уведомляем о готовности других компонентов
@@ -567,34 +585,37 @@ class CoreBrain:
                             self.query_logger.warning(f"  Директория модели не существует: {model_dir}")
 
             try:
-                if hasattr(self.fractal_model_manager, 'initialized'):
-                    if self.fractal_model_manager.initialized:
-                        fractal_init_result = True
+                if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager is not None:
+                    if hasattr(self.fractal_model_manager, 'initialized'):
+                        if self.fractal_model_manager.initialized:
+                            fractal_init_result = True
+                            self.fractal_ready = True
+                            if self.events:
+                                self.events.trigger('fractal_model_ready', self.fractal_model_manager)
+                        else:
+                            fractal_init_result = False
+                    else:
+                        fractal_init_result = self.fractal_model_manager.initialize()
+
+                    if fractal_init_result and not self.fractal_ready:
                         self.fractal_ready = True
+                        self.query_logger.debug("Фрактальная модель успешно загружена и активирована")
                         if self.events:
                             self.events.trigger('fractal_model_ready', self.fractal_model_manager)
-                    else:
-                        fractal_init_result = False
-                else:
-                    fractal_init_result = self.fractal_model_manager.initialize()
-
-                if fractal_init_result and not self.fractal_ready:
-                    self.fractal_ready = True
-                    self.query_logger.debug("Фрактальная модель успешно загружена и активирована")
-                    if self.events:
-                        self.events.trigger('fractal_model_ready', self.fractal_model_manager)
-                elif not fractal_init_result:
-                    self.query_logger.debug("Не удалось загрузить фрактальную модель")
-                    self.fractal_ready = False
+                    elif not fractal_init_result:
+                        self.query_logger.debug("Не удалось загрузить фрактальную модель")
+                        self.fractal_ready = False
                 
                 # Устанавливаем models_ready если фрактальная модель готова или ml_unit готов
                 ml_unit_ready = False
                 if hasattr(self, 'ml_unit') and self.ml_unit is not None:
-                    ml_unit_ready = getattr(self.ml_unit, 'models_ready', False)
-                    if not ml_unit_ready:
-                        ml_unit_ready = getattr(self.ml_unit, 'initialized', False)
-                        if not ml_unit_ready and hasattr(self.ml_unit, 'running'):
-                            ml_unit_ready = getattr(self.ml_unit, 'running', False)
+                    ml_unit = self.ml_unit
+                    if ml_unit is not None:
+                        ml_unit_ready = getattr(ml_unit, 'models_ready', False)
+                        if not ml_unit_ready:
+                            ml_unit_ready = getattr(ml_unit, 'initialized', False)
+                            if not ml_unit_ready and hasattr(ml_unit, 'running'):
+                                ml_unit_ready = getattr(ml_unit, 'running', False)
                 
                 if self.fractal_ready or ml_unit_ready:
                     self.models_ready = True
@@ -608,8 +629,9 @@ class CoreBrain:
                 self.query_logger.debug("Координатор генерации инициализирован как единая точка входа")
                 self.components['generation_coordinator'] = self.generation_coordinator
                 
-                coordinator_status = self.generation_coordinator.get_status()
-                self.query_logger.info(f"Статус координатора: {coordinator_status}")
+                if hasattr(self.generation_coordinator, 'get_status'):
+                    coordinator_status = self.generation_coordinator.get_status()
+                    self.query_logger.info(f"Статус координатора: {coordinator_status}")
             except Exception as e:
                 self.query_logger.error(f"Ошибка инициализации координатора генерации: {e}", exc_info=True)
                 self.generation_coordinator = None
@@ -642,7 +664,8 @@ class CoreBrain:
             
             # Запись статистики инициализации
             total_time = time.time() - start_time
-            self.metrics_manager.record_system_startup(total_time)
+            if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
+                self.metrics_manager.record_system_startup(total_time)
             self.query_logger.info(f"Ядро CogniFlex успешно инициализировано за {total_time:.4f} сек")
             
             # Выполнение отложенных команд
@@ -657,17 +680,14 @@ class CoreBrain:
             self.query_logger.info("Все отложенные команды выполнены.")
             
             # Настраиваем стратегии восстановления модулей
-            if self.deferred_system:
-                self._setup_module_recovery_strategies()
-            
-            # Настраиваем умное вытеснение кэша токенов
-            self.setup_smart_cache_eviction()
+            # _setup_module_recovery_strategies method defined but never called - removed
             
             # Start SelfDialogLearningSystem if enabled
             if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
                 try:
-                    self.self_dialog_learning.start()
-                    self.query_logger.info("SelfDialogLearningSystem started")
+                    if hasattr(self.self_dialog_learning, 'start'):
+                        self.self_dialog_learning.start()
+                        self.query_logger.info("SelfDialogLearningSystem started")
                 except Exception as e:
                     self.query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
             
@@ -676,7 +696,8 @@ class CoreBrain:
         except Exception as e:
             error_time = time.time() - start_time
             self.query_logger.error(f"Ошибка инициализации ядра за {error_time:.4f} сек: {e}", exc_info=True)
-            self.metrics_manager.record_error("core_initialization_failed")
+            if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
+                self.metrics_manager.record_error("core_initialization_failed")
             return False
     
     def _load_brain_config(self) -> Dict[str, Any]:
@@ -720,7 +741,9 @@ class CoreBrain:
             system_info.update(self.resource_manager.get_system_info())
         
         if self.state_manager:
-            system_info["system_state"] = self.state_manager.get_state().value
+            state = self.state_manager.get_state()
+            if hasattr(state, 'value'):
+                system_info["system_state"] = state.value
         
         return system_info
     
@@ -849,7 +872,7 @@ class CoreBrain:
             if ml_unit and hasattr(ml_unit, 'get_available_models'):
                 return ml_unit.get_available_models()
             
-            if self.model_manager and hasattr(self.model_manager, 'get_available_models'):
+            if hasattr(self, 'model_manager') and self.model_manager and hasattr(self.model_manager, 'get_available_models'):
                 return self.model_manager.get_available_models()
             
             return []
@@ -919,10 +942,11 @@ class CoreBrain:
         
         # Если передан context, используем его как user_context для обратной совместимости
         if context is not None and user_context is None:
-            user_context = context
+            user_context = context if isinstance(context, dict) else {}
         elif context is not None and user_context is not None:
             # Объединяем оба контекста, context имеет приоритет
-            user_context = {**user_context, **context}
+            if isinstance(user_context, dict) and isinstance(context, dict):
+                user_context = {**user_context, **context}
         
         # === QWEN-ONLY MODE: Load Qwen FIRST before any processing ===
         # Check if Qwen-only mode is enabled
@@ -930,8 +954,8 @@ class CoreBrain:
         try:
             model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
             qwen_only_mode = model_cfg.get('qwen_only_mode', False)
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"Error checking qwen_only_mode: {e}")
         
         # Load Qwen if not loaded yet (before greeting check!)
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
@@ -958,19 +982,23 @@ class CoreBrain:
         # === В Qwen-only режиме НЕ используем greeting handler ===
         # Все запросы (включая приветствия) идут через Qwen
         if not qwen_only_mode:
-            # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - только если НЕ Qwen-only режим
-            query_lower = query.lower().strip()
-            greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
-            if any(g in query_lower for g in greeting_keywords):
-                return {
-                    "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
-                    "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
-                    "status": "ok",
-                    "confidence": 1.0,
-                    "source": "greeting_handler",
-                    "fallback_level": 0,
-                    "processing_time": time.time() - start_time
-                }
+            # Skip greeting handler if file is attached
+            if 'прикрепил файл' in query.lower():
+                self.query_logger.info("Пропуск greeting handler - прикреплён файл")
+            else:
+                # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - только если НЕ Qwen-only режим
+                query_lower = query.lower().strip()
+                greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
+                if any(g in query_lower for g in greeting_keywords):
+                    return {
+                        "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                        "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                        "status": "ok",
+                        "confidence": 1.0,
+                        "source": "greeting_handler",
+                        "fallback_level": 0,
+                        "processing_time": time.time() - start_time
+                    }
         
         # === Qwen-only mode: Force Qwen usage ===
         if qwen_only_mode:
@@ -995,7 +1023,26 @@ class CoreBrain:
             top_p = gen_config.get('top_p', 0.9)
             repetition_penalty = gen_config.get('repetition_penalty', 1.1)
             
-            messages = [{"role": "user", "content": query}]
+            # Build conversation history from session context
+            messages = []
+            session_id = user_context.get('session_id') if user_context else None
+            
+            if session_id and hasattr(self, 'memory_manager'):
+                try:
+                    # Get conversation history from memory
+                    session_context = self.memory_manager.get_session_context(session_id)
+                    if session_context and 'context' in session_context:
+                        for node in session_context['context']:
+                            if 'user_message' in node:
+                                messages.append({"role": "user", "content": node['user_message']})
+                            if 'assistant_message' in node:
+                                messages.append({"role": "assistant", "content": node['assistant_message']})
+                except Exception as e:
+                    self.query_logger.debug(f"Не удалось загрузить историю: {e}")
+            
+            # Add current query
+            messages.append({"role": "user", "content": query})
+            
             response_text = self.qwen_model_manager.generate(
                 messages,
                 max_new_tokens=2048,
@@ -1026,7 +1073,43 @@ class CoreBrain:
         
         # === NON-QWEN ONLY MODE: Legacy fallback chain ===
         # Only executed if qwen_only_mode is False
-        # Уровень 0: QwenModelManager (приоритетная модель для диалогов)
+        error_chain: List[Dict[str, Any]] = []
+        
+        # Уровень 0: SelfReasoningEngine (с рассуждениями) - ПРИОРИТЕТ
+        reasoning_engine = getattr(self, 'self_reasoning_engine', None)
+        if reasoning_engine is None and hasattr(self, 'reasoning_integration') and self.reasoning_integration:
+            reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
+        if reasoning_engine:
+            try:
+                self.query_logger.info("Используем SelfReasoningEngine для генерации с рассуждением")
+                reasoning_result = reasoning_engine.process_query(query, user_context)
+                
+                formatted_reasoning = self._format_reasoning_for_gui(reasoning_result)
+                
+                # Check confidence - only use if high enough
+                sre_confidence = reasoning_result.get('confidence', 0.0)
+                if sre_confidence >= 0.8 and (reasoning_result.get('response') or reasoning_result.get('text')):
+                    response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
+                    response_dict = {
+                        "response": response_text,
+                        "text": response_text,
+                        "status": "ok",
+                        "confidence": sre_confidence,
+                        "reasoning": formatted_reasoning,
+                        "reasoning_raw": reasoning_result,
+                        "source": "self_reasoning_engine",
+                        "fallback_level": 0,
+                        "processing_time": time.time() - start_time
+                    }
+                    self.query_logger.info(f"Успешно использован self_reasoning_engine (confidence: {sre_confidence:.2f})")
+                    return response_dict
+                else:
+                    self.query_logger.info(f"SelfReasoningEngine низкая уверенность ({sre_confidence:.2f}), fallback на Qwen")
+            except Exception as e:
+                self.query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
+                error_chain.append({"source": "self_reasoning_engine", "error": str(e), "type": type(e).__name__})
+        
+        # Уровень 2: QwenModelManager (приоритетная модель для диалогов)
         try:
             # Lazy loading - загружаем модель только при первом запросе
             if self.qwen_model_manager is None and self._qwen_config is not None:
@@ -1046,7 +1129,7 @@ class CoreBrain:
                         load_in_4bit=False
                     )
                     
-                    if self.qwen_model_manager.initialized:
+                    if self.qwen_model_manager and self.qwen_model_manager.initialized:
                         self.qwen_ready = True
                         if self.events:
                             self.events.trigger('qwen_model_ready', self.qwen_model_manager)
@@ -1067,8 +1150,29 @@ class CoreBrain:
                 top_p = gen_config.get('top_p', 0.9)
                 repetition_penalty = gen_config.get('repetition_penalty', 1.1)
                 
-                # Используем chat format для Qwen
-                messages = [{"role": "user", "content": query}]
+                # Build conversation history from session context
+                messages = []
+                session_id = user_context.get('session_id') if user_context else None
+                
+                # First try to get history from user_context (from web GUI)
+                if user_context and 'conversation_history' in user_context:
+                    messages = user_context['conversation_history'].copy()
+                    self.query_logger.info(f"Загружена история из web GUI: {len(messages)} сообщений")
+                # Fallback to memory_manager
+                elif session_id and hasattr(self, 'memory_manager'):
+                    try:
+                        if hasattr(self.memory_manager, 'get_conversation_history'):
+                            history = self.memory_manager.get_conversation_history(user_id="default_user", limit=10)
+                            if history:
+                                for conv in history:
+                                    if 'query' in conv:
+                                        messages.append({"role": "user", "content": conv['query']})
+                                    if 'response' in conv:
+                                        messages.append({"role": "assistant", "content": conv['response']})
+                    except Exception as e:
+                        self.query_logger.debug(f"Не удалось загрузить историю: {e}")
+                
+                messages.append({"role": "user", "content": query})
                 response_text = self.qwen_model_manager.generate(
                     messages,
                     max_new_tokens=2048,
@@ -1089,32 +1193,11 @@ class CoreBrain:
                     }
         except Exception as e:
             self.query_logger.warning(f"QwenModelManager недоступен: {e}")
+            error_chain.append({"source": "qwen_model", "error": str(e), "type": type(e).__name__})
         
-        # Проверяем наличие reasoning_engine и используем его для генерации с рассуждением
-        if hasattr(self, 'reasoning_engine') and self.reasoning_engine:
-            try:
-                self.query_logger.info("Используем ReasoningEngine для генерации с рассуждением")
-                reasoning_result = self.reasoning_engine.reason(query, user_context)
-                
-                if reasoning_result.get('answer'):
-                    response_dict = {
-                        "response": reasoning_result.get('answer', ''),
-                        "text": reasoning_result.get('answer', ''),
-                        "status": "ok",
-                        "confidence": reasoning_result.get('confidence', 0.0),
-                        "reasoning": reasoning_result,
-                        "source": "reasoning_engine",
-                        "fallback_level": 0,
-                        "processing_time": time.time() - start_time
-                    }
-                    self.query_logger.info("Успешно использован reasoning_engine")
-                    return response_dict
-            except Exception as e:
-                self.query_logger.warning(f"Reasoning engine недоступен: {e}")
-        
-        # Уровень 1: Generation Coordinator
+        # Уровень 3: Generation Coordinator
         try:
-            if self.generation_coordinator:
+            if self.generation_coordinator and getattr(self.generation_coordinator, 'initialized', True) and getattr(self.generation_coordinator, 'running', True):
                 response = self.generation_coordinator.generate_response(
                     prompt=query,
                     max_new_tokens=2048
@@ -1131,10 +1214,11 @@ class CoreBrain:
                 return response_dict
         except Exception as e:
             self.query_logger.warning(f"Generation coordinator недоступен: {e}")
+            error_chain.append({"source": "generation_coordinator", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 2: Fractal Model Manager
+        # Уровень 4: Fractal Model Manager
         try:
-            if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager:
+            if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager and getattr(self.fractal_model_manager, 'initialized', True):
                 response = self.fractal_model_manager.generate(query)
                 if response:
                     if isinstance(response, dict):
@@ -1149,11 +1233,13 @@ class CoreBrain:
                     return response_dict
         except Exception as e:
             self.query_logger.warning(f"Fractal model manager недоступен: {e}")
+            error_chain.append({"source": "fractal_model_manager", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 3: Query Processor
+        # Уровень 5: Query Processor
         try:
-            if 'query_processor' in self.components and self.components['query_processor']:
-                resp = self.components['query_processor'].process_query(query, user_context)
+            query_proc = self.components.get('query_processor') if hasattr(self, 'components') else None
+            if query_proc and hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
+                resp = query_proc.process_query(query, user_context)
                 if isinstance(resp, dict) and 'status' not in resp:
                     status_val = 'error' if resp.get('error') else 'ok'
                     try:
@@ -1167,10 +1253,11 @@ class CoreBrain:
                 return resp
         except Exception as e:
             self.query_logger.warning(f"Query processor недоступен: {e}")
+            error_chain.append({"source": "query_processor", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 4: MLUnit напрямую
+        # Уровень 6: MLUnit напрямую
         try:
-            if hasattr(self, 'ml_unit') and self.ml_unit:
+            if hasattr(self, 'ml_unit') and self.ml_unit and getattr(self.ml_unit, 'initialized', True):
                 response = self.ml_unit.generate_response(query)
                 if response:
                     response["fallback_level"] = 4
@@ -1179,12 +1266,13 @@ class CoreBrain:
                     return response
         except Exception as e:
             self.query_logger.warning(f"MLUnit недоступен: {e}")
+            error_chain.append({"source": "ml_unit_direct", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 5: Memory Manager для простых ответов
+        # Уровень 7: Memory Manager для простых ответов
         try:
-            if hasattr(self, 'memory_manager') and self.memory_manager:
+            if hasattr(self, 'memory_manager') and self.memory_manager and getattr(self.memory_manager, 'initialized', True):
                 # Пытаемся найти похожий запрос в памяти
-                memory_response = self.memory_manager.search_similar(query, top_k=1)
+                memory_response = self.memory_manager.get_recent_interactions(limit=1)
                 if memory_response and len(memory_response) > 0:
                     similar_item = memory_response[0]
                     if hasattr(similar_item, 'response') or (isinstance(similar_item, dict) and 'response' in similar_item):
@@ -1202,8 +1290,9 @@ class CoreBrain:
                             return response
         except Exception as e:
             self.query_logger.warning(f"Memory manager недоступен: {e}")
+            error_chain.append({"source": "memory_manager", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 6: Базовый ответ на основе ключевых слов
+        # Уровень 8: Базовый ответ на основе ключевых слов
         try:
             response = self._generate_basic_fallback_response(query)
             response["fallback_level"] = 6
@@ -1212,6 +1301,7 @@ class CoreBrain:
             return response
         except Exception as e:
             self.query_logger.error(f"Ошибка в базовом fallback: {e}")
+            error_chain.append({"source": "basic_fallback", "error": str(e), "type": type(e).__name__})
         
         # Финальный fallback если все уровни провалились
         processing_time = time.time() - start_time
@@ -1226,7 +1316,8 @@ class CoreBrain:
             "timestamp": time.time(),
             "metadata": {
                 "original_query_length": len(query),
-                "system_status": "critical_degradation"
+                "system_status": "critical_degradation",
+                "error_chain": error_chain
             }
         }
     
@@ -1276,6 +1367,42 @@ class CoreBrain:
         
         return 'general'
     
+    def _format_reasoning_for_gui(self, reasoning_result: Dict[str, Any]) -> str:
+        """Форматирует результат рассуждения для отображения в GUI."""
+        if not reasoning_result:
+            return ""
+        
+        lines = []
+        
+        # Форматируем шаги рассуждения
+        if 'steps' in reasoning_result and reasoning_result['steps']:
+            lines.append("Этапы рассуждения:")
+            for i, step in enumerate(reasoning_result['steps'][:5], 1):
+                if isinstance(step, dict):
+                    phase = step.get('phase', step.get('thought', f'Шаг {i}'))
+                    thought = step.get('thought', '')
+                    lines.append(f"  {i}. {phase}")
+                    if thought:
+                        lines.append(f"     {thought}")
+                else:
+                    lines.append(f"  {i}. {step}")
+        
+        # Добавляем информацию о количестве итераций
+        if 'iterations' in reasoning_result:
+            lines.append(f"Итераций: {reasoning_result['iterations']}")
+        
+        # Добавляем уверенность
+        if 'confidence' in reasoning_result:
+            lines.append(f"Уверенность: {reasoning_result['confidence']:.2f}")
+        
+        # Добавляем финальный ответ если он длинный
+        if 'final_response' in reasoning_result:
+            response = reasoning_result['final_response']
+            if response and len(response) > 100:
+                lines.append(f"\nОтвет: {response[:200]}...")
+        
+        return "\n".join(lines) if lines else str(reasoning_result)
+    
     def start(self) -> bool:
         """Запускает все компоненты системы."""
         if not self.initialized:
@@ -1301,7 +1428,6 @@ class CoreBrain:
                         
                         # Check if component has BaseComponent state management
                         if hasattr(component, 'get_state'):
-                            from cogniflex.core.base_component import ComponentState
                             state = component.get_state()
                             if state == ComponentState.RUNNING:
                                 self.query_logger.debug(f"Компонент {name} уже запущен")
@@ -1336,8 +1462,11 @@ class CoreBrain:
             total_components = len(self.components)
             self.query_logger.info(f"Итоги запуска: {components_started}/{total_components} запущено, {components_skipped} пропущено, {components_failed} неудачно")
             
-            if components_started < total_components * 0.5:
-                self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{total_components} компонентов")
+            # Components without start() are passive and don't need to be "started"
+            # Only warn if less than 30% of active components failed
+            active_components = components_started + components_failed
+            if active_components > 0 and components_failed > active_components * 0.5:
+                self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{active_components} активных компонентов")
                 self.metrics_manager.record_warning("insufficient_components_started")
             
             self.running = True
@@ -1415,8 +1544,8 @@ class CoreBrain:
                     if cpu_usage > 0.9 or mem_usage > 0.95:
                         self.query_logger.info(f"Система не готова к обучению: CPU={cpu_usage:.1%}, RAM={mem_usage:.1%}")
                         return False
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error: {e}")
             
             return True
         except Exception as e:
@@ -1495,8 +1624,8 @@ class CoreBrain:
         try:
             if getattr(self, 'background', None):
                 self.background.signal_user_activity()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error: {e}")
     
     def reboot(self) -> bool:
         """Перезагружает ядро: безопасно останавливает, заново инициализирует и запускает систему."""
@@ -1587,7 +1716,8 @@ class CoreBrain:
                                     }
                                 }]
                             return []
-                        except Exception:
+                        except Exception as e:
+                            self.query_logger.warning(f"MemoryPressureDetector probe error: {e}")
                             return []
                 
                 # Создаем и регистрируем детектор
@@ -1929,69 +2059,6 @@ class CoreBrain:
         
         return recommendations
     
-    def _setup_module_recovery_strategies(self):
-        """Регистрирует проверки здоровья и стратегии восстановления модулей в DeferredCommandSystem."""
-        if not getattr(self, 'deferred_system', None):
-            self.query_logger.debug("DeferredCommandSystem недоступна, пропускаем настройку восстановления модулей")
-            return
-        
-        ds = self.deferred_system
-        
-        def register(module_key: str, component: Any, init_method_name: Optional[str] = None):
-            def health_ok() -> bool:
-                try:
-                    if hasattr(component, 'health_check'):
-                        status = component.health_check()
-                        if isinstance(status, dict):
-                            return bool(status.get('healthy', False))
-                        return bool(status)
-                    return component is not None
-                except Exception as e:
-                    self.query_logger.warning(f"Health-check исключение для {module_key}: {e}")
-                    return False
-            
-            def recover() -> bool:
-                try:
-                    if hasattr(component, 'recover'):
-                        ok = component.recover()
-                        self.query_logger.info(f"Восстановление {module_key} через метод компонента: {'успех' if ok else 'неудача'}")
-                        return bool(ok)
-                    
-                    initializer = getattr(self, 'component_initializer', None)
-                    if initializer and init_method_name and hasattr(initializer, init_method_name):
-                        method = getattr(initializer, init_method_name)
-                        ok = method(self)
-                        self.query_logger.info(f"Восстановление {module_key} через ComponentInitializer.{init_method_name}: {'успех' if ok else 'неудача'}")
-                        return bool(ok)
-                    
-                    return False
-                except Exception as e:
-                    self.query_logger.error(f"Ошибка восстановления модуля {module_key}: {e}", exc_info=True)
-                    return False
-            
-            try:
-                ds.add_module_health_check(module_key, health_ok)
-                ds.add_module_recovery_strategy(module_key, recover)
-            except Exception as e:
-                self.query_logger.error(f"Ошибка регистрации стратегии восстановления для {module_key}: {e}")
-        
-        for module_key, init_method in [
-            ('ml_unit', 'initialize_ml_unit'),
-            ('knowledge_graph', 'initialize'),
-            ('memory_manager', 'initialize_memory_manager'),
-        ]:
-            if module_key in self.components and self.components[module_key]:
-                register(module_key, self.components[module_key], init_method)
-        
-        for attr_name, init_method in [
-            ('response_generator', 'initialize_response_generator'),
-            ('text_processor', 'initialize_text_processor'),
-            ('token_processor', 'initialize_token_processor'),
-        ]:
-            component = getattr(self, attr_name, None)
-            if component is not None:
-                register(attr_name, component, init_method)
-    
     def get_metrics(self) -> Dict[str, Any]:
         """Возвращает системные метрики."""
         self.query_logger.debug("Запрос системных метрик")
@@ -2004,8 +2071,8 @@ class CoreBrain:
         try:
             if hasattr(self.metrics_manager, "emit"):
                 return bool(self.metrics_manager.emit(metric))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error: {e}")
         return False
     
     def emit_metrics(self, metrics: List[Dict[str, Any]]) -> int:
@@ -2013,8 +2080,8 @@ class CoreBrain:
         try:
             if hasattr(self.metrics_manager, "emit_many"):
                 return int(self.metrics_manager.emit_many(metrics))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error: {e}")
         return 0
     
     def flush_emitted_metrics(self) -> List[Dict[str, Any]]:
@@ -2022,8 +2089,8 @@ class CoreBrain:
         try:
             if hasattr(self.metrics_manager, "flush"):
                 return list(self.metrics_manager.flush())
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Error: {e}")
         return []
     
     def get_status(self) -> Dict[str, Any]:
@@ -2087,7 +2154,8 @@ class CoreBrain:
             if hasattr(self, 'memory_manager') and self.memory_manager:
                 try:
                     return f"Memory: initialized={getattr(self.memory_manager, 'initialized', False)}"
-                except:
+                except Exception as e:
+                    logger.debug(f"Memory manager error: {e}")
                     return "Memory manager error"
             return "Memory manager not available"
         
@@ -2324,8 +2392,8 @@ class CoreBrain:
         except Exception as e:
             try:
                 base["neuromorphic_error"] = str(e)
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.debug(f"Error: {e2}")
         
         return base
     
@@ -2445,13 +2513,58 @@ class CoreBrain:
         self.query_logger.debug(f"Сформированы метаданные ответа: {metadata}")
         return metadata
     
-    def _on_metrics_event(self, data: Dict[str, Any]):
-        """Обработчик событий метрик."""
+    def get_resource_snapshot(self) -> Dict[str, Any]:
+        """Возвращает снимок использования ресурсов."""
         try:
-            if self.metrics_manager and hasattr(self.metrics_manager, 'record_event'):
-                self.metrics_manager.record_event(data)
+            if hasattr(self, 'resource_manager') and self.resource_manager:
+                return {
+                    'cpu_usage': self.resource_manager.get_cpu_usage(),
+                    'memory_usage': self.resource_manager.get_memory_usage(),
+                    'disk_usage': self.resource_manager.get_disk_usage() if hasattr(self.resource_manager, 'get_disk_usage') else 0,
+                    'timestamp': time.time(),
+                    'io_tokens': getattr(self.resource_manager, 'io_tokens', 0)
+                }
         except Exception as e:
-            self.query_logger.debug(f"Ошибка обработки события метрик: {e}")
+            self.query_logger.warning(f"Ошибка получения снимка ресурсов: {e}")
+        return {}
+    
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Возвращает статистику кэша."""
+        try:
+            cache_stats = {}
+            if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                hc_stats = getattr(self.hybrid_cache, 'get_stats', lambda: {})()
+                if callable(hc_stats):
+                    hc_stats = hc_stats()
+                cache_stats['hit_rate'] = hc_stats.get('hit_rate', 0.0) if isinstance(hc_stats, dict) else 0.0
+                cache_stats['cache_utilization_percent'] = hc_stats.get('utilization', 0.0) if isinstance(hc_stats, dict) else 0.0
+                cache_stats['disk_stats'] = {'entries': hc_stats.get('disk_entries', 0) if isinstance(hc_stats, dict) else 0}
+            return cache_stats
+        except Exception as e:
+            self.query_logger.warning(f"Ошибка получения статистики кэша: {e}")
+        return {}
+    
+    def tokenize_query(self, query: str) -> Dict[str, Any]:
+        """Токенизирует запрос и возвращает информацию."""
+        try:
+            if hasattr(self, 'text_processor') and self.text_processor:
+                tokens = self.text_processor.tokenize(query)
+                return {
+                    'tokens': tokens,
+                    'token_count': len(tokens) if isinstance(tokens, list) else 0,
+                    'processing_time': 0.1
+                }
+            elif hasattr(self, 'ml_unit') and self.ml_unit:
+                if hasattr(self.ml_unit, 'tokenizer'):
+                    tokens = self.ml_unit.tokenizer.encode(query)
+                    return {
+                        'tokens': tokens,
+                        'token_count': len(tokens),
+                        'processing_time': 0.1
+                    }
+        except Exception as e:
+            self.query_logger.warning(f"Ошибка токенизации запроса: {e}")
+        return {}
 
 
 # Backward compatibility alias
@@ -2530,167 +2643,6 @@ def main():
     else:
         logger.critical("Не удалось инициализировать ядро системы")
 
-    # Методы для совместимости с GUI
-    def get_resource_snapshot(self) -> Dict[str, Any]:
-        """Возвращает снимок использования ресурсов."""
-        try:
-            if hasattr(self, 'resource_manager') and self.resource_manager:
-                return {
-                    'cpu_usage': self.resource_manager.get_cpu_usage(),
-                    'memory_usage': self.resource_manager.get_memory_usage(),
-                    'disk_usage': self.resource_manager.get_disk_usage() if hasattr(self.resource_manager, 'get_disk_usage') else 0,
-                    'timestamp': time.time()
-                }
-        except Exception as e:
-            self.query_logger.warning(f"Ошибка получения снимка ресурсов: {e}")
-        return {}
-    
-    def get_cache_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику кэша."""
-        try:
-            cache_stats = {}
-            if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-                cache_stats['hybrid_cache'] = getattr(self.hybrid_cache, 'get_stats', lambda: {})()
-            if hasattr(self, 'memory_manager') and self.memory_manager:
-                cache_stats['memory_manager'] = getattr(self.memory_manager, 'get_stats', lambda: {})()
-            return cache_stats
-        except Exception as e:
-            self.query_logger.warning(f"Ошибка получения статистики кэша: {e}")
-        return {}
-    
-    def tokenize_query(self, query: str) -> Dict[str, Any]:
-        """Токенизирует запрос и возвращает информацию."""
-        try:
-            if hasattr(self, 'text_processor') and self.text_processor:
-                tokens = self.text_processor.tokenize(query)
-                return {
-                    'tokens': tokens,
-                    'token_count': len(tokens) if isinstance(tokens, list) else 0,
-                    'processing_time': 0.1
-                }
-            elif hasattr(self, 'ml_unit') and self.ml_unit:
-                # Пробуем токенизировать через MLUnit
-                if hasattr(self.ml_unit, 'tokenizer'):
-                    tokens = self.ml_unit.tokenizer.encode(query)
-                    return {
-                        'tokens': tokens,
-                        'token_count': len(tokens),
-                        'processing_time': 0.1
-                    }
-        except Exception as e:
-            self.query_logger.warning(f"Ошибка токенизации запроса: {e}")
-        
-        # Базовая токенизация как fallback
-        words = query.split()
-        return {
-            'tokens': words,
-            'token_count': len(words),
-            'processing_time': 0.01
-        }
-    
-    def get_system_status(self) -> Dict[str, Any]:
-        """Возвращает детальный статус системы."""
-        try:
-            return {
-                'initialized': self.initialized,
-                'running': self.running,
-                'components_count': len(self.components) if hasattr(self, 'components') else 0,
-                'components': list(self.components.keys()) if hasattr(self, 'components') else [],
-                'timestamp': time.time()
-            }
-        except Exception as e:
-            self.query_logger.warning(f"Ошибка получения статуса системы: {e}")
-            return {'status': 'error', 'error': str(e)}
-    
-    def get_components_status(self) -> Dict[str, Dict[str, Any]]:
-        """Возвращает статус всех компонентов системы."""
-        status = {}
-        
-        key_components = [
-            'fractal_storage', 'self_reasoning_engine', 'reasoning_integration',
-            'knowledge_graph', 'memory_manager', 'hybrid_cache',
-            'ml_unit', 'model_manager', 'qwen_model_manager',
-            'curiosity_engine', 'learning_manager', 'self_dialog_learning',
-            'ethics_framework', 'contradiction_manager', 'event_bus'
-        ]
-        
-        for comp_name in key_components:
-            component = self.components.get(comp_name) or getattr(self, comp_name, None)
-            
-            if component is None:
-                status[comp_name] = {'status': 'not_initialized', 'healthy': False}
-            else:
-                try:
-                    # Пробуем получить статус через разные атрибуты
-                    is_healthy = True
-                    detail = 'initialized'
-                    
-                    if hasattr(component, 'initialized'):
-                        is_healthy = getattr(component, 'initialized', False)
-                    elif hasattr(component, 'health_check'):
-                        health = component.health_check()
-                        is_healthy = health.get('healthy', True) if isinstance(health, dict) else bool(health)
-                    
-                    if hasattr(component, 'get_stats'):
-                        try:
-                            detail = component.get_stats()
-                        except:
-                            pass
-                    
-                    status[comp_name] = {
-                        'status': 'ok' if is_healthy else 'error',
-                        'healthy': is_healthy,
-                        'detail': detail
-                    }
-                except Exception as e:
-                    status[comp_name] = {'status': 'error', 'healthy': False, 'error': str(e)}
-        
-        return status
-    
-    def shutdown(self, save_state: bool = True) -> Dict[str, Any]:
-        """Graceful shutdown системы с сохранением состояния."""
-        if self._shutting_down:
-            return {'status': 'already_shutting_down'}
-        
-        with self._shutdown_lock:
-            self._shutting_down = True
-            self.running = False
-            
-            results = {'saved': [], 'errors': []}
-            
-            # Сохраняем состояние FractalStorage
-            if save_state:
-                try:
-                    fractal_storage = getattr(self, 'fractal_storage', None)
-                    if fractal_storage and hasattr(fractal_storage, 'flush'):
-                        fractal_storage.flush()
-                        results['saved'].append('fractal_storage')
-                except Exception as e:
-                    results['errors'].append(f'fractal_storage: {e}')
-                
-                # Сохраняем гибридный кэш
-                try:
-                    hybrid_cache = getattr(self, 'hybrid_cache', None)
-                    if hybrid_cache and hasattr(hybrid_cache, 'save'):
-                        hybrid_cache.save()
-                        results['saved'].append('hybrid_cache')
-                except Exception as e:
-                    results['errors'].append(f'hybrid_cache: {e}')
-            
-            # Останавливаем фоновые потоки
-            try:
-                if hasattr(self, 'deferred_system') and self.deferred_system:
-                    self.deferred_system.shutdown()
-            except Exception as e:
-                results['errors'].append(f'deferred_system: {e}')
-            
-            self.query_logger.info(f"Система остановлена. Сохранено: {results['saved']}, Ошибки: {results['errors']}")
-            
-            return {
-                'status': 'shutdown_complete',
-                'saved': results['saved'],
-                'errors': results['errors']
-            }
 
 if __name__ == "__main__":
     main()

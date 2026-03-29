@@ -409,9 +409,10 @@ class SelfReasoningEngine:
             weight = self.LOGICAL_FACTORS.get(factor_name, {}).get('weight', 0.1)
             total_score += factor_data['score'] * weight
         
+        details_copy = {k: v for k, v in factors_result.items()}
         factors_result['overall'] = {
             'score': total_score,
-            'details': factors_result
+            'details': details_copy
         }
         
         return factors_result
@@ -428,8 +429,8 @@ class SelfReasoningEngine:
                 if result and result.get('warnings'):
                     warnings = result['warnings']
                     score = 1.0 - (len(warnings) * 0.1)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Ошибка оценки этического фактора: {e}")
         
         return {
             'score': max(0, min(1, score)),
@@ -437,7 +438,7 @@ class SelfReasoningEngine:
             'factor': 'ethics'
         }
     
-    def _evaluate_knowledge_factor(self, self_response: str, response: str) -> Dict[str, Any]:
+    def _evaluate_knowledge_factor(self, query: str, response: str) -> Dict[str, Any]:
         """Оценка фактора знаний"""
         score = 0.8  # Базовый балл
         sources = []
@@ -449,7 +450,7 @@ class SelfReasoningEngine:
                 # Ищем релевантную информацию
                 if hasattr(kg, 'search'):
                     # Простой поиск по ключевым словам из ответа
-                    words = self_response.split()[:5]
+                    words = query.split()[:5]
                     found = False
                     for word in words:
                         if len(word) > 4:
@@ -460,8 +461,8 @@ class SelfReasoningEngine:
                                 break
                     if found:
                         score = 0.9
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Ошибка оценки фактора знаний: {e}")
         
         return {
             'score': score,
@@ -481,8 +482,8 @@ class SelfReasoningEngine:
                 if result and result.get('contradictions'):
                     contradictions = result['contradictions'][:3]
                     score = 1.0 - (len(contradictions) * 0.2)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Ошибка оценки фактора противоречий: {e}")
         
         return {
             'score': max(0, min(1, score)),
@@ -527,8 +528,9 @@ class SelfReasoningEngine:
         
         for marker in logical_markers:
             if marker in query.lower() and marker not in response.lower():
-                # Запрос содержал логическую связку, а ответ - нет
-                pass  # Это может быть нормально
+                if marker in ['поэтому', 'следовательно', 'значит']:
+                    issues.append(f'Отсутствует логическая связка: {marker}')
+                    score -= 0.05
         
         # 2. Проверяем длину ответа относительно запроса
         if len(response) < len(query) * 0.5:
@@ -875,15 +877,11 @@ class SelfReasoningEngine:
             logger.warning(f"Не удалось сохранить цепочку рассуждений: {e}")
     
     def get_stats(self) -> Dict[str, Any]:
-        """Получить статистику работы"""
         return {
-            "total_queries": self.total_queries,
-            "total_iterations": self.total_iterations,
-            "recursive_calls": self.recursive_calls,
-            "avg_iterations": self.total_iterations / max(1, self.total_queries),
-            "max_iterations": self.max_iterations,
-            "max_recursion_depth": self.max_recursion_depth,
-            "confidence_threshold": self.confidence_threshold
+            'total_queries': self.total_queries,
+            'total_iterations': self.total_iterations,
+            'confidence_threshold': self.confidence_threshold,
+            'max_iterations': self.max_iterations
         }
     
     # =====================================================
