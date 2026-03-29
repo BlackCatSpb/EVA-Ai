@@ -1057,4 +1057,4 @@ AuthManager (server.py):
 | 1.5 | 2026-03-29 | Второй цикл: 8 исправлений (memory_manager dict, learning_scheduler try/except, ml_unit проверка модели, SRE улучшения) |
 | 1.6 | 2026-03-29 | Третий цикл: 9 исправлений (ml_unit training_mode, learning_scheduler attribute validation, SRE Qwen cache, core_brain import handling) |
 | 1.7 | 2026-03-29 | Четвёртый цикл: 5 исправлений (query_processor reasoning, SRE brain null check, knowledge_graph get_sources_for_node, server EthicsChecker) |
-| 1.8 | 2026-03-29 | Начало разделения больших модулей на подмодули (knowledge_graph_types.py, knowledge_graph_search.py), создание备份 директории |
+| 1.8 | 2026-03-29 | Разделение модулей: knowledge_graph_types/search, core_brain_types, knowledge_integrator_analysis, memory_types, learning_types, backup директория |
