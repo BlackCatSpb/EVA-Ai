@@ -1,13 +1,17 @@
-# CogniFlex AI - Детальное Описание Системы
+# ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.16 (одиннадцатый цикл аудита - 16 исправлений)
+Версия: 1.19 - Рефакторинг и переименование проекта
+
+---
+
+## Версия 1.18 (2026-03-30) - 13-й цикл аудита
 
 ---
 
 ## 1. Поток инициализации в CoreBrain
 
-Процесс инициализации системы CogniFlex представляет собой многоэтапный процесс последовательной активации компонентов, каждый из которых отвечает за определённую функциональность. Центральным классом системы является `CoreBrain`, расположенный в файле `cogniflex/core/core_brain.py`. Этот класс координирует работу всех остальных модулей и обеспечивает их взаимодействие друг с другом.
+Процесс инициализации системы ЕВА представляет собой многоэтапный процесс последовательной активации компонентов, каждый из которых отвечает за определённую функциональность. Центральным классом системы является `CoreBrain`, расположенный в файле `eva/core/core_brain.py`. Этот класс координирует работу всех остальных модулей и обеспечивает их взаимодействие друг с другом.
 
 ### 1.1 Конструктор CoreBrain.__init__
 
@@ -19,25 +23,25 @@
 
 **Базовые компоненты инициализируемые напрямую в __init__:**
 
-1. **ConfigManager** из `cogniflex/core/config_manager.py` — управление конфигурацией.
+1. **ConfigManager** из `eva/core/config_manager.py` — управление конфигурацией.
 
-2. **SystemStateManager** из `cogniflex/core/system_state.py` — состояния системы.
+2. **SystemStateManager** из `eva/core/system_state.py` — состояния системы.
 
-3. **ResourceManager** из `cogniflex/core/resource_manager.py` — мониторинг ресурсов.
+3. **ResourceManager** из `eva/core/resource_manager.py` — мониторинг ресурсов.
 
-4. **SelfAnalyzer** из `cogniflex/learning/self_analyzer.py` — обнаружение возможностей для обучения.
+4. **SelfAnalyzer** из `eva/learning/self_analyzer.py` — обнаружение возможностей для обучения.
 
-5. **SystemMetricsManager** из `cogniflex/core/system_metrics.py` — сбор метрик.
+5. **SystemMetricsManager** из `eva/core/system_metrics.py` — сбор метрик.
 
-6. **EnhancedSelfLearningSystem** из `cogniflex/core/enhanced_self_learning.py` — расширенное самообучение. Вызывается `start()` в конструкторе.
+6. **EnhancedSelfLearningSystem** из `eva/core/enhanced_self_learning.py` — расширенное самообучение. Вызывается `start()` в конструкторе.
 
-7. **MemoryGraphML** из `cogniflex/core/memory_graph_ml.py` — обучение на графе памяти.
+7. **MemoryGraphML** из `eva/core/memory_graph_ml.py` — обучение на графе памяти.
 
-8. **SelfDialogLearningSystem** из `cogniflex/learning/self_dialog_learning.py` — самообучение через диалог (ЗАПУСКАЕТСЯ ПОЗЖЕ в методе initialize()).
+8. **SelfDialogLearningSystem** из `eva/learning/self_dialog_learning.py` — самообучение через диалог (ЗАПУСКАЕТСЯ ПОЗЖЕ в методе initialize()).
 
-9. **QueryProcessor** из `cogniflex/core/query_processor.py`.
+9. **QueryProcessor** из `eva/core/query_processor.py`.
 
-10. **ComponentInitializer** из `cogniflex/core/component_initializer.py` — **фабрика для ленивой загрузки компонентов**.
+10. **ComponentInitializer** из `eva/core/component_initializer.py` — **фабрика для ленивой загрузки компонентов**.
 
 11. **HybridTokenCache** — синглтон через `get_shared_cache()`.
 
@@ -100,7 +104,7 @@
 
 ## 2. Поток обработки запроса
 
-Обработка пользовательского запроса в системе CogniFlex представляет собой конвейерную архитектуру с несколькими этапами обработки, кэшированием промежуточных результатов и параллельным выполнением независимых задач. Центральным компонентом этого процесса является класс `QueryProcessor` из модуля `cogniflex/core/query_processor.py`.
+Обработка пользовательского запроса в системе ЕВА представляет собой конвейерную архитектуру с несколькими этапами обработки, кэшированием промежуточных результатов и параллельным выполнением независимых задач. Центральным компонентом этого процесса является класс `QueryProcessor` из модуля `eva/core/query_processor.py`.
 
 ### 2.1 Входная точка process_query()
 
@@ -177,7 +181,7 @@
 
 ## 3. Поток обучения TrainingOrchestrator
 
-Система обучения в CogniFlex реализована через класс `TrainingOrchestrator` из модуля `cogniflex/mlearning/training_orchestrator.py`. Этот компонент координирует процесс обучения графа знаний из документов.
+Система обучения в ЕВА реализована через класс `TrainingOrchestrator` из модуля `eva/mlearning/training_orchestrator.py`. Этот компонент координирует процесс обучения графа знаний из документов.
 
 ### 3.1 Инициализация TrainingOrchestrator
 
@@ -305,7 +309,7 @@ _simulate_assistant_response(prompt, context)
 
 ## 4. Self-Reasoning система
 
-Механизм самостоятельного рассуждения реализован в классе `SelfReasoningEngine` из модуля `cogniflex/reasoning/self_reasoning_engine.py`.
+Механизм самостоятельного рассуждения реализован в классе `SelfReasoningEngine` из модуля `eva/reasoning/self_reasoning_engine.py`.
 
 ### 4.1 Архитектура SelfReasoningEngine
 
@@ -507,7 +511,7 @@ _build_contextual_query(query, conversation_history)
 
 ## 5. Работа с памятью
 
-Система управления памятью в CogniFlex состоит из двух основных компонентов: `MemoryManager` и `KnowledgeGraph`.
+Система управления памятью в ЕВА состоит из двух основных компонентов: `MemoryManager` и `KnowledgeGraph`.
 
 ### 5.1 Архитектура MemoryManager
 
@@ -588,7 +592,7 @@ search_memories_by_entity(entity_term)
 ### 6.1 Структура (Tkinter)
 
 ```
-CogniFlexGUI (Tkinter)
+ЕВАGUI (Tkinter)
     │
     ├─> ChatModule - основной чат
     │       ├─> input_text - поле ввода
@@ -639,7 +643,7 @@ _send_message()
 
 ## 6A. Веб-интерфейс (Web GUI)
 
-Веб-интерфейс CogniFlex реализован на Flask и доступен по адресу `http://127.0.0.1:5555`.
+Веб-интерфейс ЕВА реализован на Flask и доступен по адресу `http://127.0.0.1:5555`.
 
 ### 6A.1 Структура
 
@@ -993,7 +997,7 @@ AuthManager (server.py):
 
 ## 13. Заключение
 
-Система CogniFlex AI представляет собой комплексную архитектуру с чётким разделением ответственности между компонентами:
+Система ЕВА AI представляет собой комплексную архитектуру с чётким разделением ответственности между компонентами:
 
 1. **Поток инициализации** обеспечивает последовательную активацию всех модулей с обработкой зависимостей и отложенной загрузкой тяжёлых компонентов.
 
@@ -1210,9 +1214,9 @@ AuthManager (server.py):
 ### 18.0 Git Worktree Cleanup
 
 Удалены 3 устаревших git worktrees:
-- `CogniFlex-506e2973` (branch: cascade/2026-03-08-...)
-- `CogniFlex-739a8e65` (branch: cascade/2026-03-09-...)
-- `CogniFlex-81c8d36b` (branch: cascade/fallback-81c8d3)
+- `ЕВА-506e2973` (branch: cascade/2026-03-08-...)
+- `ЕВА-739a8e65` (branch: cascade/2026-03-09-...)
+- `ЕВА-81c8d36b` (branch: cascade/fallback-81c8d3)
 
 Остался только основной worktree `main`.
 
