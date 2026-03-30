@@ -19,6 +19,7 @@ class ConfigManager:
             config_path: Путь к файлу конфигурации
         """
         self.config_path = config_path or "cogniflex_config.json"
+        self.defaults = self._load_default_config()
         self.config = self._load_default_config()
         self._load_config_file()
     
@@ -118,6 +119,9 @@ class ConfigManager:
     def save_config(self):
         """Сохраняет текущую конфигурацию в файл."""
         try:
+            config_dir = os.path.dirname(self.config_path)
+            if config_dir and not os.path.exists(config_dir):
+                os.makedirs(config_dir, exist_ok=True)
             with open(self.config_path, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
             logger.info(f"Конфигурация сохранена в {self.config_path}")

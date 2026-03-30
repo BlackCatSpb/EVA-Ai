@@ -9,8 +9,26 @@ from typing import Dict, Any, Optional, List, Set
 from dataclasses import dataclass
 import logging
 
-from .event_bus import EventBus, Event, EventTypes, get_event_bus
-from .base_component import ComponentState
+try:
+    from .event_bus import EventBus, Event, EventTypes, get_event_bus
+except ImportError:
+    EventBus = None
+    Event = None
+    EventTypes = None
+    get_event_bus = None
+
+try:
+    from .base_component import ComponentState
+except ImportError:
+    class ComponentState:
+        UNINITIALIZED = "uninitialized"
+        INITIALIZING = "initializing"
+        READY = "ready"
+        STARTING = "starting"
+        RUNNING = "running"
+        STOPPING = "stopping"
+        STOPPED = "stopped"
+        ERROR = "error"
 
 logger = logging.getLogger(__name__)
 

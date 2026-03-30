@@ -415,26 +415,29 @@ class NeuromorphicSimulator:
         current_activation = self.activity_history[-1]
         previous_activation = self.activity_history[-2]
 
+        current_pattern = current_activation.activity_pattern or []
+        previous_pattern = previous_activation.activity_pattern or []
+
         stable_patterns = []
-        for node_id, current_val in getattr(current_activation, 'activation_map', {}).items():
-            if current_val > 0.7 and node_id in getattr(previous_activation, 'activation_map', {}):
-                prev_val = previous_activation.activation_map[node_id]
+        for idx, current_val in enumerate(current_pattern):
+            if current_val > 0.7 and idx < len(previous_pattern):
+                prev_val = previous_pattern[idx]
                 if prev_val > 0.5:
                     stability = min(current_val, prev_val)
-                    stable_patterns.append((node_id, stability))
+                    stable_patterns.append((idx, stability))
 
         new_patterns = []
-        for node_id, current_val in getattr(current_activation, 'activation_map', {}).items():
+        for idx, current_val in enumerate(current_pattern):
             if current_val > 0.7:
-                prev_val = getattr(previous_activation, 'activation_map', {}).get(node_id, 0.0)
+                prev_val = previous_pattern[idx] if idx < len(previous_pattern) else 0.0
                 if current_val - prev_val > 0.4:
                     novelty = current_val - prev_val
-                    new_patterns.append((node_id, novelty))
+                    new_patterns.append((idx, novelty))
 
         return {
             "stable_patterns": stable_patterns,
             "new_patterns": new_patterns,
-            "weak_zones": getattr(current_activation, 'weak_zones', [])
+            "weak_zones": current_activation.metadata.get("weak_zones", [])
         }
 
     def _update_fractal_structure(self, activation_patterns: Dict):
@@ -468,7 +471,7 @@ class NeuromorphicSimulator:
             return
 
         container = self.fractal_store.containers[container_id]
-        if "strength" in container.metadata:
+        if container.metadata and isinstance(container.metadata, dict) and "strength" in container.metadata:
             container.metadata["strength"] = min(1.0, container.metadata["strength"] + strength * 0.2)
 
     def _integrate_new_pattern(self, container_id: str, novelty: float):
@@ -483,9 +486,10 @@ class NeuromorphicSimulator:
             return
 
         container = self.fractal_store.containers[container_id]
+        container.metadata = container.metadata or {}
         container.metadata["strength"] = min(1.0, container.metadata.get("strength", 0.3) + novelty * 0.4)
 
-        if container.metadata["strength"] > 0.7:
+        if container.metadata.get("strength", 0) > 0.7:
             if hasattr(self.fractal_store, '_add_to_hot_window'):
                 self.fractal_store._add_to_hot_window([(container_id, container.metadata["strength"], "neural_activation")])
 
@@ -504,6 +508,8 @@ class NeuromorphicSimulator:
             return
 
         container = self.fractal_store.containers[container_id]
+        if not hasattr(container, 'metadata') or container.metadata is None:
+            container.metadata = {}
         current_strength = container.metadata.get("strength", 0.3)
         container.metadata["strength"] = min(1.0, current_strength + 0.2)
 
@@ -898,16 +904,23 @@ class NeuromorphicSimulator:
         """
         analysis = self.analyze_neural_activity()
         
+        if analysis.get("status") == "no_data":
+            return {
+                "health_score": 100,
+                "status": "no_data",
+                "message": "Недостаточно данных для анализа"
+            }
+        
         # Рассчитываем оценку здоровья
         health_score = 100
         # Учитываем активность по типам памяти
-        for memory_type, data in analysis["memory_types"].items():
+        for memory_type, data in analysis.get("memory_types", {}).items():
             avg_activity = data["average_activity"]
             # Оптимальный диапазон: 0.3 - 0.7
             if avg_activity < 0.2 or avg_activity > 0.8:
                 health_score -= 15
         # Учитываем взаимодействие между типами
-        if analysis["interaction_strength"] < 0.2:
+        if analysis.get("interaction_strength", 0.5) < 0.2:
             health_score -= 20
         elif analysis["interaction_strength"] < 0.4:
             health_score -= 10

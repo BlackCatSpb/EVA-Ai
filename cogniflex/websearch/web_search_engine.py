@@ -370,7 +370,7 @@ class WebSearchEngine:
         
         try:
             # Проверяем кэш
-            if use_cache:
+            if use_cache and hasattr(self, '_cache_manager') and self._cache_manager:
                 cached_results = self._cache_manager.get_cached_results(query)
                 if cached_results:
                     processing_time = time.time() - start_time
@@ -389,7 +389,7 @@ class WebSearchEngine:
             processing_time = time.time() - start_time
             
             # Сохраняем в кэш
-            if use_cache and results:
+            if use_cache and results and hasattr(self, '_cache_manager') and self._cache_manager:
                 self._cache_manager.save_to_cache(query, results)
             
             # Обновляем статистику

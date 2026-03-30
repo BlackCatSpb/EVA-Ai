@@ -249,7 +249,8 @@ class CoreBrain:
             from .system_state import SystemStateManager, SystemState
             self.state_manager = SystemStateManager()
             self.query_logger.debug("Менеджер состояния системы инициализирован")
-            self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
+            if self.state_manager and hasattr(self.state_manager, 'set_state'):
+                self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
         except ImportError:
             self.state_manager = None
             self.query_logger.warning("Менеджер состояния системы недоступен")
@@ -551,7 +552,7 @@ class CoreBrain:
         
         try:
             # Обновляем состояние системы
-            if self.state_manager:
+            if self.state_manager and hasattr(self.state_manager, 'set_state'):
                 self.state_manager.set_state(SystemState.INITIALIZING, "Инициализация компонентов")
             
             # Запускаем мониторинг ресурсов
@@ -571,7 +572,7 @@ class CoreBrain:
             if self.component_initializer:
                 if not self.component_initializer.initialize_components():
                     self.query_logger.error("Не удалось инициализировать все компоненты системы")
-                    if self.state_manager:
+                    if self.state_manager and hasattr(self.state_manager, 'set_state'):
                         self.state_manager.set_state(SystemState.ERROR, "Ошибка инициализации компонентов")
                     if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                         self.metrics_manager.record_error("component_initialization_failed")
@@ -712,7 +713,7 @@ class CoreBrain:
                 self.query_logger.warning(f"Ошибка интеграции SelfReasoningEngine: {e}")
             
             # Обновляем состояние системы на готовность
-            if self.state_manager:
+            if self.state_manager and hasattr(self.state_manager, 'set_state'):
                 self.state_manager.set_state(SystemState.READY, "Инициализация завершена успешно")
             
             # Запись статистики инициализации
@@ -793,7 +794,7 @@ class CoreBrain:
         if self.resource_manager:
             system_info.update(self.resource_manager.get_system_info())
         
-        if self.state_manager:
+        if self.state_manager and hasattr(self.state_manager, 'get_state'):
             state = self.state_manager.get_state()
             if hasattr(state, 'value'):
                 system_info["system_state"] = state.value

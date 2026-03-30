@@ -58,7 +58,7 @@ class ResourceManager:
         
         # Счетчики использования
         self.resource_usage_history = []
-        self.max_history_size = 1000
+        self.max_history_size = 5000
         
         logger.info("ResourceManager инициализирован")
     
@@ -128,13 +128,19 @@ class ResourceManager:
         """Обновляет метрики GPU."""
         try:
             import torch
+        except ImportError:
+            self.current_metrics["gpu_usage"] = 0.0
+            self.current_metrics["gpu_memory"] = 0.0
+            return
+        
+        try:
             if torch.cuda.is_available():
                 # Использование GPU памяти
                 gpu_memory_allocated = torch.cuda.memory_allocated() / (1024**3)
                 gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
                 
                 self.current_metrics["gpu_memory"] = (gpu_memory_allocated / gpu_memory_total) * 100
-                self.current_metrics["gpu_usage"] = torch.cuda.utilization() if hasattr(torch.cuda, 'utilization') else 0
+                self.current_metrics["gpu_usage"] = 0.0
             else:
                 self.current_metrics["gpu_usage"] = 0.0
                 self.current_metrics["gpu_memory"] = 0.0
@@ -156,7 +162,7 @@ class ResourceManager:
         
         # Ограничиваем размер истории
         if len(self.resource_usage_history) > self.max_history_size:
-            self.resource_usage_history = self.resource_usage_history[-self.max_history_size//2:]
+            self.resource_usage_history = self.resource_usage_history[-self.max_history_size:]
     
     def _check_thresholds(self):
         """Проверяет пороги использования ресурсов с дебаунсом."""

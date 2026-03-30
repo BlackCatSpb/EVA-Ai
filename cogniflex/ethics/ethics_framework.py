@@ -360,7 +360,7 @@ class EthicsFramework:
     def _load_violations_and_stats(self):
         """Загружает нарушения и статистику из хранилища."""
         try:
-            cache_dir = os.path.join(os.path.dirname(__file__), '..', 'core', 'cogniflex_cache', 'ethics')
+            cache_dir = self.cache_dir
             os.makedirs(cache_dir, exist_ok=True)
             
             # Загружаем нарушения
@@ -778,21 +778,22 @@ class EthicsFramework:
         highest_severity = max(v.severity for v in violations)
         primary_violation = next(v for v in violations if v.severity == highest_severity)
         
-        # Генерируем ответ в зависимости от типа нарушения
-        if primary_violation.principle == "Privacy":
+        principle_key = primary_violation.principle.lower()
+        
+        if principle_key == "privacy":
             return (
                 "Извините, но ваш запрос затрагивает вопросы приватности и конфиденциальности. "
                 "Я не могу обрабатывать запросы, связанные с личной информацией других людей или "
                 "конфиденциальными данными. Пожалуйста, переформулируйте ваш запрос так, чтобы он "
                 "не нарушал принципы приватности."
             )
-        elif primary_violation.principle == "Non-maleficence":
+        elif principle_key == "non-maleficence" or principle_key == "non_maleficence":
             return (
                 "Извините, но ваш запрос может привести к потенциальному вреду или опасности. "
                 "Я не могу участвовать в обсуждении или предоставлении информации, которая может "
                 "нанести вред людям или нарушить безопасность. Пожалуйста, переформулируйте ваш запрос."
             )
-        elif primary_violation.principle == "Justice":
+        elif principle_key == "justice":
             return (
                 "Извините, но ваш запрос содержит элементы дискриминации или несправедливости. "
                 "Я не могу поддерживать или распространять информацию, которая нарушает принципы "

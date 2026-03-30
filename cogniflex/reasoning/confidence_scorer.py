@@ -50,10 +50,14 @@ def calculate_contradiction_score(contradiction_result: Optional[Dict[str, Any]]
     Возвращает 0.0-1.0 где 1.0 = нет противоречий
     """
     if contradiction_result is None:
-        return 0.5  # Нейтрально
+        return 0.5
     
     try:
-        contradictions = contradiction_result.get('contradictions', [])
+        # Handle both dict with 'contradictions' key and direct list
+        if isinstance(contradiction_result, list):
+            contradictions = contradiction_result
+        else:
+            contradictions = contradiction_result.get('contradictions', [])
         
         if not contradictions:
             return 1.0  # Нет противоречий - максимум

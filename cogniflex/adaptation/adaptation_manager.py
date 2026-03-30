@@ -84,6 +84,7 @@ class AdaptationManager:
         # Фоновые процессы
         self._background_thread: Optional[threading.Thread] = None
         self._stop_background = threading.Event()
+        self._background_started = False
         self.initialized = False
         self.running = False
         
@@ -176,6 +177,10 @@ class AdaptationManager:
     
     def _start_background_analysis(self):
         """Запуск фонового потока анализа."""
+        if hasattr(self, '_background_started') and self._background_started:
+            logger.debug("Фоновый анализ уже запущен")
+            return
+        
         if self._background_thread is None or not self._background_thread.is_alive():
             self._stop_background.clear()
             self._background_thread = threading.Thread(
@@ -184,6 +189,7 @@ class AdaptationManager:
                 daemon=True
             )
             self._background_thread.start()
+            self._background_started = True
             self.running = True
             logger.info("Фоновый анализ адаптации запущен")
     

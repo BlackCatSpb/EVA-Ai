@@ -5,6 +5,7 @@ import hashlib
 import re
 from typing import Dict, Any, Optional, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -71,8 +72,8 @@ class QueryProcessor:
         self.model = None
         self.tokenizer = None
 
-        # Embeddings cache with size limit
-        self.embeddings: Dict[str, Any] = {}
+        # Embeddings cache with LRU size limit
+        self.embeddings: OrderedDict = OrderedDict()
         self._embeddings_max_size = 1000
 
         # Current query for reasoning engine
@@ -106,13 +107,18 @@ class QueryProcessor:
             if embedding is None:
                 return None
             # Move to end (most recently used)
-            self.embeddings[key] = self.embeddings.pop(key)
+            self.embeddings.move_to_end(key)
             return embedding
         return None
     
     def _set_embedding(self, key: str, embedding: Any):
-        """Set embedding in cache with size limit."""
+        """Set embedding in cache with LRU size limit."""
         if embedding is None:
+            return
+        # If key exists, update and move to end
+        if key in self.embeddings:
+            self.embeddings.move_to_end(key)
+            self.embeddings[key] = embedding
             return
         # Evict oldest if at capacity
         if len(self.embeddings) >= self._embeddings_max_size:
@@ -568,9 +574,13 @@ class QueryProcessor:
         try:
             exec_ref = self.executor
             if exec_ref is None:
-                exec_ref = ThreadPoolExecutor(max_workers=2)
-                self._own_executor = True
-                self.executor = exec_ref
+                try:
+                    exec_ref = ThreadPoolExecutor(max_workers=2)
+                    self._own_executor = True
+                    self.executor = exec_ref
+                except (OSError, RuntimeError) as e:
+                    logger.warning(f"Не удалось создать ThreadPoolExecutor: {e}")
+                    return evidence
             
             # Поиск в памяти
             if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search_memories_by_entity'):
@@ -748,20 +758,12 @@ class QueryProcessor:
         return contradictions
 
     def _emit_metrics(self, metrics: List[Dict[str, Any]]):
-        """Безопасная эмиссия метрик для QueryProcessor (через событийную шину и прямой вызов)."""
+        """Безопасная эмиссия метрик для QueryProcessor (через событийную шину)."""
         try:
             if getattr(self, "brain", None):
-                try:
-                    if hasattr(self.brain, "events") and self.brain.events:
-                        self.brain.events.trigger('metrics', metrics)
-                except (AttributeError, TypeError, RuntimeError) as e:
-                    logger.debug(f"Ошибка отправки метрик через события: {e}")
-                try:
-                    if hasattr(self.brain, "emit_metrics"):
-                        self.brain.emit_metrics(metrics)
-                except (AttributeError, TypeError, RuntimeError) as e:
-                    logger.debug(f"Ошибка прямого вызова emit_metrics: {e}")
-        except (AttributeError, TypeError, RuntimeError) as e:
+                if hasattr(self.brain, "events") and self.brain.events:
+                    self.brain.events.trigger('metrics', metrics)
+        except Exception as e:
             logger.debug(f"Ошибка в _emit_metrics: {e}")
 
     def _store_insight(self, query: str, response: str, nlp_info: Dict, concept: Optional[str]):

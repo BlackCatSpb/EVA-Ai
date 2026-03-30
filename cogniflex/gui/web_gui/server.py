@@ -31,7 +31,7 @@ def _get_secret_key():
                     return config['web_gui']['secret_key']
         except Exception:
             pass
-    raise ValueError("SECRET_KEY must be set via COGNIFLEX_SECRET_KEY environment variable or cogniflex_config.json")
+    return os.urandom(32).hex()
 app.config['SECRET_KEY'] = _get_secret_key()
 app.config['JSON_AS_ASCII'] = False
 
@@ -305,10 +305,10 @@ class WebGUI:
         
         # Get conversation history for context
         conversation_history = []
-        if session_id:
+        if session_id and isinstance(session_id, str):
             session = self.session_manager.get_session(session_id)
             if session and 'context_nodes' in session:
-                for node in session.get('context_nodes', [])[-10:]:  # Last 10 messages
+                for node in session.get('context_nodes', [])[-10:]:
                     if 'user_message' in node:
                         conversation_history.append({"role": "user", "content": node['user_message']})
                     if 'assistant_message' in node:

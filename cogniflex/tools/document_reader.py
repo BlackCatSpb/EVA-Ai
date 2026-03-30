@@ -127,7 +127,8 @@ class DocumentTextReader:
         })
         
         # Метаинформация
-        meta_text = f"Строк: {doc.metadata['lines']}, Символов: {doc.metadata['chars']}, Кодировка: {doc.metadata['encoding']}"
+        meta = getattr(doc, 'metadata', {}) or {}
+        meta_text = f"Строк: {meta.get('lines', 'N/A')}, Символов: {meta.get('chars', 'N/A')}, Кодировка: {meta.get('encoding', 'N/A')}"
         messages.append({
             "sender": "CogniFlex", 
             "text": meta_text,

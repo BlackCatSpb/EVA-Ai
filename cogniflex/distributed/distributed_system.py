@@ -57,13 +57,15 @@ class DistributedSystem:
     
     def _get_connection(self) -> sqlite3.Connection:
         """Возвращает соединение с базой данных для текущего потока."""
-        if not hasattr(threading.current_thread(), "distributed_system_connection"):
-            # Создаем новое соединение для этого потока
-            threading.current_thread().distributed_system_connection = sqlite3.connect(
+        if not hasattr(self, '_thread_local'):
+            self._thread_local = threading.local()
+        
+        if not hasattr(self._thread_local, 'connection') or self._thread_local.connection is None:
+            self._thread_local.connection = sqlite3.connect(
                 self.db_path,
-                check_same_thread=False  # Разрешаем использование в разных потоках
+                check_same_thread=False
             )
-        return threading.current_thread().distributed_system_connection
+        return self._thread_local.connection
     
     def _init_database(self):
         """Инициализирует базу данных для распределенной системы."""
@@ -231,13 +233,23 @@ class DistributedSystem:
         try:
             conn = self._get_connection()
             cursor = conn.cursor()
+            
+            total_tasks = len(self.get_active_nodes()) if hasattr(self, 'get_active_nodes') else 0
+            completed_tasks = 0
+            failed_tasks = 0
+            
+            if self.task_scheduler and hasattr(self.task_scheduler, 'get_scheduler_statistics'):
+                scheduler_stats = self.task_scheduler.get_scheduler_statistics()
+                completed_tasks = scheduler_stats.get("completed_tasks", 0)
+                failed_tasks = scheduler_stats.get("failed_tasks", 0)
+            
             cursor.execute('''
-                INSERT INTO system_stats (total_tasks, completed_tasks, failed_tasks, avg_processing_time, last_update)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR REPLACE INTO system_stats (id, total_tasks, completed_tasks, failed_tasks, avg_processing_time, last_update)
+                VALUES (1, ?, ?, ?, ?, ?)
             ''', (
-                len(self.get_active_nodes()) if hasattr(self, 'get_active_nodes') else 0,
-                self.task_scheduler.get_scheduler_statistics()["completed_tasks"] if self.task_scheduler else 0,
-                self.task_scheduler.get_scheduler_statistics()["failed_tasks"] if self.task_scheduler else 0,
+                total_tasks,
+                completed_tasks,
+                failed_tasks,
                 0.0,
                 datetime.now().isoformat()
             ))

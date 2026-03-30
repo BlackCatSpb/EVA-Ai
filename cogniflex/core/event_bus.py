@@ -180,12 +180,6 @@ class EventBus:
                         filtered.append((sid, handler))
                 self._subscribers[event_type] = filtered
             
-            # Очищаем мертвые ссылки
-            self._subscribers[event_type] = [
-                (sid, handler) for sid, handler in self._subscribers[event_type]
-                if handler() is not None
-            ]
-            
             self._stats['subscribers_count'] = sum(len(handlers) for handlers in self._subscribers.values())
             
             removed = original_count - len(self._subscribers[event_type])
@@ -194,6 +188,15 @@ class EventBus:
                 return True
             
             return False
+    
+    def _cleanup_dead_subscribers(self):
+        """Периодическая очистка мертвых ссылок."""
+        with self._lock:
+            for event_type in list(self._subscribers.keys()):
+                self._subscribers[event_type] = [
+                    (sid, handler) for sid, handler in self._subscribers[event_type]
+                    if handler() is not None
+                ]
     
     def publish(self, event: Event) -> bool:
         """
@@ -393,6 +396,7 @@ def get_event_bus() -> EventBus:
     global _global_event_bus
     if _global_event_bus is None:
         _global_event_bus = EventBus()
+    if hasattr(_global_event_bus, 'start') and not getattr(_global_event_bus, '_running', False):
         _global_event_bus.start()
     return _global_event_bus
 
