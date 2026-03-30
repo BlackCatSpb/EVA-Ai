@@ -69,12 +69,10 @@ class WebSearchEngine:
         self.search_queue = queue.Queue()
         self.search_tasks = {}
         
-        # Фоновый процесс - инициализировать ДО _init_cache_cleanup
+        # Фоновый процесс
         self.running = False
         self.search_thread = None
-        
-        # Запустить очистку кэша после инициализации running
-        self._init_cache_cleanup()
+        self._cache_cleanup_thread = None
         
         # Cache the DatabaseManager instance
         self._db_manager = DatabaseManager(self.cache_dir)
@@ -227,7 +225,6 @@ class WebSearchEngine:
     
     def _init_cache_cleanup(self):
         """Инициализирует очистку кэша по TTL."""
-        self.running = True
         self._cache_cleanup_thread = threading.Thread(target=self._cache_cleanup_worker, daemon=True)
         self._cache_cleanup_thread.start()
     
@@ -302,6 +299,7 @@ class WebSearchEngine:
             self.running = True
             self.search_thread = threading.Thread(target=self._search_worker, daemon=True)
             self.search_thread.start()
+            self._init_cache_cleanup()
             logger.info("WebSearchEngine запущен")
     
     def stop(self):

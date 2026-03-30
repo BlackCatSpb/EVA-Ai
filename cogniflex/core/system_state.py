@@ -56,7 +56,7 @@ class SystemStateManager:
         
         # Событийная система
         self.event_bus = event_bus or get_event_bus()
-        self._subscriptions: Set[str] = set()
+        self._subscriptions: Set[tuple] = set()
         
         # Состояния компонентов
         self._component_states: Dict[str, ComponentStateInfo] = {}
@@ -210,7 +210,7 @@ class SystemStateManager:
         """Подписка на событие"""
         try:
             subscription_id = self.event_bus.subscribe(event_type, handler)
-            self._subscriptions.add(subscription_id)
+            self._subscriptions.add((event_type, subscription_id))
         except Exception as e:
             logger.error(f"Ошибка подписки на {event_type}: {e}")
     
@@ -292,10 +292,9 @@ class SystemStateManager:
     def cleanup(self):
         """Очистка ресурсов"""
         with self.state_lock:
-            # Отписываемся от событий
-            for subscription_id in self._subscriptions:
+            for event_type, subscription_id in self._subscriptions:
                 try:
-                    self.event_bus.unsubscribe(subscription_id)
+                    self.event_bus.unsubscribe(event_type, subscription_id)
                 except Exception as e:
                     logger.warning(f"Ошибка отписки {subscription_id}: {e}")
             

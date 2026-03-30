@@ -464,7 +464,7 @@ class MLUnit:
                 test_prompt = "Кратко опиши, что такое искусственный интеллект."
                 response = self.response_generator.generate_response(
                     prompt=test_prompt,
-                    max_length=32768,
+                    max_length=256,
                     max_new_tokens=5,
                     temperature=0.7,
                     top_p=0.9,

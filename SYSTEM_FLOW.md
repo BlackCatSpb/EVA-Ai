@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.15 (десятый цикл аудита - 21+ исправление)
+Версия: 1.16 (одиннадцатый цикл аудита - 16 исправлений)
 
 ---
 
@@ -1065,6 +1065,7 @@ AuthManager (server.py):
 | 1.13 | 2026-03-30 | Документация: структура проекта, версионность, cleanup git worktrees |
 | 1.14 | 2026-03-30 | Девятый цикл аудита: 34 исправления (12 HIGH, 15 MEDIUM, 7 LOW) - устранение git worktrees, split EventBus, variable shadowing, missing methods, API mismatches |
 | 1.15 | 2026-03-30 | Десятый цикл аудита: 21+ исправление (8 CRITICAL, 8 HIGH, 5 MEDIUM) - deadlock learning_scheduler, hasattr bugs, API mismatches, contradiction key mismatch, orphaned sessions |
+| 1.16 | 2026-03-30 | Одиннадцатый цикл аудита: 16 исправлений (4 CRITICAL, 9 HIGH, 3 MEDIUM) - event_bus start, unsubscribe args, metrics_manager guards, resource slot leak, conversation history, thread safety, debug prints |
 
 ---
 
@@ -1136,7 +1137,7 @@ AuthManager (server.py):
 | 9 | v1.13 | 68+ | Восьмой цикл: core (query_processor, core_brain, component_initializer), knowledge, memory, learning, mlearning, reasoning, contradiction, adaptation, websearch, gui/server - None checks, memory leaks, thread safety, initialization order |
 | 10 | v1.14 | 34 | Девятый цикл: core (fallback methods, variable shadowing), knowledge (API mismatch), memory (list deletion), learning (add_edge/add_node kwargs), mlearning (double invocation), reasoning (contradictions param), contradiction (indentation), adaptation (UserProfile), websearch (cache/thread), server (UUID) |
 | 11 | v1.15 | 21+ | Десятый цикл: deadlock learning_scheduler, hasattr→getattr, API mismatches (domains, updates, description), contradiction key normalization, orphaned sessions, torch guards, priority sort |
-| 11 | v1.15 | 21+ | Десятый цикл: core (guarded imports, torch guards, query_processor initialized), event_system (priority sort), reasoning (details path, contradictions param), knowledge (domains kwarg), memory (hybrid_cache attr), learning (deadlock fix, lost tasks, API kwargs), mlearning (init_model_manager, hasattr→getattr, dict segments), contradiction (key normalization), websearch (DB unification, stop threads), server (persistent user_id) |
+| 12 | v1.16 | 16 | Одиннадцатый цикл: event_bus start(), unsubscribe args, metrics_manager guards, resource slot leak, conversation history, thread safety, debug prints, batch text extraction |
 
 ---
 
@@ -1361,6 +1362,67 @@ AuthManager (server.py):
 - CRITICAL: `AuthManager.authenticate` — персистентный `user_id`: UUID генерируется один раз для каждого username и сохраняется в user dict
 
 ### 19.5 AI Tester результаты
+
+- Проверка синтаксиса: **310/310 файлов** прошли проверку
+- Все CRITICAL и HIGH исправления подтверждены
+
+---
+
+## 20. Исправления v1.16 (одиннадцатый цикл аудита)
+
+### 20.1 AI Architect анализ (11-й цикл)
+
+Проведён глубокий анализ 11 ключевых модулей. Найдено 70+ проблем:
+- **CRITICAL**: 12 (event_bus не запущен, unsubscribe args, resource leak, safe_json_loads, debug prints)
+- **HIGH**: 20 (metrics_manager guards, thread safety, conversation history, batch type mismatch)
+- **MEDIUM**: 25 (SQLite leaks, duplicate DB init, temporal index growth)
+- **LOW**: 15 (dead code, naming issues)
+
+### 20.2 Исправления AI Developer 1 (core/event/system_state)
+
+**event_bus.py (1 исправление):**
+- CRITICAL: `get_event_bus()` теперь вызывает `instance.start()` — без этого очередь событий никогда не обрабатывалась
+
+**system_state.py (1 исправление):**
+- CRITICAL/HIGH: `_subscriptions` изменён с `Set[str]` на `Set[tuple]`; `_subscribe()` сохраняет `(event_type, subscription_id)`; `cleanup()` передаёт оба аргумента в `unsubscribe()`
+
+**core_brain.py (2 исправления):**
+- HIGH: Добавлены `hasattr(self, 'metrics_manager') and self.metrics_manager:` guards перед 5 вызовами `record_error`, `record_warning`, `record_system_shutdown`
+- MEDIUM: MemoryPressureDetector переименован `self.query_logger` → `self.logger` для устранения путаницы
+
+### 20.3 Исправления AI Developer 2 (knowledge/memory/learning)
+
+**learning_scheduler.py (2 исправления):**
+- CRITICAL: В `fail_task` добавлен `self.resource_allocation.release_slot(task_id)` перед re-queuing retrying task — без этого слоты навсегда consumed
+- HIGH: Добавлен `self.start_time = time.time()` в `__init__`; `_calculate_tasks_per_hour` использует `self.start_time` вместо `self.stats["last_update"]`
+
+**memory_manager.py (3 исправления):**
+- HIGH: `get_conversation_history` — исправлен доступ к полям: `interaction.get("query", "")` и `interaction.get("response", "")` напрямую вместо через `content` ключ
+- HIGH: `get_conversation_history` — добавлена фильтрация по `user_id`
+- MEDIUM: `remove_node` — добавлен `break` после успешного удаления для сохранения только правильного типа памяти
+
+**self_dialog_learning.py (2 исправления):**
+- MEDIUM: `_learn_refinement` — сначала поиск узла по имени через `search_nodes(concept, limit=1)`, затем вызов `update_node` с реальным `nodes[0].id`
+- MEDIUM: `_learn_updating` — аналогичное исправление
+
+### 20.4 Исправления AI Developer 3 (mlearning/websearch/gui)
+
+**server.py (4 исправления):**
+- CRITICAL: Удалён debug `print(">>> SERVER.PY LOADED AT", datetime.now())`
+- HIGH: `get_session` и `get_user_sessions` обёрнуты в `with self._lock:` для thread safety
+- HIGH: Добавлен `if not data: return jsonify({'error': 'Invalid JSON'}), 400` guard в `api_login`, `api_sessions` (POST/DELETE), `api_chat`
+
+**training_orchestrator.py (2 исправления):**
+- HIGH: Импорт `CommandPriority` обёрнут в `try/except ImportError` с fallback классом
+- HIGH: `_process_batch` — извлечение текста из dict элементов перед передачей в `_extract_knowledge`: `batch_texts = [s.get('text', str(s)) if isinstance(s, dict) else str(s) for s in batch]`
+
+**ml_unit.py (1 исправление):**
+- HIGH: `_verify_basic_functionality` — `max_length=32768` → `max_length=256` для предотвращения блокировки при старте
+
+**web_search_engine.py (1 исправление):**
+- HIGH: `_init_cache_cleanup()` перенесён из `__init__` в `start()`; `self._cache_cleanup_thread = None` инициализирован в `__init__`
+
+### 20.5 AI Tester результаты
 
 - Проверка синтаксиса: **310/310 файлов** прошли проверку
 - Все CRITICAL и HIGH исправления подтверждены

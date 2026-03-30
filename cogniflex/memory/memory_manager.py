@@ -421,6 +421,7 @@ class MemoryManager:
                         removed = True
                 if removed:
                     self._save_memory(mem_type.replace("_memory", ""))
+                    break
             return removed
         except Exception as e:
             logger.error(f"Ошибка удаления узла {node_id}: {e}")
@@ -912,13 +913,13 @@ class MemoryManager:
         conversation_history = []
         for interaction in interactions:
             if isinstance(interaction, dict):
-                content = interaction.get("content", interaction)
-                if isinstance(content, dict):
-                    conversation_history.append({
-                        "query": content.get("query", ""),
-                        "response": content.get("response", ""),
-                        "timestamp": interaction.get("timestamp", 0)
-                    })
+                if user_id and interaction.get("user_id") != user_id:
+                    continue
+                conversation_history.append({
+                    "query": interaction.get("query", ""),
+                    "response": interaction.get("response", ""),
+                    "timestamp": interaction.get("timestamp", 0)
+                })
         
         return conversation_history
     

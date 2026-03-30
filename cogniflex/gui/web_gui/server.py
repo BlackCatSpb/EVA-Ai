@@ -13,7 +13,6 @@ from typing import Dict, Any, Optional
 from flask import Flask, render_template, jsonify, request
 
 logger = logging.getLogger("cogniflex.webgui")
-print(">>> SERVER.PY LOADED AT", datetime.now())
 
 app = Flask(__name__, 
             template_folder='templates',
@@ -86,10 +85,12 @@ class SessionManager:
             return session_id
     
     def get_session(self, session_id: str) -> Optional[Dict]:
-        return self.sessions.get(session_id)
-    
+        with self._lock:
+            return self.sessions.get(session_id)
+
     def get_user_sessions(self, user_id: str) -> list:
-        return [s for s in self.sessions.values() if s['user_id'] == user_id]
+        with self._lock:
+            return [s for s in self.sessions.values() if s['user_id'] == user_id]
     
     def update_session(self, session_id: str, data: Dict):
         with self._lock:
@@ -439,6 +440,8 @@ def index():
 @app.route('/api/login', methods=['POST'])
 def api_login():
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid JSON'}), 400
     username = data.get('username', '')
     password = data.get('password', '')
     
@@ -484,13 +487,17 @@ def api_sessions():
     
     if request.method == 'POST':
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
         name = data.get('name')
         session_id = web_gui_instance.session_manager.create_session(user_id, name)
         sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
         return jsonify({'session_id': session_id, 'sessions': sessions})
-    
+
     if request.method == 'DELETE':
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
         session_id = data.get('session_id')
         web_gui_instance.session_manager.delete_session(session_id)
         sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
@@ -668,6 +675,8 @@ def api_chat():
         return jsonify({'error': 'Сервер не инициализирован'}), 500
     
     data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid JSON'}), 400
     message = data.get('message', '')
     session_id = data.get('session_id')
     user_id = data.get('user_id')

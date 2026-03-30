@@ -154,6 +154,7 @@ class LearningScheduler:
         self.brain = brain
         self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "cogniflex_learning_scheduler_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
+        self.start_time = time.time()
         
         # Регистр задач
         self.task_registry: Dict[str, LearningTask] = {}
@@ -432,6 +433,7 @@ class LearningScheduler:
                 task.retries += 1
                 task.status = "pending"
                 task.scheduled_time = time.time() + self.task_retry_delay
+                self.resource_allocation.release_slot(task_id)
                 heapq.heappush(self.task_queue, task)
                 self._save_tasks()
                 self._update_stats()
@@ -481,7 +483,7 @@ class LearningScheduler:
                 return 0.0
             
             # Рассчитываем время работы системы
-            uptime = time.time() - self.stats["last_update"]
+            uptime = time.time() - self.start_time
             if uptime <= 0:
                 return 0.0
             

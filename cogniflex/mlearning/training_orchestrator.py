@@ -13,7 +13,11 @@ import math
 import hashlib
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Callable
-from ..core.deferred_command_system import CommandPriority
+try:
+    from ..core.deferred_command_system import CommandPriority
+except ImportError:
+    class CommandPriority:
+        HIGH = 1
 import logging
 
 logger = logging.getLogger("cogniflex.training.orchestrator")
@@ -1195,7 +1199,8 @@ class TrainingOrchestrator:
                 pass
 
         # Step 2: extract entities/relations using ML pipeline
-        extracted: List[Dict[str, Any]] = self._extract_knowledge(batch, tokenized_list, model_id)
+        batch_texts = [s.get('text', str(s)) if isinstance(s, dict) else str(s) for s in batch]
+        extracted: List[Dict[str, Any]] = self._extract_knowledge(batch_texts, tokenized_list, model_id)
 
         # Step 3: transactional apply to KnowledgeGraph
         self._apply_to_knowledge_graph(extracted, doc_id, offset)

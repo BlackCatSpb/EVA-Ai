@@ -171,10 +171,14 @@ class EventBus:
                 ]
             else:
                 # Отписка по обработчику
-                self._subscribers[event_type] = [
-                    (sid, handler) for sid, handler in self._subscribers[event_type]
-                    if handler() is not None and handler() != handler_or_id
-                ]
+                filtered = []
+                for sid, handler in self._subscribers[event_type]:
+                    resolved = handler()
+                    if resolved is None:
+                        continue
+                    if resolved != handler_or_id:
+                        filtered.append((sid, handler))
+                self._subscribers[event_type] = filtered
             
             # Очищаем мертвые ссылки
             self._subscribers[event_type] = [
@@ -389,6 +393,7 @@ def get_event_bus() -> EventBus:
     global _global_event_bus
     if _global_event_bus is None:
         _global_event_bus = EventBus()
+        _global_event_bus.start()
     return _global_event_bus
 
 def reset_event_bus():

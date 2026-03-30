@@ -1516,7 +1516,8 @@ class CoreBrain:
                             components_failed += 1
                     except Exception as e:
                         self.query_logger.warning(f"Ошибка при запуске компонента {name}: {e}", exc_info=True)
-                        self.metrics_manager.record_error(f"component_{name}_start_failed")
+                        if hasattr(self, 'metrics_manager') and self.metrics_manager:
+                            self.metrics_manager.record_error(f"component_{name}_start_failed")
                         components_failed += 1
                 else:
                     # Components without start() method are considered "started"
@@ -1531,7 +1532,8 @@ class CoreBrain:
             active_components = components_started + components_failed
             if active_components > 0 and components_failed > active_components * 0.5:
                 self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{active_components} активных компонентов")
-                self.metrics_manager.record_warning("insufficient_components_started")
+                if hasattr(self, 'metrics_manager') and self.metrics_manager:
+                    self.metrics_manager.record_warning("insufficient_components_started")
             
             self.running = True
             
@@ -1550,7 +1552,8 @@ class CoreBrain:
             return True
         except Exception as e:
             self.query_logger.error(f"Ошибка запуска ядра: {e}", exc_info=True)
-            self.metrics_manager.record_error("core_start_failed")
+            if hasattr(self, 'metrics_manager') and self.metrics_manager:
+                self.metrics_manager.record_error("core_start_failed")
             if self.state_manager:
                 self.state_manager.set_state(SystemState.ERROR, f"Ошибка запуска: {e}")
             return False
@@ -1659,11 +1662,13 @@ class CoreBrain:
                 self.state_manager.set_state(SystemState.OFFLINE, "Система остановлена")
             
             total_time = time.time() - stop_time
-            self.metrics_manager.record_system_shutdown(total_time)
+            if hasattr(self, 'metrics_manager') and self.metrics_manager:
+                self.metrics_manager.record_system_shutdown(total_time)
             self.query_logger.info(f"Ядро CogniFlex остановлено за {total_time:.4f} сек")
         except Exception as e:
             self.query_logger.error(f"Ошибка остановки ядра: {e}", exc_info=True)
-            self.metrics_manager.record_error("core_stop_failed")
+            if hasattr(self, 'metrics_manager') and self.metrics_manager:
+                self.metrics_manager.record_error("core_stop_failed")
             if self.state_manager:
                 self.state_manager.set_state(SystemState.ERROR, str(e))
     
@@ -1750,7 +1755,7 @@ class CoreBrain:
                 class MemoryPressureDetector:
                     def __init__(self, callback, logger_ref=None):
                         self.callback = callback
-                        self.query_logger = logger_ref
+                        self.logger = logger_ref
                     
                     def probe(self, context):
                         """Пробует состояние памяти и возвращает задачи при необходимости"""
@@ -1782,8 +1787,8 @@ class CoreBrain:
                                 }]
                             return []
                         except Exception as e:
-                            if self.query_logger:
-                                self.query_logger.warning(f"MemoryPressureDetector probe error: {e}")
+                            if self.logger:
+                                self.logger.warning(f"MemoryPressureDetector probe error: {e}")
                             return []
                 
                 # Создаем и регистрируем детектор
