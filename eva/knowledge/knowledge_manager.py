@@ -212,7 +212,7 @@ class KnowledgeManager:
         if not query:
             return []
             
-        nodes = self.knowledge_graph.search_nodes(query, domain, limit, min_strength)
+        nodes = self.knowledge_graph.search_nodes(query, limit=limit, domains=[domain] if domain else None, min_strength=min_strength)
         return [node.to_dict() for node in nodes]
     
     def get_all_nodes(self, limit: int = 1000, min_strength: float = 0.3) -> List[Dict[str, Any]]:
@@ -226,8 +226,10 @@ class KnowledgeManager:
         Returns:
             List[Dict[str, Any]]: Список узлов
         """
-        nodes = self.knowledge_graph.get_all_nodes(limit, min_strength)
-        return [node.to_dict() for node in nodes]
+        all_nodes = self.knowledge_graph.get_all_nodes()
+        filtered_nodes = [n for n in all_nodes if getattr(n, 'strength', 0) >= min_strength]
+        filtered_nodes = filtered_nodes[:limit]
+        return [node.to_dict() for node in filtered_nodes]
     
     def update_concept(self, concept_id: str, new_description: str, 
                       strength: Optional[float] = None, 
@@ -313,7 +315,7 @@ class KnowledgeManager:
         Returns:
             Dict[str, Any]: Результат анализа
         """
-        return self.knowledge_analyzer.analyze_knowledge_recency()
+        return self.knowledge_analyzer.analyze_knowledge_relevance()
     
     def analyze_knowledge_patterns(self) -> Dict[str, Any]:
         """

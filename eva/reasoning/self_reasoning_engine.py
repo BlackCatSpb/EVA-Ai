@@ -209,12 +209,16 @@ class SelfReasoningEngine:
                 
                 # Добавляем шаг анализа факторов
                 factor_summary = []
-                for factor_name, factor_data in factors_result.get('details', {}).items():
-                    factor_info = self.LOGICAL_FACTORS.get(factor_name, {})
-                    fname = factor_info.get('name', factor_name)
-                    fscore = factor_data.get('score', 0)
-                    factor_summary.append(f"{fname}: {fscore:.2f}")
-                    logger.info(f"Фактор {fname}: {fscore:.2f}")
+                details = factors_result.get('details', {})
+                if details and isinstance(details, dict):
+                    for factor_name, factor_data in details.items():
+                        if not isinstance(factor_data, dict):
+                            continue
+                        factor_info = self.LOGICAL_FACTORS.get(factor_name, {})
+                        fname = factor_info.get('name', factor_name)
+                        fscore = factor_data.get('score', 0)
+                        factor_summary.append(f"{fname}: {fscore:.2f}")
+                        logger.info(f"Фактор {fname}: {fscore:.2f}")
                 
                 # Добавляем шаг с анализом факторов в цепочку
                 step = ReasoningStep(
@@ -248,10 +252,14 @@ class SelfReasoningEngine:
                         response = self._merge_reasoning_branches(response, alternatives, factors_result)
                         
                         # Добавляем информацию о ветвлении в шаг
+                        overall_score = confidence
+                        overall_data = factors_result.get('overall', {})
+                        if overall_data and isinstance(overall_data, dict):
+                            overall_score = overall_data.get('score', confidence)
                         step = ReasoningStep(
                             phase=ReasoningPhase.FINAL_SYNTHESIS.value,
                             thought=f"Ветвление рассуждений: использовано {len(alternatives)} альтернатив",
-                            confidence=factors_result['overall']['score']
+                            confidence=overall_score
                         )
                         result.steps.append(step)
                         
@@ -637,13 +645,21 @@ class SelfReasoningEngine:
         
         # Анализируем факторы с низкими оценками
         weak_factors = []
-        for factor_name, factor_data in factors_result.get('overall', {}).get('details', {}).items():
-            if factor_data.get('score', 1.0) < 0.7:
-                weak_factors.append({
-                    'factor': factor_name,
-                    'score': factor_data.get('score', 0),
-                    'issue': factor_data.get('warnings', factor_data.get('contradictions', factor_data.get('issues', [])))
-                })
+        overall_data = factors_result.get('overall', {})
+        details = {}
+        if overall_data and isinstance(overall_data, dict):
+            details = overall_data.get('details', {})
+        
+        if details and isinstance(details, dict):
+            for factor_name, factor_data in details.items():
+                if not isinstance(factor_data, dict):
+                    continue
+                if factor_data.get('score', 1.0) < 0.7:
+                    weak_factors.append({
+                        'factor': factor_name,
+                        'score': factor_data.get('score', 0),
+                        'issue': factor_data.get('warnings', factor_data.get('contradictions', factor_data.get('issues', [])))
+                    })
         
         # Генерируем альтернативы для слабых факторов
         for weak in weak_factors:
@@ -711,14 +727,22 @@ class SelfReasoningEngine:
         - ЕСЛИ хотя бы один фактор < threshold
         - ИЛИ ЕСЛИ общая оценка < threshold + 0.1
         """
-        overall = factors_result.get('overall', {}).get('score', 1.0)
+        overall_data = factors_result.get('overall', {})
+        overall = 1.0
+        if overall_data and isinstance(overall_data, dict):
+            overall = overall_data.get('score', 1.0)
         
         if overall < threshold + 0.1:
             return True
         
-        for factor_data in factors_result.get('overall', {}).get('details', {}).values():
-            if factor_data.get('score', 1.0) < threshold:
-                return True
+        details = {}
+        if overall_data and isinstance(overall_data, dict):
+            details = overall_data.get('details', {})
+        
+        if details and isinstance(details, dict):
+            for factor_data in details.values():
+                if isinstance(factor_data, dict) and factor_data.get('score', 1.0) < threshold:
+                    return True
         
         return False
     

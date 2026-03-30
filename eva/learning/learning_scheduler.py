@@ -849,17 +849,19 @@ class LearningScheduler:
             if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
                     nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                    if nodes:
+                    if nodes and len(nodes) > 0:
                         node = nodes[0]
-                        new_strength = min(1.0, getattr(node, 'strength', 0.5) + 0.1)
-                        self.brain.knowledge_graph.add_node(
-                            name=getattr(node, 'name', getattr(node, 'content', '')),
-                            node_id=node.id,
-                            node_type=getattr(node, 'node_type', 'concept'),
-                            domain=getattr(node, 'domain', 'general'),
-                            strength=new_strength,
-                            meta=getattr(node, 'meta', getattr(node, 'metadata', {}))
-                        )
+                        node_id = getattr(node, 'id', None)
+                        if node_id:
+                            new_strength = min(1.0, getattr(node, 'strength', 0.5) + 0.1)
+                            self.brain.knowledge_graph.add_node(
+                                name=getattr(node, 'name', getattr(node, 'content', '')),
+                                node_id=node_id,
+                                node_type=getattr(node, 'node_type', 'concept'),
+                                domain=getattr(node, 'domain', 'general'),
+                                strength=new_strength,
+                                meta=getattr(node, 'meta', getattr(node, 'metadata', {}))
+                            )
                     for updated_concept in concepts:
                         self.brain.knowledge_graph.add_node(
                             name=updated_concept,
@@ -1212,17 +1214,20 @@ class LearningScheduler:
                 if self.brain and hasattr(self.brain, 'knowledge_graph'):
                     # Получаем узел концепта
                     nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                    if nodes:
-                        # Проверяем, не устарели ли источники
-                        sources = []
-                        if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
-                            sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
-                        for source in sources:
-                            # Если источник старше 1 года, считаем его устаревшим
-                            if time.time() - getattr(source, 'timestamp', time.time()) > 365 * 86400:
-                                knowledge_status = "outdated"
-                                maintenance_needed = True
-                                break
+                    if nodes and len(nodes) > 0:
+                        first_node = nodes[0]
+                        node_id = getattr(first_node, 'id', None)
+                        if node_id:
+                            # Проверяем, не устарели ли источники
+                            sources = []
+                            if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
+                                sources = self.brain.knowledge_graph.get_sources_for_node(node_id)
+                            for source in sources:
+                                # Если источник старше 1 года, считаем его устаревшим
+                                if time.time() - getattr(source, 'timestamp', time.time()) > 365 * 86400:
+                                    knowledge_status = "outdated"
+                                    maintenance_needed = True
+                                    break
             except Exception as e:
                 logger.error(f"Ошибка при обращении к knowledge_graph в maintain_knowledge: {e}")
 
@@ -1234,15 +1239,19 @@ class LearningScheduler:
                 try:
                     if self.brain and hasattr(self.brain, 'knowledge_graph'):
                         # Обновляем узел концепта
-                        if nodes:
-                            self.brain.knowledge_graph.add_node(
-                                name=getattr(nodes[0], 'content', ''),
-                                node_id=nodes[0].id,
-                                node_type=getattr(nodes[0], 'node_type', 'concept'),
-                                domain=getattr(nodes[0], 'domain', 'general'),
-                                strength=0.9,
-                                meta=getattr(nodes[0], 'meta', getattr(nodes[0], 'metadata', {}))
-                            )
+                        nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
+                        if nodes and len(nodes) > 0:
+                            first_node = nodes[0]
+                            node_id = getattr(first_node, 'id', None)
+                            if node_id:
+                                self.brain.knowledge_graph.add_node(
+                                    name=getattr(first_node, 'content', ''),
+                                    node_id=node_id,
+                                    node_type=getattr(first_node, 'node_type', 'concept'),
+                                    domain=getattr(first_node, 'domain', 'general'),
+                                    strength=0.9,
+                                    meta=getattr(first_node, 'meta', getattr(first_node, 'metadata', {}))
+                                )
 
                         # Добавляем новые источники
                         for updated_concept in concepts:
@@ -1557,7 +1566,8 @@ class LearningScheduler:
                 "dependencies": []
             })
             
-            if depth > 1:
+            if depth > 1 and len(tasks) > 0:
+                first_task_id = tasks[0]["task_id"]
                 tasks.append({
                     "task_id": f"analyze_{hash(concept) % 1000000}_{depth}",
                     "task_type": "analyze_connections",
@@ -1569,7 +1579,7 @@ class LearningScheduler:
                         "expected_outcome": "Понимание контекста и связей концепта",
                         "resources": ["Связанные концепты", "Контекстуальный анализ"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
                 
                 tasks.append({
@@ -1583,7 +1593,7 @@ class LearningScheduler:
                         "expected_outcome": "Визуальное представление связей концептов",
                         "resources": ["Карта знаний", "Графический инструмент"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
         
         elif learning_type == "expand":
@@ -1601,7 +1611,8 @@ class LearningScheduler:
                 "dependencies": []
             })
             
-            if depth > 1:
+            if depth > 1 and len(tasks) > 0:
+                first_task_id = tasks[0]["task_id"]
                 tasks.append({
                     "task_id": f"relate_{hash(concept) % 1000000}_{depth}",
                     "task_type": "analyze_connections",
@@ -1613,7 +1624,7 @@ class LearningScheduler:
                         "expected_outcome": "Понимание междоменной интеграции",
                         "resources": ["Междоменные связи", "Интеграционные модели"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
                 
                 tasks.append({
@@ -1627,7 +1638,7 @@ class LearningScheduler:
                         "expected_outcome": "Целостное понимание концепта",
                         "resources": ["Методы синтеза", "Интеграционные модели"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
         
         elif learning_type == "update":
@@ -1645,7 +1656,8 @@ class LearningScheduler:
                 "dependencies": []
             })
             
-            if depth > 1:
+            if depth > 1 and len(tasks) > 0:
+                first_task_id = tasks[0]["task_id"]
                 tasks.append({
                     "task_id": f"verify_{hash(concept) % 1000000}_{depth}",
                     "task_type": "verify_sources",
@@ -1657,7 +1669,7 @@ class LearningScheduler:
                         "expected_outcome": "Надежные и актуальные источники",
                         "resources": ["Верификационные инструменты", "Экспертные оценки"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
         
         elif learning_type == "integrate":
@@ -1675,7 +1687,8 @@ class LearningScheduler:
                 "dependencies": []
             })
             
-            if depth > 1:
+            if depth > 1 and len(tasks) > 0:
+                first_task_id = tasks[0]["task_id"]
                 tasks.append({
                     "task_id": f"coherence_{hash(concept) % 1000000}_{depth}",
                     "task_type": "map_connections",
@@ -1687,7 +1700,7 @@ class LearningScheduler:
                         "expected_outcome": "Логически согласованные связи",
                         "resources": ["Методы проверки согласованности", "Логические модели"]
                     },
-                    "dependencies": [tasks[0]["task_id"]]
+                    "dependencies": [first_task_id]
                 })
         
         else:  # maintain

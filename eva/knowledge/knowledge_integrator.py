@@ -695,7 +695,7 @@ class KnowledgeIntegrator:
             # Получаем узлы в разных доменах
             nodes_by_domain = {}
             for domain in domains:
-                nodes = self.knowledge_graph.search_nodes(concept, domain=domain, limit=1)
+                nodes = self.knowledge_graph.search_nodes(concept, domains=[domain], limit=1)
                 if nodes:
                     nodes_by_domain[domain] = nodes[0]
             
@@ -732,7 +732,7 @@ class KnowledgeIntegrator:
             
             # Усиливаем лучшее определение
             best_desc = best_node.meta.get("description", "") if isinstance(best_node.meta, dict) else ""
-            self.knowledge_graph.add_node(
+            self.knowledge_graph.update_node(
                 best_node.id,
                 best_desc,
                 strength=min(1.0, best_node.strength + 0.2)
@@ -742,7 +742,7 @@ class KnowledgeIntegrator:
             for domain, node in nodes_by_domain.items():
                 if domain != best_domain:
                     node_desc = node.meta.get("description", "") if isinstance(node.meta, dict) else ""
-                    self.knowledge_graph.add_node(
+                    self.knowledge_graph.update_node(
                         node.id,
                         node_desc,
                         strength=max(0.3, node.strength - 0.1)

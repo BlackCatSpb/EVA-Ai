@@ -446,12 +446,15 @@ class SelfDialogLearningSystem:
             try:
                 if hasattr(knowledge_graph, 'update_node') and hasattr(knowledge_graph, 'search_nodes'):
                     nodes = knowledge_graph.search_nodes(concept, limit=1)
-                    if nodes:
-                        knowledge_graph.update_node(
-                            node_id=nodes[0].id,
-                            new_description=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
-                            source="self_dialog_learning"
-                        )
+                    if nodes and len(nodes) > 0:
+                        node = nodes[0]
+                        node_id = getattr(node, 'id', None)
+                        if node_id:
+                            knowledge_graph.update_node(
+                                node_id=node_id,
+                                new_description=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
+                                source="self_dialog_learning"
+                            )
                 elif hasattr(knowledge_graph, 'add_node'):
                     knowledge_graph.add_node(
                         name=concept,
@@ -510,12 +513,15 @@ class SelfDialogLearningSystem:
                 try:
                     if hasattr(self.brain.knowledge_graph, 'update_node') and hasattr(self.brain.knowledge_graph, 'search_nodes'):
                         nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                        if nodes:
-                            self.brain.knowledge_graph.update_node(
-                                node_id=nodes[0].id,
-                                new_description=f"Updated at {time.time()}, type: updating",
-                                source="self_dialog_learning"
-                            )
+                        if nodes and len(nodes) > 0:
+                            node = nodes[0]
+                            node_id = getattr(node, 'id', None)
+                            if node_id:
+                                self.brain.knowledge_graph.update_node(
+                                    node_id=node_id,
+                                    new_description=f"Updated at {time.time()}, type: updating",
+                                    source="self_dialog_learning"
+                                )
                     elif hasattr(self.brain.knowledge_graph, 'add_node'):
                         self.brain.knowledge_graph.add_node(
                             name=concept,
@@ -538,8 +544,10 @@ class SelfDialogLearningSystem:
         if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
             try:
                 if hasattr(self.brain.knowledge_graph, 'add_node'):
+                    node_id = f"integrated_{hash(concept) % 1000000}"
                     self.brain.knowledge_graph.add_node(
                         name=concept,
+                        node_id=node_id,
                         node_type="integrated_knowledge",
                         domain=domain,
                         meta={

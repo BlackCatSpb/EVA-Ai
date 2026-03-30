@@ -348,11 +348,19 @@ class SelfAnalyzer:
                 
                 low_confidence_nodes = []
                 for node_id, node in kg.nodes.items():
-                    confidence = node.context.get("confidence", 0.5) if node.context else 0.5
+                    if node is None:
+                        continue
+                    node_context = getattr(node, 'context', None)
+                    confidence = 0.5
+                    if node_context and isinstance(node_context, dict):
+                        confidence = node_context.get("confidence", 0.5)
+                    elif hasattr(node, 'confidence'):
+                        confidence = getattr(node, 'confidence', 0.5)
                     if confidence < 0.5:
+                        node_name = getattr(node, 'name', getattr(node, 'content', node_id))
                         low_confidence_nodes.append({
                             "id": node_id,
-                            "name": node.name,
+                            "name": node_name,
                             "confidence": confidence
                         })
                 

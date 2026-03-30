@@ -305,14 +305,17 @@ class WebGUI:
         
         # Get conversation history for context
         conversation_history = []
-        if session_id and isinstance(session_id, str):
+        if session_id and isinstance(session_id, str) and session_id.strip():
             session = self.session_manager.get_session(session_id)
-            if session and 'context_nodes' in session:
-                for node in session.get('context_nodes', [])[-10:]:
-                    if 'user_message' in node:
-                        conversation_history.append({"role": "user", "content": node['user_message']})
-                    if 'assistant_message' in node:
-                        conversation_history.append({"role": "assistant", "content": node['assistant_message']})
+            if session and isinstance(session, dict) and 'context_nodes' in session:
+                context_nodes = session.get('context_nodes')
+                if context_nodes and isinstance(context_nodes, list):
+                    for node in context_nodes[-10:]:
+                        if isinstance(node, dict):
+                            if 'user_message' in node and isinstance(node['user_message'], str):
+                                conversation_history.append({"role": "user", "content": node['user_message']})
+                            if 'assistant_message' in node and isinstance(node['assistant_message'], str):
+                                conversation_history.append({"role": "assistant", "content": node['assistant_message']})
         
         user_context = {
             'session_id': session_id,
@@ -323,17 +326,17 @@ class WebGUI:
         result = None
         if self.integrator:
             result = self.integrator.process_query(query, user_context)
-            if result:
+            if result and isinstance(result, dict):
                 response_text = result.get('response', response_text)
         elif self.brain and hasattr(self.brain, 'process_query'):
             debug_info["has_process_query"] = True
             debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
             result = self.brain.process_query(query, user_context)
-            debug_info["result_keys"] = list(result.keys()) if result else []
-            debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result else None
-            debug_info["result_source"] = result.get('source') if result else None
-            logger.debug(f"brain result: source={result.get('source') if result else 'None'}")
-            if result:
+            debug_info["result_keys"] = list(result.keys()) if result and isinstance(result, dict) else []
+            debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result and isinstance(result, dict) else None
+            debug_info["result_source"] = result.get('source') if result and isinstance(result, dict) else None
+            logger.debug(f"brain result: source={result.get('source') if result and isinstance(result, dict) else 'None'}")
+            if result and isinstance(result, dict):
                 response_text = result.get('response', result.get('text', response_text))
         else:
             debug_info["reason"] = "no brain or no process_query"

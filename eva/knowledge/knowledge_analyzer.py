@@ -106,7 +106,7 @@ class KnowledgeAnalyzer:
             
             # Получаем статистику по доменам
             stats = self.knowledge_graph.get_statistics()
-            domain_stats = stats["by_domain"]
+            domain_stats = stats["domains"]
             
             # Определяем целевые домены
             target_domains = [domain] if domain else list(domain_stats.keys())

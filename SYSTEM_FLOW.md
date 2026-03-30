@@ -1,11 +1,43 @@
 # ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.19 - Рефакторинг и переименование проекта
+Версия: 1.20 - Исправления багов после AI аудита
 
 ---
 
-## Версия 1.18 (2026-03-30) - 13-й цикл аудита
+## Версия 1.20 (2026-03-30) - 14-й цикл аудита: Исправления
+
+### AI Architect Результаты
+- Всего найдено 149 проблем (29 CRITICAL, 23 HIGH)
+- Core модули: 47 проблем
+- Knowledge/Memory модули: 44 проблемы
+- Learning/GUI модули: 58 проблем
+
+### Исправления AI Developer 1 (Core модули):
+1. **query_processor.py** - Добавлена проверка brain на None
+2. **system_metrics.py** - Исправлена сигнатура record_query_metrics с kwargs
+3. **system_state.py** - Добавлена проверка event_bus на None
+4. **deferred_command_system.py** - Добавлена обработка ошибок executor
+5. **resource_manager.py** - Добавлен try-except для psutil импорта
+
+### Исправления AI Developer 2 (Knowledge/Memory):
+1. **knowledge_manager.py** - Исправлены вызовы методов (get_context_window, extract_context)
+2. **knowledge_analyzer.py** - Исправлены ключи словаря (relevance_score -> score)
+3. **knowledge_integrator.py** - Исправлены параметры методов (update_node vs add_node)
+
+### Исправления AI Developer 3 (Learning/GUI):
+1. **self_dialog_learning.py** - Добавлена валидация nodes[0] перед использованием
+2. **learning_scheduler.py** - Добавлена проверка границ массива
+3. **self_analyzer.py** - Добавлены проверки на None
+4. **server.py** - Исправлены проверки типов
+5. **self_reasoning_engine.py** - Добавлена валидация структуры данных
+
+### Тестирование
+- Все файлы прошли проверку синтаксиса Python
+
+---
+
+## Версия 1.19 (2026-03-30) - Рефакторинг и переименование проекта
 
 ---
 
