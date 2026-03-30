@@ -199,6 +199,7 @@ class ComponentInitializer:
             'adaptation_manager': ['analytics_manager'],
             'ethics_framework': ['knowledge_graph'],
             'web_search_engine': ['knowledge_graph'],
+            'qwen_api_enhancer': ['knowledge_graph'],
             'gui': [],
             
             # Fractal Reasoning компоненты (фрактальное хранилище для саморассуждений)

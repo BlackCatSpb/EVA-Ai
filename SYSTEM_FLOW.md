@@ -9,6 +9,8 @@
 
 ### Исправления запуска:
 1. **start_webgui.py** - Исправлен путь к web_gui: 'cogniflex/gui/web_gui' -> 'eva/gui/web_gui'
+2. **core_brain.py** - Исправлен путь к модели: 'eva_cache/ml_unit/fractal_storage/models' -> 'eva/mlearning/eva_models'
+3. **core_brain.py** - Разрешён запуск компонентов в состоянии STOPPED (добавлен в список допустимых состояний)
 
 ### Тестирование:
 - Система инициализируется успешно: `INIT RESULT: True`

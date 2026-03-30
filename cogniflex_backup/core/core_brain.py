@@ -1,5 +1,5 @@
 """
-Единое ядро системы ЕВА - координирует работу всех компонентов
+Единое ядро системы CogniFlex - координирует работу всех компонентов
 """
 import sys
 import os
@@ -13,77 +13,40 @@ import psutil
 import torch
 from typing import Dict, Any, Optional, List, Tuple
 
-try:
-    from .background_coordinator import BackgroundCoordinator, Policies
-except ImportError:
-    BackgroundCoordinator = None
-    Policies = None
+from .background_coordinator import BackgroundCoordinator, Policies
+from .opportunities.learning_detector import LearningOpportunityDetector
+from .background_jobs.training_job import TrainingJob
+from .autopilot_cache import AutopilotCache
+from .opportunities.web_discovery_detector import WebDiscoveryDetector
+from .opportunities.recovery_detector import ModuleRecoveryDetector
+from .background_jobs.web_index_job import WebIndexJob
+from .background_jobs.module_recovery_job import ModuleRecoveryJob
+from .generation_coordinator import initialize_generation_coordinator, get_generation_coordinator
 
-try:
-    from .opportunities.learning_detector import LearningOpportunityDetector
-except ImportError:
-    LearningOpportunityDetector = None
-
-try:
-    from .background_jobs.training_job import TrainingJob
-except ImportError:
-    TrainingJob = None
-
-try:
-    from .autopilot_cache import AutopilotCache
-except ImportError:
-    AutopilotCache = None
-
-try:
-    from .opportunities.web_discovery_detector import WebDiscoveryDetector
-except ImportError:
-    WebDiscoveryDetector = None
-
-try:
-    from .opportunities.recovery_detector import ModuleRecoveryDetector
-except ImportError:
-    ModuleRecoveryDetector = None
-
-try:
-    from .background_jobs.web_index_job import WebIndexJob
-except ImportError:
-    WebIndexJob = None
-
-try:
-    from .background_jobs.module_recovery_job import ModuleRecoveryJob
-except ImportError:
-    ModuleRecoveryJob = None
-
-try:
-    from .generation_coordinator import initialize_generation_coordinator, get_generation_coordinator
-except ImportError:
-    initialize_generation_coordinator = None
-    get_generation_coordinator = None
-
-logger = logging.getLogger("eva.core_brain")
-query_logger = logging.getLogger("eva.core_brain.query_processing")
+logger = logging.getLogger("cogniflex.core_brain")
+query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
 
 # Глобальная ссылка на текущий экземпляр CoreBrain (для доступа из других модулей)
 _global_brain_instance: Optional['CoreBrain'] = None
 
-# Используем реальный QueryProcessor из модуля eva.core.query_processor
+# Используем реальный QueryProcessor из модуля cogniflex.core.query_processor
 try:
     from .query_processor import QueryProcessor
 except Exception:
     QueryProcessor = None  # Will be checked at runtime
 
 try:
-    from eva.learning.self_dialog_learning import SelfDialogLearningSystem
+    from cogniflex.learning.self_dialog_learning import SelfDialogLearningSystem
 except ImportError:
     SelfDialogLearningSystem = None
 
 try:
-    from eva.knowledge.online_knowledge import OnlineKnowledgeAccess
+    from cogniflex.knowledge.online_knowledge import OnlineKnowledgeAccess
 except ImportError:
     OnlineKnowledgeAccess = None
 
 try:
-    from eva.core.base_component import ComponentState
+    from cogniflex.core.base_component import ComponentState
 except ImportError:
     class ComponentState:
         UNINITIALIZED = "uninitialized"
@@ -143,14 +106,14 @@ except Exception:
 
 
 class CoreBrain:
-    """Центральный координатор системы ЕВА."""
+    """Центральный координатор системы CogniFlex."""
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """Инициализирует ядро ЕВА."""
-        logger.debug("Инициализация ЕВАCore...")
+        """Инициализирует ядро CogniFlex."""
+        logger.debug("Инициализация CogniFlexCore...")
         
         # Инициализируем query_logger ПЕРЕД загрузкой конфигурации
-        self.query_logger = logging.getLogger("eva.core_brain.query_processing")
+        self.query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
         self.query_logger.info("Инициализирован логгер обработки запросов")
         
         # Если конфигурация не передана, загружаем из brain_config.json
@@ -206,9 +169,6 @@ class CoreBrain:
         self.query_timeout = float(self.config.get("system", {}).get("query_timeout", 30))
         self._log_throttle: Dict[str, float] = {}
         
-        # Lock for thread-safe model loading
-        self._model_load_lock = threading.Lock()
-        
         # Инициализация системы отложенных команд
         try:
             from .deferred_command_system import DeferredCommandSystem
@@ -219,7 +179,7 @@ class CoreBrain:
             self.query_logger.warning(f"Система отложенных команд недоступна: {e}")
         
         # Настройка директории кэша
-        self.cache_dir = os.path.join(os.path.dirname(__file__), "eva_cache")
+        self.cache_dir = os.path.join(os.path.dirname(__file__), "cogniflex_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
         self.query_logger.debug(f"Путь к кэшу: {self.cache_dir}")
         
@@ -249,8 +209,7 @@ class CoreBrain:
             from .system_state import SystemStateManager, SystemState
             self.state_manager = SystemStateManager()
             self.query_logger.debug("Менеджер состояния системы инициализирован")
-            if self.state_manager and hasattr(self.state_manager, 'set_state'):
-                self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
+            self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
         except ImportError:
             self.state_manager = None
             self.query_logger.warning("Менеджер состояния системы недоступен")
@@ -265,7 +224,7 @@ class CoreBrain:
         
         # Инициализация модуля самоанализа
         try:
-            from eva.learning.self_analyzer import SelfAnalyzer
+            from cogniflex.learning.self_analyzer import SelfAnalyzer
             self.self_analyzer = SelfAnalyzer(brain=self, cache_dir=self.cache_dir)
             self.query_logger.debug("Модуль самоанализа инициализирован")
         except ImportError as e:
@@ -283,13 +242,8 @@ class CoreBrain:
                 def start_tracking(self): pass
                 def get_metrics(self): return self.metrics
                 def record_error(self, error_type): pass
-                def record_warning(self, warning_type): pass
                 def record_system_startup(self, time): pass
-                def record_system_shutdown(self, time): pass
                 def record_query_metrics(self, **kwargs): pass
-                def emit(self, metric): pass
-                def emit_many(self, metrics): return 0
-                def flush(self): return []
             self.metrics_manager = SystemMetricsManager()
             self.query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
         
@@ -407,7 +361,7 @@ class CoreBrain:
             from ..mlearning.fractal_model_manager import FractalModelManager
             # Динамически определяем путь относительно расположения brain_config.json или текущей директории
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            model_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
+            model_path = os.path.join(project_root, "cogniflex_cache", "ml_unit", "fractal_storage", "models", "qwen3.5-0.8b", "model")
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
             self.query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
         except (ImportError, Exception) as e:
@@ -434,13 +388,11 @@ class CoreBrain:
             self.query_logger.warning(f"Qwen config не найден: {e}")
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
-        global _global_brain_instance
-        _global_brain_instance = self
         self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
         
         # Логируем завершение инициализации
-        self.query_logger.debug("ЕВАCore инициализирован")
-        logger.debug("ЕВАCore инициализирован")
+        self.query_logger.debug("CogniFlexCore инициализирован")
+        logger.debug("CogniFlexCore инициализирован")
         
         # Подготовка автопилота (фоновый координатор)
         try:
@@ -552,7 +504,7 @@ class CoreBrain:
         
         try:
             # Обновляем состояние системы
-            if self.state_manager and hasattr(self.state_manager, 'set_state'):
+            if self.state_manager:
                 self.state_manager.set_state(SystemState.INITIALIZING, "Инициализация компонентов")
             
             # Запускаем мониторинг ресурсов
@@ -572,7 +524,7 @@ class CoreBrain:
             if self.component_initializer:
                 if not self.component_initializer.initialize_components():
                     self.query_logger.error("Не удалось инициализировать все компоненты системы")
-                    if self.state_manager and hasattr(self.state_manager, 'set_state'):
+                    if self.state_manager:
                         self.state_manager.set_state(SystemState.ERROR, "Ошибка инициализации компонентов")
                     if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                         self.metrics_manager.record_error("component_initialization_failed")
@@ -699,7 +651,7 @@ class CoreBrain:
             
             # Интеграция Self-Reasoning Engine с CoreBrain (DESIGN.md раздел 7)
             try:
-                from eva.reasoning.integration import ReasoningIntegration
+                from cogniflex.reasoning.integration import ReasoningIntegration
                 reasoning_integration = ReasoningIntegration(self)
                 if reasoning_integration.integrate_with_brain():
                     self.query_logger.info("SelfReasoningEngine интегрирован с CoreBrain")
@@ -713,14 +665,14 @@ class CoreBrain:
                 self.query_logger.warning(f"Ошибка интеграции SelfReasoningEngine: {e}")
             
             # Обновляем состояние системы на готовность
-            if self.state_manager and hasattr(self.state_manager, 'set_state'):
+            if self.state_manager:
                 self.state_manager.set_state(SystemState.READY, "Инициализация завершена успешно")
             
             # Запись статистики инициализации
             total_time = time.time() - start_time
             if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                 self.metrics_manager.record_system_startup(total_time)
-            self.query_logger.info(f"Ядро ЕВА успешно инициализировано за {total_time:.4f} сек")
+            self.query_logger.info(f"Ядро CogniFlex успешно инициализировано за {total_time:.4f} сек")
             
             # Выполнение отложенных команд
             self.query_logger.info(f"Выполнение {len(self.deferred_commands)} отложенных команд...")
@@ -794,7 +746,7 @@ class CoreBrain:
         if self.resource_manager:
             system_info.update(self.resource_manager.get_system_info())
         
-        if self.state_manager and hasattr(self.state_manager, 'get_state'):
+        if self.state_manager:
             state = self.state_manager.get_state()
             if hasattr(state, 'value'):
                 system_info["system_state"] = state.value
@@ -886,16 +838,12 @@ class CoreBrain:
     @property
     def knowledge_graph(self):
         """Возвращает knowledge_graph компонент."""
-        kg = self.components.get('knowledge_graph')
-        if kg is None:
-            self.query_logger.debug("knowledge_graph не инициализирован или недоступен")
-        return kg
+        return self.components.get('knowledge_graph')
     
     @knowledge_graph.setter
     def knowledge_graph(self, value):
         """Устанавливает knowledge_graph компонент."""
-        if value is not None:
-            self.query_logger.debug(f"Установка компонента knowledge_graph: {type(value).__name__}")
+        self.query_logger.debug(f"Установка компонента knowledge_graph: {value}")
         self.components['knowledge_graph'] = value
     
     @property
@@ -1019,7 +967,7 @@ class CoreBrain:
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
             self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
             try:
-                from eva.mlearning.qwen_model_manager import get_qwen_model_manager
+                from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
                 qwen_device = self._qwen_config.get('device', 'cuda')
                 
                 self.qwen_model_manager = get_qwen_model_manager(
@@ -1049,8 +997,8 @@ class CoreBrain:
                 greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
                 if any(g in query_lower for g in greeting_keywords):
                     return {
-                        "response": "Привет! Я ЕВА, рад общению. Что хотите обсудить?",
-                        "text": "Привет! Я ЕВА, рад общению. Что хотите обсудить?",
+                        "response": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
+                        "text": "Привет! Я CogniFlex, рад общению. Что хотите обсудить?",
                         "status": "ok",
                         "confidence": 1.0,
                         "source": "greeting_handler",
@@ -1170,38 +1118,34 @@ class CoreBrain:
         # Уровень 2: QwenModelManager (приоритетная модель для диалогов)
         try:
             # Lazy loading - загружаем модель только при первом запросе
-            # Use lock to prevent race condition during concurrent loading
             if self.qwen_model_manager is None and self._qwen_config is not None:
-                with self._model_load_lock:
-                    # Double-check after acquiring lock
-                    if self.qwen_model_manager is None and self._qwen_config is not None:
-                        self.query_logger.info("Загрузка QwenModelManager (lazy)...")
-                        try:
-                            try:
-                                from eva.mlearning.qwen_model_manager import get_qwen_model_manager
-                            except ImportError:
-                                from ..mlearning.qwen_model_manager import get_qwen_model_manager
-                            
-                            qwen_device = self._qwen_config.get('device', 'cuda')
-                            
-                            self.qwen_model_manager = get_qwen_model_manager(
-                                model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                                device=qwen_device,
-                                load_in_8bit=True,
-                                load_in_4bit=False
-                            )
-                            
-                            if self.qwen_model_manager and self.qwen_model_manager.initialized:
-                                self.qwen_ready = True
-                                if self.events:
-                                    self.events.trigger('qwen_model_ready', self.qwen_model_manager)
-                                self.query_logger.info("QwenModelManager успешно загружен!")
-                            else:
-                                self.qwen_model_manager = None
-                                self.query_logger.warning("QwenModelManager не инициализирован")
-                        except Exception as e:
-                            self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
-                            self.qwen_model_manager = None
+                self.query_logger.info("Загрузка QwenModelManager (lazy)...")
+                try:
+                    try:
+                        from cogniflex.mlearning.qwen_model_manager import get_qwen_model_manager
+                    except ImportError:
+                        from ..mlearning.qwen_model_manager import get_qwen_model_manager
+                    
+                    qwen_device = self._qwen_config.get('device', 'cuda')
+                    
+                    self.qwen_model_manager = get_qwen_model_manager(
+                        model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
+                        device=qwen_device,
+                        load_in_8bit=True,
+                        load_in_4bit=False
+                    )
+                    
+                    if self.qwen_model_manager and self.qwen_model_manager.initialized:
+                        self.qwen_ready = True
+                        if self.events:
+                            self.events.trigger('qwen_model_ready', self.qwen_model_manager)
+                        self.query_logger.info("QwenModelManager успешно загружен!")
+                    else:
+                        self.qwen_model_manager = None
+                        self.query_logger.warning("QwenModelManager не инициализирован")
+                except Exception as e:
+                    self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
+                    self.qwen_model_manager = None
             
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
@@ -1299,23 +1243,20 @@ class CoreBrain:
         
         # Уровень 5: Query Processor
         try:
-            if not hasattr(self, 'query_processor') or self.query_processor is None:
-                self.query_logger.debug("query_processor не инициализирован")
-            else:
-                query_proc = self.query_processor
-                if hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
-                    resp = query_proc.process_query(query, user_context)
-                    if isinstance(resp, dict) and 'status' not in resp:
-                        status_val = 'error' if resp.get('error') else 'ok'
-                        try:
-                            resp['status'] = status_val
-                        except Exception:
-                            resp = {"response": str(resp), "status": status_val}
-                    
-                    resp["fallback_level"] = 3
-                    resp["source"] = "query_processor"
-                    self.query_logger.info("Успешно использован query_processor")
-                    return resp
+            query_proc = self.components.get('query_processor') if hasattr(self, 'components') else None
+            if query_proc and hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
+                resp = query_proc.process_query(query, user_context)
+                if isinstance(resp, dict) and 'status' not in resp:
+                    status_val = 'error' if resp.get('error') else 'ok'
+                    try:
+                        resp['status'] = status_val
+                    except Exception:
+                        resp = {"response": str(resp), "status": status_val}
+                
+                resp["fallback_level"] = 3
+                resp["source"] = "query_processor"
+                self.query_logger.info("Успешно использован query_processor")
+                return resp
         except Exception as e:
             self.query_logger.warning(f"Query processor недоступен: {e}")
             error_chain.append({"source": "query_processor", "error": str(e), "type": type(e).__name__})
@@ -1392,7 +1333,7 @@ class CoreBrain:
         
         # Базовые паттерны ответов
         if any(word in query_lower for word in ['привет', 'здравствуй', 'hello', 'hi']):
-            response_text = "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей."
+            response_text = "Здравствуйте! Я система CogniFlex. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей."
         elif any(word in query_lower for word in ['как дела', 'how are you', 'что нового']):
             response_text = "Спасибо за интерес! Система работает в ограниченном режиме из-за технических трудностей. Я стараюсь помочь в рамках доступных возможностей."
         elif any(word in query_lower for word in ['помощь', 'help', 'помоги']):
@@ -1475,7 +1416,7 @@ class CoreBrain:
             return False
         
         start_time = time.time()
-        self.query_logger.info("Запуск ядра ЕВА...")
+        self.query_logger.info("Запуск ядра CogniFlex...")
         
         try:
             components_started = 0
@@ -1502,7 +1443,7 @@ class CoreBrain:
                                 self.query_logger.debug(f"Компонент {name} уже запускается")
                                 components_started += 1
                                 continue
-                            elif state not in [ComponentState.READY, ComponentState.UNINITIALIZED, ComponentState.STOPPED]:
+                            elif state not in [ComponentState.READY, ComponentState.UNINITIALIZED]:
                                 self.query_logger.warning(f"Компонент {name} не готов к запуску (состояние: {state})")
                                 components_failed += 1
                                 continue
@@ -1517,8 +1458,7 @@ class CoreBrain:
                             components_failed += 1
                     except Exception as e:
                         self.query_logger.warning(f"Ошибка при запуске компонента {name}: {e}", exc_info=True)
-                        if hasattr(self, 'metrics_manager') and self.metrics_manager:
-                            self.metrics_manager.record_error(f"component_{name}_start_failed")
+                        self.metrics_manager.record_error(f"component_{name}_start_failed")
                         components_failed += 1
                 else:
                     # Components without start() method are considered "started"
@@ -1533,8 +1473,7 @@ class CoreBrain:
             active_components = components_started + components_failed
             if active_components > 0 and components_failed > active_components * 0.5:
                 self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{active_components} активных компонентов")
-                if hasattr(self, 'metrics_manager') and self.metrics_manager:
-                    self.metrics_manager.record_warning("insufficient_components_started")
+                self.metrics_manager.record_warning("insufficient_components_started")
             
             self.running = True
             
@@ -1549,12 +1488,11 @@ class CoreBrain:
                 self.query_logger.warning(f"Не удалось запустить BackgroundCoordinator: {e}")
             
             total_time = time.time() - start_time
-            self.query_logger.info(f"Ядро ЕВА успешно запущено за {total_time:.4f} сек")
+            self.query_logger.info(f"Ядро CogniFlex успешно запущено за {total_time:.4f} сек")
             return True
         except Exception as e:
             self.query_logger.error(f"Ошибка запуска ядра: {e}", exc_info=True)
-            if hasattr(self, 'metrics_manager') and self.metrics_manager:
-                self.metrics_manager.record_error("core_start_failed")
+            self.metrics_manager.record_error("core_start_failed")
             if self.state_manager:
                 self.state_manager.set_state(SystemState.ERROR, f"Ошибка запуска: {e}")
             return False
@@ -1633,7 +1571,7 @@ class CoreBrain:
             self._shutting_down = True
         
         stop_time = time.time()
-        self.query_logger.info("Остановка ядра ЕВА...")
+        self.query_logger.info("Остановка ядра CogniFlex...")
         
         try:
             try:
@@ -1663,15 +1601,13 @@ class CoreBrain:
                 self.state_manager.set_state(SystemState.OFFLINE, "Система остановлена")
             
             total_time = time.time() - stop_time
-            if hasattr(self, 'metrics_manager') and self.metrics_manager:
-                self.metrics_manager.record_system_shutdown(total_time)
-            self.query_logger.info(f"Ядро ЕВА остановлено за {total_time:.4f} сек")
+            self.metrics_manager.record_system_shutdown(total_time)
+            self.query_logger.info(f"Ядро CogniFlex остановлено за {total_time:.4f} сек")
         except Exception as e:
             self.query_logger.error(f"Ошибка остановки ядра: {e}", exc_info=True)
-            if hasattr(self, 'metrics_manager') and self.metrics_manager:
-                self.metrics_manager.record_error("core_stop_failed")
+            self.metrics_manager.record_error("core_stop_failed")
             if self.state_manager:
-                self.state_manager.set_state(SystemState.ERROR, str(e))
+                self.state_manager.record_error(e, "core_brain")
     
     def start_background_services(self) -> None:
         """Явный запуск автопилота (если требуется вне start())."""
@@ -1754,9 +1690,8 @@ class CoreBrain:
             if self.background:
                 # Создаем простой детектор давления памяти
                 class MemoryPressureDetector:
-                    def __init__(self, callback, logger_ref=None):
+                    def __init__(self, callback):
                         self.callback = callback
-                        self.logger = logger_ref
                     
                     def probe(self, context):
                         """Пробует состояние памяти и возвращает задачи при необходимости"""
@@ -1788,12 +1723,11 @@ class CoreBrain:
                                 }]
                             return []
                         except Exception as e:
-                            if self.logger:
-                                self.logger.warning(f"MemoryPressureDetector probe error: {e}")
+                            self.query_logger.warning(f"MemoryPressureDetector probe error: {e}")
                             return []
                 
                 # Создаем и регистрируем детектор
-                memory_detector = MemoryPressureDetector(self._check_memory_pressure, self.query_logger)
+                memory_detector = MemoryPressureDetector(self._check_memory_pressure)
                 self.background.register_detector(memory_detector)
                 self.query_logger.info("Детектор давления памяти зарегистрирован")
         except Exception as e:
@@ -1814,7 +1748,7 @@ class CoreBrain:
             
             # Проверяем VRAM если доступно
             vram_pressure = 0.0
-            if torch is not None and torch.cuda.is_available():
+            if torch.cuda.is_available():
                 vram_used = torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory
                 vram_pressure = vram_used
             
@@ -1908,9 +1842,6 @@ class CoreBrain:
         """Вытесняет токены из VRAM в RAM"""
         try:
             if not hasattr(self.token_cache, 'vram_cache'):
-                return
-            
-            if not hasattr(self.token_cache, 'ram_cache'):
                 return
             
             vram_cache = self.token_cache.vram_cache
@@ -2123,7 +2054,7 @@ class CoreBrain:
             ram_hits = stats.get('ram_hits', 0)
             disk_hits = stats.get('disk_hits', 0)
             
-            if vram_hits == 0 and torch is not None and torch.cuda.is_available():
+            if vram_hits == 0 and torch.cuda.is_available():
                 recommendations.append("VRAM кэш не используется. Проверьте настройки GPU.")
             
             if disk_hits > ram_hits * 2:
@@ -2185,13 +2116,7 @@ class CoreBrain:
             status["resources"] = self.resource_manager.get_resource_summary()
         
         if self.config_manager:
-            try:
-                if hasattr(self.config_manager, 'validate_config'):
-                    status["config_valid"] = self.config_manager.validate_config()
-                else:
-                    status["config_valid"] = None
-            except Exception:
-                status["config_valid"] = None
+            status["config_valid"] = self.config_manager.validate_config()
         
         return status
     
@@ -2228,7 +2153,7 @@ class CoreBrain:
         
         elif msg == "test":
             if self.fractal_model_manager:
-                return self.fractal_model_manager.generate_response("Привет", max_new_tokens=30)
+                return self.fractal_model_manager.generate_response("Привет", max_tokens=30)
             return "Model not available"
         
         elif msg == "memory":
@@ -2649,7 +2574,7 @@ class CoreBrain:
 
 
 # Backward compatibility alias
-ЕВАCore = CoreBrain
+CogniFlexCore = CoreBrain
 
 
 def setup_logging():
@@ -2675,7 +2600,7 @@ def main():
         logger.info("Ядро успешно инициализировано")
         
         if core.start():
-            logger.info("Система ЕВА успешно запущена")
+            logger.info("Система CogniFlex успешно запущена")
             startup_time = time.time() - startup_start
             logger.info(f"Полное время запуска системы: {startup_time:.4f} сек")
             
