@@ -106,7 +106,7 @@ class TextQualityChecker:
         # 6. Проверяем паттерны повторов
         word_counts = Counter(words)
         most_common = word_counts.most_common(3)
-        repetition_score = sum(c for _, c in most_common) / len(words)
+        repetition_score = sum(c for _, c in most_common) / len(words) if words else 0.0
         
         metrics['repetition_score'] = repetition_score
         

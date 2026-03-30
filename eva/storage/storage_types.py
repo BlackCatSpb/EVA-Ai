@@ -54,7 +54,7 @@ class StorageEntry:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "key": self.key,
-            "storage_type": self.storage_type.value if isinstance(self.storage_type, StorageType) else self.storage_type,
+            "storage_type": self.storage_type.value,
             "size_bytes": self.size_bytes,
             "created_at": self.created_at,
             "accessed_at": self.accessed_at

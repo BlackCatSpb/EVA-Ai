@@ -103,14 +103,20 @@ class MetricsCollector:
         if not values:
             return {"count": len(metrics)}
 
-        return {
+        result = {
             "count": len(metrics),
-            "min": min(values),
-            "max": max(values),
-            "avg": statistics.mean(values),
-            "median": statistics.median(values),
-            "std_dev": statistics.stdev(values) if len(values) > 1 else 0
+            "min": min(values) if values else 0,
+            "max": max(values) if values else 0,
+            "avg": statistics.mean(values) if values else 0,
+            "median": statistics.median(values) if values else 0,
         }
+        
+        if len(values) > 1:
+            result["std_dev"] = statistics.stdev(values)
+        else:
+            result["std_dev"] = 0
+        
+        return result
 
 class HealthChecker:
     """Проверяет здоровье компонентов системы."""

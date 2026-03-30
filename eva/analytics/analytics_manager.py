@@ -197,7 +197,10 @@ class AnalyticsManager:
             timestamp = time.time()
             
             # Получаем системные метрики
-            system_metrics = self.brain.get_system_metrics()
+            if hasattr(self.brain, 'get_system_metrics'):
+                system_metrics = self.brain.get_system_metrics()
+            else:
+                system_metrics = {}
             
             self.system_metrics['timestamp'].append(timestamp)
             self.system_metrics['cpu_usage'].append(system_metrics.get('cpu_usage', 0))

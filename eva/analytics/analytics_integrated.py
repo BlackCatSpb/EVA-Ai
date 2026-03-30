@@ -161,10 +161,10 @@ class IntegratedAnalyticsManager(BaseComponent):
             
             metrics = {
                 'total_queries': len(self.performance_data),
-                'success_rate': success_count / len(self.performance_data),
-                'avg_response_time': sum(response_times) / len(response_times),
-                'min_response_time': min(response_times),
-                'max_response_time': max(response_times)
+                'success_rate': success_count / len(self.performance_data) if self.performance_data else 0,
+                'avg_response_time': sum(response_times) / len(response_times) if response_times else 0,
+                'min_response_time': min(response_times) if response_times else 0,
+                'max_response_time': max(response_times) if response_times else 0
             }
             
             # Добавляем метрики из оригинального менеджера
@@ -237,10 +237,10 @@ class IntegratedAnalyticsManager(BaseComponent):
             report = {
                 'period_hours': period_hours,
                 'data_points': len(period_data),
-                'success_rate': success_count / len(period_data),
-                'avg_response_time': sum(response_times) / len(response_times),
-                'min_response_time': min(response_times),
-                'max_response_time': max(response_times)
+                'success_rate': success_count / len(period_data) if period_data else 0,
+                'avg_response_time': sum(response_times) / len(response_times) if response_times else 0,
+                'min_response_time': min(response_times) if response_times else 0,
+                'max_response_time': max(response_times) if response_times else 0
             }
             
             # Публикуем событие генерации отчета

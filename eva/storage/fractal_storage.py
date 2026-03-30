@@ -114,10 +114,24 @@ class FractalStorage:
         if not self.initialized:
             logger.warning("Попытка удалить данные из неинициализированного хранилища")
             return False
+        
+        try:
+            import os
             
-        # В реальной реализации здесь была бы логика удаления
-        logger.debug(f"Удаление данных с ключом '{key}' из фрактального хранилища")
-        return True
+            safe_key = key.replace('/', '_').replace('\\', '_')
+            filepath = os.path.join(self.storage_dir, f"{safe_key}.json")
+            
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                logger.debug(f"Удалены данные с ключом '{key}' из {filepath}")
+                return True
+            else:
+                logger.warning(f"Файл с ключом '{key}' не найден в хранилище")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Ошибка удаления данных с ключом '{key}': {e}")
+            return False
         
     def get_tokenizer(self, model_name: str, **kwargs):
         """Загружает токенизатор из фрактального хранилища.

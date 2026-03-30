@@ -175,13 +175,14 @@ class InferenceWorkerPool:
     def infer_batches(self, batches: Iterable[Batch]) -> Iterator[Any]:
         pending: pyqueue.Queue[int] = pyqueue.Queue()
         # Submit pipeline
+        submitted = 0
         for b in batches:
             bid = self.submit(b)
             pending.put(bid)
+            submitted += 1
         # Collect
         received = 0
-        total = pending.qsize()
-        while received < total:
+        while received < submitted:
             bid, res = self.recv()
             received += 1
             if isinstance(res, Exception):

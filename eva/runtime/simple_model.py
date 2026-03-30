@@ -30,8 +30,12 @@ def example_model_fn(batch: Batch) -> Dict[str, Any]:
             logits = x.to(dtype=torch.float32)
         else:
             # Fallback: batch size inferred from any tensor's first dim
-            any_t = next(iter(tensors.values()))
-            logits = torch.zeros((any_t.shape[0], 1), dtype=torch.float32)
+            if not tensors:
+                # No tensors available - return empty result
+                logits = torch.zeros((len(metas), 1), dtype=torch.float32)
+            else:
+                any_t = next(iter(tensors.values()))
+                logits = torch.zeros((any_t.shape[0], 1), dtype=torch.float32)
 
     return {
         "logits": logits,  # [B, 1]

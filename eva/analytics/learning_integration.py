@@ -98,6 +98,10 @@ class AnalyticsLearningIntegration:
             if self.brain and hasattr(self.brain, 'model_manager'):
                 model_manager = self.brain.model_manager
                 
+                if not hasattr(model_manager, 'models') or not isinstance(model_manager.models, dict):
+                    logger.warning("model_manager.models не является словарем")
+                    return analysis
+                
                 # Анализируем каждую модель
                 for model_name in model_manager.models:
                     model_info = self._get_model_info(model_name)
@@ -248,9 +252,13 @@ class AnalyticsLearningIntegration:
     def _get_contradiction_stats(self) -> Optional[Dict[str, Any]]:
         """Получает статистику противоречий"""
         try:
-            if self.brain:
+            if self.brain and hasattr(self.brain, 'get_contradiction_statistics'):
                 stats = self.brain.get_contradiction_statistics()
                 return stats
+            elif self.brain and hasattr(self.brain, 'contradiction_manager'):
+                cm = self.brain.contradiction_manager
+                if hasattr(cm, 'get_statistics'):
+                    return cm.get_statistics()
         except Exception as e:
             logger.error(f"Ошибка получения статистики противоречий: {e}")
         

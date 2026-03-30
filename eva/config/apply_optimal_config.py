@@ -87,4 +87,7 @@ if __name__ == "__main__":
         print("[ERROR] Failed to apply configuration")
     
     print("\nPress Enter to exit...")
-    input()
+    try:
+        input()
+    except (EOFError, KeyboardInterrupt):
+        pass
