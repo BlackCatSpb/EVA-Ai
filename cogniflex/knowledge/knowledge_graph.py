@@ -1115,7 +1115,7 @@ class KnowledgeGraph:
     
     def _save_node_to_db(self, node: KnowledgeNode) -> bool:
         """
-        Сохраняет узел в базу данных.
+        Сохраняет узел в базу данных с использованием транзакций.
         
         Args:
             node: Узел для сохранения
@@ -1123,8 +1123,10 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли сохранено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
             cursor.execute("""
@@ -1152,17 +1154,20 @@ class KnowledgeGraph:
             ))
             
             conn.commit()
-            conn.close()
-            
             return True
             
         except Exception as e:
+            if conn:
+                conn.rollback()
             logger.error(f"Ошибка сохранения узла {node.id} в БД: {e}", exc_info=True)
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def _update_node_in_db(self, node: KnowledgeNode) -> bool:
         """
-        Обновляет узел в базе данных.
+        Обновляет узел в базе данных с использованием транзакций.
         
         Args:
             node: Узел для обновления
@@ -1170,8 +1175,10 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли обновлено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
             cursor.execute("""
@@ -1210,17 +1217,20 @@ class KnowledgeGraph:
             ))
             
             conn.commit()
-            conn.close()
-            
             return True
             
         except Exception as e:
+            if conn:
+                conn.rollback()
             logger.error(f"Ошибка обновления узла {node.id} в БД: {e}", exc_info=True)
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def _remove_node_from_db(self, node_id: str) -> bool:
         """
-        Удаляет узел из базы данных.
+        Удаляет узел из базы данных с использованием транзакций.
         
         Args:
             node_id: ID узла для удаления
@@ -1228,28 +1238,28 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли удалено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
-            # Удаляем сначала связи
-            cursor.execute("DELETE FROM edges WHERE source_id = ? OR target_id = ?", (node_id, node_id))
-            
-            # Удаляем узел
-            cursor.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
-            
-            conn.commit()
-            conn.close()
+            with conn:
+                cursor.execute("DELETE FROM edges WHERE source_id = ? OR target_id = ?", (node_id, node_id))
+                cursor.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
             
             return True
             
         except Exception as e:
             logger.error(f"Ошибка удаления узла {node_id} из БД: {e}", exc_info=True)
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def _save_edge_to_db(self, edge: KnowledgeEdge) -> bool:
         """
-        Сохраняет связь в базу данных.
+        Сохраняет связь в базу данных с использованием транзакций.
         
         Args:
             edge: Связь для сохранения
@@ -1257,8 +1267,10 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли сохранено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
             cursor.execute("""
@@ -1282,17 +1294,20 @@ class KnowledgeGraph:
             ))
             
             conn.commit()
-            conn.close()
-            
             return True
             
         except Exception as e:
+            if conn:
+                conn.rollback()
             logger.error(f"Ошибка сохранения связи {edge.id} в БД: {e}", exc_info=True)
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def _update_edge_in_db(self, edge: KnowledgeEdge) -> bool:
         """
-        Обновляет связь в базе данных.
+        Обновляет связь в базе данных с использованием транзакций.
         
         Args:
             edge: Связь для обновления
@@ -1300,8 +1315,10 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли обновлено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
             cursor.execute("""
@@ -1332,17 +1349,20 @@ class KnowledgeGraph:
             ))
             
             conn.commit()
-            conn.close()
-            
             return True
             
         except Exception as e:
+            if conn:
+                conn.rollback()
             logger.error(f"Ошибка обновления связи {edge.id} в БД: {e}", exc_info=True)
             return False
+        finally:
+            if conn:
+                conn.close()
     
     def _remove_edge_from_db(self, edge_id: str) -> bool:
         """
-        Удаляет связь из базы данных.
+        Удаляет связь из базы данных с использованием транзакций.
         
         Args:
             edge_id: ID связи для удаления
@@ -1350,14 +1370,14 @@ class KnowledgeGraph:
         Returns:
             bool: Успешно ли удалено
         """
+        conn = None
         try:
-            conn = sqlite3.connect(self.db_path)
+            conn = sqlite3.connect(self.db_path, timeout=30.0)
+            conn.execute("PRAGMA journal_mode=WAL")
             cursor = conn.cursor()
             
-            cursor.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
-            
-            conn.commit()
-            conn.close()
+            with conn:
+                cursor.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
             
             return True
             

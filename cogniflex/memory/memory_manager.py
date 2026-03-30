@@ -71,6 +71,12 @@ class MemoryManager:
         self.user_profiles = {}
         self.hybrid_cache = None
         
+        # Лимиты памяти для предотвращения утечек
+        self.max_working_memory = 1000
+        self.max_semantic_memory = 5000
+        self.max_episodic_memory = 2000
+        self.max_user_profiles = 100
+        
         self.entity_extractor = EntityExtractor() if EntityExtractor else None
         
         # Замки для потокобезопасности
@@ -610,10 +616,23 @@ class MemoryManager:
         
         with self.memory_locks[memory_type]:
             if memory_type == "working":
+                # Enforce size limits - remove oldest if limit exceeded
+                if len(self.working_memory) >= self.max_working_memory:
+                    oldest_key = min(self.working_memory.keys(), key=lambda k: self.working_memory[k].get('timestamp', 0))
+                    del self.working_memory[oldest_key]
+                    logger.debug(f"Removed oldest working memory entry: {oldest_key}")
                 self.working_memory[memory_id] = memory_entry
             elif memory_type == "semantic":
+                if len(self.semantic_memory) >= self.max_semantic_memory:
+                    oldest_key = min(self.semantic_memory.keys(), key=lambda k: self.semantic_memory[k].get('timestamp', 0))
+                    del self.semantic_memory[oldest_key]
+                    logger.debug(f"Removed oldest semantic memory entry: {oldest_key}")
                 self.semantic_memory[memory_id] = memory_entry
             elif memory_type == "episodic":
+                if len(self.episodic_memory) >= self.max_episodic_memory:
+                    self.episodic_memory.sort(key=lambda x: x.get('timestamp', 0))
+                    self.episodic_memory.pop(0)
+                    logger.debug("Removed oldest episodic memory entry")
                 self.episodic_memory.append(memory_entry)
             
             # Сохраняем изменения внутри критической секции
@@ -705,7 +724,7 @@ class MemoryManager:
     
     def update_user_profile(self, user_id: str, updates: Dict) -> bool:
         """
-        Обновляет профиль пользователя.
+        Обновляет профиль пользователя с ограничением на количество профилей.
         
         Args:
             user_id: ID пользователя
@@ -715,6 +734,12 @@ class MemoryManager:
             bool: Успешно ли обновлено
         """
         with self.memory_locks["user_profiles"]:
+            # Enforce profile limit
+            if user_id not in self.user_profiles and len(self.user_profiles) >= self.max_user_profiles:
+                oldest_user = min(self.user_profiles.keys(), key=lambda k: self.user_profiles[k].get('last_active', 0))
+                del self.user_profiles[oldest_user]
+                logger.debug(f"Removed oldest user profile: {oldest_user}")
+            
             if user_id not in self.user_profiles:
                 self.user_profiles[user_id] = {
                     "id": user_id,
@@ -732,6 +757,11 @@ class MemoryManager:
                     self.user_profiles[user_id]["interaction_history"].extend(value)
                 else:
                     self.user_profiles[user_id][key] = value
+            
+            # Limit interaction history size
+            max_history = 100
+            if len(self.user_profiles[user_id].get("interaction_history", [])) > max_history:
+                self.user_profiles[user_id]["interaction_history"] = self.user_profiles[user_id]["interaction_history"][-max_history:]
             
             self.user_profiles[user_id]["last_active"] = time.time()
             self._save_user_profiles()

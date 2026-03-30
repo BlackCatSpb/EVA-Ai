@@ -917,12 +917,20 @@ class TrainingOrchestrator:
                             time.sleep(self.backoff_sec * (2 ** attempt))
                             continue
                         else:
-                            # Fatal for this batch — stop and return status, can resume later
+                            # Fatal for this batch — save checkpoint for recovery before returning
+                            progress.last_success_ts = time.time()
+                            try:
+                                progress.save(progress_path)
+                                logger.info(f"Recovery checkpoint saved at chunk {progress.processed_chunks}")
+                            except Exception as checkpoint_error:
+                                logger.error(f"Failed to save recovery checkpoint: {checkpoint_error}")
+                            
                             result = {
                                 "status": "failed",
                                 "document_id": doc_id,
                                 "processed_chunks": progress.processed_chunks,
                                 "error": str(e),
+                                "recovery_available": True,
                             }
                             self._emit("failed", result)
                             # Metrics: document failed
@@ -1365,9 +1373,16 @@ class TrainingOrchestrator:
                 setattr(self.brain, "in_training", True)
         except Exception:
             self._prev_brain_in_training = (None, None)
+        
+        # Initialize resource tracking for failure recovery
+        self._training_resource_checkpoint = {
+            "memory_used_mb": 0.0,
+            "batches_completed": 0,
+            "last_successful_batch": -1,
+        }
 
     def _exit_training_mode(self) -> None:
-        """Restore brain flag and env var after training completes."""
+        """Restore brain flag and env var after training completes with cleanup."""
         try:
             import os as _os
             if getattr(self, "_prev_training_env", None) is None:
@@ -1392,6 +1407,18 @@ class TrainingOrchestrator:
                 else:
                     setattr(self.brain, "in_training", prev[1])
         except Exception:
+            pass
+        
+        # Clear resource checkpoint
+        if hasattr(self, '_training_resource_checkpoint'):
+            self._training_resource_checkpoint = None
+        
+        # Force cleanup of temporary training resources
+        try:
+            import gc
+            gc.collect()
+        except Exception:
+            pass
             pass
 
     def _check_and_adapt_resources(self) -> None:

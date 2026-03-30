@@ -1095,22 +1095,35 @@ class SelfReasoningEngine:
         similar_reasoning: List[Dict],
         depth: int
     ) -> Dict[str, Any]:
-        """Синтез результатов рекурсивной обработки"""
+        """Синтез результатов рекурсивной обработки с consistent confidence calculation"""
         combined_responses = [r.get("response", "") for r in sub_results]
         combined_confidences = [r.get("confidence", 0.0) for r in sub_results]
         
-        avg_confidence = sum(combined_confidences) / len(combined_confidences) if combined_confidences else 0.5
+        # Consistent confidence calculation using weighted average
+        if combined_confidences:
+            # Weight by number of iterations (more iterations = higher confidence)
+            weights = [r.get("iterations", 1) for r in sub_results]
+            total_weight = sum(weights)
+            avg_confidence = sum(c * w for c, w in zip(combined_confidences, weights)) / total_weight if total_weight > 0 else 0.5
+        else:
+            avg_confidence = 0.5
         
+        # Apply consistent boost from similar reasoning
         if similar_reasoning:
             similar_confidences = [s.get("confidence", 0.5) for s in similar_reasoning]
             if similar_confidences:
-                boost = min(0.1, sum(similar_confidences) / len(similar_confidences) * 0.1)
+                avg_similar = sum(similar_confidences) / len(similar_confidences)
+                # Apply capped boost (max 0.1)
+                boost = min(0.1, avg_similar * 0.2)
                 avg_confidence = min(1.0, avg_confidence + boost)
         
+        # Ensure confidence is always within valid range and properly rounded
+        avg_confidence = round(max(0.0, min(1.0, avg_confidence)), 3)
+        
         prompt = f"""На основе подответов составь единый ответ на вопрос.
-Вопрос: {query}
-Подответы: {' '.join(combined_responses)}
-Дай финальный ответ:"""
+        Вопрос: {query}
+        Подответы: {' '.join(combined_responses)}
+        Дай финальный ответ:"""
         
         final_response = self._generate_with_qwen(prompt)
         

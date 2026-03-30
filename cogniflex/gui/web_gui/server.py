@@ -18,7 +18,21 @@ app = Flask(__name__,
             template_folder='templates',
             static_folder='static',
             static_url_path='/static')
-app.config['SECRET_KEY'] = os.environ.get('COGNIFLEX_SECRET_KEY', os.urandom(32).hex())
+def _get_secret_key():
+    env_key = os.environ.get('COGNIFLEX_SECRET_KEY')
+    if env_key:
+        return env_key
+    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cogniflex_config.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                if config.get('web_gui', {}).get('secret_key'):
+                    return config['web_gui']['secret_key']
+        except Exception:
+            pass
+    raise ValueError("SECRET_KEY must be set via COGNIFLEX_SECRET_KEY environment variable or cogniflex_config.json")
+app.config['SECRET_KEY'] = _get_secret_key()
 app.config['JSON_AS_ASCII'] = False
 
 # Configure Tesseract path for OCR
@@ -52,7 +66,12 @@ class SessionManager:
         try:
             if os.path.exists(self._storage_file):
                 with open(self._storage_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                    try:
+                        data = json.load(f)
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Ошибка парсинга JSON сессий: {e}, файл будет перезаписан")
+                        self.sessions = {}
+                        return
                     self.sessions = data.get('sessions', {})
                     logger.info(f"Загружено {len(self.sessions)} сессий из хранилища")
         except Exception as e:
@@ -124,11 +143,11 @@ class AuthManager:
         self._lock = threading.Lock()
         
     def set_default_credentials(self, username: str, password: str):
-        self._default_password_hash = hashlib.sha256(password.encode()).hexdigest()
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
         with self._lock:
             self.users[username] = {
                 'username': username,
-                'password_hash': self._default_password_hash,
+                'password_hash': password_hash,
                 'created_at': datetime.now().isoformat()
             }
     
@@ -223,7 +242,19 @@ class WebGUI:
         self.entity_extractor = EntityExtractor()
         self.ethics_checker = EthicsChecker()
         
-        self.auth_manager.set_default_credentials("admin", "cogniflex")
+        admin_user = os.environ.get('COGNIFLEX_ADMIN_USER', 'admin')
+        admin_pass = os.environ.get('COGNIFLEX_ADMIN_PASS')
+        if not admin_pass:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'cogniflex_config.json')
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                        admin_pass = config.get('web_gui', {}).get('admin_password')
+                except Exception:
+                    pass
+        if admin_pass:
+            self.auth_manager.set_default_credentials(admin_user, admin_pass)
         
         logger.info(f"WebGUI инициализирован на {host}:{port}")
     
@@ -301,7 +332,7 @@ class WebGUI:
             debug_info["result_keys"] = list(result.keys()) if result else []
             debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result else None
             debug_info["result_source"] = result.get('source') if result else None
-            logger.info(f"DEBUG brain result: source={result.get('source') if result else 'None'}, reasoning={str(result.get('reasoning'))[:50] if result else 'None'}")
+            logger.debug(f"brain result: source={result.get('source') if result else 'None'}")
             if result:
                 response_text = result.get('response', result.get('text', response_text))
         else:
@@ -559,7 +590,7 @@ def api_upload():
 
 
 def extract_text_from_file(filepath, ext):
-    """Извлекает текст из файла в зависимости от типа"""
+    """Извлекает текст из файла в зависимости от типа. Всегда возвращает строку."""
     try:
         if ext == '.txt':
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
@@ -644,7 +675,7 @@ def extract_text_from_file(filepath, ext):
                 return text
             except ImportError:
                 logger.warning("python-docx не установлен")
-                return None
+                return f"[DOCX: python-docx не установлен для чтения {os.path.basename(filepath)}]"
         
         elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
             # For images, try OCR if available
@@ -663,10 +694,10 @@ def extract_text_from_file(filepath, ext):
                 return f.read()
         
         else:
-            return None
+            return f"[Формат файла не поддерживается: {ext}]"
     except Exception as e:
         logger.error(f"Ошибка извлечения текста: {e}")
-        return None
+        return f"[Ошибка чтения файла: {str(e)}]"
 
 
 @app.route('/api/chat', methods=['POST'])

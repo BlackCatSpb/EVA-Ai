@@ -585,12 +585,9 @@ class ComponentInitializer:
                     from cogniflex.analytics.analytics_manager import AnalyticsManager as MetricsCollector
                 metrics_collector = MetricsCollector(brain=self.core_brain)
                 if hasattr(metrics_collector, 'initialize'):
-                    try:
-                        init_result = metrics_collector.initialize()
-                        if init_result is False:
-                            self.logger.warning("[WARN] MetricsCollector.initialize() вернул False")
-                    except Exception as init_err:
-                        self.logger.warning(f"[WARN] Ошибка инициализации MetricsCollector: {init_err}")
+                    init_result = metrics_collector.initialize()
+                    if init_result is False:
+                        self.logger.warning("[WARN] MetricsCollector.initialize() вернул False")
                 self.core_brain.metrics_collector = metrics_collector
                 self.logger.info("[OK] MetricsCollector создан")
                 return metrics_collector

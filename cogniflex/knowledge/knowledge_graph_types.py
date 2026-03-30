@@ -5,7 +5,7 @@
 import json
 import time
 import copy
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 
 
@@ -57,32 +57,40 @@ class RelationType(Enum):
 class KnowledgeNode:
     """Представляет узел в графе знаний с поддержкой версионирования и метаданных."""
     
-    def __init__(self, id: str, name: str, description: str, 
-                 node_type: str = "fact", domain: str = "general",
-                 strength: float = 0.5, timestamp: Optional[float] = None,
-                 meta: Optional[Dict] = None, version: int = 1,
-                 spatial_info: Optional[Dict[str, Any]] = None,
-                 temporal_info: Optional[Dict[str, Any]] = None):
-        self.id = id
-        self.name = name
-        self.description = description
-        self.content = description
-        self.node_type = node_type
-        self.domain = domain
-        self.strength = strength
-        self.timestamp = timestamp or time.time()
-        self.last_updated = self.timestamp
-        self.meta = meta or {}
-        self.version = version
-        self.spatial_info = spatial_info or {}
-        self.temporal_info = temporal_info or {}
-        self.embedding = None
-        self.history = []
+    def __init__(
+        self,
+        id: str,
+        name: str,
+        description: str,
+        node_type: str = "fact",
+        domain: str = "general",
+        strength: float = 0.5,
+        timestamp: Optional[float] = None,
+        meta: Optional[Dict[str, Any]] = None,
+        version: int = 1,
+        spatial_info: Optional[Dict[str, Any]] = None,
+        temporal_info: Optional[Dict[str, Any]] = None
+    ) -> None:
+        self.id: str = id
+        self.name: str = name
+        self.description: str = description
+        self.content: str = description
+        self.node_type: str = node_type
+        self.domain: str = domain
+        self.strength: float = strength
+        self.timestamp: float = timestamp or time.time()
+        self.last_updated: float = self.timestamp
+        self.meta: Dict[str, Any] = meta or {}
+        self.version: int = version
+        self.spatial_info: Dict[str, Any] = spatial_info or {}
+        self.temporal_info: Dict[str, Any] = temporal_info or {}
+        self.embedding: Optional[List[float]] = None
+        self.history: List[Dict[str, Any]] = []
         if 'sources' not in self.meta:
             self.meta['sources'] = []
-        self.contradictions = []
-        self.keyword_index = []
-        self.concept_index = []
+        self.contradictions: List[Dict[str, Any]] = []
+        self.keyword_index: List[str] = []
+        self.concept_index: List[str] = []
     
     def update(self, new_description: str, strength: Optional[float] = None,
               source: Optional[str] = None, user_id: Optional[str] = None,
@@ -188,24 +196,32 @@ class KnowledgeNode:
 class KnowledgeEdge:
     """Представляет связь между узлами в графе знаний."""
     
-    def __init__(self, id: str, source_id: str, target_id: str, 
-                 relation_type: str, strength: float = 0.5,
-                 timestamp: Optional[float] = None, meta: Optional[Dict] = None,
-                 version: int = 1, spatial_info: Optional[Dict[str, Any]] = None,
-                 temporal_info: Optional[Dict[str, Any]] = None):
-        self.id = id
-        self.source_id = source_id
-        self.target_id = target_id
-        self.relation_type = relation_type
-        self.strength = strength
-        self.timestamp = timestamp or time.time()
-        self.last_updated = self.timestamp
-        self.meta = meta or {}
-        self.version = version
-        self.spatial_info = spatial_info or {}
-        self.temporal_info = temporal_info or {}
-        self.embedding = None
-        self.history = []
+    def __init__(
+        self,
+        id: str,
+        source_id: str,
+        target_id: str,
+        relation_type: str,
+        strength: float = 0.5,
+        timestamp: Optional[float] = None,
+        meta: Optional[Dict[str, Any]] = None,
+        version: int = 1,
+        spatial_info: Optional[Dict[str, Any]] = None,
+        temporal_info: Optional[Dict[str, Any]] = None
+    ) -> None:
+        self.id: str = id
+        self.source_id: str = source_id
+        self.target_id: str = target_id
+        self.relation_type: str = relation_type
+        self.strength: float = strength
+        self.timestamp: float = timestamp or time.time()
+        self.last_updated: float = self.timestamp
+        self.meta: Dict[str, Any] = meta or {}
+        self.version: int = version
+        self.spatial_info: Dict[str, Any] = spatial_info or {}
+        self.temporal_info: Dict[str, Any] = temporal_info or {}
+        self.embedding: Optional[List[float]] = None
+        self.history: List[Dict[str, Any]] = []
         if 'sources' not in self.meta:
             self.meta['sources'] = []
     

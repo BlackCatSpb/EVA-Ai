@@ -152,10 +152,25 @@ class MLUnit:
         self.model = None
         self._model_initialized = False
         
+        # Memory management
+        self._last_cleanup_time = 0.0
+        self._cleanup_interval = 60.0  # seconds
+        
         # Очередь для GUI
         self.gui_queue = queue.Queue()
         
         logger.info("MLUnit инициализирован")
+    
+    def _maybe_cleanup_memory(self):
+        """Cleanup memory periodically to prevent spikes."""
+        current_time = time.time()
+        if current_time - self._last_cleanup_time > self._cleanup_interval:
+            self._last_cleanup_time = current_time
+            try:
+                if self.hybrid_cache and hasattr(self.hybrid_cache, 'cleanup'):
+                    self.hybrid_cache.cleanup()
+            except Exception as e:
+                logger.debug(f"Memory cleanup warning: {e}")
     
     def _init_ml_core(self):
         """Инициализирует MLCore."""
@@ -774,7 +789,7 @@ class MLUnit:
     
     def generate_response(self, prompt: str, **kwargs) -> Dict[str, Any]:
         """
-        Генерирует ответ на запрос.
+        Генерирует ответ на запрос с управлением памятью.
         
         Args:
             prompt: Текст запроса
@@ -787,21 +802,28 @@ class MLUnit:
         self.stats["total_requests"] += 1
         
         try:
+            # Periodic memory cleanup to prevent spikes
+            self._maybe_cleanup_memory()
+            
             if not self.response_generator:
                 logger.error("ResponseGenerator недоступен")
                 return self._create_fallback_response(prompt, "response_generator_unavailable")
             
-            # Генерируем ответ
-            response = self.response_generator.generate_response(prompt, **kwargs)
+            # Generate response with error handling
+            try:
+                response = self.response_generator.generate_response(prompt, **kwargs)
+            except Exception as gen_error:
+                logger.error(f"Response generator error: {gen_error}")
+                return self._create_fallback_response(prompt, f"generation_error: {str(gen_error)}")
             
-            # Обновляем статистику
+            # Update statistics
             self._update_statistics(start_time, True)
             
             return response
             
         except Exception as e:
             self._update_statistics(start_time, False)
-            logger.error(f"Ошибка генерации ответа: {e}")
+            logger.error(f"Ошибка генерации ответа: {e}", exc_info=True)
             return self._create_fallback_response(prompt, str(e))
     
     def get_model_statistics(self):
@@ -829,7 +851,7 @@ class MLUnit:
     def process_text(self, text: str, **kwargs) -> Dict[str, Any]:
         """
         Метод process_text для совместимости с существующим кодом.
-        Обрабатывает текст через доступные компоненты.
+        Обрабатывает текст через доступные компоненты с управлением памятью.
         
         Args:
             text: Текст для обработки
@@ -841,6 +863,9 @@ class MLUnit:
         start_time = time.time()
         
         try:
+            # Periodic memory cleanup
+            self._maybe_cleanup_memory()
+            
             result = {
                 "original_text": text,
                 "processed_text": text,

@@ -206,18 +206,18 @@ class EventBus:
             bool: Успешность публикации
         """
         try:
-            # Добавляем в историю
-            self._event_history.append(event)
-            self._stats['events_published'] += 1
+            with self._lock:
+                self._event_history.append(event)
+                self._stats['events_published'] += 1
             
-            # Добавляем в очередь обработки
             self._event_queue.put(event)
             
             logger.debug(f"Событие опубликовано: {event.event_type} от {event.source}")
             return True
             
         except Exception as e:
-            self._stats['events_failed'] += 1
+            with self._lock:
+                self._stats['events_failed'] += 1
             logger.error(f"Ошибка публикации события {event.event_type}: {e}")
             return False
     
@@ -232,18 +232,18 @@ class EventBus:
             int: Количество обработанных подписчиков
         """
         try:
-            # Добавляем в историю
-            self._event_history.append(event)
-            self._stats['events_published'] += 1
+            with self._lock:
+                self._event_history.append(event)
+                self._stats['events_published'] += 1
             
-            # Обрабатываем немедленно
             processed = self._process_event(event)
             
             logger.debug(f"Синхронное событие обработано: {event.event_type}, обработчиков: {processed}")
             return processed
             
         except Exception as e:
-            self._stats['events_failed'] += 1
+            with self._lock:
+                self._stats['events_failed'] += 1
             logger.error(f"Ошибка синхронной публикации события {event.event_type}: {e}")
             return 0
     

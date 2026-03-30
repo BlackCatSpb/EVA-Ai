@@ -1105,25 +1105,45 @@ class SelfDialogLearningSystem:
         self.stats["actions_taken"] += len(actions)
     
     def _finalize_dialog(self, dialog: SelfDialog):
-        """Финализирует диалог и выполняет действия."""
-        if dialog.id in self.active_dialogs:
-            del self.active_dialogs[dialog.id]
-        
-        self.dialog_history.append(dialog)
-        
-        if len(self.dialog_history) > self.max_history_size:
-            self.dialog_history = self.dialog_history[-self.max_history_size:]
-        
-        for gap in dialog.knowledge_gaps:
-            self._trigger_learning(gap)
-        
-        for callback in self.learning_callbacks:
-            try:
-                callback(dialog)
-            except Exception as e:
-                logger.error(f"Ошибка в callback обучения: {e}")
-        
-        logger.info(f"Самодиалог завершен: {dialog.id}, исход: {dialog.outcome}")
+        """Финализирует диалог и выполняет действия с proper cleanup."""
+        try:
+            # Remove from active dialogs with error handling
+            if dialog.id in self.active_dialogs:
+                del self.active_dialogs[dialog.id]
+            
+            # Clear dialog turns to free memory
+            dialog.turns.clear()
+            
+            # Add to history with size limit
+            self.dialog_history.append(dialog)
+            
+            if len(self.dialog_history) > self.max_history_size:
+                # Remove oldest dialogs to free memory
+                excess = len(self.dialog_history) - self.max_history_size
+                self.dialog_history = self.dialog_history[excess:]
+            
+            # Trigger learning for knowledge gaps with error handling
+            for gap in dialog.knowledge_gaps:
+                try:
+                    self._trigger_learning(gap)
+                except Exception as gap_error:
+                    logger.warning(f"Failed to trigger learning for gap '{gap}': {gap_error}")
+            
+            # Execute callbacks with error isolation
+            for callback in self.learning_callbacks:
+                try:
+                    callback(dialog)
+                except Exception as callback_error:
+                    logger.error(f"Ошибка в callback обучения: {callback_error}")
+            
+            logger.info(f"Самодиалог завершен: {dialog.id}, исход: {dialog.outcome}")
+            
+        except Exception as e:
+            logger.error(f"Error in dialog finalization: {e}", exc_info=True)
+        finally:
+            # Ensure dialog reference is cleared
+            dialog.turns = []
+            dialog.knowledge_gaps = []
     
     def _trigger_learning(self, gap: str) -> None:
         """Запускает процесс обучения для указанного пробела."""

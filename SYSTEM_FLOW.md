@@ -1426,3 +1426,69 @@ AuthManager (server.py):
 
 - Проверка синтаксиса: **310/310 файлов** прошли проверку
 - Все CRITICAL и HIGH исправления подтверждены
+
+---
+
+## Версия 1.17 (2026-03-30) - 12-й цикл аудита
+
+### 21.1 AI Architect результаты
+
+**Итог: 2 CRITICAL | 8 HIGH | 12 MEDIUM | 7 LOW**
+
+### 21.2 Исправления AI Developer 1 (core/gui)
+
+**server.py (7 исправлений):**
+- CRITICAL: SECRET_KEY — теперь читается из COGNIFLEX_SECRET_KEY env var или cogniflex_config.json
+- CRITICAL: Hardcoded credentials — теперь читается из COGNIFLEX_ADMIN_USER/COGNIFLEX_ADMIN_PASS env vars
+- HIGH: event_bus.py thread safety — добавлен locking вокруг _event_history и _stats
+- MEDIUM: Удалена неиспользуемая переменная self._default_password_hash
+- MEDIUM: Debug логирование изменено на logger.debug()
+- LOW: JSON parsing errors — добавлена обработка JSONDecodeError
+- LOW: extract_text_from_file всегда возвращает str
+
+### 21.3 Исправления AI Developer 2 (knowledge/memory/learning)
+
+**knowledge_graph.py:**
+- HIGH: Добавлен timeout=30.0 и PRAGMA journal_mode=WAL
+- HIGH: Добавлены try/finally блоки с cleanup соединений
+- HIGH: Добавлен rollback() при ошибках
+
+**memory_manager.py:**
+- HIGH: Добавлены лимиты: max_working_memory=1000, max_semantic_memory=5000, max_episodic_memory=2000
+- HIGH: Добавлена автоматическая cleanup при превышении лимитов
+
+**learning_scheduler.py:**
+- HIGH: Добавлена проверка resource allocation перед выполнением задач
+
+**self_dialog_learning.py:**
+- HIGH: Добавлена обработка ошибок в _finalize_dialog
+
+**ml_unit.py:**
+- MEDIUM: Добавлен _maybe_cleanup_memory() метод с 60s интервалом
+
+**training_orchestrator.py:**
+- MEDIUM: Добавлен _training_resource_checkpoint для recovery
+
+**self_reasoning_engine.py:**
+- MEDIUM: Изменён расчёт confidence на weighted average
+
+**knowledge_graph_types.py:**
+- LOW: Добавлены proper type hints
+
+### 21.4 Исправления AI Developer 3 (websearch/ml)
+
+**web_search_engine.py:**
+- HIGH: Убран дубликат CacheManager, используется self._cache_manager
+- HIGH: SearchEngines кешируется как self._search_engines
+- MEDIUM: Добавлена проверка hasattr для close метода
+- LOW: Оптимизирована очистка кэша с heapq.nlargest
+
+**component_initializer.py:**
+- LOW: Убран избыточный try/except
+
+### 21.5 AI Tester результаты
+
+- Проверка синтаксиса: **Все изменённые файлы** прошли проверку
+- Все CRITICAL и HIGH исправления подтверждены
+
+(End of file)

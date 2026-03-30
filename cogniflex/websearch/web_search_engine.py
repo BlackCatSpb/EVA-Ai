@@ -57,7 +57,13 @@ class WebSearchEngine:
         }
         
         # Database manager for caching
-        self._db_manager = None
+        self._db_manager = DatabaseManager(self.cache_dir)
+        
+        # Cache manager instance (reused)
+        self._cache_manager = CacheManager(self.cache_dir, self.search_settings["cache_ttl"])
+        
+        # Search engines instance (reused)
+        self._search_engines = SearchEngines()
         
         # Кэш поисковых запросов
         self.search_cache = {}
@@ -73,9 +79,6 @@ class WebSearchEngine:
         self.running = False
         self.search_thread = None
         self._cache_cleanup_thread = None
-        
-        # Cache the DatabaseManager instance
-        self._db_manager = DatabaseManager(self.cache_dir)
         
         # Инициализация базы данных для хранения истории поиска
         try:
@@ -251,13 +254,19 @@ class WebSearchEngine:
             self.search_cache.pop(key, None)
             self._cache_timestamps.pop(key, None)
         
-        # Also enforce max cache size
+        # Also enforce max cache size - use heapq instead of sorting all
         if len(self.search_cache) > self._cache_max_size:
-            sorted_keys = sorted(self._cache_timestamps.items(), key=lambda x: x[1])
-            keys_to_remove = sorted_keys[:len(self.search_cache) - self._cache_max_size]
-            for key, _ in keys_to_remove:
-                self.search_cache.pop(key, None)
-                self._cache_timestamps.pop(key, None)
+            import heapq
+            num_to_remove = len(self.search_cache) - self._cache_max_size
+            # Get oldest keys using heap (O(n) instead of O(n log n))
+            keys_with_ts = list(self._cache_timestamps.items())
+            if keys_with_ts:
+                # Use heap to find smallest n timestamps
+                smallest = heapq.nsmallest(num_to_remove, keys_with_ts, key=lambda x: x[1])
+                keys_to_remove = [k for k, _ in smallest]
+                for key in keys_to_remove:
+                    self.search_cache.pop(key, None)
+                    self._cache_timestamps.pop(key, None)
         
         if expired_keys or len(self.search_cache) > self._cache_max_size:
             logger.info(f"Очищено {len(expired_keys)} записей кэша")
@@ -362,8 +371,7 @@ class WebSearchEngine:
         try:
             # Проверяем кэш
             if use_cache:
-                cache_manager = CacheManager(self.cache_dir, self.search_settings["cache_ttl"])
-                cached_results = cache_manager.get_cached_results(query)
+                cached_results = self._cache_manager.get_cached_results(query)
                 if cached_results:
                     processing_time = time.time() - start_time
                     self._update_stats(query, "completed", cached_results, processing_time, cached=True)
@@ -382,8 +390,7 @@ class WebSearchEngine:
             
             # Сохраняем в кэш
             if use_cache and results:
-                cache_manager = CacheManager(self.cache_dir, self.search_settings["cache_ttl"])
-                cache_manager.save_to_cache(query, results)
+                self._cache_manager.save_to_cache(query, results)
             
             # Обновляем статистику
             self._update_stats(query, "completed", results, processing_time)
@@ -420,7 +427,6 @@ class WebSearchEngine:
             max_results = self.search_settings["max_results"]
         
         all_results = []
-        search_engines = SearchEngines()
         active_engines = self.get_active_search_engines()
         
         # Выполняем поиск через каждую активную поисковую систему
@@ -429,13 +435,13 @@ class WebSearchEngine:
             
             for engine in active_engines:
                 if engine == "google":
-                    future = executor.submit(search_engines.search_google, query, max_results)
+                    future = executor.submit(self._search_engines.search_google, query, max_results)
                 elif engine == "yandex":
-                    future = executor.submit(search_engines.search_yandex, query, max_results)
+                    future = executor.submit(self._search_engines.search_yandex, query, max_results)
                 elif engine == "bing":
-                    future = executor.submit(search_engines.search_bing, query, max_results)
+                    future = executor.submit(self._search_engines.search_bing, query, max_results)
                 elif engine == "wikipedia":
-                    future = executor.submit(search_engines.search_wikipedia, query, max_results)
+                    future = executor.submit(self._search_engines.search_wikipedia, query, max_results)
                 else:
                     continue
                 
@@ -503,8 +509,7 @@ class WebSearchEngine:
     def clear_cache(self):
         """Очищает кэш поиска."""
         try:
-            cache_manager = CacheManager(self.cache_dir)
-            cache_manager.clear_cache()
+            self._cache_manager.clear_cache()
             logger.info("Кэш поиска очищен")
         except Exception as e:
             logger.error(f"Ошибка очистки кэша: {e}")
@@ -512,9 +517,8 @@ class WebSearchEngine:
     def get_cache_info(self) -> Dict[str, Any]:
         """Возвращает информацию о кэше."""
         try:
-            cache_manager = CacheManager(self.cache_dir)
             return {
-                "cache_size": cache_manager.get_cache_size(),
+                "cache_size": self._cache_manager.get_cache_size(),
                 "cache_dir": self.cache_dir,
                 "cache_ttl": self.search_settings["cache_ttl"]
             }
@@ -637,6 +641,7 @@ class WebSearchEngine:
         try:
             self.stop()
             if hasattr(self, '_db_manager') and self._db_manager:
-                self._db_manager.close()
+                if hasattr(self._db_manager, 'close'):
+                    self._db_manager.close()
         except Exception as e:
             logger.error(f"Ошибка в деструкторе WebSearchEngine: {e}")

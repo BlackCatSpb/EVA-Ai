@@ -1292,21 +1292,58 @@ class LearningScheduler:
             logger.warning(f"Высокое среднее время выполнения задач: {stats['avg_completion_time']:.2f} секунд")
     
     def _worker_loop(self):
-        """Цикл рабочего потока."""
+        """Цикл рабочего потока с защитой от race conditions и истощения ресурсов."""
         while self.running and not self.stop_event.is_set():
             try:
+                # Check resource exhaustion before getting next task
+                slot_acquired = False
+                try:
+                    # Try to acquire a resource slot first
+                    temp_task_id = f"resource_check_{time.time()}"
+                    if not self.resource_allocation.acquire_slot(temp_task_id):
+                        logger.debug("Resource allocation full, waiting...")
+                        time.sleep(2)
+                        continue
+                    slot_acquired = True
+                    self.resource_allocation.release_slot(temp_task_id)
+                except Exception:
+                    pass
+                
                 task = self._get_next_task()
                 if not task:
                     time.sleep(1)
                     continue
                 
-                # Проверяем здоровье системы
-                self._check_system_health()
+                # Check system health before starting
+                try:
+                    self._check_system_health()
+                except Exception as e:
+                    logger.warning(f"System health check failed: {e}")
+                    time.sleep(2)
+                    continue
                 
-                # Запускаем задачу
-                if self.start_task(task.task_id):
-                    # Выполняем задачу
+                # Use lock to prevent race condition in task starting
+                with self.lock:
+                    if task.task_id in self.task_registry:
+                        current_task = self.task_registry[task.task_id]
+                        if current_task.status != "pending":
+                            continue
+                        current_task.status = "in_progress"
+                        current_task.start_time = time.time()
+                        self._save_tasks()
+                        self._update_stats()
+                
+                # Execute task with error handling
+                try:
                     self._execute_task(task)
+                except Exception as task_error:
+                    logger.error(f"Task execution error: {task_error}")
+                    with self.lock:
+                        if task.task_id in self.task_registry:
+                            self.task_registry[task.task_id].status = "failed"
+                            self.task_registry[task.task_id].error = str(task_error)
+                            self._save_tasks()
+                            self._update_stats()
                 
             except Exception as e:
                 logger.error(f"Критическая ошибка в рабочем потоке: {e}")
