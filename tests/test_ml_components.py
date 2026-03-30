@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-CogniFlex ML Components Test Suite
-Комплексные тесты для ML-компонентов системы CogniFlex.
+ЕВА ML Components Test Suite
+Комплексные тесты для ML-компонентов системы ЕВА.
 """
 
 import pytest
@@ -56,7 +56,7 @@ class TestMLUnitIntegration:
     @pytest.fixture
     def ml_unit(self, mock_brain):
         """Создает MLUnit для тестирования."""
-        from cogniflex.mlearning.ml_unit import MLUnit
+        from eva.mlearning.ml_unit import MLUnit
 
         # Настраиваем дополнительные атрибуты brain для корректной работы
         mock_brain.on_text_processor_ready = []
@@ -133,8 +133,8 @@ class TestMLUnitIntegration:
         assert 'тестовый' in analysis['tokens']
 
 
-class TestCogniFlexTokenizer:
-    """Тесты для CogniFlexTokenizer."""
+class TestЕВАTokenizer:
+    """Тесты для ЕВАTokenizer."""
 
     @pytest.fixture
     def mock_brain(self):
@@ -155,11 +155,11 @@ class TestCogniFlexTokenizer:
 
     @pytest.fixture
     def tokenizer(self, mock_brain):
-        """Создает CogniFlexTokenizer для тестирования."""
-        from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer
+        """Создает ЕВАTokenizer для тестирования."""
+        from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
         # Создаем токенизатор без фактической загрузки модели
-        tokenizer = CogniFlexTokenizer(brain=mock_brain)
+        tokenizer = ЕВАTokenizer(brain=mock_brain)
 
         # Mock базовые компоненты для тестирования
         tokenizer.tokenizer = Mock()
@@ -272,7 +272,7 @@ class TestParallelTokenizer:
     @pytest.fixture
     def parallel_tokenizer(self, mock_brain):
         """Создает ParallelTokenizer для тестирования."""
-        from cogniflex.mlearning.parallel_tokenization import ParallelTokenizer
+        from eva.mlearning.parallel_tokenization import ParallelTokenizer
 
         tokenizer = ParallelTokenizer(
             brain=mock_brain,
@@ -417,7 +417,7 @@ class TestFractalStorageML:
     @pytest.mark.integration
     def test_ml_unit_fractal_integration(self, mock_brain_with_memory):
         """Тест интеграции MLUnit с фрактальным хранилищем."""
-        from cogniflex.mlearning.ml_unit import MLUnit
+        from eva.mlearning.ml_unit import MLUnit
 
         ml_unit = MLUnit(
             brain=mock_brain_with_memory,
@@ -430,10 +430,10 @@ class TestFractalStorageML:
 
     @pytest.mark.integration
     def test_tokenizer_fractal_integration(self, mock_brain_with_memory):
-        """Тест интеграции CogniFlexTokenizer с фрактальным хранилищем."""
-        from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer
+        """Тест интеграции ЕВАTokenizer с фрактальным хранилищем."""
+        from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
-        tokenizer = CogniFlexTokenizer(brain=mock_brain_with_memory)
+        tokenizer = ЕВАTokenizer(brain=mock_brain_with_memory)
 
         # Проверяем что гибридный кэш доступен
         assert tokenizer.hybrid_cache is not None
@@ -443,7 +443,7 @@ class TestFractalStorageML:
     @pytest.mark.integration
     def test_parallel_tokenizer_fractal_integration(self, mock_brain_with_memory):
         """Тест интеграции ParallelTokenizer с фрактальным хранилищем."""
-        from cogniflex.mlearning.parallel_tokenization import ParallelTokenizer
+        from eva.mlearning.parallel_tokenization import ParallelTokenizer
 
         # Mock CacheRouter для интеграции
         cache_router = Mock()
@@ -485,7 +485,7 @@ class TestMLSystemHealth:
         brain = Mock()
         brain.cache_dir = tempfile.mkdtemp()
 
-        from cogniflex.mlearning.ml_unit import MLUnit
+        from eva.mlearning.ml_unit import MLUnit
 
         ml_unit = MLUnit(
             brain=brain,
@@ -573,7 +573,7 @@ def cleanup_test_environment(test_dir):
 
 
 if __name__ == "__main__":
-    print("🚀 Запуск комплексных тестов ML-компонентов CogniFlex...")
+    print("🚀 Запуск комплексных тестов ML-компонентов ЕВА...")
 
     # Настройка тестового окружения
     test_dir = setup_test_environment()

@@ -1,0 +1,21 @@
+{
+  "response": "Для объяснения понятий мне нужно больше контекста.",
+  "text": "Для объяснения понятий мне нужно больше контекста.",
+  "status": "ok",
+  "confidence": 0.5,
+  "reasoning": "Уверенность: 0.50",
+  "reasoning_raw": {
+    "response": "Для объяснения понятий мне нужно больше контекста.",
+    "text": "Для объяснения понятий мне нужно больше контекста.",
+    "status": "ok",
+    "confidence": 0.5,
+    "reasoning": {
+      "source": "simple_fallback"
+    },
+    "source": "self_reasoning_engine",
+    "processing_time": 0.0016660690307617188
+  },
+  "source": "self_reasoning_engine",
+  "fallback_level": 0,
+  "processing_time": 0.0016834735870361328
+}

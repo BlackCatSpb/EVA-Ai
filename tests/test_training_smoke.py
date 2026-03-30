@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Minimal training smoke test for CogniFlex TrainingOrchestrator integration via MLUnit.
+Minimal training smoke test for ЕВА TrainingOrchestrator integration via MLUnit.
 Usage:
   python test_training_smoke.py
 """
@@ -76,7 +76,7 @@ def main():
     doc = ImportedDoc(
         doc_id="smoke_doc_001",
         segments=[
-            "CogniFlex is a modular cognitive system.",
+            "ЕВА is a modular cognitive system.",
             "It integrates MLUnit, KnowledgeGraph, and a hybrid cache.",
             "This is a small chunk to validate training orchestrator.",
         ],

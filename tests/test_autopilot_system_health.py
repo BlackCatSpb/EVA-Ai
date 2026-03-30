@@ -7,9 +7,9 @@ import unittest
 from typing import Any, Dict
 
 # Project imports
-from cogniflex.core.background_coordinator import BackgroundCoordinator, Policies
-from cogniflex.core.background_jobs.base_job import BaseJob
-from cogniflex.core.autopilot_cache import AutopilotCache
+from eva.core.background_coordinator import BackgroundCoordinator, Policies
+from eva.core.background_jobs.base_job import BaseJob
+from eva.core.autopilot_cache import AutopilotCache
 
 
 class NoOpJob(BaseJob):
@@ -109,7 +109,7 @@ class TestAutopilotAndHealth(unittest.TestCase):
 
     def test_core_health_available(self):
         # Import here to avoid heavy import for other tests if not needed
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
         brain = CoreBrain()
         try:
             health = brain.get_system_health()
@@ -131,7 +131,7 @@ class TestAutopilotAndHealth(unittest.TestCase):
                 pass
 
     def test_knowledge_graph_stats(self):
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
         brain = CoreBrain()
         try:
             # Ensure components are initialized
@@ -151,7 +151,7 @@ class TestAutopilotAndHealth(unittest.TestCase):
                 pass
 
     def test_token_cache_initialized_and_query_fallback(self):
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
         brain = CoreBrain()
         try:
             # Token cache should either initialize or be None with error logged; ensure attribute exists

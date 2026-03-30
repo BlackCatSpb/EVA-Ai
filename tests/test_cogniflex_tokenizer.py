@@ -2,7 +2,7 @@ import os
 import pytest
 import pytest_asyncio
 
-from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer, TokenizationConfig
+from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
 
 
 def is_offline_env() -> bool:
@@ -18,7 +18,7 @@ async def test_tokenizer_offline_local_load():
     local_dir = os.environ["COGNIFLEX_LOCAL_MODEL_DIR"]
     assert os.path.isdir(local_dir), "Локальный каталог модели не существует"
 
-    tok = await CogniFlexTokenizer.from_pretrained(local_dir, local_files_only=True, use_fast=True)
+    tok = await ЕВАTokenizer.from_pretrained(local_dir, local_files_only=True, use_fast=True)
 
     assert tok is not None
     assert getattr(tok, "tokenizer", None) is not None
@@ -44,7 +44,7 @@ async def test_tokenizer_offline_local_load():
 async def test_tokenizer_online_rugpt3_load():
     model_id = os.environ.get("COGNIFLEX_TEST_MODEL", "sberbank-ai/rugpt3large_based_on_gpt2")
 
-    tok = await CogniFlexTokenizer.from_pretrained(model_id, local_files_only=False, use_fast=True)
+    tok = await ЕВАTokenizer.from_pretrained(model_id, local_files_only=False, use_fast=True)
 
     assert tok is not None
     assert getattr(tok, "tokenizer", None) is not None

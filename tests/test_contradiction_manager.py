@@ -28,7 +28,7 @@ def test_contradiction_manager():
             sys.path.append(project_root)
         
         # Import required modules
-        from cogniflex.contradiction.contradiction_manager import ContradictionManager
+        from eva.contradiction.contradiction_manager import ContradictionManager
         
         # Test initialization
         logger.info("Creating ContradictionManager instance...")

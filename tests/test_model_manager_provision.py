@@ -37,14 +37,14 @@ def _make_minimal_hf_model(dirpath: str, tokenizer_variant: str = "json"):
 
 def _new_manager(temp_models_dir: str):
     # Import here to ensure test-time module state is fresh
-    from cogniflex.mlearning.model_manager import ModelManager
+    from eva.mlearning.model_manager import ModelManager
     # safe_test_mode=True prevents heavy init; autoload/background disabled
     mm = ModelManager(brain=None, model_dir=temp_models_dir, safe_test_mode=True)
     return mm
 
 
 def test_has_local_model_variants(temp_models_dir):
-    from cogniflex.mlearning.model_manager import ModelManager
+    from eva.mlearning.model_manager import ModelManager
 
     mm = _new_manager(temp_models_dir)
 
@@ -76,7 +76,7 @@ def test_provision_skips_download_when_local_exists(monkeypatch, temp_models_dir
     _make_minimal_hf_model(target_dir, tokenizer_variant="json")
 
     # Build manager in safe mode to avoid auto-provisioning in __init__
-    from cogniflex.mlearning import model_manager as mm_mod
+    from eva.mlearning import model_manager as mm_mod
     mm = _new_manager(temp_models_dir)
 
     # Flip safe_test_mode off so _provision_rugpt3_default executes
@@ -113,7 +113,7 @@ def test_provision_respects_offline(monkeypatch, temp_models_dir):
     target_dir = os.path.join(temp_models_dir, local_name)
     os.makedirs(target_dir, exist_ok=True)
 
-    from cogniflex.mlearning import model_manager as mm_mod
+    from eva.mlearning import model_manager as mm_mod
     mm = _new_manager(temp_models_dir)
     mm.safe_test_mode = False
 
@@ -145,7 +145,7 @@ def test_provision_downloads_when_missing_and_online(monkeypatch, temp_models_di
     target_dir = os.path.join(temp_models_dir, local_name)
     os.makedirs(target_dir, exist_ok=True)
 
-    from cogniflex.mlearning import model_manager as mm_mod
+    from eva.mlearning import model_manager as mm_mod
     mm = _new_manager(temp_models_dir)
     mm.safe_test_mode = False
 

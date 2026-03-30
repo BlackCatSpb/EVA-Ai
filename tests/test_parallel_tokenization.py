@@ -2,8 +2,8 @@ import asyncio
 import time
 from typing import List
 import torch
-from cogniflex.core.core_brain import CoreBrain
-from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer
+from eva.core.core_brain import CoreBrain
+from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
 class TokenizationCoordinator:
     def __init__(self, config: dict):
@@ -13,7 +13,7 @@ class TokenizationCoordinator:
         
     async def initialize(self):
         """Инициализация координатора и токенизатора"""
-        self.tokenizer = CogniFlexTokenizer()
+        self.tokenizer = ЕВАTokenizer()
         await self.tokenizer.from_pretrained(
             self.config['tokenizer_path'],
             **self.config.get('tokenizer_kwargs', {})
@@ -70,7 +70,7 @@ async def main():
         "Давай проверим работу параллельной токенизации.",
         "Этот тест покажет производительность системы.",
         "Параллельная обработка ускоряет выполнение задач.",
-        "CogniFlex - это мощная платформа для ИИ.",
+        "ЕВА - это мощная платформа для ИИ.",
         "Давай протестируем обработку длинных текстов.",
         "Токенизация - важный этап обработки естественного языка.",
         "Асинхронность позволяет эффективно использовать ресурсы."

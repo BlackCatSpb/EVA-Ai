@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 
 def main() -> None:

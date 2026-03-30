@@ -1,9 +1,0 @@
-{
-  "document_id": "smoke_doc_001",
-  "total_chunks": 3,
-  "processed_chunks": 3,
-  "last_batch_end": 3,
-  "last_success_ts": 1755457727.9719195,
-  "model_id": null,
-  "pipeline_version": "v1"
-}

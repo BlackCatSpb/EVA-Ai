@@ -1,7 +1,7 @@
 import time
 import pytest
 
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 @pytest.fixture(scope="module")
 def brain():

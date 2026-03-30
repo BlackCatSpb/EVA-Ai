@@ -1,5 +1,5 @@
 """
-Тест асинхронной токенизации для CogniFlex
+Тест асинхронной токенизации для ЕВА
 """
 
 import os
@@ -27,7 +27,7 @@ def test_unified_text_processor():
         brain = MockBrain()
         
         # Импортируем и создаем процессор
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         
         print("Создание UnifiedTextProcessor...")
         processor = UnifiedTextProcessor(brain=brain, use_async=True, max_workers=2)
@@ -36,7 +36,7 @@ def test_unified_text_processor():
         # Тест базовой обработки текста
         test_texts = [
             "Это простой тест обработки текста.",
-            "CogniFlex использует машинное обучение для анализа.",
+            "ЕВА использует машинное обучение для анализа.",
             "Асинхронная обработка повышает производительность."
         ]
         
@@ -79,7 +79,7 @@ def test_async_callback_processing():
         
         brain = MockBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain, use_async=True, max_workers=4)
         
         # Результаты callback'ов
@@ -158,7 +158,7 @@ def test_concurrent_processing():
         
         brain = MockBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain, use_async=True, max_workers=3)
         
         # Создаем большие тексты для тестирования
@@ -229,7 +229,7 @@ def test_tokenization_quality():
         
         brain = MockBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain)
         
         # Тестовые тексты с известными ключевыми словами

@@ -1,5 +1,5 @@
 """
-Pytest тесты для диагностики проблем инициализации CogniFlex.
+Pytest тесты для диагностики проблем инициализации ЕВА.
 
 Этот модуль содержит тесты для проверки корректной инициализации
 ядра системы и всех компонентов.
@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class TestCogniFlexInitialization:
-    """Тесты для проверки инициализации CogniFlex."""
+class TestЕВАInitialization:
+    """Тесты для проверки инициализации ЕВА."""
 
     @pytest.fixture
     def mock_config(self):
@@ -28,7 +28,7 @@ class TestCogniFlexInitialization:
 
     def test_core_brain_initialization(self, mock_config):
         """Тест инициализации CoreBrain."""
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
 
         try:
             brain = CoreBrain(config=mock_config)
@@ -50,7 +50,7 @@ class TestCogniFlexInitialization:
     def test_hardware_optimizations_module(self):
         """Тест модуля аппаратных оптимизаций."""
         try:
-            from cogniflex.core.hardware_optimizations import (
+            from eva.core.hardware_optimizations import (
                 apply_hardware_optimizations,
                 get_runtime_diagnostics
             )
@@ -74,7 +74,7 @@ class TestCogniFlexInitialization:
     def test_event_system_module(self):
         """Тест модуля событийной системы."""
         try:
-            from cogniflex.core.event_management import SimpleEventSystem
+            from eva.core.event_management import SimpleEventSystem
 
             # Создаем систему событий
             events = SimpleEventSystem()
@@ -100,7 +100,7 @@ class TestCogniFlexInitialization:
     def test_component_managers_module(self):
         """Тест модуля менеджеров компонентов."""
         try:
-            from cogniflex.core.component_managers import (
+            from eva.core.component_managers import (
                 get_security_manager,
                 get_monitoring_manager,
                 get_recovery_manager
@@ -124,7 +124,7 @@ class TestCogniFlexInitialization:
     def test_fractal_attention_system(self):
         """Тест системы фрактального внимания."""
         try:
-            from cogniflex.core.fractal_attention_system import FractalAttentionSystem
+            from eva.core.fractal_attention_system import FractalAttentionSystem
 
             # Создаем mock core_brain
             mock_brain = Mock()
@@ -154,11 +154,11 @@ def run_diagnostics():
     # Тест 1: Проверка импортов
     print("\n📦 ТЕСТ 1: ПРОВЕРКА ИМПОРТОВ")
     try:
-        from cogniflex.core.core_brain import CoreBrain
-        from cogniflex.core.hardware_optimizations import apply_hardware_optimizations
-        from cogniflex.core.event_management import SimpleEventSystem
-        from cogniflex.core.component_managers import get_security_manager
-        from cogniflex.core.fractal_attention_system import FractalAttentionSystem
+        from eva.core.core_brain import CoreBrain
+        from eva.core.hardware_optimizations import apply_hardware_optimizations
+        from eva.core.event_management import SimpleEventSystem
+        from eva.core.component_managers import get_security_manager
+        from eva.core.fractal_attention_system import FractalAttentionSystem
         print("✅ Все импорты успешны")
     except Exception as e:
         print(f"❌ Ошибка импортов: {e}")

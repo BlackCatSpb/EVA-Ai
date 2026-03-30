@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Обширные тесты функциональности CogniFlex после удаления fallback заглушек
+Обширные тесты функциональности ЕВА после удаления fallback заглушек
 Тестирует реальную работу всех компонентов системы
 """
 
@@ -56,15 +56,15 @@ class TestResults:
 
         return self.failed == 0
 
-class CogniFlexTests:
-    """Комплексные тесты CogniFlex"""
+class ЕВАTests:
+    """Комплексные тесты ЕВА"""
 
     def __init__(self):
         self.results = TestResults()
 
     def run_all_tests(self) -> bool:
         """Запуск всех тестов"""
-        logger.info("🚀 Начало комплексного тестирования CogniFlex")
+        logger.info("🚀 Начало комплексного тестирования ЕВА")
 
         try:
             # Тесты импорта
@@ -124,7 +124,7 @@ class CogniFlexTests:
         logger.info("🏗️ Тестирование основных компонентов...")
 
         try:
-            from cogniflex.core.event_bus import EventBus, Event, EventTypes, get_event_bus
+            from eva.core.event_bus import EventBus, Event, EventTypes, get_event_bus
 
             # Тест EventBus
             bus = get_event_bus()
@@ -149,7 +149,7 @@ class CogniFlexTests:
         logger.info("🔍 Тестирование веб-поиска без заглушек...")
 
         try:
-            from cogniflex.websearch.search_engines import SearchEngines
+            from eva.websearch.search_engines import SearchEngines
 
             engines = SearchEngines()
 
@@ -182,8 +182,8 @@ class CogniFlexTests:
         logger.info("⚖️ Тестирование этического фреймворка без placeholder классов...")
 
         try:
-            from cogniflex.ethics import EthicsFramework
-            from cogniflex.ethics.ethics_framework import EthicalDecision
+            from eva.ethics import EthicsFramework
+            from eva.ethics.ethics_framework import EthicalDecision
 
             # Проверяем, что это не placeholder класс
             ethics = EthicsFramework()
@@ -215,7 +215,7 @@ class CogniFlexTests:
         logger.info("🧠 Тестирование процессора обучения...")
 
         try:
-            from cogniflex.learning.learning_processor import LearningProcessor
+            from eva.learning.learning_processor import LearningProcessor
 
             # Создаем процессор (без полной инициализации для тестов)
             processor = LearningProcessor(brain=None)
@@ -233,7 +233,7 @@ class CogniFlexTests:
         logger.info("🧠 Тестирование Core Brain без пустых возвратов...")
 
         try:
-            from cogniflex.core.core_brain import CoreBrain
+            from eva.core.core_brain import CoreBrain
 
             # Создаем Core Brain
             brain = CoreBrain()
@@ -258,8 +258,8 @@ class CogniFlexTests:
         logger.info("🔗 Тестирование интеграции компонентов...")
 
         try:
-            from cogniflex.core.component_initializer import ComponentInitializer
-            from cogniflex.core.core_brain import CoreBrain
+            from eva.core.component_initializer import ComponentInitializer
+            from eva.core.core_brain import CoreBrain
 
             # Создаем компоненты
             brain = CoreBrain()
@@ -281,10 +281,10 @@ class CogniFlexTests:
 
 def main():
     """Главная функция запуска тестов"""
-    print("🧪 Запуск обширных тестов CogniFlex после удаления fallback заглушек")
+    print("🧪 Запуск обширных тестов ЕВА после удаления fallback заглушек")
     print("=" * 70)
 
-    tester = CogniFlexTests()
+    tester = ЕВАTests()
     success = tester.run_all_tests()
 
     if success:

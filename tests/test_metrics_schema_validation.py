@@ -1,5 +1,5 @@
 import time
-from cogniflex.core.system_metrics import SystemMetricsManager
+from eva.core.system_metrics import SystemMetricsManager
 
 
 def test_validate_metric_schema_valid():

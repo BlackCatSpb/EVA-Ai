@@ -1,13 +1,13 @@
 """
-Модуль для тестирования функциональности токенизатора в CogniFlex.
+Модуль для тестирования функциональности токенизатора в ЕВА.
 """
 import unittest
 from unittest.mock import MagicMock, patch
 import torch
 from transformers import AutoTokenizer
 
-from cogniflex.core.response_generator import ResponseGenerator
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.response_generator import ResponseGenerator
+from eva.core.core_brain import CoreBrain
 
 
 class TestTokenizer(unittest.TestCase):

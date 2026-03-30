@@ -1,7 +1,7 @@
 import time
 import pytest
 
-from cogniflex.websearch.web_search_engine import WebSearchEngine
+from eva.websearch.web_search_engine import WebSearchEngine
 
 
 @pytest.fixture(scope="module")

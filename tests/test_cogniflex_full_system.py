@@ -26,9 +26,9 @@ def main():
 
     try:
         # Импорт компонентов системы
-        from cogniflex.core.core_brain import CoreBrain
-        from cogniflex.core.integration_layer import CogniFlexIntegrator
-        from cogniflex.gui.core_gui import CogniFlexGUI
+        from eva.core.core_brain import CoreBrain
+        from eva.core.integration_layer import ЕВАIntegrator
+        from eva.gui.core_gui import ЕВАGUI
 
         print("✅ Импорт компонентов завершен")
 
@@ -107,7 +107,7 @@ def main():
             'enable_self_dialog': True
         }
 
-        integrator = CogniFlexIntegrator(integrator_config)
+        integrator = ЕВАIntegrator(integrator_config)
 
         integrator_success = integrator.initialize()
 
@@ -184,7 +184,7 @@ def main():
         print("\n" + "=" * 80)
         print("🎉 ПОЛНОЕ ТЕСТИРОВАНИЕ ЗАВЕРШЕНО!")
         print("")
-        print("Система CogniFlex теперь имеет:")
+        print("Система ЕВА теперь имеет:")
         print("✅ Централизованную событийную шину")
         print("✅ Полный процесс обработки запросов")
         print("✅ Фрактальную память с динамическим фокусом внимания")

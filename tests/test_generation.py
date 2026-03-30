@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Тест генерации текста для CogniFlex
+Тест генерации текста для ЕВА
 Проверяет качество генерируемых ответов
 """
 
@@ -71,7 +71,7 @@ def test_brain_initialization():
     print("\n=== Тест инициализации CoreBrain ===")
     
     try:
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
         
         # Создаем минимальную конфигурацию
         config = {
@@ -128,17 +128,17 @@ def test_circular_dependencies():
     try:
         # Тестируем импорты в правильном порядке
         print("Импорт core модулей...")
-        from cogniflex.core.config_manager import ConfigManager
-        from cogniflex.core.system_state import SystemStateManager
-        from cogniflex.core.resource_manager import ResourceManager
+        from eva.core.config_manager import ConfigManager
+        from eva.core.system_state import SystemStateManager
+        from eva.core.resource_manager import ResourceManager
         print("✅ Core модули импортированы без циклических зависимостей")
         
         print("Импорт mlearning модулей...")
-        from cogniflex.mlearning.ml_unit import MLUnit
+        from eva.mlearning.ml_unit import MLUnit
         print("✅ MLUnit импортирован без циклических зависимостей")
         
         print("Импорт memory модулей...")
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
+        from eva.memory.hybrid_token_cache import HybridTokenCache
         print("✅ HybridTokenCache импортирован без циклических зависимостей")
         
         return True
@@ -148,7 +148,7 @@ def test_circular_dependencies():
         return False
 
 if __name__ == "__main__":
-    print("🚀 Запуск тестов модулей CogniFlex")
+    print("🚀 Запуск тестов модулей ЕВА")
     print("=" * 50)
     
     # Тест отдельных модулей

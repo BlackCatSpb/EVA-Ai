@@ -10,13 +10,13 @@ from typing import List, Optional, Dict, Any, Tuple
 # Добавляем корневую директорию в PYTHONPATH
 sys.path.append(str(Path(__file__).parent.parent))
 
-from cogniflex.mlearning.cogniflex_tokenizer import CogniFlexTokenizer, TokenizationConfig
-from cogniflex.core.core_brain import CoreBrain
+from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
+from eva.core.core_brain import CoreBrain
 
 # ModelMetadata is conditionally defined in cogniflex_tokenizer
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from cogniflex.mlearning.model_manager import ModelMetadata
+    from eva.mlearning.model_manager import ModelMetadata
 else:
     class ModelMetadata:  # type: ignore
         pass
@@ -45,7 +45,7 @@ class TestTokenizer:
         return MockBrain()
     
     async def initialize_tokenizer(self) -> bool:
-        """Инициализирует токенизатор CogniFlex с поддержкой CUDA."""
+        """Инициализирует токенизатор ЕВА с поддержкой CUDA."""
         try:
             # Создаем метаданные модели (используем пустую инициализацию, так как класс не принимает аргументы)
             model_metadata = ModelMetadata()
@@ -71,7 +71,7 @@ class TestTokenizer:
             
             # Создаем экземпляр токенизатора с правильными параметрами
             try:
-                self.tokenizer = await CogniFlexTokenizer.from_pretrained(
+                self.tokenizer = await ЕВАTokenizer.from_pretrained(
                     pretrained_model_name_or_path=str(self.tokenizer_path.absolute()),
                     brain=self.brain,
                     model_metadata=model_metadata,

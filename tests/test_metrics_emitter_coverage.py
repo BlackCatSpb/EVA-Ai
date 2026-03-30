@@ -3,11 +3,11 @@ from typing import Any, Dict, List
 
 import pytest
 
-from cogniflex.core.core_brain import CoreBrain
-from cogniflex.core.system_metrics import SystemMetricsManager
-from cogniflex.core.response_generator import ResponseGenerator
-from cogniflex.mlearning.ml_unit import MLUnit
-from cogniflex.mlearning.training_orchestrator import TrainingOrchestrator
+from eva.core.core_brain import CoreBrain
+from eva.core.system_metrics import SystemMetricsManager
+from eva.core.response_generator import ResponseGenerator
+from eva.mlearning.ml_unit import MLUnit
+from eva.mlearning.training_orchestrator import TrainingOrchestrator
 
 
 def _valid_metrics() -> List[Dict[str, Any]]:
@@ -109,7 +109,7 @@ def test_unified_text_processor_emitter_schema_validation_if_available():
     Only exercise its _emit_metrics path to avoid heavy model init.
     """
     try:
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor  # noqa: WPS433
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor  # noqa: WPS433
     except Exception:
         pytest.skip("UnifiedTextProcessor not importable in this environment")
 

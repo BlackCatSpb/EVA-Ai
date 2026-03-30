@@ -6,8 +6,8 @@ import os
 import pytest
 from pathlib import Path
 import torch
-from cogniflex.mlearning.model_manager import ModelManager
-from cogniflex.mlearning.storage.unified_graph_store import UnifiedMemoryGraph
+from eva.mlearning.model_manager import ModelManager
+from eva.mlearning.storage.unified_graph_store import UnifiedMemoryGraph
 
 @pytest.fixture
 def model_manager():

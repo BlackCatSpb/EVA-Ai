@@ -1,7 +1,7 @@
 import torch
 import logging
 import time
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

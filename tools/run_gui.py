@@ -13,9 +13,9 @@ PROJECT_ROOT = os.path.abspath(os.path.join(TOOLS_DIR, os.pardir))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from cogniflex.core.core_brain import CoreBrain
-from cogniflex.gui.core_gui import CogniFlexGUI
-from cogniflex.core.utils import setup_logging
+from eva.core.core_brain import CoreBrain
+from eva.gui.core_gui import ЕВАGUI
+from eva.core.utils import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -33,47 +33,47 @@ def is_gui_running():
     return False
 
 def initialize_core():
-    """Инициализирует ядро CogniFlex."""
+    """Инициализирует ядро ЕВА."""
     try:
-        logger.info("Инициализация ядра CogniFlex...")
+        logger.info("Инициализация ядра ЕВА...")
         core = CoreBrain()
         if not core.initialize():
-            logger.error("Не удалось инициализировать ядро CogniFlex")
+            logger.error("Не удалось инициализировать ядро ЕВА")
             return None
-        logger.info("Ядро CogniFlex успешно инициализировано")
+        logger.info("Ядро ЕВА успешно инициализировано")
         return core
     except Exception as e:
         logger.critical(f"Критическая ошибка при инициализации ядра: {e}", exc_info=True)
         return None
 
 def main():
-    """Главная функция для запуска CogniFlex с графическим интерфейсом."""
+    """Главная функция для запуска ЕВА с графическим интерфейсом."""
     setup_logging()
     logger = logging.getLogger(__name__)
     
     # Проверяем, не запущен ли уже GUI
     if is_gui_running():
-        logger.error("Обнаружен уже запущенный экземпляр CogniFlex GUI")
-        messagebox.showerror("Ошибка", "CogniFlex GUI уже запущен!")
+        logger.error("Обнаружен уже запущенный экземпляр ЕВА GUI")
+        messagebox.showerror("Ошибка", "ЕВА GUI уже запущен!")
         sys.exit(1)
         
-    logger.info("Запуск приложения CogniFlex с GUI...")
+    logger.info("Запуск приложения ЕВА с GUI...")
     
     # Инициализируем ядро
     core = initialize_core()
     if not core:
-        messagebox.showerror("Ошибка", "Не удалось инициализировать ядро CogniFlex. Проверьте логи.")
+        messagebox.showerror("Ошибка", "Не удалось инициализировать ядро ЕВА. Проверьте логи.")
         sys.exit(1)
 
     gui = None
     try:
         # Создаем и настраиваем GUI
-        gui = CogniFlexGUI(brain=core)
+        gui = ЕВАGUI(brain=core)
         logger.info("GUI создан")
         
         # Создаем root сначала, чтобы _create_styles() мог работать
         gui.root = tk.Tk()
-        gui.root.title("CogniFlex - Адаптивная когнитивная система")
+        gui.root.title("ЕВА - Адаптивная когнитивная система")
         gui.root.geometry("1280x800")
         gui.root.minsize(800, 600)
         
@@ -85,7 +85,7 @@ def main():
         # Устанавливаем обработчик закрытия окна
         def on_gui_close():
             """Обработчик закрытия главного окна"""
-            logger.info("Завершение работы CogniFlex GUI...")
+            logger.info("Завершение работы ЕВА GUI...")
             if core and hasattr(core, 'shutdown'):
                 core.shutdown()
             if gui and hasattr(gui, 'root') and gui.root:
@@ -95,7 +95,7 @@ def main():
         
         # Запускаем ядро
         core.start()
-        logger.info("Ядро CogniFlex запущено")
+        logger.info("Ядро ЕВА запущено")
         
         # Запускаем GUI (это блокирующий вызов)
         logger.info("Запуск основного цикла GUI...")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-CogniFlex Complete Integration Tests
-Полное тестирование интеграции всех компонентов системы CogniFlex.
+ЕВА Complete Integration Tests
+Полное тестирование интеграции всех компонентов системы ЕВА.
 """
 
 import pytest
@@ -134,12 +134,12 @@ class TestEndToEndScenarios:
 
         try:
             # Step 1: Initialize Brain
-            from cogniflex.core.core_brain import CoreBrain
+            from eva.core.core_brain import CoreBrain
             brain = CoreBrain(config=brain_config)
             assert brain is not None
 
             # Step 2: Initialize GUI with Brain
-            from cogniflex.gui.core_gui import create_gui
+            from eva.gui.core_gui import create_gui
             gui = create_gui(brain=brain)
             assert gui is not None
 
@@ -235,8 +235,8 @@ class TestPerformanceAndScalability:
         start_time = time.time()
 
         try:
-            from cogniflex.core.core_brain import CoreBrain
-            from cogniflex.gui.core_gui import create_gui
+            from eva.core.core_brain import CoreBrain
+            from eva.gui.core_gui import create_gui
 
             # Measure Brain initialization
             brain_start = time.time()
@@ -416,7 +416,7 @@ def save_test_results(results: Dict[str, Any], filename: str = "integration_test
 def generate_test_report(results: Dict[str, Any]) -> str:
     """Генерировать отчет о тестировании."""
     report = []
-    report.append("# Отчет о комплексном тестировании CogniFlex")
+    report.append("# Отчет о комплексном тестировании ЕВА")
     report.append("")
 
     # Общая информация
@@ -444,7 +444,7 @@ def generate_test_report(results: Dict[str, Any]) -> str:
 
 
 if __name__ == "__main__":
-    print("🚀 Запуск комплексного интеграционного тестирования CogniFlex...")
+    print("🚀 Запуск комплексного интеграционного тестирования ЕВА...")
 
     # Здесь можно добавить запуск отдельных тестов
     print("✅ Комплексное тестирование завершено!")

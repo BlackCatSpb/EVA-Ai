@@ -1,4 +1,4 @@
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 import os, time
 
 print("ENV:", {k: os.environ.get(k) for k in [

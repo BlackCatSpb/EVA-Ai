@@ -1,5 +1,5 @@
 """
-Тест гибридного кэша токенов и асинхронной токенизации для CogniFlex
+Тест гибридного кэша токенов и асинхронной токенизации для ЕВА
 """
 
 import os
@@ -27,7 +27,7 @@ def test_hybrid_cache():
         brain = TestBrain()
         
         # Импортируем и создаем кэш
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
+        from eva.memory.hybrid_token_cache import HybridTokenCache
         cache = HybridTokenCache(brain, max_memory_tokens=100)
         
         print(f"✓ Кэш инициализирован: память={cache.max_memory_tokens}, диск={cache.disk_cache.max_size_bytes/(1024**3):.1f}GB")
@@ -158,7 +158,7 @@ def test_async_tokenization():
         brain = TestBrain()
         
         # Импортируем текстовый процессор
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain, use_async=True, max_workers=2)
         
         print("✓ UnifiedTextProcessor инициализирован с асинхронной поддержкой")
@@ -167,7 +167,7 @@ def test_async_tokenization():
         print("\n--- Тест 1: Базовая токенизация ---")
         test_texts = [
             "Это простой тест токенизации.",
-            "CogniFlex использует гибридный кэш для оптимизации.",
+            "ЕВА использует гибридный кэш для оптимизации.",
             "Асинхронная обработка повышает производительность системы.",
             "Машинное обучение требует эффективной работы с токенами."
         ]
@@ -270,8 +270,8 @@ def test_integration():
         brain = IntegratedBrain()
         
         # Создаем компоненты
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.memory.hybrid_token_cache import HybridTokenCache
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         
         cache = HybridTokenCache(brain, max_memory_tokens=50)
         processor = UnifiedTextProcessor(brain=brain, hybrid_cache=cache, use_async=True)

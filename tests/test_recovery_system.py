@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CogniFlex Recovery System Tests
+ЕВА Recovery System Tests
 Тесты для системы восстановления после сбоев.
 """
 
@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from cogniflex.recovery.recovery_system import (
+from eva.recovery.recovery_system import (
     RecoveryManager,
     ComponentStateManager,
     FailureDetector,
@@ -655,7 +655,7 @@ def create_test_recovery_plan(plan_id: str, failure_type: str, steps: list) -> R
     )
 
 if __name__ == "__main__":
-    print("🚀 Запуск тестов системы восстановления CogniFlex...")
+    print("🚀 Запуск тестов системы восстановления ЕВА...")
 
     # Можно запускать тесты напрямую
     import subprocess

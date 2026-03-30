@@ -1,5 +1,5 @@
 """
-CogniFlex Basic Integration Tests
+ЕВА Basic Integration Tests
 Базовые интеграционные тесты компонентов системы.
 """
 
@@ -94,20 +94,20 @@ class TestBasicFunctionality:
             pytest.skip(f"Не удалось загрузить модель: {e}")
 
 
-class TestCogniFlexImports:
-    """Тесты импортов компонентов CogniFlex."""
+class TestЕВАImports:
+    """Тесты импортов компонентов ЕВА."""
 
     @pytest.mark.unit
     def test_core_imports(self):
         """Тест импортов основных компонентов."""
         try:
-            from cogniflex.core.core_brain import CoreBrain
+            from eva.core.core_brain import CoreBrain
             assert CoreBrain is not None
         except ImportError:
             pytest.skip("CoreBrain недоступен")
 
         try:
-            from cogniflex.core.component_initializer import ComponentInitializer
+            from eva.core.component_initializer import ComponentInitializer
             assert ComponentInitializer is not None
         except ImportError:
             pytest.skip("ComponentInitializer недоступен")
@@ -116,7 +116,7 @@ class TestCogniFlexImports:
     def test_memory_imports(self):
         """Тест импортов компонентов памяти."""
         try:
-            from cogniflex.memory.memory_manager import MemoryManager
+            from eva.memory.memory_manager import MemoryManager
             assert MemoryManager is not None
         except ImportError:
             pytest.skip("MemoryManager недоступен")
@@ -125,21 +125,21 @@ class TestCogniFlexImports:
     def test_gui_imports(self):
         """Тест импортов GUI компонентов."""
         try:
-            from cogniflex.gui.core_gui import CogniFlexGUI, create_gui
-            assert CogniFlexGUI is not None
+            from eva.gui.core_gui import ЕВАGUI, create_gui
+            assert ЕВАGUI is not None
             assert create_gui is not None
         except ImportError:
             pytest.skip("GUI компоненты недоступны")
 
         try:
-            from cogniflex.gui.chat_module import ChatModule
+            from eva.gui.chat_module import ChatModule
             assert ChatModule is not None
         except ImportError:
             pytest.skip("ChatModule недоступен")
 
 
-class TestCogniFlexComponents:
-    """Тесты компонентов CogniFlex с использованием фикстур."""
+class TestЕВАComponents:
+    """Тесты компонентов ЕВА с использованием фикстур."""
 
     @pytest.mark.brain
     @pytest.mark.integration
@@ -256,7 +256,7 @@ class TestPerformance:
 
         start_time = time.time()
         try:
-            from cogniflex.core.core_brain import CoreBrain
+            from eva.core.core_brain import CoreBrain
             brain = CoreBrain(config=brain_config)
             init_time = time.time() - start_time
 
@@ -297,7 +297,7 @@ class TestPerformance:
 # Legacy function for backward compatibility
 def test_basic():
     """Устаревшая функция для обратной совместимости."""
-    print("=== CogniFlex Basic Integration Test ===")
+    print("=== ЕВА Basic Integration Test ===")
 
     # Run basic PyTorch tests
     test_func = TestBasicFunctionality()

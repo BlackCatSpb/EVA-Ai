@@ -15,16 +15,16 @@ import time
 if __name__ == "__main__" and __package__ is None:
     sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from cogniflex.core.core_brain import CoreBrain
-from cogniflex.tools.import_pipeline import ImportPipeline
-from cogniflex.mlearning.training_orchestrator import TrainingOrchestrator
+from eva.core.core_brain import CoreBrain
+from eva.tools.import_pipeline import ImportPipeline
+from eva.mlearning.training_orchestrator import TrainingOrchestrator
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("cogniflex.tools.train_from_path")
+logger = logging.getLogger("eva.tools.train_from_path")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CogniFlex training runner")
+    parser = argparse.ArgumentParser(description="ЕВА training runner")
     parser.add_argument("--path", required=True, help="Path to TXT/PDF/EPUB file")
     parser.add_argument("--model-id", default=None, help="Preferred model id (e.g., HuggingFace repo)")
     parser.add_argument("--batch-size", type=int, default=16, help="Batch size for orchestrator")

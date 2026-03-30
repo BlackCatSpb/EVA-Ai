@@ -1,5 +1,5 @@
 """
-Comprehensive test script for all GUI methods in CogniFlex.
+Comprehensive test script for all GUI methods in ЕВА.
 Tests all public methods across all GUI modules.
 """
 import os
@@ -103,7 +103,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_core_gui(self):
         """Test importing core_gui module."""
         try:
-            from cogniflex.gui.core_gui import CogniFlexGUI, create_gui
+            from eva.gui.core_gui import ЕВАGUI, create_gui
             logger.info("✓ core_gui module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import core_gui: {e}")
@@ -112,7 +112,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_integrated_gui(self):
         """Test importing integrated_gui module."""
         try:
-            from cogniflex.gui.core_gui import CogniFlexGUI
+            from eva.gui.core_gui import ЕВАGUI
             logger.info("✓ core_gui module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import core_gui: {e}")
@@ -121,7 +121,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_chat_module(self):
         """Test importing chat_module."""
         try:
-            from cogniflex.gui.chat_module import ChatModule
+            from eva.gui.chat_module import ChatModule
             logger.info("✓ chat_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import chat_module: {e}")
@@ -130,7 +130,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_memory_module(self):
         """Test importing memory_module."""
         try:
-            from cogniflex.gui.memory_module import MemoryModule
+            from eva.gui.memory_module import MemoryModule
             logger.info("✓ memory_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import memory_module: {e}")
@@ -139,7 +139,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_knowledge_graph_module(self):
         """Test importing knowledge_graph_module."""
         try:
-            from cogniflex.gui.knowledge_graph_module import KnowledgeGraphModule
+            from eva.gui.knowledge_graph_module import KnowledgeGraphModule
             logger.info("✓ knowledge_graph_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import knowledge_graph_module: {e}")
@@ -148,7 +148,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_contradiction_module(self):
         """Test importing contradiction_module."""
         try:
-            from cogniflex.gui.contradiction_module import ContradictionModule
+            from eva.gui.contradiction_module import ContradictionModule
             logger.info("✓ contradiction_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import contradiction_module: {e}")
@@ -157,7 +157,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_learning_module(self):
         """Test importing learning_module."""
         try:
-            from cogniflex.gui.learning_module import LearningModule
+            from eva.gui.learning_module import LearningModule
             logger.info("✓ learning_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import learning_module: {e}")
@@ -166,7 +166,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_settings_module(self):
         """Test importing settings_module."""
         try:
-            from cogniflex.gui.settings_module import SettingsModule
+            from eva.gui.settings_module import SettingsModule
             logger.info("✓ settings_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import settings_module: {e}")
@@ -175,7 +175,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_neuromorphic_module(self):
         """Test importing neuromorphic_module."""
         try:
-            from cogniflex.gui.neuromorphic_module import NeuromorphicModule
+            from eva.gui.neuromorphic_module import NeuromorphicModule
             logger.info("✓ neuromorphic_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import neuromorphic_module: {e}")
@@ -184,7 +184,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_analytics_module(self):
         """Test importing analytics_module."""
         try:
-            from cogniflex.gui.analytics_module import AnalyticsModule
+            from eva.gui.analytics_module import AnalyticsModule
             logger.info("✓ analytics_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import analytics_module: {e}")
@@ -193,7 +193,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_settings(self):
         """Test importing settings module."""
         try:
-            from cogniflex.gui.settings import load_settings, save_settings
+            from eva.gui.settings import load_settings, save_settings
             logger.info("✓ settings module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import settings: {e}")
@@ -202,7 +202,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_utils(self):
         """Test importing gui_utils module."""
         try:
-            import cogniflex.gui.gui_utils
+            import eva.gui.gui_utils
             logger.info("✓ gui_utils imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import gui_utils: {e}")
@@ -211,7 +211,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_themes(self):
         """Test importing gui_themes module."""
         try:
-            import cogniflex.gui.gui_themes as gt
+            import eva.gui.gui_themes as gt
             self.assertTrue(hasattr(gt, 'THEME_COLORS'))
             logger.info("✓ gui_themes imported successfully")
         except Exception as e:
@@ -221,7 +221,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_util(self):
         """Test importing gui_util."""
         try:
-            import cogniflex.gui.gui_util as gu
+            import eva.gui.gui_util as gu
             self.assertTrue(hasattr(gu, 'create_rounded_button'))
             logger.info("✓ gui_util imported successfully")
         except Exception as e:
@@ -231,7 +231,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_widgets(self):
         """Test importing gui_widgets module."""
         try:
-            import cogniflex.gui.gui_widgets as gw
+            import eva.gui.gui_widgets as gw
             self.assertTrue(hasattr(gw, 'create_main_interface'))
             logger.info("✓ gui_widgets imported successfully")
         except Exception as e:
@@ -241,7 +241,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_widgets(self):
         """Test importing widgets module."""
         try:
-            import cogniflex.gui.widgets as w
+            import eva.gui.widgets as w
             self.assertTrue(hasattr(w, 'create_rounded_button'))
             logger.info("✓ widgets imported successfully")
         except Exception as e:
@@ -251,7 +251,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_modules(self):
         """Test importing gui_modules."""
         try:
-            import cogniflex.gui.gui_modules as gm
+            import eva.gui.gui_modules as gm
             self.assertTrue(hasattr(gm, 'init_modules'))
             logger.info("✓ gui_modules imported successfully")
         except Exception as e:
@@ -259,8 +259,8 @@ class TestGUIImports(unittest.TestCase):
             raise
 
 
-class TestCogniFlexGUIMethods(unittest.TestCase):
-    """Test all public methods in CogniFlexGUI class."""
+class TestЕВАGUIMethods(unittest.TestCase):
+    """Test all public methods in ЕВАGUI class."""
     
     @classmethod
     def setUpClass(cls):
@@ -272,8 +272,8 @@ class TestCogniFlexGUIMethods(unittest.TestCase):
         self.root = tk.Tk()
         self.root.withdraw()  # Hide window during tests
         
-        from cogniflex.gui.core_gui import CogniFlexGUI
-        self.gui = CogniFlexGUI(brain=self.brain, integrator=self.integrator)
+        from eva.gui.core_gui import ЕВАGUI
+        self.gui = ЕВАGUI(brain=self.brain, integrator=self.integrator)
         self.gui.root = self.root
         self.gui.running = False  # Don't actually run the GUI
     
@@ -429,8 +429,8 @@ class TestCogniFlexGUIMethods(unittest.TestCase):
             raise
 
 
-class TestIntegratedCogniFlexGUIMethods(unittest.TestCase):
-    """Test all public methods in IntegratedCogniFlexGUI class."""
+class TestIntegratedЕВАGUIMethods(unittest.TestCase):
+    """Test all public methods in IntegratedЕВАGUI class."""
     
     @classmethod
     def setUpClass(cls):
@@ -440,10 +440,10 @@ class TestIntegratedCogniFlexGUIMethods(unittest.TestCase):
         self.root = tk.Tk()
         self.root.withdraw()
         
-        from cogniflex.gui.core_gui import CogniFlexGUI
+        from eva.gui.core_gui import ЕВАGUI
         # Patch setup_gui to avoid creating real tkinter widgets
-        with patch.object(CogniFlexGUI, 'setup_gui', return_value=None):
-            self.gui = CogniFlexGUI(self.brain)
+        with patch.object(ЕВАGUI, 'setup_gui', return_value=None):
+            self.gui = ЕВАGUI(self.brain)
             self.gui.root = self.root
     
     def tearDown(self):
@@ -604,7 +604,7 @@ class TestChatModuleMethods(unittest.TestCase):
         self.gui.colors = {}
         self.gui.reasoning_active = True
         
-        from cogniflex.gui.chat_module import ChatModule
+        from eva.gui.chat_module import ChatModule
         self.module = ChatModule(self.gui)
         self.module.gui = self.gui
     
@@ -648,7 +648,7 @@ class TestMemoryModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.memory_module import MemoryModule
+        from eva.gui.memory_module import MemoryModule
         self.module = MemoryModule(self.gui)
         self.module.gui = self.gui
     
@@ -702,7 +702,7 @@ class TestKnowledgeGraphModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.knowledge_graph_module import KnowledgeGraphModule
+        from eva.gui.knowledge_graph_module import KnowledgeGraphModule
         self.module = KnowledgeGraphModule(self.gui)
         self.module.gui = self.gui
     
@@ -746,7 +746,7 @@ class TestContradictionModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.contradiction_module import ContradictionModule
+        from eva.gui.contradiction_module import ContradictionModule
         self.module = ContradictionModule(self.gui)
         self.module.gui = self.gui
     
@@ -790,7 +790,7 @@ class TestLearningModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.learning_module import LearningModule
+        from eva.gui.learning_module import LearningModule
         self.module = LearningModule(self.gui)
         self.module.gui = self.gui
     
@@ -834,7 +834,7 @@ class TestSettingsModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.settings_module import SettingsModule
+        from eva.gui.settings_module import SettingsModule
         self.module = SettingsModule(self.gui)
         self.module.gui = self.gui
     
@@ -878,7 +878,7 @@ class TestNeuromorphicModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.neuromorphic_module import NeuromorphicModule
+        from eva.gui.neuromorphic_module import NeuromorphicModule
         self.module = NeuromorphicModule(self.gui)
         self.module.gui = self.gui
     
@@ -922,7 +922,7 @@ class TestAnalyticsModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from cogniflex.gui.analytics_module import AnalyticsModule
+        from eva.gui.analytics_module import AnalyticsModule
         self.module = AnalyticsModule(self.gui)
         self.module.gui = self.gui
     
@@ -959,7 +959,7 @@ class TestSettingsModule(unittest.TestCase):
     def test_load_settings(self):
         """Test load_settings function."""
         try:
-            from cogniflex.gui.settings import load_settings
+            from eva.gui.settings import load_settings
             settings = load_settings("nonexistent.json")
             self.assertIsInstance(settings, dict)
             logger.info("✓ load_settings works")
@@ -970,7 +970,7 @@ class TestSettingsModule(unittest.TestCase):
     def test_save_settings(self):
         """Test save_settings function."""
         try:
-            from cogniflex.gui.settings import save_settings
+            from eva.gui.settings import save_settings
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
                 temp_path = f.name
@@ -991,7 +991,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_theme_colors(self):
         """Test THEME_COLORS from gui_themes."""
         try:
-            from cogniflex.gui.gui_themes import THEME_COLORS
+            from eva.gui.gui_themes import THEME_COLORS
             self.assertIsInstance(THEME_COLORS, dict)
             self.assertIn("light", THEME_COLORS)
             self.assertIn("dark", THEME_COLORS)
@@ -1003,7 +1003,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_styles(self):
         """Test create_styles from gui_themes."""
         try:
-            from cogniflex.gui.gui_themes import create_styles
+            from eva.gui.gui_themes import create_styles
             gui_mock = MagicMock()
             gui_mock.colors = {"primary": "blue", "bg": "white"}
             create_styles(gui_mock)
@@ -1015,7 +1015,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_rounded_button(self):
         """Test create_rounded_button from widgets."""
         try:
-            from cogniflex.gui.widgets import create_rounded_button
+            from eva.gui.widgets import create_rounded_button
             root = tk.Tk()
             root.withdraw()
             btn = create_rounded_button(root, "Test", command=lambda: None)
@@ -1028,7 +1028,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_gradient_canvas(self):
         """Test create_gradient_canvas from widgets."""
         try:
-            from cogniflex.gui.widgets import create_gradient_canvas
+            from eva.gui.widgets import create_gradient_canvas
             root = tk.Tk()
             root.withdraw()
             canvas = create_gradient_canvas(root, 100, 100, "white", "black")
@@ -1041,7 +1041,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_load_settings_gui_utils(self):
         """Test load_settings from gui_utils."""
         try:
-            from cogniflex.gui.gui_utils import load_settings
+            from eva.gui.gui_utils import load_settings
             settings = load_settings("nonexistent.json")
             self.assertIsInstance(settings, dict)
             logger.info("✓ load_settings from gui_utils works")
@@ -1052,7 +1052,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_save_settings_gui_utils(self):
         """Test save_settings from gui_utils."""
         try:
-            from cogniflex.gui.gui_utils import save_settings
+            from eva.gui.gui_utils import save_settings
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
                 temp_path = f.name
@@ -1069,7 +1069,7 @@ class TestUtilityModules(unittest.TestCase):
 
 if __name__ == '__main__':
     print("=" * 80)
-    print("CogniFlex GUI Integration Test - Testing All GUI Methods")
+    print("ЕВА GUI Integration Test - Testing All GUI Methods")
     print("=" * 80)
     
     # Run tests with verbose output
@@ -1079,8 +1079,8 @@ if __name__ == '__main__':
     # Add all test classes
     test_classes = [
         TestGUIImports,
-        TestCogniFlexGUIMethods,
-        TestIntegratedCogniFlexGUIMethods,
+        TestЕВАGUIMethods,
+        TestIntegratedЕВАGUIMethods,
         TestChatModuleMethods,
         TestMemoryModuleMethods,
         TestKnowledgeGraphModuleMethods,

@@ -1,5 +1,5 @@
 """
-Тест интеграции генерации текста в CogniFlex.
+Тест интеграции генерации текста в ЕВА.
 
 Этот скрипт демонстрирует, как использовать интегрированную функциональность
 генерации текста в CoreBrain.
@@ -26,7 +26,7 @@ logger = logging.getLogger('test_generation')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Импортируем CoreBrain
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 class TestEventSystem:
     """Простая реализация системы событий для тестирования."""

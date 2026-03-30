@@ -15,7 +15,7 @@
   "model": {
     "name": "qwen3.5-0.8b",
     "type": "qwen",
-    "path": "cogniflex/mlearning/cogniflex_models/qwen3.5-0.8b",
+    "path": "eva/mlearning/cogniflex_models/qwen3.5-0.8b",
     "vocab_size": 151936,
     "max_length": 32768,
     "max_new_tokens": 2048,
@@ -74,7 +74,7 @@
   },
   "logging": {
     "level": "INFO",
-    "file": "cogniflex.log",
+    "file": "eva.log",
     "console": true,
     "performance_tracking": true
   },

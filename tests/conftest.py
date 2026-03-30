@@ -1,5 +1,5 @@
 """
-CogniFlex Test Configuration
+ЕВА Test Configuration
 Общие фикстуры для тестов
 """
 import pytest
@@ -50,7 +50,7 @@ def mock_logger():
 @pytest.fixture
 def sample_text():
     """Пример текста для тестов"""
-    return "Это тестовый текст для проверки функций CogniFlex."
+    return "Это тестовый текст для проверки функций ЕВА."
 
 
 @pytest.fixture

@@ -21,7 +21,7 @@ print("TEST 1: CuriosityEngine")
 print("=" * 50)
 
 try:
-    from cogniflex.learning.curiosity_engine import CuriosityEngine, CuriosityType
+    from eva.learning.curiosity_engine import CuriosityEngine, CuriosityType
     
     engine = CuriosityEngine(brain=None)
     
@@ -60,7 +60,7 @@ print("TEST 2: KnowledgeAwareness")
 print("=" * 50)
 
 try:
-    from cogniflex.learning.knowledge_awareness import KnowledgeAwareness
+    from eva.learning.knowledge_awareness import KnowledgeAwareness
     
     aware = KnowledgeAwareness(brain=None)
     
@@ -102,7 +102,7 @@ print("TEST 3: OnlineKnowledgeAccess")
 print("=" * 50)
 
 try:
-    from cogniflex.knowledge.online_knowledge import OnlineKnowledgeAccess
+    from eva.knowledge.online_knowledge import OnlineKnowledgeAccess
     
     online = OnlineKnowledgeAccess(brain=None)
     
@@ -144,7 +144,7 @@ print("TEST 4: SelfDialogLearningSystem")
 print("=" * 50)
 
 try:
-    from cogniflex.learning.self_dialog_learning import SelfDialogLearningSystem
+    from eva.learning.self_dialog_learning import SelfDialogLearningSystem
     
     # Create without brain (simplified test)
     sdsl = SelfDialogLearningSystem(brain=None, config={'enabled': False})

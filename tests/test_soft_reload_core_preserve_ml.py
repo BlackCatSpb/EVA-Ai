@@ -1,6 +1,6 @@
 import pytest
 
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 
 def test_soft_reload_preserves_ml_where_present():

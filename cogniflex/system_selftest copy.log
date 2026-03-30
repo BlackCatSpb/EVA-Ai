@@ -1,2 +1,0 @@
-2025-08-12 14:26:30,913 - ERROR - Не удалось импортировать ядро CogniFlex: No module named 'cogniflex'
-2025-08-12 15:16:18,952 - ERROR - Не удалось импортировать ядро CogniFlex: cannot import name 'CogniFlexBrain' from 'cogniflex.core.core_brain' (C:\Users\black\OneDrive\Desktop\CogniFlex\cogniflex\core\core_brain.py)

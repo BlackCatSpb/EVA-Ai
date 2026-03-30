@@ -6,7 +6,7 @@ import pytest
 from typing import Any, Dict, List, Optional
 
 # Import CoreBrain and QueryProcessor behavior
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 
 # ---- Stubs for components ----

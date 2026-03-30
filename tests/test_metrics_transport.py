@@ -1,7 +1,7 @@
 import time
 from typing import Any, Dict, List
 
-from cogniflex.core.core_brain import CoreBrain
+from eva.core.core_brain import CoreBrain
 
 
 def test_metrics_event_routed_to_manager():

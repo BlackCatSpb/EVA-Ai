@@ -217,7 +217,7 @@ def test_baseline_performance(contexts: List[Dict[str, Any]]) -> PerformanceMetr
         
         brain = MockBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain, use_async=False, max_workers=1)
         
         analyzer = ContextAnalyzer()
@@ -280,8 +280,8 @@ def test_optimized_performance(contexts: List[Dict[str, Any]]) -> PerformanceMet
         
         brain = OptimizedBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.memory.hybrid_token_cache import HybridTokenCache
         
         # Создаем кэш
         cache = HybridTokenCache(brain, max_memory_tokens=1000)
@@ -372,8 +372,8 @@ def test_concurrent_performance(contexts: List[Dict[str, Any]]) -> PerformanceMe
         
         brain = ConcurrentBrain()
         
-        from cogniflex.mlearning.unified_text_processor import UnifiedTextProcessor
-        from cogniflex.memory.hybrid_token_cache import HybridTokenCache
+        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva.memory.hybrid_token_cache import HybridTokenCache
         
         cache = HybridTokenCache(brain, max_memory_tokens=2000)
         processor = UnifiedTextProcessor(brain=brain, use_async=True, max_workers=6, hybrid_cache=cache)

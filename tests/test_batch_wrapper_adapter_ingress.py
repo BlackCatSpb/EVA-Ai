@@ -1,11 +1,11 @@
 import torch
 
-from cogniflex.core.batch_wrapper import (
+from eva.core.batch_wrapper import (
     WrapperMetadata,
     wrap_for_transfer,
 )
-from cogniflex.core.event_system import EventSystem
-from cogniflex.adapters.torch_adapter import TorchBatchAdapter, Meta
+from eva.core.event_system import EventSystem
+from eva.adapters.torch_adapter import TorchBatchAdapter, Meta
 
 
 def test_adapter_unwrap_and_clean_and_telemetry():

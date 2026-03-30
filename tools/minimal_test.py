@@ -15,11 +15,11 @@ def test_gui_imports():
     
     try:
         print("Импорт CoreBrain...")
-        from cogniflex.core.core_brain import CoreBrain
+        from eva.core.core_brain import CoreBrain
         print("✅ CoreBrain импортирован")
         
         print("Импорт GUI...")
-        from cogniflex.gui.core_gui import CogniFlexGUI
+        from eva.gui.core_gui import ЕВАGUI
         print("✅ GUI импортирован")
         
         return True
@@ -62,8 +62,8 @@ def test_gui_with_mock_brain():
         brain = MockBrain()
         print("✅ MockBrain создан")
         
-        from cogniflex.gui.core_gui import CogniFlexGUI
-        gui = CogniFlexGUI(brain=brain)
+        from eva.gui.core_gui import ЕВАGUI
+        gui = ЕВАGUI(brain=brain)
         print("✅ GUI создан с мок brain")
         
         # Проверяем основные атрибуты
@@ -110,8 +110,8 @@ def test_gui_methods():
         
         brain = MockBrain()
         
-        from cogniflex.gui.core_gui import CogniFlexGUI
-        gui = CogniFlexGUI(brain=brain)
+        from eva.gui.core_gui import ЕВАGUI
+        gui = ЕВАGUI(brain=brain)
         
         # Проверяем наличие ключевых методов
         expected_methods = ['start', 'stop', 'create_main_window']
@@ -140,11 +140,11 @@ def test_gui_error_handling():
     print("\n=== Тест обработки ошибок GUI ===")
     
     try:
-        from cogniflex.gui.core_gui import CogniFlexGUI
+        from eva.gui.core_gui import ЕВАGUI
         
         # Тест с None brain
         try:
-            gui = CogniFlexGUI(brain=None)
+            gui = ЕВАGUI(brain=None)
             print("✅ GUI создан с None brain (обработка ошибки работает)")
         except Exception as e:
             print(f"⚠️ GUI не может работать с None brain: {e}")
@@ -155,7 +155,7 @@ def test_gui_error_handling():
         
         try:
             bad_brain = BadBrain()
-            gui = CogniFlexGUI(brain=bad_brain)
+            gui = ЕВАGUI(brain=bad_brain)
             print("✅ GUI создан с некорректным brain")
         except Exception as e:
             print(f"⚠️ GUI не может работать с некорректным brain: {e}")
@@ -210,8 +210,8 @@ def test_gui_integration():
         brain = EnhancedMockBrain()
         print("✅ Enhanced MockBrain создан")
         
-        from cogniflex.gui.core_gui import CogniFlexGUI
-        gui = CogniFlexGUI(brain=brain)
+        from eva.gui.core_gui import ЕВАGUI
+        gui = ЕВАGUI(brain=brain)
         print("✅ GUI создан с enhanced brain")
         
         # Тестируем доступ к менеджерам

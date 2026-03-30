@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Script to download Qwen3.5-2B model for CogniFlex
+Script to download Qwen3.5-2B model for ЕВА
 """
 import os
 import sys
 
 def download_qwen_model():
     model_name = "Qwen/Qwen3.5-2B"
-    target_dir = "cogniflex/mlearning/cogniflex_models/qwen3.5-2b"
+    target_dir = "eva/mlearning/cogniflex_models/qwen3.5-2b"
     
     print(f"Downloading {model_name} to {target_dir}")
     print("This may take 10-30 minutes depending on your internet speed...")
@@ -33,7 +33,7 @@ def download_qwen_model():
         print("Model downloaded!")
         
         print(f"\n✓ Model saved to: {os.path.abspath(target_dir)}")
-        print("You can now run CogniFlex with Qwen3.5-2B!")
+        print("You can now run ЕВА with Qwen3.5-2B!")
         
     except Exception as e:
         print(f"Error downloading model: {e}")

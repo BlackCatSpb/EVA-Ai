@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-CogniFlex System Launcher
-Запуск системы CogniFlex
+ЕВА System Launcher
+Запуск системы ЕВА
 """
 
 import os
@@ -20,7 +20,7 @@ def main():
     """Основная функция запуска системы."""
     try:
         # Импортируем и запускаем систему
-        from cogniflex.run import main as run_main
+        from eva.run import main as run_main
         return run_main()
     except ImportError as e:
         print(f"❌ Ошибка импорта: {e}")

@@ -3,8 +3,8 @@ import time
 
 import torch
 
-from cogniflex.adapters.torch_adapter import TorchBatchAdapter, Meta
-from cogniflex.runtime.worker_pool import InferenceWorkerPool
+from eva.adapters.torch_adapter import TorchBatchAdapter, Meta
+from eva.runtime.worker_pool import InferenceWorkerPool
 
 
 MODEL_FN = "cogniflex.runtime.simple_model.example_model_fn"

@@ -3,7 +3,7 @@ Download script for rugpt3small model and export to fractal storage.
 
 This script:
 1. Uses cached sberbank-ai/rugpt3small_based_on_gpt2 from HuggingFace
-2. Exports it to fractal storage for CogniFlex (simple HF format)
+2. Exports it to fractal storage for ЕВА (simple HF format)
 3. Updates brain_config.json to use the new model
 """
 
@@ -203,14 +203,14 @@ def main():
     model_id = "sberbank-ai/rugpt3small_based_on_gpt2"
     
     project_root = get_project_root()
-    cache_dir = str(project_root / "cogniflex" / "core" / "cogniflex_cache" / "models" / "hf_cache")
-    fractal_path = str(project_root / "cogniflex" / "core" / "cogniflex_cache" / "ml_unit" / "fractal_storage" / "models" / "rugpt3_small_fractal")
+    cache_dir = str(project_root / "eva" / "core" / "cogniflex_cache" / "models" / "hf_cache")
+    fractal_path = str(project_root / "eva" / "core" / "cogniflex_cache" / "ml_unit" / "fractal_storage" / "models" / "rugpt3_small_fractal")
     config_path = str(project_root / "brain_config.json")
     
     os.makedirs(cache_dir, exist_ok=True)
     
     logger.info("=" * 60)
-    logger.info("CogniFlex Light Model Downloader")
+    logger.info("ЕВА Light Model Downloader")
     logger.info("=" * 60)
     logger.info(f"Model: {model_id}")
     logger.info(f"Cache dir: {cache_dir}")

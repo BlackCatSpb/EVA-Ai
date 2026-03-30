@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CogniFlex Security Framework Tests
+ЕВА Security Framework Tests
 Тесты для системы безопасности.
 """
 
@@ -9,7 +9,7 @@ import time
 from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 
-from cogniflex.security.security_framework import (
+from eva.security.security_framework import (
     SecurityManager,
     AuthenticationManager,
     AuthorizationManager,
@@ -517,7 +517,7 @@ class TestSecurityDecorators:
 
     def test_require_authentication_decorator(self):
         """Тест декоратора require_authentication."""
-        from cogniflex.security.security_framework import require_authentication
+        from eva.security.security_framework import require_authentication
 
         @require_authentication("read")
         def protected_function(session_token=None, **kwargs):
@@ -539,7 +539,7 @@ class TestSecurityDecorators:
 
     def test_log_security_event_function(self):
         """Тест функции логирования событий безопасности."""
-        from cogniflex.security.security_framework import log_security_event
+        from eva.security.security_framework import log_security_event
 
         security_mgr = get_security_manager()
         initial_events = len(security_mgr.event_log)
@@ -562,7 +562,7 @@ class TestSecurityDecorators:
 
 
 if __name__ == "__main__":
-    print("🚀 Запуск тестов системы безопасности CogniFlex...")
+    print("🚀 Запуск тестов системы безопасности ЕВА...")
 
     # Можно запускать тесты напрямую
     import subprocess
