@@ -60,7 +60,7 @@ def main():
     print("=" * 50)
     
     # Import server and create app with brain
-    web_gui_dir = os.path.join(script_dir, 'cogniflex', 'gui', 'web_gui')
+    web_gui_dir = os.path.join(script_dir, 'eva', 'gui', 'web_gui')
     sys.path.insert(0, web_gui_dir)
     
     import server
