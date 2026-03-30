@@ -238,13 +238,18 @@ def get_adaptation_insights(self) -> Dict[str, Any]:
             learning_styles[style] += 1
     
     # Анализируем фидбэк
-    feedback_last_week = [fb for fb in self.feedback_history 
-                        if time.time() - fb.timestamp <= 7 * 86400]
+    feedback_last_week = []
+    if self.feedback_history:
+        feedback_last_week = [fb for fb in self.feedback_history 
+                            if hasattr(fb, 'timestamp') and hasattr(fb, 'feedback_type')
+                            and time.time() - fb.timestamp <= 7 * 86400]
     
     # Группируем негативный фидбэк по концептам
     concept_issues = {}
     for fb in feedback_last_week:
-        if fb.feedback_type == "negative":
+        if hasattr(fb, 'feedback_type') and fb.feedback_type == "negative":
+            if not hasattr(fb, 'query'):
+                continue
             concept = self._extract_concept_from_query(fb.query)
             if concept:
                 if concept not in concept_issues:

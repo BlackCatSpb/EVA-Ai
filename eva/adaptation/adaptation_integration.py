@@ -434,7 +434,9 @@ def get_system_adaptation_report(self) -> Dict[str, Any]:
     
     # Анализируем фидбэк за последнюю неделю
     feedback_last_week = self.get_feedback_history(days=7)
-    negative_feedback = [fb for fb in feedback_last_week if fb.feedback_type == "negative"]
+    if feedback_last_week is None:
+        feedback_last_week = []
+    negative_feedback = [fb for fb in feedback_last_week if hasattr(fb, 'feedback_type') and fb.feedback_type == "negative"]
     
     # Анализируем проблемы
     problem_areas = []
@@ -442,6 +444,8 @@ def get_system_adaptation_report(self) -> Dict[str, Any]:
         # Группируем негативный фидбэк по концептам
         concept_issues = {}
         for fb in negative_feedback:
+            if not hasattr(fb, 'query'):
+                continue
             concept = self._extract_concept_from_query(fb.query)
             if concept:
                 if concept not in concept_issues:

@@ -158,27 +158,35 @@ class KnowledgeIntegrator:
             # Анализируем пробелы
             gaps = self.knowledge_analyzer.analyze_knowledge_gaps(domain=concept, num_samples=5)
             
+            if not gaps:
+                gaps = []
+            
             # Заполняем пробелы
             filled_gaps = 0
             for gap in gaps:
+                if not isinstance(gap, dict):
+                    continue
                 if gap.get("gap_type") == "incomplete":
+                    gap_concept = gap.get("concept")
+                    if not gap_concept:
+                        continue
                     # Пытаемся найти дополнительные связи
-                    if hasattr(self.brain, 'text_processor'):
+                    if self.brain and hasattr(self.brain, 'text_processor'):
                         related = self.brain.text_processor.analyze_connection_pattern(
-                            gap["concept"], 
-                            [gap["concept"]], 
+                            gap_concept, 
+                            [gap_concept], 
                             "related_to"
                         )
                         
                         # Добавляем новые связи
-                        if related["most_related"]:
+                        if related and related.get("most_related"):
                             for concept_name in related["most_related"]:
                                 # Определяем тип связи
                                 relation_type = "related_to"  # Простое отношение
                                 # Находим узлы по именам, чтобы получить их ID
                                 src_nodes = self.knowledge_graph.search_nodes(gap["concept"], limit=1)
                                 dst_nodes = self.knowledge_graph.search_nodes(concept_name, limit=1)
-                                if src_nodes and dst_nodes:
+                                if src_nodes and dst_nodes and len(src_nodes) > 0 and len(dst_nodes) > 0:
                                     self.knowledge_graph.add_edge(
                                         source_id=src_nodes[0].id,
                                         target_id=dst_nodes[0].id,
@@ -188,26 +196,37 @@ class KnowledgeIntegrator:
                             filled_gaps += 1
                 
                 elif gap.get("gap_type") == "outdated":
+                    gap_concept = gap.get("concept")
+                    if not gap_concept:
+                        continue
                     # Пытаемся обновить информацию
-                    if hasattr(self.brain, 'web_search_engine'):
+                    if self.brain and hasattr(self.brain, 'web_search_engine'):
                         knowledge = self.brain.web_search_engine.web_search_and_learn(
-                            gap["concept"], 
+                            gap_concept, 
                             num_results=1
                         )
                         
-                        if knowledge:
+                        if knowledge and isinstance(knowledge, list) and len(knowledge) > 0:
                             # Обновляем информацию в KnowledgeGraph
-                            nodes = self.knowledge_graph.search_nodes(gap["concept"], limit=1)
-                            if nodes:
-                                self.knowledge_graph.update_node(
-                                    nodes[0].id,
-                                    knowledge[0]["content"],
-                                    source=knowledge[0].get("source")
-                                )
+                            nodes = self.knowledge_graph.search_nodes(gap_concept, limit=1)
+                            if nodes and len(nodes) > 0:
+                                knowledge_item = knowledge[0]
+                                if isinstance(knowledge_item, dict):
+                                    content = knowledge_item.get("content", "")
+                                    source = knowledge_item.get("source")
+                                    if content:
+                                        self.knowledge_graph.update_node(
+                                            nodes[0].id,
+                                            content,
+                                            source=source
+                                        )
                             filled_gaps += 1
             
             # Анализируем противоречия
             contradictions = self.knowledge_analyzer.detect_contradictions()
+            
+            if not contradictions:
+                contradictions = []
             
             # Разрешаем противоречия
             resolved_contradictions = 0
@@ -313,9 +332,12 @@ class KnowledgeIntegrator:
             bool: Успешно ли разрешено
         """
         try:
-            concept1 = contradiction["concept1"]
-            concept2 = contradiction["concept2"]
-            common_target = contradiction["common_target"]
+            concept1 = contradiction.get("concept1")
+            concept2 = contradiction.get("concept2")
+            common_target = contradiction.get("common_target")
+            
+            if not all([concept1, concept2, common_target]):
+                return False
             
             # Получаем узлы
             node1 = self.knowledge_graph.search_nodes(concept1, limit=1)
@@ -323,6 +345,9 @@ class KnowledgeIntegrator:
             target_node = self.knowledge_graph.search_nodes(common_target, limit=1)
             
             if not all([node1, node2, target_node]):
+                return False
+            
+            if len(node1) == 0 or len(node2) == 0 or len(target_node) == 0:
                 return False
             
             node1, node2, target_node = node1[0], node2[0], target_node[0]
@@ -403,7 +428,8 @@ class KnowledgeIntegrator:
         
         # Учитываем актуальность информации
         current_time = time.time()
-        age_days = (current_time - node.last_updated) / 86400
+        node_age = getattr(node, 'last_updated', current_time)
+        age_days = (current_time - node_age) / 86400
         freshness_factor = max(0.2, 1.0 - (age_days / 365))  # Уменьшается линейно в течение года
         strength *= freshness_factor
         

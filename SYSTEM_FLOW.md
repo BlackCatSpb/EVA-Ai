@@ -1,7 +1,39 @@
 # ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.20 - Исправления багов после AI аудита
+Версия: 1.21 - 15-й цикл аудита: Исправления
+
+---
+
+## Версия 1.21 (2026-03-30) - 15-й цикл аудита
+
+### AI Architect Результаты (3 архитектора параллельно):
+- Core модули: найдены проблемы в integration_layer, system_optimizer, self_dialog_manager
+- Knowledge/Memory: найдены проблемы в knowledge_integrator, knowledge_storage, knowledge_graph_traversal, memory_working
+- Learning/GUI: найдены проблемы в learning_scheduler, performance_analyzer, adaptation
+
+### Исправления AI Developer 1 (Core):
+1. **system_optimizer.py** - Исправлена ошибка индентации (line 116)
+2. **integration_layer.py** - Добавлены hasattr() проверки, исправлен несуществующий метод optimize_system(), защита от деления на ноль
+3. **learning_scheduler.py** (core/) - Добавлена проверка None для contradiction_resolver
+4. **self_dialog_manager.py** - Добавлены проверки None для contradiction_resolver и core_brain
+5. **memory_graph_ml.py** - Добавлены проверки None для brain и атрибутов
+
+### Исправления AI Developer 2 (Knowledge/Memory/Reasoning):
+1. **knowledge_graph_traversal.py** - Исправлена формула Haversine
+2. **knowledge_storage.py** - Удалены дублирующие методы
+3. **memory_working.py** - Добавлены threading locks для безопасности
+4. **knowledge_integrator.py** - Добавлены проверки None, исправлены методы
+5. **self_reasoning_engine.py** - Добавлены проверки None для brain и knowledge graph
+
+### Исправления AI Developer 3 (Learning/GUI/Adaptation):
+1. **learning_scheduler.py** - Исправлена проверка границ массива nodes[0]
+2. **performance_analyzer.py** - Добавлены проверки None для feedback
+3. **adaptation_integration.py** - Добавлены hasattr проверки
+4. **adaptation_analytics.py** - Добавлены проверки атрибутов
+
+### Тестирование
+- Все файлы прошли проверку синтаксиса Python
 
 ---
 

@@ -922,12 +922,14 @@ class LearningScheduler:
             unverified_sources = 0
             
             if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                # Получаем узел концепта
                 nodes = self.brain.knowledge_graph.search_nodes(concept, limit=1)
-                if nodes:
-                    sources = []
-                    if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
-                        sources = self.brain.knowledge_graph.get_sources_for_node(nodes[0].id)
+                if nodes and len(nodes) > 0:
+                    first_node = nodes[0]
+                    node_id = getattr(first_node, 'id', None)
+                    if node_id:
+                        sources = []
+                        if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
+                            sources = self.brain.knowledge_graph.get_sources_for_node(node_id)
                     for source in sources:
                         # Проверяем надежность источника
                         source_reliability = getattr(source, 'reliability', getattr(source, 'strength', 0.5))

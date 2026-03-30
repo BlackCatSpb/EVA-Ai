@@ -39,6 +39,9 @@ class WorkingMemory:
         self.fields: Dict[str, MemoryField] = {}
         self.priority_queue = []
         
+        # Thread lock for shared state protection
+        self._lock = threading.RLock()
+        
         # Параметры работы
         self.running = False
         self.stop_event = threading.Event()
@@ -83,45 +86,46 @@ class WorkingMemory:
         Returns:
             str: ID сохраненного нейрона
         """
-        # Создаем уникальный ID
-        timestamp = int(time.time() * 1000)
-        content_hash = hash(str(content)) % 1000000
-        neuron_id = f"working_{content_hash}_{timestamp}"
-        
-        # Проверяем или создаем поле памяти
-        if field_name not in self.fields:
-            self.fields[field_name] = MemoryField(
-                name=field_name,
-                description=f"Поле рабочей памяти: {field_name}",
-                capacity=self.capacity // 5
+        with self._lock:
+            # Создаем уникальный ID
+            timestamp = int(time.time() * 1000)
+            content_hash = hash(str(content)) % 1000000
+            neuron_id = f"working_{content_hash}_{timestamp}"
+            
+            # Проверяем или создаем поле памяти
+            if field_name not in self.fields:
+                self.fields[field_name] = MemoryField(
+                    name=field_name,
+                    description=f"Поле рабочей памяти: {field_name}",
+                    capacity=self.capacity // 5
+                )
+            
+            field = self.fields[field_name]
+            
+            # Проверяем емкость
+            if field.current_size >= field.capacity:
+                # Удаляем наименее важные нейроны
+                self._evict_least_important(field_name)
+            
+            # Создаем нейрон
+            neuron = MemoryNeuron(
+                id=neuron_id,
+                content=content,
+                content_type=content_type,
+                metadata=metadata or {},
+                strength=1.0
             )
-        
-        field = self.fields[field_name]
-        
-        # Проверяем емкость
-        if field.current_size >= field.capacity:
-            # Удаляем наименее важные нейроны
-            self._evict_least_important(field_name)
-        
-        # Создаем нейрон
-        neuron = MemoryNeuron(
-            id=neuron_id,
-            content=content,
-            content_type=content_type,
-            metadata=metadata or {},
-            strength=1.0
-        )
-        
-        # Сохраняем в структуры данных
-        self.neurons[neuron_id] = neuron
-        field.current_size += 1
-        field.update_access("system")
-        
-        # Сохраняем в базу данных
-        self.db.save_neuron(neuron)
-        self.db.save_field(field)
-        
-        return neuron_id
+            
+            # Сохраняем в структуры данных
+            self.neurons[neuron_id] = neuron
+            field.current_size += 1
+            field.update_access("system")
+            
+            # Сохраняем в базу данных
+            self.db.save_neuron(neuron)
+            self.db.save_field(field)
+            
+            return neuron_id
     
     def _evict_least_important(self, field_name: str):
         """Удаляет наименее важные нейроны из поля памяти."""
@@ -160,23 +164,24 @@ class WorkingMemory:
         Returns:
             List[MemoryNeuron]: Топ-K наиболее релевантных нейронов
         """
-        candidates = []
-        
-        # Фильтруем по полю, если указано
-        for neuron in self.neurons.values():
-            if field_name and neuron.metadata.get("field") != field_name:
-                continue
+        with self._lock:
+            candidates = []
             
-            # Вычисляем релевантность
-            similarity = self._calculate_similarity(query, neuron, nlp_model)
-            if similarity > 0.2:  # Порог минимальной релевантности
-                candidates.append((similarity, neuron))
-        
-        # Сортируем по релевантности
-        candidates.sort(key=lambda x: x[0], reverse=True)
-        
-        # Возвращаем топ-K результатов
-        return [neuron for _, neuron in candidates[:top_k]]
+            # Фильтруем по полю, если указано
+            for neuron in self.neurons.values():
+                if field_name and neuron.metadata.get("field") != field_name:
+                    continue
+                
+                # Вычисляем релевантность
+                similarity = self._calculate_similarity(query, neuron, nlp_model)
+                if similarity > 0.2:  # Порог минимальной релевантности
+                    candidates.append((similarity, neuron))
+            
+            # Сортируем по релевантности
+            candidates.sort(key=lambda x: x[0], reverse=True)
+            
+            # Возвращаем топ-K результатов
+            return [neuron for _, neuron in candidates[:top_k]]
     
     def _calculate_similarity(self, query: Any, neuron: MemoryNeuron, nlp_model) -> float:
         """
@@ -250,27 +255,28 @@ class WorkingMemory:
     
     def decay_memory(self):
         """Применяет затухание ко всем нейронам в рабочей памяти."""
-        for neuron in self.neurons.values():
-            neuron.update_strength(-0.1 * (1.0 - neuron.importance))
-            if neuron.strength <= 0.1:
-                # Помечаем на удаление
-                if neuron.metadata:
-                    neuron.metadata["to_remove"] = True
-                else:
-                    neuron.metadata = {"to_remove": True}
-        
-        # Удаляем слабые нейроны
-        to_remove = [nid for nid, neuron in self.neurons.items() 
-                    if neuron.metadata.get("to_remove")]
-        for nid in to_remove:
-            field_name = self.neurons[nid].metadata.get("field", "general")
-            if field_name in self.fields:
-                self.fields[field_name].current_size -= 1
-            del self.neurons[nid]
-        
-        # Сохраняем изменения
-        for field in self.fields.values():
-            self.db.save_field(field)
+        with self._lock:
+            for neuron in self.neurons.values():
+                neuron.update_strength(-0.1 * (1.0 - neuron.importance))
+                if neuron.strength <= 0.1:
+                    # Помечаем на удаление
+                    if neuron.metadata:
+                        neuron.metadata["to_remove"] = True
+                    else:
+                        neuron.metadata = {"to_remove": True}
+            
+            # Удаляем слабые нейроны
+            to_remove = [nid for nid, neuron in self.neurons.items() 
+                        if neuron.metadata.get("to_remove")]
+            for nid in to_remove:
+                field_name = self.neurons[nid].metadata.get("field", "general")
+                if field_name in self.fields:
+                    self.fields[field_name].current_size -= 1
+                del self.neurons[nid]
+            
+            # Сохраняем изменения
+            for field in self.fields.values():
+                self.db.save_field(field)
     
     def get_consolidation_candidates(self) -> List[MemoryNeuron]:
         """
@@ -334,6 +340,7 @@ class WorkingMemory:
             try:
                 # Затухание каждые 5 минут
                 time.sleep(300)
+                # Call decay_memory which already has locking
                 self.decay_memory()
             except Exception as e:
                 logger.error(f"Ошибка в процессе затухания памяти: {e}")

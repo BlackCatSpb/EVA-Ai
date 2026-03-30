@@ -767,10 +767,13 @@ class SelfReasoningEngine:
         Генерация ответа с fallback на разные модели
         Приоритет: Qwen → FractalModelManager → ResponseGenerator
         """
-        # Попытка 1: Qwen singleton (используем кэш)
+            # Попытка 1: Qwen singleton (используем кэш)
         try:
             if self._qwen_cached is None:
-                qwen = getattr(self.brain, 'qwen_model_manager', None)
+                if self.brain is not None:
+                    qwen = getattr(self.brain, 'qwen_model_manager', None)
+                else:
+                    qwen = None
                 
                 if qwen is None or not getattr(qwen, 'initialized', False):
                     try:
@@ -787,7 +790,7 @@ class SelfReasoningEngine:
                         logger.warning(f"Failed to initialize Qwen: {e}")
                         # Не кэшируем неудачную попытку - оставляем None для повтора
             
-            if self._qwen_cached and getattr(self._qwen_cached, 'initialized', False):
+            if self._qwen_cached is not None and getattr(self._qwen_cached, 'initialized', False):
                 messages = [{"role": "user", "content": prompt}]
                 response = self._qwen_cached.generate(
                     messages,
@@ -804,33 +807,36 @@ class SelfReasoningEngine:
         
         # Попытка 2: FractalModelManager
         try:
-            fractal_mm = getattr(self.brain, 'fractal_model_manager', None)
-            if fractal_mm and hasattr(fractal_mm, 'generate_response'):
-                response = fractal_mm.generate_response(prompt)
-                if response:
-                    return response
+            if self.brain is not None:
+                fractal_mm = getattr(self.brain, 'fractal_model_manager', None)
+                if fractal_mm and hasattr(fractal_mm, 'generate_response'):
+                    response = fractal_mm.generate_response(prompt)
+                    if response:
+                        return response
         except Exception as e:
             logger.debug(f"FractalModelManager generation failed: {e}")
         
         # Попытка 3: ResponseGenerator
         try:
-            resp_gen = getattr(self.brain, 'response_generator', None)
-            if resp_gen and hasattr(resp_gen, 'generate'):
-                result = resp_gen.generate(prompt)
-                if result and isinstance(result, dict):
-                    return result.get('text', result.get('response', ''))
-                elif result:
-                    return str(result)
+            if self.brain is not None:
+                resp_gen = getattr(self.brain, 'response_generator', None)
+                if resp_gen and hasattr(resp_gen, 'generate'):
+                    result = resp_gen.generate(prompt)
+                    if result and isinstance(result, dict):
+                        return result.get('text', result.get('response', ''))
+                    elif result:
+                        return str(result)
         except Exception as e:
             logger.debug(f"ResponseGenerator generation failed: {e}")
         
         # Попытка 4: GenerationCoordinator
         try:
-            gen_coord = getattr(self.brain, 'generation_coordinator', None)
-            if gen_coord and hasattr(gen_coord, 'generate'):
-                result = gen_coord.generate(text=prompt, source="reasoning_engine")
-                if result:
-                    return result.text if hasattr(result, 'text') else str(result)
+            if self.brain is not None:
+                gen_coord = getattr(self.brain, 'generation_coordinator', None)
+                if gen_coord and hasattr(gen_coord, 'generate'):
+                    result = gen_coord.generate(text=prompt, source="reasoning_engine")
+                    if result:
+                        return result.text if hasattr(result, 'text') else str(result)
         except Exception as e:
             logger.debug(f"GenerationCoordinator failed: {e}")
         
@@ -879,13 +885,15 @@ class SelfReasoningEngine:
     def _get_knowledge_response(self, prompt: str) -> Optional[str]:
         """Попытка получить ответ из knowledge graph"""
         try:
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
+            if self.brain is not None and hasattr(self.brain, 'knowledge_graph'):
                 kg = self.brain.knowledge_graph
+                if kg is None:
+                    return None
                 # Try search_nodes first (proper method)
                 search_method = getattr(kg, 'search_nodes', getattr(kg, 'search', getattr(kg, 'search_by_concept', None)))
                 if search_method:
                     results = search_method(prompt, limit=3)
-                    if results:
+                    if results and isinstance(results, list) and len(results) > 0:
                         best = results[0]
                         if isinstance(best, dict):
                             content = best.get('content', best.get('text', ''))

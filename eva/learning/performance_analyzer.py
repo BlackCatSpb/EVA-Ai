@@ -321,10 +321,13 @@ class PerformanceAnalyzer:
             # Получаем фидбэк из AdaptationManager
             feedback = self.brain.adaptation_manager.get_feedback_history()
             
-            # Фильтруем фидбэк для анализа
+            if feedback is None:
+                feedback = []
+            
             feedback_to_analyze = [
                 fb for fb in feedback
-                if fb["timestamp"] > time.time() - 86400 * 7  # За последнюю неделю
+                if isinstance(fb, dict) and fb.get("timestamp") is not None and fb.get("feedback_type") is not None
+                and fb["timestamp"] > time.time() - 86400 * 7
                 and fb["feedback_type"] == "negative"
             ]
             

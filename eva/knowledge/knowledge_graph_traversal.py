@@ -138,11 +138,18 @@ class KnowledgeGraphTraversalMixin:
     
     def _calculate_distance(self, lat1: float, lon1: float, 
                           lat2: float, lon2: float) -> float:
-        """Вычисляет расстояние между двумя точками на сфере."""
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = (dlat ** 2) + math.cos(lat1) * (dlon ** 2)
-        distance = 6371 * math.sqrt(a)
+        """Вычисляет расстояние между двумя точками на сфере с использованием формулы Haversine."""
+        R = 6371.0
+        
+        lat1_rad = math.radians(lat1)
+        lat2_rad = math.radians(lat2)
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        
+        a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        
+        distance = R * c
         return distance
     
     def generate_knowledge_graph(self, concept: str, depth: int = 2) -> Dict[str, Any]:
