@@ -1,7 +1,29 @@
 # ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.25 - 19-й цикл аудита
+Версия: 1.27 - 20-й цикл аудита: Исправления переименования и запуска
+
+---
+
+## Версия 1.27 (2026-03-30) - 20-й цикл аудита
+
+### Исправления ошибок запуска системы:
+1. **knowledge_graph_integrated.py** - Исправлен `load_nodes()` -> `load_all_nodes()`
+2. **component_initializer.py** - Опциональные компоненты не блокируют запуск
+3. **text_processor.py** - Удалён GPT2 fallback токенизатор
+4. **response_generator.py** - Удалён GPT2 fallback токенизатор
+
+### Исправления переименования:
+1. **cogniflex_models/** - Переименовано в **eva_models/**
+2. **cogniflex_cache/** - Переименовано в **eva_cache/**
+3. **cogniflex_tokenizer.py** - Переименовано в **eva_tokenizer.py**
+4. **mlearning/__init__.py** - Исправлен импорт ЕВАTokenizer
+5. **component_initializer.py** - Исправлен лог (cogniflex -> eva)
+6. **real_self_learning.py** - Функция переименована в integrate_self_learning_into_eva
+7. **core_brain.py** - Исправлен комментарий (cogniflex -> eva)
+
+### Тестирование
+- Все файлы прошли проверку синтаксиса Python
 
 ---
 

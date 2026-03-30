@@ -7,7 +7,7 @@ including the Fractal Transformer architecture and related utilities.
 from . import storage
 from .model_manager import ModelManager
 from .ml_unit import MLUnit
-from .cogniflex_tokenizer import ЕВАTokenizer
+from .eva_tokenizer import ЕВАTokenizer
 from .async_text_generator import AsyncTextGenerator
 from .unified_text_processor import UnifiedTextProcessor
 

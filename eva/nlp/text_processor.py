@@ -95,6 +95,11 @@ class TextProcessor:
             logger.info(f"Пробуем загрузить токенизатор из: {self.tokenizer_path}")
             
             tokenizer_path = self.tokenizer_path
+            # Проверяем существование пути перед загрузкой
+            if not os.path.exists(tokenizer_path):
+                logger.warning(f"Путь к токенизатору не существует: {tokenizer_path}")
+                raise FileNotFoundError(f"Путь к токенизатору не существует: {tokenizer_path}")
+            
             if os.path.isabs(tokenizer_path) and os.name == 'nt':
                 try:
                     self._tokenizer = AutoTokenizer.from_pretrained(
@@ -129,13 +134,7 @@ class TextProcessor:
             
         except Exception as e:
             logger.error(f"Не удалось загрузить токенизатор {self.tokenizer_path}: {str(e)}")
-            try:
-                from transformers import GPT2Tokenizer
-                self._tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-                logger.warning("Используем базовый GPT2 токенизатор как fallback")
-            except Exception as fallback_error:
-                logger.error(f"Не удалось загрузить даже базовый токенизатор: {fallback_error}")
-                raise Exception(f"Не удалось инициализировать токенизатор: {e}")
+            raise Exception(f"Не удалось инициализировать токенизатор: {e}")
 
     
     def tokenize(self, text: str, **kwargs) -> List[str]:

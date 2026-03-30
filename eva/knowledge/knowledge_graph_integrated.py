@@ -236,10 +236,10 @@ class IntegratedKnowledgeGraph(BaseComponent):
         """Загружает данные из хранилища"""
         try:
             # Загружаем узлы
-            self.nodes = self.storage.load_nodes()
+            self.nodes = self.storage.load_all_nodes() if hasattr(self.storage, 'load_all_nodes') else {}
             
             # Загружаем связи
-            self.edges = self.storage.load_edges()
+            self.edges = self.storage.load_all_edges() if hasattr(self.storage, 'load_all_edges') else {}
             
             logger.info(f"Загружено: {len(self.nodes)} узлов, {len(self.edges)} связей")
             
