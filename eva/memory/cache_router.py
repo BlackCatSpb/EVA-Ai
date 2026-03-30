@@ -77,8 +77,8 @@ class CacheRouter:
                             self.brain.request_io(chunk)
                         elif hasattr(self.brain, 'resource_queue') and self.brain.resource_queue is not None:
                             self.brain.resource_queue.acquire_io(chunk)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"IO request failed: {e}")
                     buf = f.read(chunk)
                     if not buf:
                         break
@@ -94,5 +94,5 @@ class CacheRouter:
     def close(self):
         try:
             self.index.close()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Error closing CacheRouter index: {e}")

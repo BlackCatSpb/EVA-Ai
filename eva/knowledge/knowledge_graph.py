@@ -29,7 +29,13 @@ class KnowledgeGraph(KnowledgeGraph, KnowledgeGraphQueryMixin, KnowledgeGraphTra
     - knowledge_graph_query: методы запросов и поиска
     - knowledge_graph_traversal: обход графа и анализ
     """
-    pass
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._initialized = True
+    
+    def __repr__(self):
+        return f"KnowledgeGraph(initialized={self._initialized})"
 
 __all__ = [
     'KnowledgeGraph',

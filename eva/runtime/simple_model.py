@@ -39,5 +39,5 @@ def example_model_fn(batch: Batch) -> Dict[str, Any]:
 
     return {
         "logits": logits,  # [B, 1]
-        "meta_idx": torch.tensor([m.idx for m in metas], dtype=torch.long),
+        "meta_idx": torch.tensor([m.idx for m in metas], dtype=torch.long) if metas else torch.tensor([], dtype=torch.long),
     }

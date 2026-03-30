@@ -243,7 +243,9 @@ class CuriosityEngine:
             if hasattr(self, 'learning_opportunity_manager') and self.learning_opportunity_manager:
                 gap_assessment = self.assess_knowledge_gap(topic)
                 if gap_assessment > 0.3:
-                    opportunity_id = self.learning_opportunity_manager.add_learning_opportunity(
+                    analyzer_core = getattr(self.learning_opportunity_manager, 'analyzer_core', None)
+                    if analyzer_core and hasattr(analyzer_core, 'add_learning_opportunity'):
+                        opportunity_id = analyzer_core.add_learning_opportunity(
                         concept=topic,
                         opportunity_type='expansion',
                         priority=gap_assessment,

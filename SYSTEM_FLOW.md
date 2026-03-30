@@ -1,7 +1,46 @@
 # ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.23 - 17-й цикл аудита
+Версия: 1.24 - 18-й цикл аудита
+
+---
+
+## Версия 1.24 (2026-03-30) - 18-й цикл аудита
+
+### Дополнительно:
+- Добавлен `eva/__main__.py` для команды `python -m eva`
+
+### AI Architect Результаты:
+- Core модули: 26 проблем (5 CRITICAL, 6 HIGH, 9 MEDIUM, 6 LOW)
+- Knowledge/Memory/Reasoning: 28 проблем (3 CRITICAL, 14 HIGH, 9 MEDIUM, 2 LOW)
+- Learning/GUI/Other: 40 проблем (7 CRITICAL, 13 HIGH, 13 MEDIUM, 7 LOW)
+- Всего: ~94 проблемы
+
+### Исправления AI Developer 1 (Core):
+1. **fractal_attention_system.py** - Удалены дублирующие методы
+2. **reasoning_engine.py** - Исправлена перезапись context на accumulated_context
+3. **learning_scheduler.py** (core/) - Исправлена инверсия логики contradictions
+4. **system_optimizer.py** - try/except для psutil импорта
+5. **contradiction_resolver.py** - Добавлено logging в exception
+
+### Исправления AI Developer 2 (Knowledge/Memory):
+1. **knowledge_analyzer.py** - Безопасный dict access через .get()
+2. **knowledge_integrator.py** - Валидация перед индексацией [0]
+3. **memory_core.py** - try/except для json.loads в load_neuron
+4. **memory_manager.py** - isinstance проверки для dict entries
+5. **self_reasoning_engine.py** - Инициализация fractal_components
+
+### Исправления AI Developer 3 (Learning):
+1. **learning_scheduler.py** - 13+ исправлений self.brain guard
+2. **self_dialog_learning.py** - Удалены неверные kwargs
+3. **learning_opportunity_manager.py** - Исправлен SELECT query
+4. **learning_manager.py** - Добавлен warning для несделанного метода
+5. **learning_integrated.py** - Исправлены параметры LearningManager
+6. **self_analyzer.py** - Добавлены None проверки
+7. **curiosity_engine.py** - Исправлено имя метода
+
+### Тестирование
+- Все файлы прошли проверку синтаксиса Python
 
 ---
 

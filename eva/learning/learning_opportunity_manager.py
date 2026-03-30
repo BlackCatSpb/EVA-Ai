@@ -34,8 +34,9 @@ class LearningOpportunityManager:
             
             # Получаем возможности из базы данных
             cursor.execute("""
-                SELECT id, concept, opportunity_type, evidence, 
-                       priority, created_at, executed
+                SELECT id, concept, opportunity_type, priority,
+                       domain, evidence, suggested_actions,
+                       created_at, last_updated, executed, execution, metadata
                 FROM learning_opportunities 
                 WHERE executed = 0
                 ORDER BY priority DESC, created_at DESC
@@ -50,10 +51,12 @@ class LearningOpportunityManager:
                     "id": row[0],
                     "concept": row[1],
                     "type": row[2],
-                    "description": row[3],
-                    "priority": row[4],
-                    "timestamp": row[5],
-                    "status": "executed" if row[6] else "pending"
+                    "priority": row[3],
+                    "domain": row[4],
+                    "evidence": row[5],
+                    "suggested_actions": row[6],
+                    "timestamp": row[7],
+                    "status": "executed" if row[9] else "pending"
                 }
                 opportunities.append(opportunity)
                 

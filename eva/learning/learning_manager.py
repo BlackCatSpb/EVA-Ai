@@ -189,8 +189,7 @@ class LearningManager:
         try:
             logger.info(f"Оценка модели {model_id}")
             
-            # Здесь должна быть логика оценки модели
-            # ...
+            logger.warning(f"evaluate_model: оценка модели {model_id} использует базовую реализацию")
             
             metrics = {
                 "accuracy": 0.0,

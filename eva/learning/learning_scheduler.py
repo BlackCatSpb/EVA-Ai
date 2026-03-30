@@ -132,7 +132,7 @@ class LearningTask:
     
     def get_duration(self) -> Optional[float]:
         """Возвращает продолжительность выполнения задачи."""
-        if self.start_time and self.end_time:
+        if self.start_time is not None and self.end_time is not None:
             return self.end_time - self.start_time
         return None
     
@@ -329,6 +329,8 @@ class LearningScheduler:
             return self._update_task_status_internal(task_id, status)
     
     def _process_dependencies_internal(self, task_id: str):
+        if task_id not in self.task_registry:
+            return
         for dependent_id in self.task_registry[task_id].dependents:
             dependent_task = self.task_registry.get(dependent_id)
             if dependent_task and dependent_task.status == "pending":
@@ -784,7 +786,7 @@ class LearningScheduler:
             
             # Если связей мало, используем MLUnit для поиска дополнительных
             related_concepts = []
-            if len(connections) < 3 and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if len(connections) < 3 and self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 related_concepts = self.brain.ml_unit.extract_concepts(concept)
                 for related_concept in related_concepts:
                     if related_concept != concept:
@@ -796,7 +798,7 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -832,11 +834,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения фактов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -904,11 +906,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения концептов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -930,13 +932,13 @@ class LearningScheduler:
                         sources = []
                         if hasattr(self.brain.knowledge_graph, 'get_sources_for_node'):
                             sources = self.brain.knowledge_graph.get_sources_for_node(node_id)
-                    for source in sources:
-                        # Проверяем надежность источника
-                        source_reliability = getattr(source, 'reliability', getattr(source, 'strength', 0.5))
-                        if source_reliability > 0.7:
-                            verified_sources += 1
-                        else:
-                            unverified_sources += 1
+                        for source in sources:
+                            # Проверяем надежность источника
+                            source_reliability = getattr(source, 'reliability', getattr(source, 'strength', 0.5))
+                            if source_reliability > 0.7:
+                                verified_sources += 1
+                            else:
+                                unverified_sources += 1
             
             return {
                 "concept": concept,
@@ -966,11 +968,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения концептов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -1025,11 +1027,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения концептов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -1082,11 +1084,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения концептов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -1163,7 +1165,7 @@ class LearningScheduler:
             
             # Если связей мало, используем MLUnit для поиска дополнительных
             related_concepts = []
-            if len(connections) < 5 and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if len(connections) < 5 and self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 related_concepts = self.brain.ml_unit.extract_concepts(concept)
                 for related_concept in related_concepts:
                     if related_concept != concept:
@@ -1174,7 +1176,7 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -1235,7 +1237,7 @@ class LearningScheduler:
 
             # Если требуется обслуживание, обновляем знания
             concepts = []
-            if maintenance_needed and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if maintenance_needed and self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
 
                 try:

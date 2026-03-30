@@ -330,10 +330,7 @@ class SelfDialogLearningSystem:
         
         if hasattr(self.brain, 'learning_opportunity_manager') and self.brain.learning_opportunity_manager:
             try:
-                ml_opportunities = self.brain.learning_opportunity_manager.get_learning_opportunities(
-                    status='pending',
-                    limit=10
-                )
+                ml_opportunities = self.brain.learning_opportunity_manager.get_learning_opportunities()
                 if ml_opportunities:
                     opportunities.extend(ml_opportunities)
             except Exception as e:

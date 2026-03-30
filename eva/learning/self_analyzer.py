@@ -145,13 +145,19 @@ class SelfAnalyzer:
             
         try:
             # Анализируем здоровье
-            health_report = self.health_monitor.analyze_system_health()
+            if self.health_monitor:
+                health_report = self.health_monitor.analyze_system_health()
+            else:
+                health_report = {"status": "unavailable", "message": "HealthMonitor not initialized"}
             
             # Анализируем производительность
             performance_report = self.performance_analyzer.analyze_performance()
             
             # Анализируем эволюцию
-            evolution_report = self.health_monitor.analyze_evolution()
+            if self.health_monitor:
+                evolution_report = self.health_monitor.analyze_evolution()
+            else:
+                evolution_report = {"status": "unavailable", "message": "HealthMonitor not initialized"}
             
             return {
                 "health_report": health_report,

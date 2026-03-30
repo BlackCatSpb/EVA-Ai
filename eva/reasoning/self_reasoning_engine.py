@@ -90,10 +90,19 @@ class SelfReasoningEngine:
             from eva.reasoning.fractal_ml.fractal_retriever import FractalRetriever
             
             self.fractal_embedder = FractalEmbedder(use_sentence_transformers=False)
-            self.fractal_retriever = None
-            logger.info("FractalEmbedder инициализирован")
+            
+            if self.fractal_embedder and self.fractal_storage:
+                self.fractal_retriever = FractalRetriever(
+                    storage=self.fractal_storage,
+                    embedder=self.fractal_embedder
+                )
+                logger.info("FractalEmbedder и FractalRetriever инициализированы")
+            else:
+                logger.info("FractalEmbedder инициализирован (retriever будет создан позже)")
         except Exception as e:
             logger.warning(f"Не удалось инициализировать fractal компоненты: {e}")
+            self.fractal_embedder = None
+            self.fractal_retriever = None
     
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         """

@@ -338,20 +338,19 @@ class KnowledgeIntegrator:
             
             if not all([concept1, concept2, common_target]):
                 return False
-            
+
             # Получаем узлы
-            node1 = self.knowledge_graph.search_nodes(concept1, limit=1)
-            node2 = self.knowledge_graph.search_nodes(concept2, limit=1)
-            target_node = self.knowledge_graph.search_nodes(common_target, limit=1)
-            
-            if not all([node1, node2, target_node]):
+            node1_list = self.knowledge_graph.search_nodes(concept1, limit=1)
+            node2_list = self.knowledge_graph.search_nodes(concept2, limit=1)
+            target_list = self.knowledge_graph.search_nodes(common_target, limit=1)
+
+            if not node1_list or not node2_list or not target_list:
                 return False
-            
-            if len(node1) == 0 or len(node2) == 0 or len(target_node) == 0:
-                return False
-            
-            node1, node2, target_node = node1[0], node2[0], target_node[0]
-            
+
+            node1 = node1_list[0]
+            node2 = node2_list[0]
+            target_node = target_list[0]
+
             # Анализируем надежность источников для каждого утверждения
             edge1 = self.knowledge_graph.get_edges(node1.id)
             edge2 = self.knowledge_graph.get_edges(node2.id)
@@ -1095,8 +1094,8 @@ class KnowledgeIntegrator:
         try:
             # Получаем информацию о конфликте
             concept = contradiction.get("concept", "unknown_concept")
-            domains = contradiction["domains"]
-            evidence = contradiction["evidence"]
+            domains = contradiction.get("domains", [])
+            evidence = contradiction.get("evidence", [])
             
             # Оцениваем авторитетность каждого домена
             domain_authorities = {}
@@ -1455,19 +1454,20 @@ class KnowledgeIntegrator:
             logger.info("Обучение на основе пользовательского фидбэка...")
             
             # Проверяем тип фидбэка
-            if feedback["feedback_type"] == "correction":
+            feedback_type = feedback.get("feedback_type")
+            if feedback_type == "correction":
                 # Обрабатываем коррекцию
                 return self._handle_correction(feedback, user_id)
-            
-            elif feedback["feedback_type"] == "suggestion":
+
+            elif feedback_type == "suggestion":
                 # Обрабатываем предложение
                 return self._handle_suggestion(feedback, user_id)
-            
-            elif feedback["feedback_type"] == "rating":
+
+            elif feedback_type == "rating":
                 # Обрабатываем оценку
                 return self._handle_rating(feedback, user_id)
-            
-            elif feedback["feedback_type"] == "contradiction_report":
+
+            elif feedback_type == "contradiction_report":
                 # Обрабатываем сообщение о противоречии
                 return self._handle_contradiction_report(feedback, user_id)
             

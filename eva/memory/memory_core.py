@@ -152,17 +152,32 @@ class MemoryDatabase:
             row = cursor.fetchone()
             if not row:
                 return None
+            try:
+                content = json.loads(row[2]) if row[2] else None
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Ошибка декодирования content для нейрона {neuron_id}")
+                content = row[2]
+            try:
+                metadata = json.loads(row[8]) if row[8] else {}
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Ошибка декодирования metadata для нейрона {neuron_id}")
+                metadata = {}
+            try:
+                connections = json.loads(row[9]) if row[9] else {}
+            except (json.JSONDecodeError, TypeError):
+                logger.warning(f"Ошибка декодирования connections для нейрона {neuron_id}")
+                connections = {}
             return MemoryNeuron(
                 id=row[0],
                 content_type=row[1],
-                content=json.loads(row[2]),
+                content=content,
                 strength=row[3],
                 importance=row[4],
                 timestamp=row[5],
                 last_accessed=row[6],
                 access_count=row[7],
-                metadata=json.loads(row[8]),
-                connections=json.loads(row[9])
+                metadata=metadata,
+                connections=connections
             )
         except Exception as e:
             logger.error(f"Ошибка загрузки нейрона {neuron_id}: {e}")

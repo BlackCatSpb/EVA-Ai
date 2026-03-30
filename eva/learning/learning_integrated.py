@@ -45,7 +45,7 @@ class IntegratedLearningManager(BaseComponent):
         
         if ORIGINAL_MANAGER_AVAILABLE:
             try:
-                self._original_manager = LearningManager(brain, cache_dir)
+                self._original_manager = LearningManager(brain=brain, config={"cache_dir": cache_dir})
                 logger.info("Оригинальный LearningManager инициализирован")
             except Exception as e:
                 logger.error(f"Ошибка инициализации оригинального менеджера: {e}")

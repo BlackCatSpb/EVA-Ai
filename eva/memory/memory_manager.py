@@ -619,19 +619,29 @@ class MemoryManager:
             if memory_type == "working":
                 # Enforce size limits - remove oldest if limit exceeded
                 if len(self.working_memory) >= self.max_working_memory:
-                    oldest_key = min(self.working_memory.keys(), key=lambda k: self.working_memory[k].get('timestamp', 0))
-                    del self.working_memory[oldest_key]
-                    logger.debug(f"Removed oldest working memory entry: {oldest_key}")
+                    oldest_key = min(
+                        (k for k, v in self.working_memory.items() if isinstance(v, dict)),
+                        key=lambda k: self.working_memory[k].get('timestamp', 0),
+                        default=None
+                    )
+                    if oldest_key is not None:
+                        del self.working_memory[oldest_key]
+                        logger.debug(f"Removed oldest working memory entry: {oldest_key}")
                 self.working_memory[memory_id] = memory_entry
             elif memory_type == "semantic":
                 if len(self.semantic_memory) >= self.max_semantic_memory:
-                    oldest_key = min(self.semantic_memory.keys(), key=lambda k: self.semantic_memory[k].get('timestamp', 0))
-                    del self.semantic_memory[oldest_key]
-                    logger.debug(f"Removed oldest semantic memory entry: {oldest_key}")
+                    oldest_key = min(
+                        (k for k, v in self.semantic_memory.items() if isinstance(v, dict)),
+                        key=lambda k: self.semantic_memory[k].get('timestamp', 0),
+                        default=None
+                    )
+                    if oldest_key is not None:
+                        del self.semantic_memory[oldest_key]
+                        logger.debug(f"Removed oldest semantic memory entry: {oldest_key}")
                 self.semantic_memory[memory_id] = memory_entry
             elif memory_type == "episodic":
                 if len(self.episodic_memory) >= self.max_episodic_memory:
-                    self.episodic_memory.sort(key=lambda x: x.get('timestamp', 0))
+                    self.episodic_memory.sort(key=lambda x: x.get('timestamp', 0) if isinstance(x, dict) else 0)
                     self.episodic_memory.pop(0)
                     logger.debug("Removed oldest episodic memory entry")
                 self.episodic_memory.append(memory_entry)
@@ -737,9 +747,14 @@ class MemoryManager:
         with self.memory_locks["user_profiles"]:
             # Enforce profile limit
             if user_id not in self.user_profiles and len(self.user_profiles) >= self.max_user_profiles:
-                oldest_user = min(self.user_profiles.keys(), key=lambda k: self.user_profiles[k].get('last_active', 0))
-                del self.user_profiles[oldest_user]
-                logger.debug(f"Removed oldest user profile: {oldest_user}")
+                oldest_user = min(
+                    (k for k, v in self.user_profiles.items() if isinstance(v, dict)),
+                    key=lambda k: self.user_profiles[k].get('last_active', 0),
+                    default=None
+                )
+                if oldest_user is not None:
+                    del self.user_profiles[oldest_user]
+                    logger.debug(f"Removed oldest user profile: {oldest_user}")
             
             if user_id not in self.user_profiles:
                 self.user_profiles[user_id] = {

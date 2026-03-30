@@ -106,7 +106,7 @@ class KnowledgeAnalyzer:
             
             # Получаем статистику по доменам
             stats = self.knowledge_graph.get_statistics()
-            domain_stats = stats["domains"]
+            domain_stats = stats.get("domains", {})
             
             # Определяем целевые домены
             target_domains = [domain] if domain else list(domain_stats.keys())
@@ -119,7 +119,7 @@ class KnowledgeAnalyzer:
                 "timestamp": time.time()
             }
             
-            total_nodes = stats["total_nodes"]
+            total_nodes = stats.get("total_nodes", 0)
             if total_nodes == 0:
                 return coverage_report
             
