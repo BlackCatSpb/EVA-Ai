@@ -185,7 +185,7 @@ class KnowledgeGraph:
         if self.hybrid_cache is None:
             try:
                 _, gs_cache = _get_hybrid_token_cache()
-                if gs_cache:
+                if gs_cache and self.brain is not None:
                     self.hybrid_cache = gs_cache(self.brain, "knowledge_graph")
             except Exception as e:
                 logger.warning(f"Не удалось получить гибридный кэш: {e}")
@@ -2615,6 +2615,27 @@ class KnowledgeGraph:
         except Exception as e:
             logger.error(f"Ошибка проверки целостности графа: {e}", exc_info=True)
             return 0.5
+    
+    def get_graph_health(self) -> Dict[str, Any]:
+        """Возвращает метрики здоровья графа, включая когерентность."""
+        try:
+            node_count = len(self.nodes)
+            edge_count = len(self.edges)
+            integrity = self._check_graph_integrity_score()
+            if node_count > 0 and edge_count > 0:
+                coherence = min(1.0, integrity * 0.5 + min(1.0, edge_count / max(1, node_count)) * 0.5)
+            else:
+                coherence = 0.5
+            return {
+                "statistics": {
+                    "coherence": coherence,
+                    "integrity": integrity,
+                    "node_count": node_count,
+                    "edge_count": edge_count
+                }
+            }
+        except Exception:
+            return {"statistics": {"coherence": 0.5}}
     
     def _check_resource_usage(self) -> float:
         """Проверяет использование ресурсов и возвращает оценку."""

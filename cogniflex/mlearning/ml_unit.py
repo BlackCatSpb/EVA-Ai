@@ -264,8 +264,7 @@ class MLUnit:
                 # Fallback: если отложенная команда недоступна, пробуем связать компоненты сразу
                 logger.info("DeferredCommandSystem недоступна, выполняем прямое связывание компонентов")
                 self._link_components()
-            
-            return True
+                return True
             
         except Exception as e:
             logger.error(f"Ошибка при инициализации ModelManager: {e}", exc_info=True)
@@ -704,8 +703,9 @@ class MLUnit:
             if not self._init_training_orchestrator():
                 logger.warning("Не удалось инициализировать оркестратор обучения, но продолжаем")
             
-            # 6. Связываем компоненты
-            self._link_components()
+            # 6. Связываем компоненты (только если не была зарегистрирована отложенная команда)
+            if not (self.brain and hasattr(self.brain, 'add_deferred_command')):
+                self._link_components()
             
             # 7. Проверяем здоровье системы
             health = self.get_system_health()

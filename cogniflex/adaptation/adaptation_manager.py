@@ -339,7 +339,8 @@ class AdaptationManager:
                         learning_style="balanced",
                         knowledge_level=0.5,
                         response_preferences={"formal": 0.5, "casual": 0.5},
-                        cultural_profile={}
+                        cultural_profile={},
+                        last_updated=time.time()
                     )
                 
                 profile = self.user_profiles[user_id]
@@ -485,7 +486,8 @@ class AdaptationManager:
                     learning_style="balanced",
                     knowledge_level=0.5,
                     response_preferences={"formal": 0.5, "casual": 0.5},
-                    cultural_profile={}
+                    cultural_profile={},
+                    last_updated=time.time()
                 )
             
             profile = self.user_profiles[user_id]

@@ -36,9 +36,10 @@ class SessionManager:
     def __init__(self):
         self.sessions = {}
         self._lock = threading.Lock()
+        gui_dir = os.path.dirname(os.path.dirname(__file__))
         self._storage_file = os.path.join(
-            os.path.dirname(__file__), 
-            '..', 'gui', 'cogniflex_gui_cache', 'sessions.json'
+            gui_dir, 
+            'cogniflex_gui_cache', 'sessions.json'
         )
         self._ensure_storage_dir()
         self._load_sessions()
@@ -136,7 +137,7 @@ class AuthManager:
             if user:
                 password_hash = hashlib.sha256(password.encode()).hexdigest()
                 if password_hash == user['password_hash']:
-                    user_id = hashlib.md5(username.encode()).hexdigest()
+                    user_id = str(uuid.uuid4())
                     return {'username': username, 'user_id': user_id}
         return None
 

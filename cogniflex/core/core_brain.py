@@ -245,8 +245,13 @@ class CoreBrain:
                 def start_tracking(self): pass
                 def get_metrics(self): return self.metrics
                 def record_error(self, error_type): pass
+                def record_warning(self, warning_type): pass
                 def record_system_startup(self, time): pass
+                def record_system_shutdown(self, time): pass
                 def record_query_metrics(self, **kwargs): pass
+                def emit(self, metric): pass
+                def emit_many(self, metrics): return 0
+                def flush(self): return []
             self.metrics_manager = SystemMetricsManager()
             self.query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
         
@@ -391,6 +396,8 @@ class CoreBrain:
             self.query_logger.warning(f"Qwen config не найден: {e}")
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
+        global _global_brain_instance
+        _global_brain_instance = self
         self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
         
         # Логируем завершение инициализации
@@ -1621,7 +1628,7 @@ class CoreBrain:
             self.query_logger.error(f"Ошибка остановки ядра: {e}", exc_info=True)
             self.metrics_manager.record_error("core_stop_failed")
             if self.state_manager:
-                self.state_manager.record_error(e, "core_brain")
+                self.state_manager.set_state(SystemState.ERROR, str(e))
     
     def start_background_services(self) -> None:
         """Явный запуск автопилота (если требуется вне start())."""
@@ -1704,8 +1711,9 @@ class CoreBrain:
             if self.background:
                 # Создаем простой детектор давления памяти
                 class MemoryPressureDetector:
-                    def __init__(self, callback):
+                    def __init__(self, callback, logger_ref=None):
                         self.callback = callback
+                        self.query_logger = logger_ref
                     
                     def probe(self, context):
                         """Пробует состояние памяти и возвращает задачи при необходимости"""
@@ -1737,11 +1745,12 @@ class CoreBrain:
                                 }]
                             return []
                         except Exception as e:
-                            self.query_logger.warning(f"MemoryPressureDetector probe error: {e}")
+                            if self.query_logger:
+                                self.query_logger.warning(f"MemoryPressureDetector probe error: {e}")
                             return []
                 
                 # Создаем и регистрируем детектор
-                memory_detector = MemoryPressureDetector(self._check_memory_pressure)
+                memory_detector = MemoryPressureDetector(self._check_memory_pressure, self.query_logger)
                 self.background.register_detector(memory_detector)
                 self.query_logger.info("Детектор давления памяти зарегистрирован")
         except Exception as e:
@@ -1856,6 +1865,9 @@ class CoreBrain:
         """Вытесняет токены из VRAM в RAM"""
         try:
             if not hasattr(self.token_cache, 'vram_cache'):
+                return
+            
+            if not hasattr(self.token_cache, 'ram_cache'):
                 return
             
             vram_cache = self.token_cache.vram_cache
@@ -2167,7 +2179,7 @@ class CoreBrain:
         
         elif msg == "test":
             if self.fractal_model_manager:
-                return self.fractal_model_manager.generate_response("Привет", max_tokens=30)
+                return self.fractal_model_manager.generate_response("Привет", max_new_tokens=30)
             return "Model not available"
         
         elif msg == "memory":

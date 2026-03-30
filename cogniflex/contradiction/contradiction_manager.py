@@ -6,6 +6,18 @@ except ImportError:
     class BaseComponent:
         def __init__(self, brain=None):
             self.brain = brain
+        
+        def _setup_component(self):
+            pass
+        
+        def initialize(self):
+            pass
+        
+        def start(self):
+            pass
+        
+        def stop(self):
+            pass
 from .contradiction_core import OptimizedContradictionDetector
 
 logger = logging.getLogger(__name__)
@@ -73,38 +85,34 @@ class ContradictionManager(BaseComponent):
         """Возвращает список всех обнаруженных противоречий"""
         return self.contradictions
 
-    def detect_contradictions(self, text: Optional[str] = None) -> List[Dict[str, Any]]:
+    def detect_contradictions(self, text: Optional[str] = None) -> Dict[str, Any]:
         """
         Запускает поиск противоречий в тексте или в имеющихся знаниях
-        
+
         Args:
             text: Опциональный текст для анализа
-            
+
         Returns:
-            Список обнаруженных противоречий
+            Dict с ключом 'contradictions' содержащий список обнаруженных противоречий
         """
         if self.detector is None:
             logger.warning("Детектор противоречий не инициализирован")
-            return []
-        
+            return {'contradictions': []}
+
         logger.debug("Начинаем поиск противоречий...")
-            
+
         try:
             if text:
-                # Используем метод detect_contradiction для анализа текста
                 result = self.detector.detect_contradiction("text_analysis", [{'text': text}])
                 new_contradictions = [result] if result else []
             else:
-                # Получаем активные противоречия из детектора
                 new_contradictions = self.detector.get_active_contradictions()
-            
-            # Преобразуем в совместимый формат, если необходимо
+
             formatted_contradictions = []
             for contradiction in new_contradictions:
                 if isinstance(contradiction, dict):
                     formatted = contradiction
                 else:
-                    # Преобразуем объект Contradiction в словарь
                     formatted = {
                         'id': getattr(contradiction, 'id', str(id(contradiction))),
                         'concept': getattr(contradiction, 'concept', 'unknown'),
@@ -113,15 +121,15 @@ class ContradictionManager(BaseComponent):
                         'status': getattr(contradiction, 'status', 'detected'),
                         'metadata': getattr(contradiction, 'metadata', {})
                     }
-                
+
                 self.add_contradiction(formatted)
                 formatted_contradictions.append(formatted)
-                
-            return formatted_contradictions
-            
+
+            return {'contradictions': formatted_contradictions}
+
         except Exception as e:
             logger.error(f"Ошибка при поиске противоречий: {e}")
-            return []
+            return {'contradictions': []}
 
     def resolve_contradiction(self, contradiction_id: str, resolution: Optional[Dict[str, Any]] = None) -> bool:
         """

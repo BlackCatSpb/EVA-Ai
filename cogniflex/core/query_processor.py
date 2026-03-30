@@ -185,24 +185,24 @@ class QueryProcessor:
                             web_results = None
                         if isinstance(web_results, list):
                             # Фильтруем web результаты - убираем мусор
-                            for result in web_results:
-                                if isinstance(result, dict):
+                            for web_item in web_results:
+                                if isinstance(web_item, dict):
                                     # Фильтруем snippet если есть
-                                    if 'snippet' in result:
-                                        snippet = result['snippet']
+                                    if 'snippet' in web_item:
+                                        snippet = web_item['snippet']
                                         # Убираем URL, HTML артефакты
                                         snippet = re.sub(r'https?://\S+', '', snippet)
                                         snippet = re.sub(r'<[^>]+>', '', snippet)
                                         snippet = re.sub(r'\s+', ' ', snippet).strip()
                                         # Проверяем минимальную длину
                                         if len(snippet) > 30:
-                                            result['snippet'] = snippet[:200]  # Ограничиваем длину
+                                            web_item['snippet'] = snippet[:200]  # Ограничиваем длину
                                         else:
-                                            result['snippet'] = ''
+                                            web_item['snippet'] = ''
                                     # Убираем весь result если он пустой
-                                    if not any(result.values()):
+                                    if not any(web_item.values()):
                                         continue
-                                evidence.append(result)
+                                evidence.append(web_item)
                         elif web_results is not None:
                             evidence.append(web_results)
                     except Exception as e:
@@ -561,6 +561,8 @@ class QueryProcessor:
             exec_ref = self.executor
             if exec_ref is None:
                 exec_ref = ThreadPoolExecutor(max_workers=2)
+                self._own_executor = True
+                self.executor = exec_ref
             
             # Поиск в памяти
             if self.brain.components.get("memory_manager") and hasattr(self.brain.components["memory_manager"], 'search_memories_by_entity'):

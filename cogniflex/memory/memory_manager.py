@@ -411,11 +411,14 @@ class MemoryManager:
                         del mem[key_to_remove]
                         removed = True
                 elif isinstance(mem, list):
-                    for i, entry in enumerate(list(mem)):
+                    indices_to_remove = []
+                    for i, entry in enumerate(mem):
                         if isinstance(entry, dict) and entry.get("id") == node_id:
-                            del mem[i]
-                            removed = True
-                            break
+                            indices_to_remove.append(i)
+                    for i in sorted(indices_to_remove, reverse=True):
+                        del mem[i]
+                    if indices_to_remove:
+                        removed = True
                 if removed:
                     self._save_memory(mem_type.replace("_memory", ""))
             return removed

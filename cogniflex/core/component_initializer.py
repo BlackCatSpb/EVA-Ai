@@ -273,7 +273,7 @@ class ComponentInitializer:
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания memory_manager: {e}", exc_info=True)
                 self.failed_components.add('memory_manager')
-                raise
+                return None
         
         def create_hybrid_cache():
             try:
@@ -335,7 +335,8 @@ class ComponentInitializer:
                 return knowledge_graph
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания knowledge_graph: {e}", exc_info=True)
-                raise
+                self.failed_components.add('knowledge_graph')
+                return None
         
         def create_qwen_api_enhancer():
             """Создает QwenAPIEnhancer для обогащения знаний"""
@@ -401,7 +402,8 @@ class ComponentInitializer:
                 return ml_unit
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания ml_unit: {e}", exc_info=True)
-                raise
+                self.failed_components.add('ml_unit')
+                return None
         
         def create_model_manager():
             try:
@@ -443,7 +445,8 @@ class ComponentInitializer:
                 return model_manager
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания model_manager: {e}", exc_info=True)
-                raise
+                self.failed_components.add('model_manager')
+                return None
         
         # ===== ОСНОВНАЯ ЛОГИКА =====
         
@@ -851,7 +854,7 @@ class ComponentInitializer:
                     continue
                 
                 # Проверяем зависимости
-                deps_ok, missing_deps = self._check_dependencies(component_name)
+                deps_ok, missing_deps = self._validate_dependencies(component_name)
                 if not deps_ok:
                     self.logger.error(f"[FAIL] {component_name}: зависимости не готовы - {missing_deps}")
                     self.failed_components.add(component_name)

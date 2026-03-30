@@ -775,12 +775,12 @@ class SelfDialogLearningSystem:
                 if hasattr(kg, 'search_nodes'):
                     results = kg.search_nodes(topic_match, limit=3)
                     if results:
-                        relevant_context = "Известная информация: " + "; ".join([r.get('content', '')[:100] for r in results[:2]])
+                        relevant_context = "Известная информация: " + "; ".join([getattr(r, 'description', '')[:100] for r in results[:2]])
                         logger.info(f"Найден контекст из knowledge graph: {len(results)} результатов")
                 elif hasattr(kg, 'search'):
                     results = kg.search(topic_match, limit=3)
                     if results:
-                        relevant_context = "Известная информация: " + "; ".join([r.get('content', '')[:100] for r in results[:2]])
+                        relevant_context = "Известная информация: " + "; ".join([getattr(r, 'description', '')[:100] for r in results[:2]])
                         logger.info(f"Найден контекст из knowledge graph: {len(results)} результатов")
             except Exception as e:
                 logger.debug(f"Ошибка поиска в knowledge graph: {e}")

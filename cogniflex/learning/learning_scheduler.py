@@ -713,8 +713,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -727,8 +727,8 @@ class LearningScheduler:
                 try:
                     for related_concept in concepts:
                         self.brain.knowledge_graph.add_node(
-                            f"concept_{hash(related_concept) % 1000000}",
-                            related_concept,
+                            name=related_concept,
+                            node_id=f"concept_{hash(related_concept) % 1000000}",
                             node_type="concept",
                             domain=task.metadata.get("domain", "general")
                         )
@@ -737,7 +737,7 @@ class LearningScheduler:
                             related_concept,
                             "related_to",
                             strength=0.7,
-                            metadata={"source": "domain_expansion"}
+                            meta={"source": "domain_expansion"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка добавления в knowledge_graph: {e}")
@@ -796,8 +796,8 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -836,8 +836,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -853,21 +853,23 @@ class LearningScheduler:
                         node = nodes[0]
                         new_strength = min(1.0, getattr(node, 'strength', 0.5) + 0.1)
                         self.brain.knowledge_graph.add_node(
-                            node.id, getattr(node, 'name', getattr(node, 'content', '')),
-                            getattr(node, 'node_type', 'concept'),
-                            getattr(node, 'domain', 'general'), 
-                            getattr(node, 'meta', getattr(node, 'metadata', {})),
-                            new_strength
+                            name=getattr(node, 'name', getattr(node, 'content', '')),
+                            node_id=node.id,
+                            node_type=getattr(node, 'node_type', 'concept'),
+                            domain=getattr(node, 'domain', 'general'),
+                            strength=new_strength,
+                            meta=getattr(node, 'meta', getattr(node, 'metadata', {}))
                         )
                     for updated_concept in concepts:
                         self.brain.knowledge_graph.add_node(
-                            f"fact_{hash(updated_concept) % 1000000}",
-                            updated_concept, node_type="fact",
+                            name=updated_concept,
+                            node_id=f"fact_{hash(updated_concept) % 1000000}",
+                            node_type="fact",
                             domain=task.metadata.get("domain", "general"), strength=0.8
                         )
                         self.brain.knowledge_graph.add_edge(
                             concept, updated_concept, "contains",
-                            strength=0.8, metadata={"source": "knowledge_update"}
+                            strength=0.8, meta={"source": "knowledge_update"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка обновления knowledge_graph: {e}")
@@ -904,8 +906,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -964,8 +966,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -980,13 +982,14 @@ class LearningScheduler:
                         nodes = self.brain.knowledge_graph.search_nodes(integrated_concept, limit=1)
                         if not nodes:
                             self.brain.knowledge_graph.add_node(
-                                f"concept_{hash(integrated_concept) % 1000000}",
-                                integrated_concept, node_type="concept",
+                                name=integrated_concept,
+                                node_id=f"concept_{hash(integrated_concept) % 1000000}",
+                                node_type="concept",
                                 domain=task.metadata.get("domain", "general"), strength=0.85
                             )
                         self.brain.knowledge_graph.add_edge(
                             concept, integrated_concept, "integrates",
-                            strength=0.8, metadata={"source": "knowledge_integration"}
+                            strength=0.8, meta={"source": "knowledge_integration"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка интеграции в knowledge_graph: {e}")
@@ -1022,8 +1025,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -1036,12 +1039,13 @@ class LearningScheduler:
                 try:
                     for detail in concepts:
                         self.brain.knowledge_graph.add_node(
-                            f"detail_{hash(detail) % 1000000}", detail,
+                            name=detail,
+                            node_id=f"detail_{hash(detail) % 1000000}",
                             node_type="detail", domain=task.metadata.get("domain", "general"), strength=0.8
                         )
                         self.brain.knowledge_graph.add_edge(
                             concept, detail, "details",
-                            strength=0.85, metadata={"source": "concept_deepening"}
+                            strength=0.85, meta={"source": "concept_deepening"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка добавления деталей в knowledge_graph: {e}")
@@ -1078,8 +1082,8 @@ class LearningScheduler:
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -1091,15 +1095,16 @@ class LearningScheduler:
             if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
                     self.brain.knowledge_graph.add_node(
-                        f"synthesis_{hash(concept) % 1000000}",
-                        f"Синтез: {concept}", node_type="synthesis",
+                        name=f"Синтез: {concept}",
+                        node_id=f"synthesis_{hash(concept) % 1000000}",
+                        node_type="synthesis",
                         domain=task.metadata.get("domain", "general"), strength=0.9
                     )
                     for synthesized_concept in concepts:
                         self.brain.knowledge_graph.add_edge(
                             f"synthesis_{hash(concept) % 1000000}",
                             synthesized_concept, "derived_from",
-                            strength=0.9, metadata={"source": "knowledge_synthesis"}
+                            strength=0.9, meta={"source": "knowledge_synthesis"}
                         )
                 except Exception as e:
                     logger.debug(f"Ошибка синтеза в knowledge_graph: {e}")
@@ -1165,8 +1170,8 @@ class LearningScheduler:
                         })
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'store_user_profile'):
-                self.brain.memory_manager.store_user_profile(
+            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+                self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     profile={
                         "concept": concept,
@@ -1231,19 +1236,19 @@ class LearningScheduler:
                         # Обновляем узел концепта
                         if nodes:
                             self.brain.knowledge_graph.add_node(
-                                nodes[0].id,
-                                getattr(nodes[0], 'content', ''),
-                                getattr(nodes[0], 'node_type', 'concept'),
-                                getattr(nodes[0], 'domain', 'general'),
-                                getattr(nodes[0], 'meta', getattr(nodes[0], 'metadata', {})),
-                                strength=0.9
+                                name=getattr(nodes[0], 'content', ''),
+                                node_id=nodes[0].id,
+                                node_type=getattr(nodes[0], 'node_type', 'concept'),
+                                domain=getattr(nodes[0], 'domain', 'general'),
+                                strength=0.9,
+                                meta=getattr(nodes[0], 'meta', getattr(nodes[0], 'metadata', {}))
                             )
 
                         # Добавляем новые источники
                         for updated_concept in concepts:
                             self.brain.knowledge_graph.add_node(
-                                f"fact_{hash(updated_concept) % 1000000}",
-                                updated_concept,
+                                name=updated_concept,
+                                node_id=f"fact_{hash(updated_concept) % 1000000}",
                                 node_type="fact",
                                 domain=task.metadata.get("domain", "general"),
                                 strength=0.85
@@ -1254,7 +1259,7 @@ class LearningScheduler:
                                 updated_concept,
                                 "contains",
                                 strength=0.85,
-                                metadata={"source": "knowledge_maintenance"}
+                                meta={"source": "knowledge_maintenance"}
                             )
                 except Exception as e:
                     logger.error(f"Ошибка при записи в knowledge_graph в maintain_knowledge: {e}")

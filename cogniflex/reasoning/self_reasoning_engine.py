@@ -90,6 +90,7 @@ class SelfReasoningEngine:
             from cogniflex.reasoning.fractal_ml.fractal_retriever import FractalRetriever
             
             self.fractal_embedder = FractalEmbedder(use_sentence_transformers=False)
+            self.fractal_retriever = None
             logger.info("FractalEmbedder инициализирован")
         except Exception as e:
             logger.warning(f"Не удалось инициализировать fractal компоненты: {e}")
@@ -479,7 +480,7 @@ class SelfReasoningEngine:
         # Проверяем через contradiction_manager
         if self.brain and hasattr(self.brain, 'contradiction_manager'):
             try:
-                result = self.brain.contradiction_manager.detect_contradictions()
+                result = self.brain.contradiction_manager.detect_contradictions(text=response)
                 if result and result.get('contradictions'):
                     contradictions = result['contradictions'][:3]
                     score = 1.0 - (len(contradictions) * 0.2)
@@ -636,7 +637,7 @@ class SelfReasoningEngine:
         
         # Анализируем факторы с низкими оценками
         weak_factors = []
-        for factor_name, factor_data in factors_result.get('details', {}).items():
+        for factor_name, factor_data in factors_result.get('overall', {}).get('details', {}).items():
             if factor_data.get('score', 1.0) < 0.7:
                 weak_factors.append({
                     'factor': factor_name,

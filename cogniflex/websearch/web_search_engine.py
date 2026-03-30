@@ -56,6 +56,9 @@ class WebSearchEngine:
             "wikipedia": True
         }
         
+        # Database manager for caching
+        self._db_manager = None
+        
         # Кэш поисковых запросов
         self.search_cache = {}
         self._cache_timestamps = {}
@@ -72,6 +75,9 @@ class WebSearchEngine:
         
         # Запустить очистку кэша после инициализации running
         self._init_cache_cleanup()
+        
+        # Cache the DatabaseManager instance
+        self._db_manager = DatabaseManager(self.cache_dir)
         
         # Инициализация базы данных для хранения истории поиска
         try:
@@ -224,6 +230,7 @@ class WebSearchEngine:
     
     def _init_cache_cleanup(self):
         """Инициализирует очистку кэша по TTL."""
+        self.running = True
         self._cache_cleanup_thread = threading.Thread(target=self._cache_cleanup_worker, daemon=True)
         self._cache_cleanup_thread.start()
     
@@ -261,7 +268,7 @@ class WebSearchEngine:
         if expired_keys or len(self.search_cache) > self._cache_max_size:
             logger.info(f"Очищено {len(expired_keys)} записей кэша")
     
-    def set_search_engines(self, use_google: bool = True, use_yandex: bool = True, use_bing: bool = True):
+    def set_search_engines(self, use_google: bool = True, use_yandex: bool = True, use_bing: bool = True, use_wikipedia: bool = True):
         """
         Устанавливает активные поисковые системы.
         
@@ -269,16 +276,17 @@ class WebSearchEngine:
             use_google: Использовать Google
             use_yandex: Использовать Yandex
             use_bing: Использовать Bing
+            use_wikipedia: Использовать Wikipedia
         """
-        # Проверяем, действительно ли состояние меняется
         new_settings = {
             "google": use_google,
             "yandex": use_yandex,
-            "bing": use_bing
+            "bing": use_bing,
+            "wikipedia": use_wikipedia
         }
         if self.active_search_engines != new_settings:
-            self.active_search_engines = new_settings
-            logger.info(f"Поисковые системы обновлены: Google={use_google}, Yandex={use_yandex}, Bing={use_bing}")
+            self.active_search_engines.update(new_settings)
+            logger.info(f"Поисковые системы обновлены: Google={use_google}, Yandex={use_yandex}, Bing={use_bing}, Wikipedia={use_wikipedia}")
         else:
             logger.debug("Настройки поисковых систем не изменились")
     
@@ -472,11 +480,10 @@ class WebSearchEngine:
             # Сохраняем в базу данных
             if hasattr(self, 'db') and self.db is not None:
                 try:
-                    db_manager = DatabaseManager(self.cache_dir)
-                    if db_manager is not None:
-                        db_manager.save_query(query, status, results, 
+                    if self._db_manager is not None:
+                        self._db_manager.save_query(query, status, results, 
                                             f"Processed {len(results)} results", processing_time)
-                        db_manager.update_stats(self.stats)
+                        self._db_manager.update_stats(self.stats)
                 except Exception as db_error:
                     logger.warning(f"Не удалось сохранить в БД: {db_error}")
             
@@ -490,8 +497,9 @@ class WebSearchEngine:
     def get_recent_queries(self, limit: int = 10) -> List[Dict[str, Any]]:
         """Возвращает недавние поисковые запросы."""
         try:
-            db_manager = DatabaseManager(self.cache_dir)
-            return db_manager.get_recent_queries(limit)
+            if self._db_manager is not None:
+                return self._db_manager.get_recent_queries(limit)
+            return []
         except Exception as e:
             logger.error(f"Ошибка получения недавних запросов: {e}")
             return []

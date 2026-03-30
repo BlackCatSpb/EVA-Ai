@@ -1,7 +1,7 @@
 # CogniFlex AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.13 (восьмой цикл аудита - 68 исправлений)
+Версия: 1.14 (девятый цикл аудита - 34 исправления)
 
 ---
 
@@ -1061,6 +1061,9 @@ AuthManager (server.py):
 | 1.9 | 2026-03-29 | Пятый цикл аудита: 68 исправлений (27 HIGH, 38 MEDIUM, 3 LOW) - knowledge_graph, knowledge_integrator, learning_scheduler, memory_manager, self_dialog_learning, contradiction_manager, chat_module, ethics_core, self_reasoning_engine и др. |
 | 1.10 | 2026-03-29 | Шестой цикл аудита: from_dict и config validation исправления - knowledge_graph_types, knowledge_core, knowledge_integrator, comprehensive_learning_system, enhanced_learning_integration, optimized_fractal_model_manager, learning_scheduler, entity_fractal_store, health_monitor и др. |
 | 1.11 | 2026-03-29 | Седьмой цикл аудита: meta validation исправления - knowledge_graph, knowledge_integrator, knowledge_analyzer, knowledge_graph_integrated, knowledge_core, knowledge_nodes - добавлены проверки meta на None перед доступом |
+| 1.12 | 2026-03-30 | Восьмой цикл аудита: 68+ исправлений - core, knowledge, memory, learning, mlearning, reasoning, contradiction, adaptation, websearch, gui |
+| 1.13 | 2026-03-30 | Документация: структура проекта, версионность, cleanup git worktrees |
+| 1.14 | 2026-03-30 | Девятый цикл аудита: 34 исправления (12 HIGH, 15 MEDIUM, 7 LOW) - устранение git worktrees, split EventBus, variable shadowing, missing methods, API mismatches |
 
 ---
 
@@ -1130,6 +1133,7 @@ AuthManager (server.py):
 | 7 | v1.11 | 7 | meta validation (проверки на None) |
 | 8 | v1.12 | - | Добавлена полная структура проекта (15 разделов) |
 | 9 | v1.13 | 68+ | Восьмой цикл: core (query_processor, core_brain, component_initializer), knowledge, memory, learning, mlearning, reasoning, contradiction, adaptation, websearch, gui/server - None checks, memory leaks, thread safety, initialization order |
+| 10 | v1.14 | 34 | Девятый цикл: core (fallback methods, variable shadowing), knowledge (API mismatch), memory (list deletion), learning (add_edge/add_node kwargs), mlearning (double invocation), reasoning (contradictions param), contradiction (indentation), adaptation (UserProfile), websearch (cache/thread), server (UUID) |
 
 ---
 
@@ -1194,3 +1198,90 @@ AuthManager (server.py):
 **server.py:**
 - Исправлен hardcoded secret key
 - Добавлены None checks для result
+
+---
+
+## 18. Исправления v1.14 (девятый цикл аудита)
+
+### 18.0 Git Worktree Cleanup
+
+Удалены 3 устаревших git worktrees:
+- `CogniFlex-506e2973` (branch: cascade/2026-03-08-...)
+- `CogniFlex-739a8e65` (branch: cascade/2026-03-09-...)
+- `CogniFlex-81c8d36b` (branch: cascade/fallback-81c8d3)
+
+Остался только основной worktree `main`.
+
+### 18.1 AI Architect анализ (9-й цикл)
+
+Проведён полный анализ 13 ключевых модулей. Найдено 90 проблем:
+- **HIGH**: 17 (missing methods, split EventBus, variable shadowing, API mismatches)
+- **MEDIUM**: 47 (factory raises, missing guards, circular dependency risks, thread safety)
+- **LOW**: 26 (unused imports, wrong parameter names, dead code)
+
+### 18.2 Исправления AI Developer 1 (core/)
+
+**core_brain.py (6 исправлений):**
+- Добавлены методы `record_warning`, `record_system_shutdown`, `emit`, `emit_many`, `flush` в fallback SystemMetricsManager
+- Заменён `state_manager.record_error()` на `state_manager.set_state(SystemState.ERROR, str(e))` в stop()
+- Добавлен `global _global_brain_instance` и присвоение `_global_brain_instance = self`
+- MemoryPressureDetector получает logger_ref через конструктор
+- Добавлен hasattr guard для `token_cache.ram_cache`
+- Исправлен `max_tokens=30` → `max_new_tokens=30`
+
+**query_processor.py (2 исправления):**
+- Переименована переменная цикла `result` → `web_item` для устранения shadowing
+- ThreadPoolExecutor сохраняется в self.executor с _own_executor=True
+
+**component_initializer.py (5 исправлений):**
+- 4 фабрики: `raise` → `return None` (create_memory_manager, create_knowledge_graph, create_ml_unit, create_model_manager)
+- `_check_dependencies` → `_validate_dependencies` в initialize_components
+
+### 18.3 Исправления AI Developer 2 (knowledge/memory/learning)
+
+**knowledge_graph.py (2 исправления):**
+- Добавлена проверка `self.brain is not None` перед вызовом get_shared_cache
+- Добавлен метод `get_graph_health()` для оценки состояния графа
+
+**memory_manager.py (1 исправление):**
+- Исправлен remove_node: collect-indices-then-delete-in-reverse вместо unsafe del во время итерации
+
+**learning_scheduler.py (3 исправления):**
+- 6 вызовов `add_edge()`: `metadata=` → `meta=` для соответствия сигнатуре KnowledgeGraph.add_edge()
+- 8 вызовов `add_node()`: исправлен порядок positional аргументов → keyword args
+- 8 вызовов `store_user_profile()` → `update_user_profile()` (метод не существовал)
+
+**self_dialog_learning.py (1 исправление):**
+- `r.get('content', '')` → `getattr(r, 'description', '')` (KnowledgeNode это dataclass, не dict)
+
+### 18.4 Исправления AI Developer 3 (mlearning/reasoning/other)
+
+**ml_unit.py (1 исправление):**
+- Устранена двойная invocation `_link_components()`: deferred OR immediate, не оба
+
+**self_reasoning_engine.py (3 исправления):**
+- `detect_contradictions()` вызывается с параметром `text=response`
+- Исправлен путь доступа к словарю: `factors_result.get('overall', {}).get('details', {})`
+- Добавлена инициализация `self.fractal_retriever = None`
+
+**contradiction_manager.py (2 исправления):**
+- Fallback BaseComponent получил stub методы: `_setup_component`, `initialize`, `start`, `stop`
+- Исправлена indentation error (detect_contradictions не была внутри класса)
+- Нормализован формат возврата: `{'contradictions': [...]}`
+
+**adaptation_manager.py (1 исправление):**
+- Добавлен параметр `last_updated=time.time()` в конструктор UserProfile
+
+**web_search_engine.py (3 исправления):**
+- `set_search_engines()` использует `.update()` вместо замены dict; добавлен `use_wikipedia`
+- `self.running = True` установлен ПЕРЕД запуском cleanup thread
+- DatabaseManager кэшируется в `self._db_manager`
+
+**server.py (2 исправления):**
+- Исправлен путь SessionManager (убран дублированный 'gui')
+- MD5 → UUID4 для генерации user_id
+
+### 18.5 AI Tester результаты
+
+- Проверка синтаксиса: **310/310 файлов** прошли проверку
+- Все HIGH и MEDIUM исправления подтверждены
