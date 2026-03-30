@@ -81,12 +81,10 @@ class WebSearchEngine:
         
         # Инициализация базы данных для хранения истории поиска
         try:
-            self.db = self._init_database()
-            # Обновляем статистику из базы данных
+            self._init_database()
             self._update_query_stats()
         except Exception as e:
             logger.error(f"Ошибка инициализации базы данных: {e}")
-            self.db = None
         
         # Статистика
         self.stats = {
@@ -115,7 +113,7 @@ class WebSearchEngine:
         
         return self._local.connection
     
-    def _init_database(self) -> sqlite3.Connection:
+    def _init_database(self):
         """Инициализирует базу данных для хранения истории поиска."""
         try:
             conn = self._get_connection()
@@ -170,7 +168,6 @@ class WebSearchEngine:
                 """)
             
             conn.commit()
-            return conn
         except Exception as e:
             logger.error(f"Ошибка инициализации базы данных: {e}", exc_info=True)
             raise
@@ -313,6 +310,8 @@ class WebSearchEngine:
             self.running = False
             if self.search_thread:
                 self.search_thread.join(timeout=5)
+            if self._cache_cleanup_thread:
+                self._cache_cleanup_thread.join(timeout=5)
             logger.info("WebSearchEngine остановлен")
     
     def _search_worker(self):
@@ -478,12 +477,11 @@ class WebSearchEngine:
             self.stats["last_update"] = time.time()
             
             # Сохраняем в базу данных
-            if hasattr(self, 'db') and self.db is not None:
+            if self._db_manager is not None:
                 try:
-                    if self._db_manager is not None:
-                        self._db_manager.save_query(query, status, results, 
-                                            f"Processed {len(results)} results", processing_time)
-                        self._db_manager.update_stats(self.stats)
+                    self._db_manager.save_query(query, status, results, 
+                                        f"Processed {len(results)} results", processing_time)
+                    self._db_manager.update_stats(self.stats)
                 except Exception as db_error:
                     logger.warning(f"Не удалось сохранить в БД: {db_error}")
             
@@ -640,8 +638,7 @@ class WebSearchEngine:
         """Деструктор - останавливает фоновые процессы."""
         try:
             self.stop()
-            if hasattr(self, 'db') and self.db:
-                db_manager = DatabaseManager(self.cache_dir)
-                db_manager.close()
+            if hasattr(self, '_db_manager') and self._db_manager:
+                self._db_manager.close()
         except Exception as e:
             logger.error(f"Ошибка в деструкторе WebSearchEngine: {e}")

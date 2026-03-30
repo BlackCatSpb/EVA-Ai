@@ -291,64 +291,62 @@ class LearningScheduler:
         with self.lock:
             return self.task_registry.get(task_id)
     
+    def _update_task_status_internal(self, task_id: str, status: str) -> bool:
+        task = self.task_registry.get(task_id)
+        if not task:
+            return False
+
+        old_status = task.status
+        task.status = status
+
+        if status == "in_progress" and not task.start_time:
+            task.start_time = time.time()
+        elif status in ["completed", "failed"] and not task.end_time:
+            task.end_time = time.time()
+
+        if status in ["completed", "failed"]:
+            self._process_dependencies_internal(task_id)
+
+        self._save_tasks()
+        self._update_stats()
+
+        logger.info(f"Статус задачи {task_id} обновлен с '{old_status}' на '{status}'")
+        return True
+
     def update_task_status(self, task_id: str, status: str) -> bool:
         """
         Обновляет статус задачи.
-        
+
         Args:
             task_id: ID задачи
             status: Новый статус (pending, in_progress, completed, failed)
-            
+
         Returns:
             bool: Успешно ли обновлено
         """
         with self.lock:
-            task = self.task_registry.get(task_id)
-            if not task:
-                return False
-            
-            # Обновляем статус
-            old_status = task.status
-            task.status = status
-            
-            # Обновляем время начала/окончания
-            if status == "in_progress" and not task.start_time:
-                task.start_time = time.time()
-            elif status in ["completed", "failed"] and not task.end_time:
-                task.end_time = time.time()
-            
-            # Если задача завершена, обрабатываем зависимости
-            if status in ["completed", "failed"]:
-                self._process_dependencies(task_id)
-            
-            # Сохраняем изменения
-            self._save_tasks()
-            
-            # Обновляем статистику
-            self._update_stats()
-            
-            logger.info(f"Статус задачи {task_id} обновлен с '{old_status}' на '{status}'")
-            return True
+            return self._update_task_status_internal(task_id, status)
     
+    def _process_dependencies_internal(self, task_id: str):
+        for dependent_id in self.task_registry[task_id].dependents:
+            dependent_task = self.task_registry.get(dependent_id)
+            if dependent_task and dependent_task.status == "pending":
+                all_dependencies_satisfied = True
+                for dep_id in dependent_task.dependencies:
+                    dep_task = self.task_registry.get(dep_id)
+                    if dep_task and dep_task.status != "completed":
+                        all_dependencies_satisfied = False
+                        break
+
+                if all_dependencies_satisfied:
+                    dependent_task.status = "pending"
+                    heapq.heappush(self.task_queue, dependent_task)
+                    self._save_tasks()
+
     def _process_dependencies(self, task_id: str):
         """Обрабатывает зависимости после завершения задачи."""
         with self.lock:
-            for dependent_id in self.task_registry[task_id].dependents:
-                dependent_task = self.task_registry.get(dependent_id)
-                if dependent_task and dependent_task.status == "pending":
-                    # Проверяем, все ли зависимости выполнены
-                    all_dependencies_satisfied = True
-                    for dep_id in dependent_task.dependencies:
-                        dep_task = self.task_registry.get(dep_id)
-                        if dep_task and dep_task.status != "completed":
-                            all_dependencies_satisfied = False
-                            break
-                    
-                    # Если все зависимости выполнены, перемещаем задачу в очередь
-                    if all_dependencies_satisfied:
-                        dependent_task.status = "pending"
-                        heapq.heappush(self.task_queue, dependent_task)
-                        self._save_tasks()
+            self._process_dependencies_internal(task_id)
     
     def start_task(self, task_id: str) -> bool:
         """
@@ -378,7 +376,7 @@ class LearningScheduler:
                 return False
             
             # Обновляем статус
-            self.update_task_status(task_id, "in_progress")
+            self._update_task_status_internal(task_id, "in_progress")
             logger.info(f"Задача {task_id} запущена на выполнение")
             return True
     
@@ -403,7 +401,7 @@ class LearningScheduler:
             task.error = None
             
             # Обновляем статус
-            self.update_task_status(task_id, "completed")
+            self._update_task_status_internal(task_id, "completed")
             
             # Освобождаем ресурсы
             self.resource_allocation.release_slot(task_id)
@@ -439,7 +437,7 @@ class LearningScheduler:
                 self._update_stats()
                 logger.warning(f"Задача {task_id} помечена как неудачная (попытка {task.retries}/{task.max_retries}): {error}")
             else:
-                self.update_task_status(task_id, "failed")
+                self._update_task_status_internal(task_id, "failed")
                 self.resource_allocation.release_slot(task_id)
                 logger.error(f"Задача {task_id} завершилась неудачей после {task.max_retries} попыток: {error}")
             
@@ -642,7 +640,7 @@ class LearningScheduler:
                         break
                 
                 if not dependencies_satisfied:
-                    # Задача не готова к выполнению
+                    heapq.heappush(self.task_queue, task)
                     continue
                 
                 # Проверяем, не завершена ли задача
@@ -716,7 +714,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "related_concepts": concepts
                     }
@@ -799,7 +797,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "connections": connections
                     }
@@ -839,7 +837,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "updated_concepts": concepts
                     }
@@ -909,7 +907,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "verified_concepts": concepts
                     }
@@ -969,7 +967,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "integrated_concepts": concepts
                     }
@@ -1028,7 +1026,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "deepened_concepts": concepts
                     }
@@ -1085,7 +1083,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "synthesized_concepts": concepts
                     }
@@ -1173,7 +1171,7 @@ class LearningScheduler:
             if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
-                    profile={
+                    updates={
                         "concept": concept,
                         "connections": connections
                     }

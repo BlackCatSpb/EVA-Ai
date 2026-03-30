@@ -3492,7 +3492,7 @@ class KnowledgeGraph:
                 return []
             
             # Получаем узлы из области знаний
-            nodes = self.search_nodes("", domain=domain, limit=num_samples)
+            nodes = self.search_nodes("", domains=[domain], limit=num_samples)
             gaps = []
             
             for node in nodes:

@@ -461,12 +461,11 @@ class TrainingOrchestrator:
     
     def _all_components_ready(self):
         """Проверяет, все ли критические компоненты инициализированы."""
-        # Проверяем наличие хотя бы одного токенизатора и гибридного кэша
         has_tokenizer = bool(self.fractal_tokenizer or 
-                           (self.ml_unit and hasattr(self.ml_unit, 'token_streamer')))
+                           (self.ml_unit and getattr(self.ml_unit, 'token_streamer', None) is not None))
                            
         has_hybrid_cache = self.hybrid_cache is not None or \
-                              (self.ml_unit and hasattr(self.ml_unit, 'hybrid_cache'))
+                              (self.ml_unit and getattr(self.ml_unit, 'hybrid_cache', None) is not None)
         
         return has_tokenizer and has_hybrid_cache
 
@@ -511,13 +510,13 @@ class TrainingOrchestrator:
             
             # Проверяем наличие токенизатора как критически важного компонента
             has_tokenizer = bool(self.fractal_tokenizer or 
-                               (self.ml_unit and hasattr(self.ml_unit, 'token_streamer')) or
-                               (self.ml_unit and hasattr(self.ml_unit, 'text_processor') and 
+                               (self.ml_unit and getattr(self.ml_unit, 'token_streamer', None) is not None) or
+                               (self.ml_unit and getattr(self.ml_unit, 'text_processor', None) is not None and 
                                 self.ml_unit.text_processor and hasattr(self.ml_unit.text_processor, 'tokenizer')))
             
             # Проверяем гибридный кэш
             cache_ready = self.hybrid_cache is not None or \
-                              (self.ml_unit and hasattr(self.ml_unit, 'hybrid_cache')) or \
+                              (self.ml_unit and getattr(self.ml_unit, 'hybrid_cache', None) is not None) or \
                               (brain and hasattr(brain, 'memory_manager') and 
                                brain.memory_manager and hasattr(brain.memory_manager, 'hybrid_cache'))
             
@@ -1092,10 +1091,13 @@ class TrainingOrchestrator:
         for segment in imported_doc.iter_segments():
             # Here you would typically preprocess the segment and extract
             # input-output pairs for training. This is a simplified example.
+            text = segment.get('text', '') if isinstance(segment, dict) else getattr(segment, 'text', str(segment))
+            metadata = segment.get('metadata', {}) if isinstance(segment, dict) else getattr(segment, 'metadata', {})
+            fractal_path = segment.get('fractal_path', []) if isinstance(segment, dict) else getattr(segment, 'fractal_path', [])
             example = {
-                'text': segment.text,
-                'metadata': getattr(segment, 'metadata', {}),
-                'fractal_path': getattr(segment, 'fractal_path', []),
+                'text': text,
+                'metadata': metadata,
+                'fractal_path': fractal_path,
             }
             examples.append(example)
             
@@ -1105,8 +1107,8 @@ class TrainingOrchestrator:
                 if augmented:
                     examples.extend([{
                         'text': aug_text,
-                        'metadata': getattr(segment, 'metadata', {}),
-                        'fractal_path': getattr(segment, 'fractal_path', []),
+                        'metadata': metadata,
+                        'fractal_path': fractal_path,
                     } for aug_text in augmented])
         
         return examples

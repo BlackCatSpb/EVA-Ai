@@ -212,9 +212,11 @@ class MLUnit:
             if hasattr(self.brain, 'model_manager') and self.brain.model_manager is not None:
                 self.model_manager = self.brain.model_manager
                 logger.info(f"Используется существующий model_manager из CoreBrain: {type(self.model_manager).__name__}")
+                return True
             elif hasattr(self.brain, 'fractal_model_manager') and self.brain.fractal_model_manager is not None:
                 self.model_manager = self.brain.fractal_model_manager
                 logger.info(f"Используется существующий fractal_model_manager из CoreBrain: {type(self.model_manager).__name__}")
+                return True
             else:
                 try:
                     from cogniflex.mlearning.model_manager import ModelManager as _ModelManager
@@ -463,7 +465,7 @@ class MLUnit:
                 response = self.response_generator.generate_response(
                     prompt=test_prompt,
                     max_length=32768,
-                    max_new_tokens=2048,
+                    max_new_tokens=5,
                     temperature=0.7,
                     top_p=0.9,
                     task="text-generation"

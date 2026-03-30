@@ -137,7 +137,9 @@ class AuthManager:
             if user:
                 password_hash = hashlib.sha256(password.encode()).hexdigest()
                 if password_hash == user['password_hash']:
-                    user_id = str(uuid.uuid4())
+                    if 'user_id' not in user:
+                        user['user_id'] = str(uuid.uuid4())
+                    user_id = user['user_id']
                     return {'username': username, 'user_id': user_id}
         return None
 

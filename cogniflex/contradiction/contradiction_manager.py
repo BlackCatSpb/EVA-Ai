@@ -71,6 +71,8 @@ class ContradictionManager(BaseComponent):
         Args:
             contradiction: Словарь с данными о противоречии
         """
+        if 'contradiction_id' in contradiction and 'id' not in contradiction:
+            contradiction['id'] = contradiction['contradiction_id']
         contradiction_id = contradiction.get('id')
         existing_ids = {c.get('id') for c in self.contradictions}
         if contradiction_id and contradiction_id not in existing_ids:
@@ -153,7 +155,7 @@ class ContradictionManager(BaseComponent):
                 return False
                 
             contradiction = next((c for c in self.contradictions 
-                               if isinstance(c, dict) and c.get('id') == contradiction_id), None)
+                               if isinstance(c, dict) and (c.get('id') == contradiction_id or c.get('contradiction_id') == contradiction_id)), None)
             if not contradiction:
                 logger.warning(f"Противоречие с ID {contradiction_id} не найдено")
                 return False

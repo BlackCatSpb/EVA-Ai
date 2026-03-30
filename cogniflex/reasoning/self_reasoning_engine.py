@@ -716,7 +716,7 @@ class SelfReasoningEngine:
         if overall < threshold + 0.1:
             return True
         
-        for factor_data in factors_result.get('details', {}).values():
+        for factor_data in factors_result.get('overall', {}).get('details', {}).values():
             if factor_data.get('score', 1.0) < threshold:
                 return True
         
@@ -895,7 +895,7 @@ class SelfReasoningEngine:
             if hasattr(self.brain, 'contradiction_manager'):
                 contr = self.brain.contradiction_manager
                 if hasattr(contr, 'detect_contradictions'):
-                    analysis.contradiction_result = contr.detect_contradictions()
+                    analysis.contradiction_result = contr.detect_contradictions(text=response)
         except Exception as e:
             logger.warning(f"Contradiction check failed: {e}")
         

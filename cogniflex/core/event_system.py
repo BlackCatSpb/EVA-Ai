@@ -122,16 +122,17 @@ class EventBus:
             data: Данные для передачи подписчикам
             priority_override: Переопределение приоритета события
         """
-        self._triggered_events[event_name] = data
+        with self._lock:
+            self._triggered_events[event_name] = data
 
         listeners = list(self.listeners.get(event_name, []))
 
         # Сортируем обработчики по приоритету
         event_priority = priority_override if priority_override is not None else self.event_priorities.get(event_name, 5)
         
-        # Use priority_override if provided, otherwise use callback's own priority
+        # Use priority_override as fallback, but prefer callback's own priority
         if priority_override is not None:
-            listeners.sort(key=lambda cb: priority_override, reverse=True)
+            listeners.sort(key=lambda cb: getattr(cb, '_event_priority', priority_override), reverse=True)
         else:
             listeners.sort(key=lambda cb: getattr(cb, '_event_priority', 5), reverse=True)
 

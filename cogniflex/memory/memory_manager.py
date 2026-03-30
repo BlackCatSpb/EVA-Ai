@@ -97,14 +97,14 @@ class MemoryManager:
         Raises:
             RuntimeError: Если не удалось инициализировать кэш
         """
-        if not hasattr(self, '_hybrid_cache') or not self._hybrid_cache:
+        if not hasattr(self, 'hybrid_cache') or not self.hybrid_cache:
             if self.brain and hasattr(self.brain, 'hybrid_cache'):
-                self._hybrid_cache = self.brain.hybrid_cache
+                self.hybrid_cache = self.brain.hybrid_cache
                 logger.debug("Используем единый HybridTokenCache из brain")
             else:
                 try:
                     from .hybrid_token_cache import get_shared_cache
-                    self._hybrid_cache = get_shared_cache(self.brain, "memory_manager")
+                    self.hybrid_cache = get_shared_cache(self.brain, "memory_manager")
                     logger.info("Гибридный кэш успешно инициализирован через get_shared_cache")
                 except ImportError as e:
                     logger.error(f"Не удалось импортировать get_shared_cache: {e}")
@@ -112,8 +112,8 @@ class MemoryManager:
                 except Exception as e:
                     logger.error(f"Ошибка инициализации гибридного кэша: {e}")
                     raise RuntimeError(f"Ошибка инициализации гибридного кэша: {e}")
-                
-        return self._hybrid_cache
+
+        return self.hybrid_cache
         
     def get_state(self) -> ComponentState:
         """

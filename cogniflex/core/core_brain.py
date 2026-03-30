@@ -13,15 +13,52 @@ import psutil
 import torch
 from typing import Dict, Any, Optional, List, Tuple
 
-from .background_coordinator import BackgroundCoordinator, Policies
-from .opportunities.learning_detector import LearningOpportunityDetector
-from .background_jobs.training_job import TrainingJob
-from .autopilot_cache import AutopilotCache
-from .opportunities.web_discovery_detector import WebDiscoveryDetector
-from .opportunities.recovery_detector import ModuleRecoveryDetector
-from .background_jobs.web_index_job import WebIndexJob
-from .background_jobs.module_recovery_job import ModuleRecoveryJob
-from .generation_coordinator import initialize_generation_coordinator, get_generation_coordinator
+try:
+    from .background_coordinator import BackgroundCoordinator, Policies
+except ImportError:
+    BackgroundCoordinator = None
+    Policies = None
+
+try:
+    from .opportunities.learning_detector import LearningOpportunityDetector
+except ImportError:
+    LearningOpportunityDetector = None
+
+try:
+    from .background_jobs.training_job import TrainingJob
+except ImportError:
+    TrainingJob = None
+
+try:
+    from .autopilot_cache import AutopilotCache
+except ImportError:
+    AutopilotCache = None
+
+try:
+    from .opportunities.web_discovery_detector import WebDiscoveryDetector
+except ImportError:
+    WebDiscoveryDetector = None
+
+try:
+    from .opportunities.recovery_detector import ModuleRecoveryDetector
+except ImportError:
+    ModuleRecoveryDetector = None
+
+try:
+    from .background_jobs.web_index_job import WebIndexJob
+except ImportError:
+    WebIndexJob = None
+
+try:
+    from .background_jobs.module_recovery_job import ModuleRecoveryJob
+except ImportError:
+    ModuleRecoveryJob = None
+
+try:
+    from .generation_coordinator import initialize_generation_coordinator, get_generation_coordinator
+except ImportError:
+    initialize_generation_coordinator = None
+    get_generation_coordinator = None
 
 logger = logging.getLogger("cogniflex.core_brain")
 query_logger = logging.getLogger("cogniflex.core_brain.query_processing")
@@ -1771,7 +1808,7 @@ class CoreBrain:
             
             # Проверяем VRAM если доступно
             vram_pressure = 0.0
-            if torch.cuda.is_available():
+            if torch is not None and torch.cuda.is_available():
                 vram_used = torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory
                 vram_pressure = vram_used
             
@@ -2080,7 +2117,7 @@ class CoreBrain:
             ram_hits = stats.get('ram_hits', 0)
             disk_hits = stats.get('disk_hits', 0)
             
-            if vram_hits == 0 and torch.cuda.is_available():
+            if vram_hits == 0 and torch is not None and torch.cuda.is_available():
                 recommendations.append("VRAM кэш не используется. Проверьте настройки GPU.")
             
             if disk_hits > ram_hits * 2:
@@ -2142,7 +2179,13 @@ class CoreBrain:
             status["resources"] = self.resource_manager.get_resource_summary()
         
         if self.config_manager:
-            status["config_valid"] = self.config_manager.validate_config()
+            try:
+                if hasattr(self.config_manager, 'validate_config'):
+                    status["config_valid"] = self.config_manager.validate_config()
+                else:
+                    status["config_valid"] = None
+            except Exception:
+                status["config_valid"] = None
         
         return status
     

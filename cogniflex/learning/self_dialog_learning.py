@@ -444,11 +444,16 @@ class SelfDialogLearningSystem:
         knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
         if knowledge_graph:
             try:
-                update_node = getattr(knowledge_graph, 'update_node', None) or getattr(knowledge_graph, 'add_node', None)
-                if update_node:
-                    update_node(
+                if hasattr(knowledge_graph, 'update_node'):
+                    knowledge_graph.update_node(
+                        node_id=concept,
+                        new_description=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
+                        source="self_dialog_learning"
+                    )
+                elif hasattr(knowledge_graph, 'add_node'):
+                    knowledge_graph.add_node(
                         name=concept,
-                        content=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
+                        description=f"Refined at {time.time()}, type: refinement, evidence: {evidence}",
                         source="self_dialog_learning"
                     )
             except Exception as e:
@@ -501,11 +506,16 @@ class SelfDialogLearningSystem:
             
             if hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
-                    update_node = getattr(self.brain.knowledge_graph, 'update_node', None) or getattr(self.brain.knowledge_graph, 'add_node', None)
-                    if update_node:
-                        update_node(
+                    if hasattr(self.brain.knowledge_graph, 'update_node'):
+                        self.brain.knowledge_graph.update_node(
+                            node_id=concept,
+                            new_description=f"Updated at {time.time()}, type: updating",
+                            source="self_dialog_learning"
+                        )
+                    elif hasattr(self.brain.knowledge_graph, 'add_node'):
+                        self.brain.knowledge_graph.add_node(
                             name=concept,
-                            content=f"Updated at {time.time()}, type: updating",
+                            description=f"Updated at {time.time()}, type: updating",
                             source="self_dialog_learning"
                         )
                 except Exception as e:

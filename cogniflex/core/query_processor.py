@@ -66,15 +66,22 @@ class QueryProcessor:
 
         self.entity_extractor = EntityExtractor() if EntityExtractor else None
         self.ambiguity_resolver = AmbiguityResolver() if AmbiguityResolver else None
-        
+
         # Model and tokenizer references (may be None if not loaded)
         self.model = None
         self.tokenizer = None
-        
+
         # Embeddings cache with size limit
         self.embeddings: Dict[str, Any] = {}
         self._embeddings_max_size = 1000
-        
+
+        # Current query for reasoning engine
+        self.current_query = ""
+
+        # State flags
+        self.initialized = True
+        self.running = True
+
         # Initialize model and tokenizer if available in brain
         self._initialize_model_components()
     
@@ -138,6 +145,7 @@ class QueryProcessor:
                 "contradiction_detected": False
             }
         
+        self.current_query = query
         start_time = time.time()
         result: Dict[str, Any] = {
             "response": None,
@@ -228,7 +236,7 @@ class QueryProcessor:
                 # Обновляем метрики (если есть менеджер метрик)
                 try:
                     if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
-                        self.brain.metrics_manager.update_request_metrics(time.time() - start_time, True)
+                        self.brain.metrics_manager.record_query_metrics(time.time() - start_time, True)
                 except (AttributeError, TypeError, ValueError) as e:
                     logger.debug(f"Ошибка обновления метрик после пути KG->генерация: {e}")
 
@@ -277,7 +285,7 @@ class QueryProcessor:
 
             try:
                 if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
-                    self.brain.metrics_manager.update_request_metrics(processing_time, True)
+                    self.brain.metrics_manager.record_query_metrics(processing_time, True)
                 # Дополнительно эмитим нормализованные метрики
                 self._emit_metrics([
                     {"name": "query_processor.requests_total", "component": "query_processor", "type": "counter", "value": 1.0, "labels": {"result": "success"}},
@@ -299,7 +307,7 @@ class QueryProcessor:
             logger.exception("Критическая ошибка в process_query")
             try:
                 if hasattr(self.brain, "metrics_manager") and self.brain.metrics_manager:
-                    self.brain.metrics_manager.update_request_metrics(time.time() - start_time, False)
+                    self.brain.metrics_manager.record_query_metrics(time.time() - start_time, False)
                 self._emit_metrics([
                     {"name": "query_processor.requests_total", "component": "query_processor", "type": "counter", "value": 1.0, "labels": {"result": "error"}},
                 ])
