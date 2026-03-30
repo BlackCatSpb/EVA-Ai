@@ -14,13 +14,14 @@
 
 ### Тестирование:
 - Система инициализируется успешно: `INIT RESULT: True`
+- brain.start(): True
 - Все 29 компонентов инициализированы успешно (0 failed)
-- Запрос к brain обрабатывается корректно: "Как дела?" -> ответ получен
-- Web GUI сервер импортируется корректно
-- Время инициализации: ~26 секунд
+- Запрос к brain обрабатывается корректно: "Привет! Как дела?" -> ответ получен
+- Web GUI запускается на http://127.0.0.1:5555
+- Время инициализации: ~11-19 секунд
 - Время генерации ответа: ~20 секунд
 
-### Компоненты:
+### Компоненты (29):
 - adaptation_manager, analytics_manager, background_coordinator
 - config_manager, contradiction_manager, ethics_framework
 - event_bus, fractal_storage, generation_coordinator
