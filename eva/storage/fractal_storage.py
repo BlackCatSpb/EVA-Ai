@@ -194,6 +194,9 @@ class FractalStorage:
             os.makedirs(tokenizers_dir, exist_ok=True)
             
             # Сохраняем токенизатор
+            if not model_name or not isinstance(model_name, str) or '..' in model_name or '/' in model_name or '\\' in model_name:
+                logger.error(f"Недопустимое имя модели: {model_name!r}")
+                return False
             tokenizer_path = os.path.join(tokenizers_dir, model_name)
             
             if hasattr(tokenizer, 'save_pretrained'):

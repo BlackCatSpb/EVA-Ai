@@ -271,7 +271,7 @@ class TokenDiskCache:
                 'total_size_mb': self.current_size_bytes / (1024 * 1024),
                 'total_size_gb': self.current_size_bytes / (1024 * 1024 * 1024),
                 'max_size_gb': self.max_size_bytes / (1024 * 1024 * 1024),
-                'usage_percent': (self.current_size_bytes / self.max_size_bytes) * 100
+                'usage_percent': (self.current_size_bytes / self.max_size_bytes) * 100 if self.max_size_bytes else 0.0
             }
     
     def __contains__(self, token_id: str) -> bool:

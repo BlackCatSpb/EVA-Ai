@@ -193,6 +193,8 @@ class AmbiguityResolver:
         if not ranked_entities:
             return None
         resolved = [self._clone_entity_with_resolution(e, m) for e, m in ranked_entities]
+        if not resolved:
+            return None
         refined = query
         for entity, meaning in ranked_entities:
             refined = refined.replace(entity.text, f"{entity.text} [{meaning}]")

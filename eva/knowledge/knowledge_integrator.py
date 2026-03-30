@@ -1825,6 +1825,8 @@ class KnowledgeIntegrator:
         intersection = words1 & words2
         union = words1 | words2
         
+        if not union:
+            return 0.0
         return len(intersection) / len(union)
     
     def _update_edge_strength(self, edge_id: str, new_strength: float):

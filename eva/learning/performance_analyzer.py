@@ -250,8 +250,12 @@ class PerformanceAnalyzer:
             
             # Проверяем количество промахов кэша
             cache_misses = stats.get("cache_misses", 0)
-            cache_hits = stats.get("cache_hits", 1)
-            miss_rate = cache_misses / (cache_misses + cache_hits)
+            cache_hits = stats.get("cache_hits", 0)
+            total_cache_accesses = cache_hits + cache_misses
+            if total_cache_accesses > 0:
+                miss_rate = cache_misses / total_cache_accesses
+            else:
+                miss_rate = 0.0
             
             if miss_rate > 0.3:
                 analysis["bottlenecks"].append("Высокий процент промахов кэша")

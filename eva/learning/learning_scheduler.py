@@ -1319,8 +1319,8 @@ class LearningScheduler:
                         continue
                     slot_acquired = True
                     self.resource_allocation.release_slot(temp_task_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Ошибка при проверке ресурсов: {e}")
                 
                 task = self._get_next_task()
                 if not task:

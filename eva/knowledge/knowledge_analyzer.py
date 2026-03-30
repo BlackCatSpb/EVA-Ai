@@ -699,7 +699,7 @@ class KnowledgeAnalyzer:
                 node_types[node.node_type] = node_types.get(node.node_type, 0) + 1
             
             # Проверяем доминирующие типы
-            if "fact" in node_types and node_types["fact"] / len(nodes) > 0.7:
+            if nodes and "fact" in node_types and node_types["fact"] / len(nodes) > 0.7:
                 patterns.append({
                     "type": "fact_overload",
                     "description": "Преобладание фактов в знаниях",
@@ -718,7 +718,7 @@ class KnowledgeAnalyzer:
             # Проверяем дисбаланс доменов
             if domains:
                 max_domain = max(domains, key=domains.get)
-                if domains[max_domain] / len(nodes) > 0.6:
+                if nodes and domains[max_domain] / len(nodes) > 0.6:
                     patterns.append({
                         "type": "domain_imbalance",
                         "description": f"Преобладание домена '{max_domain}'",
@@ -895,7 +895,7 @@ class KnowledgeAnalyzer:
                     self.brain.self_analyzer.add_learning_opportunity(
                         concept=contradiction.get("concept", contradiction.get("concept1", "unknown")),
                         opportunity_type="contradiction_resolution",
-                        priority=min(1.0, contradiction["strength"] * 1.2),
+                        priority=min(1.0, contradiction.get("strength", 0.5) * 1.2),
                         domain="knowledge_consistency",
                         evidence=contradiction.get("evidence", []),
                         suggested_actions=[

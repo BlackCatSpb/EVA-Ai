@@ -1,7 +1,41 @@
 # ЕВА (EVA) AI - Детальное Описание Системы
 
 ## Дата: 2026-03-30
-Версия: 1.24 - 18-й цикл аудита
+Версия: 1.25 - 19-й цикл аудита
+
+---
+
+## Версия 1.25 (2026-03-30) - 19-й цикл аудита
+
+### Дополнительно:
+- Добавлен `eva.bat` для запуска из папки проекта
+
+### AI Architect Результаты:
+- Core: 20 проблем (3 CRITICAL, 5 HIGH, 6 MEDIUM, 6 LOW)
+- Knowledge/Memory: 22 проблемы (7 CRITICAL, 5 HIGH, 3 MEDIUM, 7 LOW)
+- Learning/GUI: 52 проблемы (7 CRITICAL, 11 HIGH, 17 MEDIUM, 17 LOW)
+- Всего: ~94 проблемы
+
+### Исправления AI Developer 1 (Core):
+1. **background_coordinator.py** - Добавлена проверка job на None
+2. **security_framework.py** - Проверка session_token после удаления
+3. **fractal_storage.py** - Валидация model_name
+
+### Исправления AI Developer 2 (Knowledge/Memory):
+1. **knowledge_analyzer.py** - Безопасный access через .get("strength")
+2. **ambiguity_resolver.py** - Защита от деления на ноль
+3. **knowledge_integrator.py** - Защита от деления на ноль (union)
+4. **knowledge_visualization.py** - Защита от деления на ноль
+5. **knowledge_core.py** - Logging в 7 exception handlers
+6. **hybrid_token_cache.py** - Защита от деления на ноль
+
+### Исправления AI Developer 3 (Learning):
+1. **self_analyzer.py** - Logging в exception handlers
+2. **learning_scheduler.py** - Logging в exception handler
+3. **performance_analyzer.py** - Защита от деления на ноль
+
+### Тестирование
+- Все файлы прошли проверку синтаксиса Python
 
 ---
 

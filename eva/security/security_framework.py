@@ -164,6 +164,9 @@ class AuthenticationManager:
                 del self.sessions[session_token]
                 return None
 
+            if session_token not in self.sessions:
+                return None
+
             return session
 
     def logout(self, session_token: str) -> bool:

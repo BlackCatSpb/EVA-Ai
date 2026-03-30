@@ -421,7 +421,7 @@ class KnowledgeVisualization:
             "edge_count": len(domain_edges),
             "node_types": node_types,
             "top_nodes": [{"id": n.id, "name": n.name, "strength": n.strength} for n in top_nodes],
-            "avg_strength": sum(n.strength for n in domain_nodes) / len(domain_nodes),
+            "avg_strength": sum(n.strength for n in domain_nodes) / len(domain_nodes) if domain_nodes else 0.0,
             "visualization": self.generate_knowledge_graph(domain_nodes[0].name if domain_nodes else "", depth=2)
         }
     

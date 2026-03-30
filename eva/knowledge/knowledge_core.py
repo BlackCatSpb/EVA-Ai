@@ -267,7 +267,8 @@ class KnowledgeGraph:
                 or os.path.join(os.getcwd(), 'eva_cache')
             )
             self.hybrid_index = KnowledgeHybridIndex(base_cache_dir=base_cache_dir, namespace="kg_index")
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Ошибка инициализации гибридного индекса: {e}")
             self.hybrid_index = None
 
         logger.info("Граф знаний инициализирован")
@@ -506,8 +507,8 @@ class KnowledgeGraph:
             if self.hybrid_index is not None:
                 try:
                     self.hybrid_index.put_node(node)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Ошибка индексации узла {node.id} в гибридном индексе: {e}")
             
             # Обновляем статистику
             self._update_stats()
@@ -563,8 +564,8 @@ class KnowledgeGraph:
             if self.hybrid_index is not None:
                 try:
                     self.hybrid_index.put_edge(edge)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Ошибка индексации связи {edge.id} в гибридном индексе: {e}")
             
             # Обновляем статистику
             self._update_stats()
@@ -601,8 +602,8 @@ class KnowledgeGraph:
                     if node.context:
                         self.contexts[node.context].append(node.id)
                     return node
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Ошибка получения узла {node_id} из гибридного индекса: {e}")
         return None
     
     def get_edge(self, edge_id: str) -> Optional[KnowledgeEdge]:
@@ -627,8 +628,8 @@ class KnowledgeGraph:
                     self.node_edges[edge.source].append(edge.id)
                     self.node_edges[edge.target].append(edge.id)
                     return edge
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Ошибка получения связи {edge_id} из гибридного индекса: {e}")
         return None
     
     def get_nodes_by_domain(self, domain: str) -> List[KnowledgeNode]:
@@ -819,8 +820,8 @@ class KnowledgeGraph:
             if self.hybrid_index is not None:
                 try:
                     self.hybrid_index.remove_node(node_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Ошибка удаления узла {node_id} из гибридного индекса: {e}")
             
             # Обновляем статистику
             self._update_stats()
@@ -865,8 +866,8 @@ class KnowledgeGraph:
             if self.hybrid_index is not None:
                 try:
                     self.hybrid_index.remove_edge(edge_id)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Ошибка удаления связи {edge_id} из гибридного индекса: {e}")
             
             # Обновляем статистику
             self._update_stats()

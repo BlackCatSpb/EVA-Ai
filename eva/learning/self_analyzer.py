@@ -108,8 +108,8 @@ class SelfAnalyzer:
                 try:
                     if hasattr(self.brain, 'status_queue') and self.brain.status_queue:
                         self.brain.status_queue.put(("self_learning", 0, "Ожидание загрузки моделей"))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Не удалось отправить статус в status_queue: {e}")
                 return False
             if not getattr(self.analyzer_core, 'running', False):
                 self.analyzer_core.start_background_analysis()
@@ -490,8 +490,8 @@ class SelfAnalyzer:
                 try:
                     if hasattr(self.brain, 'status_queue') and self.brain.status_queue:
                         self.brain.status_queue.put(("self_learning", 0, "Ожидание загрузки моделей"))
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Не удалось отправить статус в status_queue: {e}")
                 return False
             if self.memory_graph_trainer:
                 return self.memory_graph_trainer.start_learning_process()
