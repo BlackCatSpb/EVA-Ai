@@ -534,6 +534,7 @@ class ComponentInitializer:
                     class DummyAttentionSystem:
                         def __init__(self):
                             self.pending_opportunities = []
+                            self.core_brain = None
                     attention_system = DummyAttentionSystem()
                 learning_scheduler = LearningScheduler(attention_system)
                 if hasattr(learning_scheduler, 'initialize'):

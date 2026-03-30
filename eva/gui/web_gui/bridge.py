@@ -40,11 +40,11 @@ class GUIBridge:
                 return
             
             if hasattr(self.brain, 'events') and self.brain.events:
-                self.brain.events.on('query_received', self._on_query_received)
-                self.brain.events.on('response_generated', self._on_response_generated)
-                self.brain.events.on('training_progress', self._on_training_progress)
-                self.brain.events.on('reasoning_step', self._on_reasoning_step)
-                self.brain.events.on('system_error', self._on_system_error)
+                self.brain.events.subscribe('query_received', self._on_query_received)
+                self.brain.events.subscribe('response_generated', self._on_response_generated)
+                self.brain.events.subscribe('training_progress', self._on_training_progress)
+                self.brain.events.subscribe('reasoning_step', self._on_reasoning_step)
+                self.brain.events.subscribe('system_error', self._on_system_error)
                 
                 logger.info("Подписки на события brain настроены")
             

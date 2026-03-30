@@ -11,7 +11,10 @@ requires-python = ">=3.11"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["cogniflex*"]
+include = ["eva*"]
+
+[project.scripts]
+eva = "eva.__main__:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

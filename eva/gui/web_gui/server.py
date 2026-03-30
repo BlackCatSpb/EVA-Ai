@@ -253,8 +253,9 @@ class WebGUI:
                         admin_pass = config.get('web_gui', {}).get('admin_password')
                 except Exception:
                     pass
-        if admin_pass:
-            self.auth_manager.set_default_credentials(admin_user, admin_pass)
+        if not admin_pass:
+            admin_pass = 'admin'
+        self.auth_manager.set_default_credentials(admin_user, admin_pass)
         
         logger.info(f"WebGUI инициализирован на {host}:{port}")
     

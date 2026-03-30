@@ -569,6 +569,14 @@ class CoreBrain:
             self.query_logger.debug("Запуск инициализации компонентов системы...")
             init_start = time.time()
             
+            # Инициализация FractalAttentionSystem ПЕРЕД компонентами
+            try:
+                from eva.core.fractal_attention_system import FractalAttentionSystem
+                self.attention_system = FractalAttentionSystem(self)
+                self.query_logger.info("FractalAttentionSystem инициализирован")
+            except Exception as e:
+                self.query_logger.warning(f"Не удалось инициализировать FractalAttentionSystem: {e}")
+            
             if self.component_initializer:
                 if not self.component_initializer.initialize_components():
                     self.query_logger.error("Не удалось инициализировать все компоненты системы")

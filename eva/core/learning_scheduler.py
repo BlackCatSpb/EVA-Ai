@@ -482,3 +482,62 @@ class LearningScheduler:
     def get_completed_learnings(self) -> List[Dict[str, Any]]:
         """Возвращает историю завершенных обучений."""
         return self.completed_learnings
+
+    def identify_learning_opportunities(self, query: str) -> List[Dict[str, Any]]:
+        """Идентифицирует возможности для обучения на основе запроса.
+        
+        Args:
+            query: Текст запроса пользователя
+            
+        Returns:
+            Список возможностей для обучения
+        """
+        opportunities = []
+        try:
+            if hasattr(self.attention_system, 'core_brain') and self.attention_system.core_brain:
+                brain = self.attention_system.core_brain
+                
+                # Анализируем запрос на предмет новых паттернов
+                if len(query) > 20:
+                    opportunities.append({
+                        'type': 'query_pattern',
+                        'query': query,
+                        'priority': 0.5,
+                        'description': 'Новый паттерн запроса для анализа'
+                    })
+        except Exception as e:
+            self.logger.debug(f"Ошибка идентификации возможностей обучения: {e}")
+        return opportunities
+
+    def schedule_learning_session(self, opportunity: Dict[str, Any]) -> bool:
+        """Запланировать сессию обучения для возможности.
+        
+        Args:
+            opportunity: Словарь с информацией о возможности обучения
+            
+        Returns:
+            True если сессия успешно запланирована
+        """
+        try:
+            self._add_learning_opportunity(opportunity)
+            self.logger.info(f"Сессия обучения запланирована: {opportunity.get('type', 'unknown')}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Ошибка планирования сессии обучения: {e}")
+            return False
+
+    def get_high_priority_opportunities(self, min_priority: float = 0.7) -> List[Dict[str, Any]]:
+        """Возвращает высокоприоритетные возможности обучения.
+        
+        Args:
+            min_priority: Минимальный приоритет для включения в результат
+            
+        Returns:
+            Список высокоприоритетных возможностей
+        """
+        high_priority = [
+            opp for opp in self.pending_opportunities 
+            if opp.get('priority', 0) >= min_priority
+        ]
+        high_priority.sort(key=lambda x: x.get('priority', 0), reverse=True)
+        return high_priority

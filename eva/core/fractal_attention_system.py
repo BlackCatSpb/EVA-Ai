@@ -75,7 +75,7 @@ class FractalAttentionSystem:
         self.dialog_manager = SelfDialogManager(self)
         self.contradiction_resolver = ContradictionResolver(self)
         self.learning_scheduler = LearningScheduler(self)
-        self.system_optimizer = SystemOptimizer(self)
+        self.system_optimizer = SystemOptimizer(self.core_brain)
         self.logger = logging.getLogger("eva.fractal_attention")
 
         # Инициализация начального фокуса

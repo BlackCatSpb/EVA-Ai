@@ -630,19 +630,19 @@ class ЕВАGUI:
             if self.brain:
                 handler = self._handle_model_load_event
                 # Предпочтительно через шину событий
-                if hasattr(self.brain, 'events') and self.brain.events and hasattr(self.brain.events, 'on'):
+                if hasattr(self.brain, 'events') and self.brain.events and hasattr(self.brain.events, 'subscribe'):
                     try:
-                        self.brain.events.on('model_load', handler)
+                        self.brain.events.subscribe('model_load', handler)
                         self.chat_logger.info("GUI подписан на события model_load через EventSystem")
                         # Подписка на готовность моделей
                         try:
-                            self.brain.events.on('models_ready', lambda data=None: self.gui_queue.put(self._handle_models_ready_event))
+                            self.brain.events.subscribe('models_ready', lambda data=None: self.gui_queue.put(self._handle_models_ready_event))
                             self.chat_logger.info("GUI подписан на событие models_ready")
                         except Exception:
                             pass
                         # Подписка на запрос перезагрузки GUI
                         try:
-                            self.brain.events.on('request_gui_reload', lambda data=None: self.gui_queue.put(self.reload))
+                            self.brain.events.subscribe('request_gui_reload', lambda data=None: self.gui_queue.put(self.reload))
                             self.chat_logger.info("GUI подписан на событие request_gui_reload")
                         except Exception:
                             pass

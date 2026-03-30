@@ -167,9 +167,9 @@ class ChatModule:
             # Через events
             if hasattr(brain, 'events') and brain.events:
                 try:
-                    brain.events.on('model_load', 
+                    brain.events.subscribe('model_load', 
                         lambda data: self.gui.gui_queue.put(lambda: handler(data)))
-                    brain.events.on('models_ready', 
+                    brain.events.subscribe('models_ready', 
                         lambda data=None: self.gui.gui_queue.put(self._set_ml_ready))
                 except (AttributeError, TypeError, RuntimeError):
                     pass

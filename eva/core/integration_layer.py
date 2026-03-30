@@ -115,6 +115,7 @@ class ЕВАIntegrator:
 
             # 4. Инициализация фрактальной системы внимания
             self.fractal_attention = FractalAttentionSystem(self.core_brain)
+            self.core_brain.attention_system = self.fractal_attention
 
             # 5. Запуск фоновых процессов
             self._start_background_processes()
