@@ -46,8 +46,14 @@ def apply_fractal_config():
         print(f"  Target memory: {config.get('target_memory_gb', 2.0)} GB")
         print(f"  Parallel tokenization: {config.get('parallel_tokenization', False)}")
         print(f"  Workers: {config.get('tokenization_workers', 2)}")
-        return True
-    return False
+        
+        applied_settings = {}
+        for key, value in config.items():
+            applied_settings[key] = value
+        
+        print(f"  Applied {len(applied_settings)} settings")
+        return applied_settings
+    return {}
 
 def apply_gui_config():
     """Apply GUI configuration"""
@@ -59,20 +65,23 @@ def apply_gui_config():
         print(f"  Theme: {config.get('theme', 'light')}")
         print(f"  Auto-refresh: {config.get('auto_refresh_interval', 5000)} ms")
         print(f"  Advanced metrics: {config.get('show_advanced_metrics', True)}")
-        return True
-    return False
+        
+        applied_settings = {}
+        for key, value in config.items():
+            applied_settings[key] = value
+        
+        print(f"  Applied {len(applied_settings)} settings")
+        return applied_settings
+    return {}
 
 if __name__ == "__main__":
     print("[*] Applying optimal ЕВА configuration")
     print("=" * 60)
     
-    success = True
+    fractal_settings = apply_fractal_config()
+    gui_settings = apply_gui_config()
     
-    if not apply_fractal_config():
-        success = False
-    
-    if not apply_gui_config():
-        success = False
+    success = bool(fractal_settings) and bool(gui_settings)
     
     print("=" * 60)
     if success:

@@ -767,7 +767,7 @@ class SelfReasoningEngine:
         Генерация ответа с fallback на разные модели
         Приоритет: Qwen → FractalModelManager → ResponseGenerator
         """
-            # Попытка 1: Qwen singleton (используем кэш)
+        # Попытка 1: Qwen singleton (используем кэш)
         try:
             if self._qwen_cached is None:
                 if self.brain is not None:
@@ -1399,6 +1399,10 @@ class SelfReasoningEngine:
 Дай исправленный ответ учитывая коррекцию:"""
         
         corrected_response = self._generate_with_qwen(correction_prompt)
+        
+        if not corrected_response:
+            corrected_response = user_correction
+            logger.warning("Generation returned empty, using user correction as response")
         
         # Сохраняем исправленную версию
         if self.fractal_storage:

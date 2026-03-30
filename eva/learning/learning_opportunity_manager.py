@@ -335,9 +335,10 @@ class LearningOpportunityManager:
         else:
             health = {"components": {}}
         
-        if "ml" in health["components"] and "models" in health["components"]["ml"]:
-            for model_name, model_data in health["components"]["ml"]["models"].items():
-                if model_data["status"] == "critical":
+        ml_components = health.get("components", {}).get("ml", {})
+        if ml_components and "models" in ml_components:
+            for model_name, model_data in ml_components.get("models", {}).items():
+                if model_data.get("status") == "critical":
                     fixes.append({
                         "id": f"update_model_{model_name}",
                         "title": f"Обновить модель {model_name}",
@@ -346,8 +347,10 @@ class LearningOpportunityManager:
                         "action": lambda mn=model_name: self._update_model(mn)  # фикс лямбды
                     })
         
-        if "ml" in health["components"] and "statistics" in health["components"]["ml"]:
-            if health["components"]["ml"]["statistics"].get("avg_response_time", 0) > 2.0:
+        ml_components = health.get("components", {}).get("ml", {})
+        if ml_components and "statistics" in ml_components:
+            stats = ml_components.get("statistics", {})
+            if stats.get("avg_response_time", 0) > 2.0:
                 fixes.append({
                     "id": "optimize_response_time",
                     "title": "Оптимизировать время ответа",
@@ -356,9 +359,11 @@ class LearningOpportunityManager:
                     "action": self._optimize_response_time
                 })
         
-        if "ml" in health["components"] and "statistics" in health["components"]["ml"]:
-            total_requests = health["components"]["ml"]["statistics"].get("total_requests", 1)
-            failed_requests = health["components"]["ml"]["statistics"].get("failed_requests", 0)
+        ml_components = health.get("components", {}).get("ml", {})
+        if ml_components and "statistics" in ml_components:
+            stats = ml_components.get("statistics", {})
+            total_requests = stats.get("total_requests", 1)
+            failed_requests = stats.get("failed_requests", 0)
             error_rate = failed_requests / max(1, total_requests)
             if error_rate > 0.1:
                 fixes.append({

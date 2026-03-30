@@ -1081,9 +1081,10 @@ class KnowledgeGraphModule:
             ax.axis('off')
             
             # Определяем цвета в зависимости от темы
-            bg_color = self.color_scheme["background"]["dark"] if self.gui.theme == "dark" else self.color_scheme["background"]["light"]
-            text_color = "white" if self.gui.theme == "dark" else "black"
-            edge_color = "#a0a0a0" if self.gui.theme == "dark" else "#666666"
+            theme = getattr(self.gui, 'theme', 'light') if hasattr(self, 'gui') and self.gui else 'light'
+            bg_color = self.color_scheme["background"]["dark"] if theme == "dark" else self.color_scheme["background"]["light"]
+            text_color = "white" if theme == "dark" else "black"
+            edge_color = "#a0a0a0" if theme == "dark" else "#666666"
             
             # Устанавливаем цвет фона
             fig.patch.set_facecolor(bg_color)
@@ -1951,9 +1952,10 @@ class KnowledgeGraphModule:
             pos = nx.spring_layout(G)
             
             # Определяем цвета в зависимости от темы
-            bg_color = self.color_scheme["background"]["dark"] if self.gui.theme == "dark" else self.color_scheme["background"]["light"]
-            text_color = "white" if self.gui.theme == "dark" else "black"
-            edge_color = "#a0a0a0" if self.gui.theme == "dark" else "#666666"
+            theme = getattr(self.gui, 'theme', 'light') if hasattr(self, 'gui') and self.gui else 'light'
+            bg_color = self.color_scheme["background"]["dark"] if theme == "dark" else self.color_scheme["background"]["light"]
+            text_color = "white" if theme == "dark" else "black"
+            edge_color = "#a0a0a0" if theme == "dark" else "#666666"
             
             # Устанавливаем цвет фона
             fig.patch.set_facecolor(bg_color)

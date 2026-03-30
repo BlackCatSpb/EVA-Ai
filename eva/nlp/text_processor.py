@@ -72,7 +72,7 @@ class TextProcessor:
         elif os.path.isdir(model_name):
             self.tokenizer_path = model_name
         else:
-            self.tokenizer_path = model_name
+            self.tokenizer_path = os.path.join(project_root, "eva", "mlearning", "eva_models", model_name) if not os.path.isabs(model_name) else model_name
         
         self._tokenizer = None
         self._initialize_tokenizer()

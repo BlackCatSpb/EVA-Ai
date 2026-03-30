@@ -14,8 +14,11 @@ KnowledgeHybridIndex: гибридный индекс для графа знан
 from __future__ import annotations
 import os
 import json
+import logging
 from collections import OrderedDict
 from typing import Optional, Any
+
+logger = logging.getLogger(__name__)
 
 try:
     from eva.memory.disk_cache import DiskCache  # type: ignore
@@ -67,8 +70,8 @@ class KnowledgeHybridIndex:
             payload = node.to_dict() if hasattr(node, 'to_dict') else node
             self.mem_nodes.put(node.id, payload)
             self.disk.put(key, payload)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to put node {node.id}: {e}")
 
     def get_node(self, node_id: str) -> Optional[dict]:
         obj = self.mem_nodes.get(node_id)
@@ -81,8 +84,8 @@ class KnowledgeHybridIndex:
         self.mem_nodes.remove(node_id)
         try:
             self.disk.delete(f"node:{node_id}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to remove node {node_id}: {e}")
 
     # ---- Edge API ----
     def put_edge(self, edge) -> None:
@@ -91,8 +94,8 @@ class KnowledgeHybridIndex:
             payload = edge.to_dict() if hasattr(edge, 'to_dict') else edge
             self.mem_edges.put(edge.id, payload)
             self.disk.put(key, payload)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to put edge {edge.id}: {e}")
 
     def get_edge(self, edge_id: str) -> Optional[dict]:
         obj = self.mem_edges.get(edge_id)
@@ -105,5 +108,5 @@ class KnowledgeHybridIndex:
         self.mem_edges.remove(edge_id)
         try:
             self.disk.delete(f"edge:{edge_id}")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(f"Failed to remove edge {edge_id}: {e}")

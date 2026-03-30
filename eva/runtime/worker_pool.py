@@ -10,7 +10,10 @@ from typing import Any, Dict, Iterable, Iterator, Optional, Tuple
 
 import torch
 
-from eva.adapters.torch_adapter import Batch
+try:
+    from eva.adapters.torch_adapter import Batch
+except ImportError:
+    Batch = None
 from eva.core.device_resolver import (
     DeviceConfig,
     resolve_device,
@@ -77,7 +80,9 @@ def _worker_entry(
         item = in_q.get()
         if item is None:
             break
-        batch_id, batch = item  # type: ignore
+        if not isinstance(item, tuple) or len(item) != 2:
+            continue
+        batch_id, batch = item[0], item[1]
         try:
             # Autocast on GPU with selected precision; inference_mode inside context
             # Core barrier: enforce clean batch before model call

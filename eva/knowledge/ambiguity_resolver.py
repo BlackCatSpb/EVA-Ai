@@ -195,7 +195,7 @@ class AmbiguityResolver:
         resolved = [self._clone_entity_with_resolution(e, m) for e, m in ranked_entities]
         refined = query
         for entity, meaning in ranked_entities:
-            refined = self._apply_refinement(entity, meaning)
+            refined = refined.replace(entity.text, f"{entity.text} [{meaning}]")
         avg_confidence = sum(e.confidence for e in resolved) / len(resolved)
         return RefinementQuery(
             original_query=query,

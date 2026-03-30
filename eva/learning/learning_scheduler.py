@@ -709,11 +709,11 @@ class LearningScheduler:
         try:
             # Используем MLUnit для извлечения связанных концептов
             concepts = []
-            if hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
+            if self.brain and hasattr(self.brain, 'ml_unit') and self.brain.ml_unit and hasattr(self.brain.ml_unit, 'extract_concepts'):
                 concepts = self.brain.ml_unit.extract_concepts(concept)
             
             # Сохраняем информацию в профиль пользователя (системного)
-            if hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager and hasattr(self.brain.memory_manager, 'update_user_profile'):
                 self.brain.memory_manager.update_user_profile(
                     user_id="system",
                     updates={
@@ -723,7 +723,7 @@ class LearningScheduler:
                 )
             
             # Добавляем связанные концепты в граф знаний
-            if self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
+            if hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'knowledge_graph') and self.brain.knowledge_graph:
                 try:
                     for related_concept in concepts:
                         self.brain.knowledge_graph.add_node(

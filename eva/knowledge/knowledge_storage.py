@@ -260,6 +260,7 @@ class KnowledgeStorage:
             conn.close()
             
             if not row:
+                logger.warning(f"Узел не найден: {node_id}")
                 return None
             
             node = KnowledgeNode(
@@ -402,6 +403,7 @@ class KnowledgeStorage:
             conn.close()
             
             if not row:
+                logger.warning(f"Связь не найдена: {edge_id}")
                 return None
             
             edge = KnowledgeEdge(
@@ -448,27 +450,30 @@ class KnowledgeStorage:
             """)
             
             for row in cursor.fetchall():
-                node = KnowledgeNode(
-                    id=row[0],
-                    name=row[1],
-                    description=row[2],
-                    node_type=row[3],
-                    domain=row[4],
-                    strength=row[5],
-                    timestamp=row[6],
-                    meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
-                    version=row[8],
-                    spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
-                    temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
-                )
-                
-                node.last_updated = row[7]
-                node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
-                node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
-                node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
-                node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
-                
-                nodes[node.id] = node
+                try:
+                    node = KnowledgeNode(
+                        id=row[0],
+                        name=row[1],
+                        description=row[2],
+                        node_type=row[3],
+                        domain=row[4],
+                        strength=row[5],
+                        timestamp=row[6],
+                        meta=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
+                        version=row[8],
+                        spatial_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {},
+                        temporal_info=safe_json_loads(row[11]) if len(row) > 11 and row[11] else {}
+                    )
+
+                    node.last_updated = row[7]
+                    node.history = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+                    node.contradictions = safe_json_loads(row[13]) if len(row) > 13 and row[13] else []
+                    node.keyword_index = safe_json_loads(row[14]) if len(row) > 14 and row[14] else []
+                    node.concept_index = safe_json_loads(row[15]) if len(row) > 15 and row[15] else []
+
+                    nodes[node.id] = node
+                except Exception as row_err:
+                    logger.warning(f"Ошибка обработки строки узла: {row_err}", exc_info=True)
             
             conn.close()
             logger.debug(f"Загружено {len(nodes)} узлов")
@@ -498,24 +503,27 @@ class KnowledgeStorage:
             """)
             
             for row in cursor.fetchall():
-                edge = KnowledgeEdge(
-                    id=row[0],
-                    source_id=row[1],
-                    target_id=row[2],
-                    relation_type=row[3],
-                    strength=row[4],
-                    timestamp=row[5],
-                    meta=safe_json_loads(row[8]) if len(row) > 8 and row[8] else {},
-                    version=row[7],
-                    spatial_info=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
-                    temporal_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {}
-                )
-                
-                edge.last_updated = row[6]
-                edge.history = safe_json_loads(row[11]) if len(row) > 11 and row[11] else []
-                edge.contradictions = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
-                
-                edges[edge.id] = edge
+                try:
+                    edge = KnowledgeEdge(
+                        id=row[0],
+                        source_id=row[1],
+                        target_id=row[2],
+                        relation_type=row[3],
+                        strength=row[4],
+                        timestamp=row[5],
+                        meta=safe_json_loads(row[8]) if len(row) > 8 and row[8] else {},
+                        version=row[7],
+                        spatial_info=safe_json_loads(row[9]) if len(row) > 9 and row[9] else {},
+                        temporal_info=safe_json_loads(row[10]) if len(row) > 10 and row[10] else {}
+                    )
+
+                    edge.last_updated = row[6]
+                    edge.history = safe_json_loads(row[11]) if len(row) > 11 and row[11] else []
+                    edge.contradictions = safe_json_loads(row[12]) if len(row) > 12 and row[12] else []
+
+                    edges[edge.id] = edge
+                except Exception as row_err:
+                    logger.warning(f"Ошибка обработки строки связи: {row_err}", exc_info=True)
             
             conn.close()
             logger.debug(f"Загружено {len(edges)} связей")

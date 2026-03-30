@@ -21,8 +21,12 @@ class FractalAddress:
         self.level = level
         if dimensions is None:
             self.dimensions = [0.0] * EMBEDDING_DIM
+        elif len(dimensions) == 0:
+            self.dimensions = [0.0] * EMBEDDING_DIM
         else:
             self.dimensions = dimensions[:EMBEDDING_DIM] if len(dimensions) >= EMBEDDING_DIM else dimensions + [0.0] * (EMBEDDING_DIM - len(dimensions))
+        if len(self.dimensions) == 0:
+            self.dimensions = [0.0] * EMBEDDING_DIM
         self.address_hash = self._compute_hash()
         self._normalized = None
     
@@ -58,11 +62,19 @@ class FractalAddress:
         return path
     
     def _get_branch_index(self, level: int) -> int:
-        start_idx = level * (EMBEDDING_DIM // MAX_LEVELS)
-        end_idx = start_idx + (EMBEDDING_DIM // MAX_LEVELS)
-        values = self.dimensions[start_idx:end_idx]
-        avg = sum(values) / len(values) if values else 0.0
-        return int((avg + 1) / 2 * (BRANCHING_FACTOR - 1))
+        if not self.dimensions or len(self.dimensions) == 0:
+            return 0
+        step = max(1, EMBEDDING_DIM // MAX_LEVELS)
+        start_idx = level * step
+        end_idx = start_idx + step
+        if start_idx >= len(self.dimensions):
+            return 0
+        values = self.dimensions[start_idx:min(end_idx, len(self.dimensions))]
+        if not values:
+            return 0
+        avg = sum(values) / len(values)
+        idx = int((avg + 1) / 2 * (BRANCHING_FACTOR - 1))
+        return max(0, min(BRANCHING_FACTOR - 1, idx))
     
     def to_vector(self) -> np.ndarray:
         return np.array(self.dimensions, dtype=np.float32)

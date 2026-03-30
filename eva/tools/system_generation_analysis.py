@@ -157,8 +157,13 @@ class SystemAnalyzer:
             # 1. Тест инициализации менеджера
             from eva.mlearning.optimized_fractal_model_manager import OptimizedFractalModelManager
             
-            manager = OptimizedFractalModelManager()
-            test_results['manager_init'] = True
+            try:
+                manager = OptimizedFractalModelManager()
+                test_results['manager_init'] = True
+            except Exception as e:
+                logger.error(f"   ❌ Ошибка инициализации OptimizedFractalModelManager: {e}")
+                test_results['errors'].append(f"Manager init failed: {e}")
+                return test_results
             logger.info("   ✅ Менеджер инициализирован")
             
             # 2. Проверяем загрузку модели

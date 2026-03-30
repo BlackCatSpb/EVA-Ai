@@ -758,11 +758,11 @@ class MemoryModule:
                         
                         # Фильтруем по типу
                         if node_type and node_type != "Все":
-                            all_nodes = [n for n in all_nodes if n.node_type == node_type]
+                            all_nodes = [n for n in all_nodes if getattr(n, 'node_type', None) == node_type]
                         
                         # Фильтруем по домену
                         if domain and domain != "Все":
-                            all_nodes = [n for n in all_nodes if n.domain == domain]
+                            all_nodes = [n for n in all_nodes if getattr(n, 'domain', None) == domain]
                         
                         # Добавляем в дерево
                         for node in all_nodes:

@@ -8,7 +8,12 @@ logger = logging.getLogger("eva.self_analyzer")
 
 # Импортируем компоненты
 from .analyzer_core import AnalyzerCore
-from eva.system.health_monitor import HealthMonitor
+
+try:
+    from eva.system.health_monitor import HealthMonitor
+except ImportError:
+    HealthMonitor = None
+
 from eva.learning.learning_opportunity_manager import LearningOpportunityManager
 from eva.learning.performance_analyzer import PerformanceAnalyzer
 
@@ -48,7 +53,10 @@ class SelfAnalyzer:
                         
             # Создаем компоненты
             self.analyzer_core = AnalyzerCore(brain, cache_dir)
-            self.health_monitor = HealthMonitor(brain, self.analyzer_core)
+            if HealthMonitor is not None:
+                self.health_monitor = HealthMonitor(brain, self.analyzer_core)
+            else:
+                self.health_monitor = None
             self.learning_opportunity_manager = LearningOpportunityManager(brain, self.analyzer_core)
             self.performance_analyzer = PerformanceAnalyzer(brain, self.analyzer_core)
             

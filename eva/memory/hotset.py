@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import time
+import logging
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 try:
     import torch
@@ -67,24 +70,19 @@ class HotSetManager:
         return free >= bytes_needed
 
     def _evict_until_can_fit(self, bytes_needed: int) -> None:
-        # Evict while not enough free or over max_bytes
-        # Note: we cannot know exact post-alloc free before allocator reserves; we use heuristic.
         tries = 0
         while not self._can_fit(bytes_needed) and self._lru:
-            _k, e = self._lru.popitem(last=False)  # LRU
+            _k, e = self._lru.popitem(last=False)
             try:
-                # Drop GPU ref
                 del e.tensor
-                # Optionally drop CPU mirror
                 if e.cpu_mirror is not None:
                     del e.cpu_mirror
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to delete tensor during eviction: {e}")
             self._evictions += 1
             self._bytes_evict += e.bytes
             tries += 1
             if tries % 4 == 0:
-                # Periodically hint allocator
                 torch.cuda.empty_cache()
         # Hard cap enforcement
         if self.max_bytes is not None:
@@ -94,8 +92,8 @@ class HotSetManager:
                     del e.tensor
                     if e.cpu_mirror is not None:
                         del e.cpu_mirror
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to delete tensor during hard cap eviction: {e}")
                 if len(self._lru) % 4 == 0:
                     torch.cuda.empty_cache()
 
@@ -138,8 +136,8 @@ class HotSetManager:
         if getattr(cpu, "is_pinned", False) is False:
             try:
                 cpu = cpu.pin_memory()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to pin memory for cpu tensor: {e}")
 
         # Ensure capacity
         self._evict_until_can_fit(size_bytes)
@@ -161,8 +159,8 @@ class HotSetManager:
         if getattr(cpu_tensor, "is_pinned", False) is False:
             try:
                 cpu_tensor = cpu_tensor.pin_memory()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to pin memory for cpu_tensor: {e}")
         self._evict_until_can_fit(size_bytes)
         t0 = time.perf_counter()
         with torch.cuda.stream(self._stream):
@@ -183,8 +181,8 @@ class HotSetManager:
             del e.tensor
             if e.cpu_mirror is not None:
                 del e.cpu_mirror
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to delete tensor during evict: {e}")
         torch.cuda.empty_cache()
         return True
 

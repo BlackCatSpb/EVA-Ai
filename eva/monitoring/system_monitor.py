@@ -438,7 +438,12 @@ class SystemMonitor:
 
         return {
             "health": health,
-            "active_alerts": [alert.__dict__ for alert in active_alerts],
+            "active_alerts": [
+                {"alert_id": a.alert_id, "level": a.level, "message": a.message, 
+                 "component": a.component, "timestamp": a.timestamp.isoformat() if a.timestamp else None,
+                 "resolved": a.resolved, "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None}
+                for a in active_alerts
+            ],
             "metrics_summary": {
                 "total_metrics": len(self.metrics_collector.metrics),
                 "latest_collection": datetime.now().isoformat()

@@ -229,9 +229,8 @@ class DiskCache:
             try:
                 if os.path.exists(file_path):
                     os.remove(file_path)
-            except Exception:
-                # best-effort
-                pass
+            except Exception as e:
+                logger.debug(f"Не удалось удалить файл при вытеснении: {file_path}: {e}")
 
             with self._db_lock:
                 cursor = self.conn.cursor()
@@ -254,8 +253,8 @@ class DiskCache:
             try:
                 if self._rq is not None:
                     self._rq.acquire_io(len(compressed))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Resource queue acquire_io failed during put: {e}")
             # Локальный троттлинг записи по размеру (safety net)
             self._throttle_write(len(compressed))
 
@@ -327,8 +326,8 @@ class DiskCache:
             try:
                 if self._rq is not None:
                     self._rq.acquire_io(size)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Resource queue acquire_io failed during get: {e}")
             # Локальный троттлинг чтения (safety net)
             self._throttle_read(size)
             with open(file_path, "rb") as f:

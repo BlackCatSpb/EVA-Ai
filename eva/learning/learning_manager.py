@@ -111,8 +111,11 @@ class LearningManager:
             
             # Пробуем создать новый экземпляр
             if self.brain:
-                from eva.mlearning.training_orchestrator import TrainingOrchestrator
-                return TrainingOrchestrator(brain=self.brain)
+                try:
+                    from eva.mlearning.training_orchestrator import TrainingOrchestrator
+                    return TrainingOrchestrator(brain=self.brain)
+                except ImportError as e:
+                    logger.warning(f"TrainingOrchestrator not available: {e}")
                 
         except Exception as e:
             logger.error(f"Ошибка получения TrainingOrchestrator: {e}")

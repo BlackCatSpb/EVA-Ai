@@ -71,9 +71,10 @@ class ImportPipeline:
         self.max_doc_chars = max_doc_chars
 
         # Optional: use brain text processor for normalization and tokenization length
-        self.text_processor = getattr(getattr(brain, "ml_unit", None), "text_processor", None)
+        ml_unit = getattr(brain, "ml_unit", None)
+        self.text_processor = getattr(ml_unit, "text_processor", None) if ml_unit else None
         # Optional tokenizer length estimator
-        self.token_streamer = getattr(getattr(brain, "ml_unit", None), "token_streamer", None)
+        self.token_streamer = getattr(ml_unit, "token_streamer", None) if ml_unit else None
 
     # ----------------------------
     # Public API
