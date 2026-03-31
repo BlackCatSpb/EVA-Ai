@@ -390,8 +390,36 @@
                 reasoningContainer.remove();
             }
             
-            // Добавляем финальный ответ
-            addMsg('system', d.response || 'Нет ответа', null, d.reasoning);
+            // Объединяем все рассуждения в одно меню
+            let allReasoning = '';
+            
+            // 1. Основные рассуждения (steps)
+            if (d.reasoning_steps && d.reasoning_steps.length > 0) {
+                allReasoning += '🔬 Этапы рассуждений:\n';
+                d.reasoning_steps.forEach((step, idx) => {
+                    const icons = {'generation': '💭', 'contradiction_check': '⚖️', 'ethics_check': '⚡', 'web_search': '🌐', 'refinement': '🔄', 'final_synthesis': '✨'};
+                    const icon = icons[step.phase] || '•';
+                    allReasoning += step.step + '. ' + icon + ' [' + step.phase + '] ' + step.thought + ' (conf: ' + step.confidence.toFixed(2) + ')\n';
+                });
+            }
+            
+            // 2. Веб-поиск
+            if (d.web_search_info) {
+                allReasoning += '\n🌐 Результаты поиска:\n' + d.web_search_info + '\n';
+            }
+            
+            // 3. Самодиалог
+            if (d.self_dialog) {
+                const sd = d.self_dialog;
+                allReasoning += '\n🔄 Самодиалог:\n';
+                allReasoning += 'Тема: ' + (sd.topic || '') + '\n';
+                allReasoning += 'Исход: ' + (sd.outcome || '') + '\n';
+                if (sd.gaps && sd.gaps.length > 0) allReasoning += 'Пробелы: ' + sd.gaps.join(', ') + '\n';
+                if (sd.actions && sd.actions.length > 0) allReasoning += 'Действия: ' + sd.actions.join(', ') + '\n';
+            }
+            
+            // Добавляем финальный ответ с объединенными рассуждениями
+            addMsg('system', d.response || 'Нет ответа', null, allReasoning || d.reasoning);
             
             // Показываем уточняющий вопрос если есть
             if (d.clarification_question) {
