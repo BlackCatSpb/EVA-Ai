@@ -1101,13 +1101,14 @@ class CoreBrain:
                         "processing_time": time.time() - start_time
                     }
         
-        # === Qwen-only mode: Force Qwen usage ===
+        # === Qwen-only mode WITH module integration ===
         if qwen_only_mode:
             # Приоритет: LlamaCpp (GGUF) если доступен
             if self.llama_cpp_ready and self.llama_cpp_deployment:
                 try:
                     self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
                     
+                    # Первая генерация
                     response_text = self.llama_cpp_deployment.generate(
                         prompt=query,
                         max_new_tokens=max_new_tokens or 2048,
@@ -1117,14 +1118,107 @@ class CoreBrain:
                     )
                     
                     if response_text and len(response_text) > 0:
+                        # === Интеграция модулей после генерации ===
+                        search_results = []
+                        contr_result = None
+                        ethics_result = None
+                        web_result = None
+                        
+                        # Вызываем модули если они доступны
+                        contr_manager = getattr(self, 'contradiction_manager', None)
+                        ethics_fw = getattr(self, 'ethics_framework', None)
+                        web_search = getattr(self, 'web_search_engine', None)
+                        
+                        # 1. Проверка на противоречия
+                        if contr_manager and hasattr(contr_manager, 'check_with_context'):
+                            try:
+                                contr_result = contr_manager.check_with_context(query, response_text)
+                                self.query_logger.debug(f"Проверка противоречий: {contr_result.get('significant_count', 0)} найдено")
+                            except Exception as e:
+                                self.query_logger.debug(f"Ошибка проверки противоречий: {e}")
+                        
+                        # 2. Проверка этики
+                        if ethics_fw and hasattr(ethics_fw, 'check_with_context'):
+                            try:
+                                ethics_result = ethics_fw.check_with_context(query, response_text)
+                                self.query_logger.debug(f"Проверка этики: issues={ethics_result.get('has_violations', False)}")
+                            except Exception as e:
+                                self.query_logger.debug(f"Ошибка проверки этики: {e}")
+                        
+                        # 3. Веб-поиск при низкой уверенности
+                        if web_search and hasattr(web_search, 'search'):
+                            try:
+                                web_result = web_search.search(query, max_results=5)
+                                search_results = web_result.get('results', []) if web_result else []
+                                if search_results:
+                                    self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
+                            except Exception as e:
+                                self.query_logger.debug(f"Ошибка веб-поиска: {e}")
+                        
+                        # Проверяем, нужно ли перегенерировать
+                        needs_refinement = False
+                        refinement_reasons = []
+                        
+                        if contr_result and contr_result.get('significant_count', 0) > 0:
+                            needs_refinement = True
+                            refinement_reasons.append('contradiction')
+                        
+                        if ethics_result and ethics_result.get('has_violations', False):
+                            needs_refinement = True
+                            refinement_reasons.append('ethics')
+                        
+                        # Если есть веб-контекст, добавляем его к ответу
+                        if search_results and len(search_results) > 0:
+                            # Формируем контекст из веб-поиска
+                            web_context = "\n\nИнформация из интернета:\n"
+                            for i, sr in enumerate(search_results[:3]):
+                                title = sr.get('title', 'No title')[:100]
+                                snippet = sr.get('snippet', '')[:200]
+                                web_context += f"\n{i+1}. {title}: {snippet}..."
+                            
+                            # Перегенерируем с контекстом
+                            enhanced_prompt = f"{query}\n\n{web_context}\n\nДай ответ используя эту информацию"
+                            response_text = self.llama_cpp_deployment.generate(
+                                prompt=enhanced_prompt,
+                                max_new_tokens=max_new_tokens or 2048,
+                                temperature=temperature or 0.7,
+                                top_p=top_p or 0.9,
+                                repeat_penalty=repetition_penalty or 1.1
+                            )
+                        
+                        # Определяем уверенность
+                        confidence = 0.9
+                        if needs_refinement:
+                            confidence = 0.6
+                        if search_results:
+                            confidence = min(confidence + 0.1, 0.95)
+                        
+                        # Проверяем "я не знаю"
+                        unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
+                        response_lower = response_text.lower()
+                        is_unknown = any(p in response_lower for p in unknown_patterns)
+                        
+                        if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                            try:
+                                self.self_dialog_learning.create_dialog(
+                                    topic=f"Неизвестная тема: {query[:100]}",
+                                    context={"source": "low_confidence", "query": query}
+                                )
+                            except:
+                                pass
+                        
                         return {
                             "response": response_text,
                             "text": response_text,
                             "status": "ok",
-                            "confidence": 0.9,
-                            "source": "llama_cpp",
+                            "confidence": confidence if not is_unknown else 0.4,
+                            "source": "llama_cpp_with_modules",
                             "fallback_level": 0,
-                            "processing_time": time.time() - start_time
+                            "processing_time": time.time() - start_time,
+                            "search_results": search_results,
+                            "contradiction_result": contr_result,
+                            "ethics_result": ethics_result,
+                            "self_dialog_triggered": is_unknown
                         }
                         
                 except Exception as e:
