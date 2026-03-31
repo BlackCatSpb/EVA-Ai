@@ -153,3 +153,11 @@ cogniflex/core/cogniflex_cache/autopilot/
 # Misc runtime artefacts
 cogniflex.log
 run.log
+
+# Development fix scripts and tests
+fix_*.py
+test_*.py
+update_*.py
+add_*.py
+nul
+fractal_models/
