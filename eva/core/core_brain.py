@@ -1145,8 +1145,12 @@ class CoreBrain:
                             except Exception as e:
                                 self.query_logger.debug(f"Ошибка проверки этики: {e}")
                         
-                        # 3. Веб-поиск при низкой уверенности
-                        if web_search and hasattr(web_search, 'search'):
+                        # 3. Веб-поиск - только для сложных запросов
+                        # Пропускаем веб-поиск для простых фраз
+                        simple_patterns = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello', 'как дела', 'как ты', 'что делаешь', 'спасибо', 'пока', 'до свидания', 'доброе утро', 'добрый день', 'добрый вечер', 'спасибо', 'благодарю', 'да', 'нет', 'ok', 'ой', 'ого', 'ахах', 'хаха']
+                        is_simple_query = any(p in query.lower().strip() for p in simple_patterns) and len(query.strip()) < 20
+                        
+                        if web_search and hasattr(web_search, 'search') and not is_simple_query:
                             try:
                                 web_result = web_search.search(query, max_results=5)
                                 raw_results = web_result.get('results', []) if web_result else []
