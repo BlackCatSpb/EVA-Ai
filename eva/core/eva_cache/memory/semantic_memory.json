@@ -34,5 +34,23 @@
       "type": "learned_content"
     },
     "user_id": null
+  },
+  {
+    "id": "mem_1774982134_5d6d2f50",
+    "content": {
+      "concept": "когнитивные функции",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1774982134.6278117,
+      "content": "Расширение знаний: когнитивные функции. Действия: [; \"",
+      "stored_at": 1774982134.627862,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1774982134.6279213,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
   }
 ]
