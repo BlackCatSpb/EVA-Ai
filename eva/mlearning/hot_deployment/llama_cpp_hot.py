@@ -197,11 +197,42 @@ class LlamaCppHotDeployment(HotDeploymentManager):
             
             logger.info(f"GGUF: {tokens} токенов за {elapsed:.2f}s ({speed:.1f} tok/s)")
             
+            # Проверяем на повторения и убираем
+            if text:
+                text = self._remove_repetitions(text)
+            
             return text
             
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return None
+    
+    def _remove_repetitions(self, text: str) -> str:
+        """Убирает повторяющиеся фразы из текста."""
+        if not text or len(text) < 50:
+            return text
+        
+        lines = text.split('\n')
+        seen_lines = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if line not in seen_lines:
+                seen_lines.append(line)
+            else:
+                break
+        
+        result = '\n'.join(seen_lines)
+        
+        words = result.split()
+        unique_words = []
+        for i, word in enumerate(words):
+            if i > 0 and word == words[i-1]:
+                continue
+            unique_words.append(word)
+        
+        return ' '.join(unique_words)
     
     def get_status(self) -> Dict:
         """Статус системы"""
