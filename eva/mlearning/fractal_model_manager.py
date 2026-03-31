@@ -51,18 +51,22 @@ def _get_project_root() -> str:
 class FractalModelManager:
     """
     Менеджер фрактальной модели с реальной генерацией.
-    Использует стандартную модель GPT-2 для генерации ответов.
+    Теперь с поддержкой GGUF/LlamaCpp для быстрого CPU inference.
     """
     
     def __init__(self, config: Optional[Any] = None, model_path: Optional[str] = None):
         """Инициализация менеджера"""
         self.config = config
         self.model_path = model_path
-        self.device = "auto"  # Используем auto для автоматического определения
+        self.device = "auto"
         self.initialized = False
         self.model = None
         self.tokenizer = None
         self.has_fractal_model = False
+        
+        # GGUF/LlamaCpp support
+        self.llama_cpp_deployment = None
+        self.llama_cpp_ready = False
         
         # Загружаем конфигурацию если есть
         if config and isinstance(config, str):
@@ -70,11 +74,15 @@ class FractalModelManager:
         elif model_path and model_path.endswith('.json'):
             self._load_config(model_path)
         
-        # Инициализируем модель
+        # Инициализируем GGUF (быстрее чем PyTorch)
+        self._initialize_llama_cpp()
+        
+        # Инициализируем PyTorch модель (lazy loading)
         self._initialize_model()
         
         logger.info(f"FractalModelManager инициализирован на устройстве: {self.device}")
         logger.info(f"Статус инициализации: {self.initialized}")
+        logger.info(f"GGUF ready: {self.llama_cpp_ready}")
     
     def _load_config(self, config_path: str):
         """Загружает конфигурацию из файла"""
@@ -86,6 +94,33 @@ class FractalModelManager:
                     logger.info(f"Конфигурация загружена из {config_path}")
         except Exception as e:
             logger.error(f"Ошибка загрузки конфигурации: {e}")
+    
+    def _initialize_llama_cpp(self):
+        """Инициализирует GGUF/LlamaCpp для быстрого CPU inference"""
+        try:
+            from eva.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
+            
+            project_root = _get_project_root()
+            gguf_path = os.path.join(project_root, "eva", "models", "qwen2.5-0.5b-instruct-q4_0.gguf")
+            
+            if os.path.exists(gguf_path):
+                self.llama_cpp_deployment = LlamaCppHotDeployment(
+                    model_path=gguf_path,
+                    n_ctx=4096,
+                    n_threads=8
+                )
+                
+                if self.llama_cpp_deployment.initialize(preload_root=True):
+                    self.llama_cpp_ready = True
+                    logger.info(f"FractalModelManager GGUF ready: {gguf_path}")
+                else:
+                    logger.warning("FractalModelManager: LlamaCpp initialization failed")
+            else:
+                logger.warning(f"GGUF model not found: {gguf_path}")
+                
+        except Exception as e:
+            logger.debug(f"FractalModelManager GGUF не инициализирован: {e}")
+            self.llama_cpp_deployment = None
     
     def _initialize_model(self):
         """Инициализирует модель - теперь через Qwen3.5-2B"""
@@ -135,15 +170,26 @@ class FractalModelManager:
     def generate_response(self, query: str, max_new_tokens: int = 2048, **kwargs) -> str:
         """
         Генерирует ответ с использованием модели.
-        
-        Args:
-            query: Запрос для генерации
-            max_new_tokens: Максимальное количество токенов
-            **kwargs: Дополнительные параметры
-            
-        Returns:
-            Сгенерированный ответ
+        Приоритет: GGUF/LlamaCpp > PyTorch > Fallback
         """
+        # Приоритет: GGUF/LlamaCpp
+        if self.llama_cpp_ready and self.llama_cpp_deployment:
+            try:
+                prompt = self._create_conversational_prompt(query)
+                response_text = self.llama_cpp_deployment.generate(
+                    prompt=prompt,
+                    max_new_tokens=max_new_tokens or 100,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repeat_penalty=1.1
+                )
+                
+                if response_text and len(response_text) > 5:
+                    return response_text
+            except Exception as e:
+                logger.debug(f"GGUF generation error: {e}")
+        
+        # Fallback to PyTorch if available
         if not self.initialized or not self.model or not self.tokenizer:
             return self._get_fallback_response(query)
         
