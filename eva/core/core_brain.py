@@ -1149,7 +1149,19 @@ class CoreBrain:
                         if web_search and hasattr(web_search, 'search'):
                             try:
                                 web_result = web_search.search(query, max_results=5)
-                                search_results = web_result.get('results', []) if web_result else []
+                                raw_results = web_result.get('results', []) if web_result else []
+                                # Конвертируем SearchResult в dict
+                                search_results = []
+                                for sr in raw_results:
+                                    if hasattr(sr, '__dict__'):
+                                        search_results.append({
+                                            'title': sr.title,
+                                            'url': sr.url,
+                                            'snippet': sr.snippet,
+                                            'source': sr.source
+                                        })
+                                    elif isinstance(sr, dict):
+                                        search_results.append(sr)
                                 if search_results:
                                     self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
                             except Exception as e:
@@ -1172,8 +1184,8 @@ class CoreBrain:
                             # Формируем контекст из веб-поиска
                             web_context = "\n\nИнформация из интернета:\n"
                             for i, sr in enumerate(search_results[:3]):
-                                title = sr.get('title', 'No title')[:100]
-                                snippet = sr.get('snippet', '')[:200]
+                                title = sr.get('title', 'No title')[:100] if isinstance(sr, dict) else str(sr)[:100]
+                                snippet = sr.get('snippet', '')[:200] if isinstance(sr, dict) else ''
                                 web_context += f"\n{i+1}. {title}: {snippet}..."
                             
                             # Перегенерируем с контекстом
