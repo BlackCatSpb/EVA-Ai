@@ -401,32 +401,7 @@
                 }
             }
             
-            // Показываем самодиалог если есть (в свернутом виде)
-            if (d.self_dialog) {
-                const sd = d.self_dialog;
-                const sdHtml = `
-                    <div class="self-dialog-info">
-                        <button class="sd-toggle" onclick="this.classList.toggle('open'); this.nextElementSibling.classList.toggle('open')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                            🔄 Самодиалог
-                        </button>
-                        <div class="sd-body">
-                            <div class="sd-topic">Тема: ${esc(sd.topic || '')}</div>
-                            <div class="sd-outcome">Исход: ${esc(sd.outcome || '')}</div>
-                            ${sd.gaps && sd.gaps.length > 0 ? `<div class="sd-gaps">Пробелы: ${sd.gaps.join(', ')}</div>` : ''}
-                            ${sd.actions && sd.actions.length > 0 ? `<div class="sd-actions">Действия: ${sd.actions.join(', ')}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-                const lastMsg = c.lastElementChild;
-                const lastMsgInner = lastMsg?.querySelector?.('.msg-inner');
-                if (lastMsgInner) {
-                    lastMsgInner.insertAdjacentHTML('beforeend', sdHtml);
-                } else if (lastMsg) {
-                    lastMsg.insertAdjacentHTML('beforeend', sdHtml);
-                }
-            }
-            
+            // Самодиалог теперь в меню рассуждений
             clearFile();
         }).catch(() => {
             removeTyping();
