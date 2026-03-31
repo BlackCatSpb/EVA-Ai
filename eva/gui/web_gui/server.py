@@ -361,6 +361,16 @@ class WebGUI:
             brain_reasoning_raw = result.get('reasoning_raw')
             source = result.get('source', '')
             confidence = result.get('confidence', 0)
+            search_results = result.get('search_results', [])
+            
+            # Extract web search info if available
+            web_search_info = None
+            if search_results and len(search_results) > 0:
+                web_search_info = f"Найдено {len(search_results)} результатов:"
+                for i, sr in enumerate(search_results[:3]):
+                    title = sr.get('title', 'No title')[:60]
+                    url = sr.get('url', '')[:50]
+                    web_search_info += f"\n{i+1}. {title}... ({url})"
             
             # For SelfReasoningEngine - show reasoning steps if available
             if source == 'self_reasoning_engine':
@@ -478,7 +488,9 @@ class WebGUI:
             'warnings': ethics_result.get('warnings', []),
             'reasoning': reasoning_data,
             'reasoning_steps': reasoning_steps,
-            'self_dialog': self_dialog_result
+            'self_dialog': self_dialog_result,
+            'search_results': search_results if search_results else None,
+            'web_search_info': web_search_info
         }
         
         return return_data

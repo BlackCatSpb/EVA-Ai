@@ -1188,15 +1188,37 @@ class CoreBrain:
                     )
                     
                     if response_text and len(response_text) > 0:
+                        # Проверяем, знает ли модель ответ
+                        unknown_patterns = [
+                            'я не знаю', 'не знаю', 'не могу ответить', 'не имею информации',
+                            'не известно', 'не могу определить', 'затрудняюсь', 'недостаточно информации',
+                            'мне неизвестно', 'не располагаю'
+                        ]
+                        
+                        response_lower = response_text.lower()
+                        is_unknown = any(pattern in response_lower for pattern in unknown_patterns)
+                        
+                        # Триггерим самодиалог при "я не знаю"
+                        if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                            try:
+                                self.query_logger.info(f"Модель не знает ответа: запускаю самодиалог")
+                                self.self_dialog_learning.create_dialog(
+                                    topic=f"Неизвестная тема: {query[:100]}",
+                                    context={"source": "low_confidence", "query": query, "response": response_text}
+                                )
+                            except Exception as e:
+                                self.query_logger.debug(f"Ошибка запуска самодиалога: {e}")
+                        
                         self.query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
                         return {
                             "response": response_text,
                             "text": response_text,
                             "status": "ok",
-                            "confidence": 0.9,
+                            "confidence": 0.9 if not is_unknown else 0.4,
                             "source": "llama_cpp",
                             "fallback_level": 0,
-                            "processing_time": time.time() - start_time
+                            "processing_time": time.time() - start_time,
+                            "self_dialog_triggered": is_unknown
                         }
                     else:
                         self.query_logger.warning("LlamaCpp вернул пустой ответ, пробуем PyTorch Qwen")
