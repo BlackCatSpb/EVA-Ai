@@ -325,24 +325,8 @@
         input.style.height = 'auto';
         addMsg('user', msgText, null, null, currentFileData);
         
-        // Создаём контейнер для рассуждений
-        const c = $('#chatMessages');
-        const reasoningContainer = document.createElement('div');
-        reasoningContainer.className = 'msg reasoning-live';
-        reasoningContainer.innerHTML = `
-            <div class="msg-inner">
-                <div class="msg-role system" style="color: #60a5fa; font-weight: 600;">🔮 Рассуждение системы</div>
-                <div class="reasoning-progress" id="reasoningProgress">
-                    <div class="thinking-dots"><span>·</span><span>·</span><span>·</span></div>
-                    <div class="reasoning-steps"></div>
-                </div>
-            </div>
-        `;
-        c.appendChild(reasoningContainer);
-        c.scrollTop = c.scrollHeight;
-        
+        // Рассуждения - только в folded меню
         addTyping();
-
         const body = { message: text || `Проанализируй файл ${currentFileData?.filename || ''}`, session_id: activeSessionId, user_id: userId };
         if (currentFileData) {
             body.file_data = currentFileData;
