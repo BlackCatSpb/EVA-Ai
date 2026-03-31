@@ -1317,11 +1317,20 @@ class CoreBrain:
                         # Триггерим самодиалог при "я не знаю"
                         if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
                             try:
-                                self.query_logger.info(f"Модель не знает ответа: запускаю самодиалог")
-                                self.self_dialog_learning.create_dialog(
-                                    topic=f"Неизвестная тема: {query[:100]}",
-                                    context={"source": "low_confidence", "query": query, "response": response_text}
-                                )
+                                sdl = self.self_dialog_learning
+                                unknown_concepts = sdl.analyze_unknown_concepts(query, response_text)
+                                if unknown_concepts:
+                                    learned_results = sdl.search_and_learn_concepts(unknown_concepts)
+                                    concepts_str = ', '.join([c['concept'] for c in unknown_concepts[:5]])
+                                    self.self_dialog_learning.create_dialog(
+                                        topic=f"Изучение понятий: {concepts_str[:80]}",
+                                        context={"source": "semantic_gap", "query": query, "concepts": unknown_concepts, "learned_results": learned_results}
+                                    )
+                                else:
+                                    self.self_dialog_learning.create_dialog(
+                                        topic=f"Неизвестная тема: {query[:100]}",
+                                        context={"source": "low_confidence", "query": query, "response": response_text}
+                                    )
                             except Exception as e:
                                 self.query_logger.debug(f"Ошибка запуска самодиалога: {e}")
                         
