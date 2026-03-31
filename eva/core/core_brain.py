@@ -1036,6 +1036,58 @@ class CoreBrain:
                 "errors": [str(e)]
             }
     
+    def _extract_key_concepts(self, query: str, response: str) -> List[Dict[str, Any]]:
+        """
+        Извлекает ключевые понятия и их связи из запроса и ответа.
+        Например: снег - искрящийся, белый, холодный, зимний
+        """
+        import re
+        
+        concepts = []
+        
+        # Объединяем query и response для анализа
+        text = (query + ' ' + response).lower()
+        
+        # Разбиваем на слова
+        words = re.findall(r'\b[а-яёa-z]{3,}\b', text)
+        
+        # Стоп-слова для исключения
+        stop_words = {'это', 'что', 'как', 'где', 'когда', 'почему', 'потому', 'для', 'от', 'до', 'при', 'над', 'под', 'между', 'который', 'которая', 'которое', 'свой', 'своя', 'своё', 'быть', 'был', 'была', 'было', 'были', 'есть', 'will', 'are', 'was', 'were', 'have', 'has', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'been', 'being'}
+        
+        # Прилагательные и связи (примеры)
+        adjectives = ['белый', 'чёрный', 'красный', 'синий', 'зелёный', 'жёлтый', 'горячий', 'холодный', 'тёплый', 'свежий', 'старый', 'новый', 'большой', 'маленький', 'высокий', 'низкий', 'широкий', 'узкий', 'длинный', 'короткий', 'тяжёлый', 'лёгкий', 'твердый', 'мягкий', 'мокрый', 'сухой', 'ясный', 'пасмурный', 'солнечный', 'дождливый', 'снежный', 'морозный', 'тёплый', 'прохладный', 'зимний', 'летний', 'весенний', 'осенний', 'утренний', 'вечерний', 'ночной', 'день', 'ночь', 'искрящийся', 'блестящий', 'матовый', 'прозрачный', 'мутный']
+        
+        # Существительные которые могут иметь связи
+        possible_concepts = [w for w in words if w not in stop_words and len(w) > 3]
+        
+        for word in possible_concepts[:15]:
+            # Проверяем, есть ли прилагательные nearby
+            word_pos = text.find(word)
+            nearby_text = text[max(0, word_pos-50):word_pos+50]
+            
+            # Ищем связи
+            links = []
+            for adj in adjectives:
+                if adj in nearby_text:
+                    links.append(adj)
+            
+            if links:
+                concepts.append({
+                    'word': word,
+                    'type': 'concept_with_links',
+                    'description': f"{word} - {', '.join(links)}",
+                    'links': links
+                })
+            else:
+                concepts.append({
+                    'word': word,
+                    'type': 'concept',
+                    'description': word,
+                    'links': []
+                })
+        
+        return concepts[:10]
+    
     def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через унифицированный координатор генерации с многоуровневым fallback."""
         start_time = time.time()
@@ -1103,14 +1155,38 @@ class CoreBrain:
         
         # === Qwen-only mode WITH module integration ===
         if qwen_only_mode:
+            # Получаем контекст из графа знаний ПЕРЕД генерацией
+            knowledge_context = ""
+            knowledge_graph = getattr(self, 'knowledge_graph', None)
+            if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
+                try:
+                    relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
+                    if relevant:
+                        knowledge_context = "\n\nИз памяти системы:\n"
+                        for node in relevant:
+                            name = getattr(node, 'name', '') or ''
+                            content = getattr(node, 'content', '') or ''
+                            if content:
+                                knowledge_context += f"- {content}\n"
+                            elif name:
+                                knowledge_context += f"- {name}\n"
+                        self.query_logger.debug(f"Добавлен контекст из графа: {len(relevant)} узлов")
+                except Exception as e:
+                    self.query_logger.debug(f"Ошибка получения контекста из графа: {e}")
+            
+            # Формируем промпт с контекстом
+            full_prompt = query
+            if knowledge_context:
+                full_prompt = query + knowledge_context
+            
             # Приоритет: LlamaCpp (GGUF) если доступен
             if self.llama_cpp_ready and self.llama_cpp_deployment:
                 try:
                     self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
                     
-                    # Первая генерация
+                    # Генерация с контекстом из графа
                     response_text = self.llama_cpp_deployment.generate(
-                        prompt=query,
+                        prompt=full_prompt,
                         max_new_tokens=max_new_tokens or 2048,
                         temperature=temperature or 0.7,
                         top_p=top_p or 0.9,
@@ -1214,6 +1290,41 @@ class CoreBrain:
                             confidence = 0.6
                         if search_results:
                             confidence = min(confidence + 0.1, 0.95)
+                        
+                        # Сохраняем диалог в граф знаний ПОСЛЕ генерации
+                        if knowledge_graph and hasattr(knowledge_graph, 'add_node'):
+                            try:
+                                # Извлекаем ключевые понятия и связи
+                                key_concepts = self._extract_key_concepts(query, response_text)
+                                
+                                # Сохраняем основной узел диалога
+                                knowledge_graph.add_node(
+                                    name=query[:50],
+                                    content=f"Q: {query}\nA: {response_text}",
+                                    node_type='conversation',
+                                    properties={
+                                        'query': query,
+                                        'response': response_text,
+                                        'confidence': confidence,
+                                        'timestamp': time.time()
+                                    }
+                                )
+                                
+                                # Сохраняем связи между понятиями
+                                for concept in key_concepts:
+                                    try:
+                                        knowledge_graph.add_node(
+                                            name=concept['word'],
+                                            content=concept['description'],
+                                            node_type=concept['type'],
+                                            properties={'linked_to': query[:50]}
+                                        )
+                                    except:
+                                        pass
+                                        
+                                self.query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
+                            except Exception as e:
+                                self.query_logger.debug(f"Ошибка сохранения в граф: {e}")
                         
                         # Проверяем "я не знаю"
                         unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
