@@ -372,6 +372,80 @@ class WebGUI:
                     url = sr.get('url', '')[:50]
                     web_search_info += f"\n{i+1}. {title}... ({url})"
             
+            # For qwen_only_mode with modules - show module interactions
+            if source == 'llama_cpp_with_modules':
+                # Build reasoning steps from module results
+                reasoning_steps = []
+                
+                # Step 1: Initial generation
+                reasoning_steps.append({
+                    'step': 1,
+                    'phase': 'generation',
+                    'thought': 'Первичная генерация ответа через LlamaCpp (GGUF)',
+                    'confidence': 0.5
+                })
+                
+                # Step 2: Contradiction check
+                contr_result = result.get('contradiction_result')
+                if contr_result:
+                    contr_count = contr_result.get('significant_count', 0)
+                    contr_conf = 1.0 - contr_result.get('contradiction_level', 0.0)
+                    reasoning_steps.append({
+                        'step': 2,
+                        'phase': 'contradiction_check',
+                        'thought': f'Проверка противоречий: {contr_count} найдено, уровень={contr_result.get("contradiction_level", 0):.2f}',
+                        'confidence': contr_conf
+                    })
+                
+                # Step 3: Ethics check
+                ethics_result = result.get('ethics_result')
+                if ethics_result:
+                    has_violations = ethics_result.get('has_violations', False)
+                    ethics_conf = ethics_result.get('is_ethical', 1.0)
+                    reasoning_steps.append({
+                        'step': 3,
+                        'phase': 'ethics_check',
+                        'thought': f'Проверка этики: violations={has_violations}, score={ethics_conf:.2f}',
+                        'confidence': ethics_conf
+                    })
+                
+                # Step 4: Web search
+                if search_results and len(search_results) > 0:
+                    reasoning_steps.append({
+                        'step': 4,
+                        'phase': 'web_search',
+                        'thought': f'Веб-поиск: найдено {len(search_results)} результатов',
+                        'confidence': 0.8
+                    })
+                    
+                    # Step 5: Refinement with web context
+                    reasoning_steps.append({
+                        'step': 5,
+                        'phase': 'refinement',
+                        'thought': 'Перегенерация с контекстом из веб-поиска',
+                        'confidence': 0.9
+                    })
+                elif contr_count > 0 or (ethics_result and has_violations):
+                    reasoning_steps.append({
+                        'step': 4,
+                        'phase': 'refinement',
+                        'thought': 'Перегенерация после исправления модулей',
+                        'confidence': 0.7
+                    })
+                
+                # Final step
+                reasoning_steps.append({
+                    'step': len(reasoning_steps) + 1,
+                    'phase': 'final_synthesis',
+                    'thought': 'Финальный ответ с учетом всех проверок',
+                    'confidence': result.get('confidence', 0.9)
+                })
+                
+                reasoning_data = "Рассуждения системы (qwen_only_mode):\n\n" + "\n".join([
+                    f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})"
+                    for s in reasoning_steps
+                ])
+            
             # For SelfReasoningEngine - show reasoning steps if available
             if source == 'self_reasoning_engine':
                 if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
