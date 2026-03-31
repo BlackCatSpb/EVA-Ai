@@ -289,7 +289,6 @@ class QwenModelManager:
                 load_kwargs["device_map"] = "cpu"
                 load_kwargs["torch_dtype"] = torch.float16
                 load_kwargs["low_cpu_mem_usage"] = True
-                load_kwargs["use_cache"] = True
             elif torch.cuda.is_available():
                 load_kwargs["device_map"] = "auto"
             
