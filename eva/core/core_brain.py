@@ -1150,18 +1150,24 @@ class CoreBrain:
                             try:
                                 web_result = web_search.search(query, max_results=5)
                                 raw_results = web_result.get('results', []) if web_result else []
-                                # Конвертируем SearchResult в dict
+                                # Конвертируем SearchResult в dict - более безопасный метод
                                 search_results = []
                                 for sr in raw_results:
-                                    if hasattr(sr, '__dict__'):
-                                        search_results.append({
-                                            'title': sr.title,
-                                            'url': sr.url,
-                                            'snippet': sr.snippet,
-                                            'source': sr.source
-                                        })
-                                    elif isinstance(sr, dict):
-                                        search_results.append(sr)
+                                    try:
+                                        if hasattr(sr, 'title') and hasattr(sr, 'url'):
+                                            # Это SearchResult объект
+                                            search_results.append({
+                                                'title': str(sr.title) if sr.title else '',
+                                                'url': str(sr.url) if sr.url else '',
+                                                'snippet': str(sr.snippet) if sr.snippet else '',
+                                                'source': str(sr.source) if sr.source else ''
+                                            })
+                                        elif isinstance(sr, dict):
+                                            search_results.append(sr)
+                                        else:
+                                            search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
+                                    except:
+                                        search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
                                 if search_results:
                                     self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
                             except Exception as e:
