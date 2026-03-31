@@ -331,7 +331,7 @@
         reasoningContainer.className = 'msg reasoning-live';
         reasoningContainer.innerHTML = `
             <div class="msg-inner">
-                <div class="msg-role system">🤔 Рассуждение</div>
+                <div class="msg-role system" style="color: #60a5fa; font-weight: 600;">🔮 Рассуждение системы</div>
                 <div class="reasoning-progress" id="reasoningProgress">
                     <div class="thinking-dots"><span>·</span><span>·</span><span>·</span></div>
                     <div class="reasoning-steps"></div>
@@ -363,11 +363,15 @@
                 let stepsHtml = '';
                 d.reasoning_steps.forEach((step, idx) => {
                     const phaseIcons = {
-                        'generation': '💭',
-                        'analysis': '🔍',
-                        'clarification': '❓',
-                        'final_synthesis': '✅',
-                        'recursive': '🔄'
+                        'generation': '🧠',
+                        'analysis': '🔬',
+                        'clarification': '💬',
+                        'final_synthesis': '✨',
+                        'recursive': '🔄',
+                        'logical_analysis': '⚖️',
+                        'alternative_branch': '🌿',
+                        'ethics_check': '⚡',
+                        'contradiction_check': '🎯'
                     };
                     const icon = phaseIcons[step.phase] || '•';
                     const confClass = step.confidence >= 0.8 ? 'high' : step.confidence >= 0.5 ? 'medium' : 'low';
