@@ -354,42 +354,7 @@
         }).then(d => {
             removeTyping();
             
-            // Обновляем или удаляем контейнер рассуждений
-            if (d.reasoning_steps && d.reasoning_steps.length > 0) {
-                const stepsEl = reasoningContainer.querySelector('.reasoning-steps');
-                const progressEl = reasoningContainer.querySelector('.thinking-dots');
-                if (progressEl) progressEl.remove();
-                
-                let stepsHtml = '';
-                d.reasoning_steps.forEach((step, idx) => {
-                    const phaseIcons = {
-                        'generation': '🧠',
-                        'analysis': '🔬',
-                        'clarification': '💬',
-                        'final_synthesis': '✨',
-                        'recursive': '🔄',
-                        'logical_analysis': '⚖️',
-                        'alternative_branch': '🌿',
-                        'ethics_check': '⚡',
-                        'contradiction_check': '🎯'
-                    };
-                    const icon = phaseIcons[step.phase] || '•';
-                    const confClass = step.confidence >= 0.8 ? 'high' : step.confidence >= 0.5 ? 'medium' : 'low';
-                    stepsHtml += `
-                        <div class="reasoning-step">
-                            <span class="step-icon">${icon}</span>
-                            <span class="step-num">${step.step}.</span>
-                            <span class="step-phase">${step.phase}:</span>
-                            <span class="step-thought">${esc(step.thought || '')}</span>
-                            <span class="step-conf ${confClass}">${(step.confidence || 0).toFixed(2)}</span>
-                        </div>
-                    `;
-                });
-                stepsEl.innerHTML = stepsHtml;
-            } else {
-                reasoningContainer.remove();
-            }
-            
+            // Рассуждения в folded меню
             // Объединяем все рассуждения в одно меню
             let allReasoning = '';
             
