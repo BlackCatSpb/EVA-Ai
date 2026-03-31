@@ -808,8 +808,19 @@ class CoreBrain:
                     brain=self,
                     config=self.config.get('gguf_training', {})
                 )
-                # НЕ запускаем автоматически - только по запросу
-                self.query_logger.info("GGUFTrainingSystem initialized (not auto-started)")
+                
+                # Развертываем и проверяем модель для обучения
+                if self.gguf_training.initialize_training_model():
+                    self.query_logger.info("GGUFTrainingSystem: модель для обучения готова")
+                    
+                    # Автозапуск если достаточно знаний
+                    try:
+                        self.gguf_training.auto_start_if_ready()
+                    except Exception as e:
+                        self.query_logger.debug(f"Auto-training check skipped: {e}")
+                else:
+                    self.query_logger.warning("GGUFTrainingSystem: модель не готова")
+                    
             except Exception as e:
                 self.query_logger.warning(f"Failed to initialize GGUFTrainingSystem: {e}")
                 self.gguf_training = None

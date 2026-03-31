@@ -116,13 +116,162 @@ class GGUFTrainingSystem:
         os.makedirs(self.lora_path, exist_ok=True)
         os.makedirs(os.path.dirname(self.training_model_path), exist_ok=True)
         
+        # Настройки автозапуска
+        self.auto_start = self.config.get('auto_start', True)
+        self.min_knowledge_for_training = self.config.get('min_knowledge', 5)
+        self.auto_training_interval = self.config.get('auto_training_interval', 3600)  # 1 час
+        
+        # Флаги готовности
+        self.model_deployed = False
+        self.model_verified = False
+        
         logger.info("GGUFTrainingSystem инициализирована")
+    
+    def deploy_training_model(self) -> bool:
+        """
+        Разворачивает модель для обучения.
+        
+        Returns:
+            True если модель успешно развернута
+        """
+        import shutil
+        
+        try:
+            # Проверяем наличие базовой модели
+            if not os.path.exists(self.base_model_path):
+                logger.error(f"Базовая модель не найдена: {self.base_model_path}")
+                return False
+            
+            # Проверяем наличие модели для обучения
+            if not os.path.exists(self.training_model_path):
+                logger.info(f"Копируем базовую модель для обучения: {self.training_model_path}")
+                shutil.copy2(self.base_model_path, self.training_model_path)
+            
+            # Проверяем размер файла
+            base_size = os.path.getsize(self.base_model_path)
+            train_size = os.path.getsize(self.training_model_path)
+            
+            if train_size != base_size:
+                logger.warning(f"Размеры моделей не совпадают: base={base_size}, train={train_size}")
+                # Перекопируем
+                shutil.copy2(self.base_model_path, self.training_model_path)
+                train_size = os.path.getsize(self.training_model_path)
+            
+            logger.info(f"Модель для обучения развернута: {train_size/(1024*1024):.1f} MB")
+            self.model_deployed = True
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка развертывания модели: {e}")
+            return False
+    
+    def verify_training_model(self) -> bool:
+        """
+        Проверяет готовность модели к обучению.
+        
+        Returns:
+            True если модель готова
+        """
+        try:
+            # Проверяем существование файла
+            if not os.path.exists(self.training_model_path):
+                logger.warning(f"Модель для обучения не найдена: {self.training_model_path}")
+                return False
+            
+            # Проверяем размер
+            file_size = os.path.getsize(self.training_model_path)
+            if file_size < 1024 * 1024:  # Меньше 1MB = проблема
+                logger.warning(f"Файл модели слишком мал: {file_size/(1024*1024):.1f} MB")
+                return False
+            
+            # Пробуем загрузить модель (быстрая проверка)
+            try:
+                from llama_cpp import Llama
+                test_llm = Llama(
+                    model_path=self.training_model_path,
+                    n_ctx=256,
+                    n_threads=1,
+                    verbose=False
+                )
+                del test_llm  # Освобождаем память
+                logger.info("Модель для обучения прошла проверку")
+                self.model_verified = True
+                return True
+            except Exception as e:
+                logger.warning(f"Модель не загружается: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Ошибка верификации модели: {e}")
+            return False
+    
+    def initialize_training_model(self) -> bool:
+        """
+        Инициализирует модель для обучения (развертывание + верификация).
+        
+        Returns:
+            True если модель готова
+        """
+        logger.info("Инициализация модели для обучения...")
+        
+        # 1. Развертываем модель
+        if not self.deploy_training_model():
+            logger.error("Не удалось развернуть модель")
+            return False
+        
+        # 2. Верифицируем модель
+        if not self.verify_training_model():
+            logger.error("Модель не прошла верификацию")
+            return False
+        
+        logger.info("Модель для обучения готова к работе!")
+        return True
+    
+    def auto_start_if_ready(self):
+        """
+        Автоматически запускает обучение если есть достаточно знаний.
+        """
+        if not self.auto_start:
+            return
+        
+        if not self.model_verified:
+            if not self.initialize_training_model():
+                return
+        
+        # Проверяем количество знаний в графе
+        kg = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
+        if kg:
+            try:
+                # Получаем количество узлов
+                nodes = []
+                if hasattr(kg, 'get_all_nodes'):
+                    nodes = kg.get_all_nodes()
+                elif hasattr(kg, 'nodes'):
+                    nodes = list(kg.nodes.values()) if hasattr(kg.nodes, 'values') else []
+                
+                verified_count = len([n for n in nodes if getattr(n, 'confidence', 0) >= self.min_confidence])
+                
+                if verified_count >= self.min_knowledge_for_training:
+                    logger.info(f"Достаточно знаний для обучения: {verified_count} узлов")
+                    if not self.running:
+                        self.start()
+                else:
+                    logger.debug(f"Недостаточно знаний для обучения: {verified_count}/{self.min_knowledge_for_training}")
+            except Exception as e:
+                logger.debug(f"Ошибка проверки знаний: {e}")
     
     def start(self):
         """Запускает систему дообучения в фоновом режиме."""
         if self.running:
             logger.warning("Система дообучения уже запущена")
             return False
+        
+        # Проверяем готовность модели
+        if not self.model_verified:
+            if not self.initialize_training_model():
+                logger.error("Модель не готова, обучение невозможно")
+                return False
         
         self.running = True
         self.stop_event.clear()
@@ -151,10 +300,17 @@ class GGUFTrainingSystem:
         
         while not self.stop_event.is_set():
             try:
+                # Проверяем готовность модели
+                if not self.model_verified:
+                    if not self.initialize_training_model():
+                        logger.error("Модель не готова")
+                        self.stop_event.wait(timeout=300)
+                        continue
+                
                 # 1. Извлекаем верифицированные знания из графа
                 knowledge = self._extract_verified_knowledge()
                 
-                if knowledge:
+                if knowledge and len(knowledge) >= self.min_knowledge_for_training:
                     logger.info(f"Извлечено {len(knowledge)} верифицированных знаний")
                     
                     # 2. Подготавливаем данные для обучения
@@ -172,12 +328,14 @@ class GGUFTrainingSystem:
                             logger.info("Дообучение завершено успешно")
                         else:
                             logger.warning("Верификация не пройдена")
+                else:
+                    logger.debug(f"Недостаточно знаний для обучения: {len(knowledge) if knowledge else 0}")
                 
             except Exception as e:
                 logger.error(f"Ошибка в цикле дообучения: {e}", exc_info=True)
             
-            # Ждем следующий цикл (например, каждый час)
-            self.stop_event.wait(timeout=3600)
+            # Ждем следующий цикл
+            self.stop_event.wait(timeout=self.auto_training_interval)
     
     def _extract_verified_knowledge(self) -> List[VerifiedKnowledge]:
         """
