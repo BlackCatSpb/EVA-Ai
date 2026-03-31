@@ -1,4 +1,4 @@
-"""
+﻿"""
 Единое ядро системы ЕВА - координирует работу всех компонентов
 """
 import sys
@@ -413,6 +413,41 @@ class CoreBrain:
         except (ImportError, Exception) as e:
             self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
+        
+        # Инициализация LlamaCpp горячего развертывания (GGUF модель)
+        self.llama_cpp_deployment = None
+        self.llama_cpp_ready = False
+        try:
+            model_config = self.config.get('model', {})
+            use_llama_cpp = model_config.get('use_llama_cpp', False)
+            
+            if use_llama_cpp:
+                from eva.mlearning.hot_deployment.llama_cpp_hot import get_llama_cpp_deployment
+                
+                gguf_path = model_config.get('gguf_model_path', '')
+                n_threads = model_config.get('llama_cpp_threads', 8)
+                n_ctx = model_config.get('llama_cpp_n_ctx', 4096)
+                
+                self.query_logger.info(f"LlamaCpp горячее развертывание: {gguf_path}")
+                
+                # Создаём и инициализируем
+                from eva.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
+                
+                self.llama_cpp_deployment = LlamaCppHotDeployment(
+                    model_path=gguf_path,
+                    n_ctx=n_ctx,
+                    n_threads=n_threads
+                )
+                
+                if self.llama_cpp_deployment.initialize(preload_root=True):
+                    self.llama_cpp_ready = True
+                    self.query_logger.info("LlamaCpp (GGUF) готов к работе!")
+                else:
+                    self.query_logger.warning("Ошибка инициализации LlamaCpp")
+                    
+        except Exception as e:
+            self.query_logger.debug(f"LlamaCpp не инициализирован: {e}")
+            self.llama_cpp_deployment = None
         
         # Инициализация QwenModelManager как предпочтительной модели (LAZY LOADING)
         # Модель загружается только при первом запросе, не блокирует запуск
@@ -1001,7 +1036,7 @@ class CoreBrain:
                 "errors": [str(e)]
             }
     
-    def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None) -> Dict[str, Any]:
+    def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через унифицированный координатор генерации с многоуровневым fallback."""
         start_time = time.time()
         self.query_logger.info(f"Обработка запроса: {query[:50]}...")
@@ -1068,6 +1103,33 @@ class CoreBrain:
         
         # === Qwen-only mode: Force Qwen usage ===
         if qwen_only_mode:
+            # Приоритет: LlamaCpp (GGUF) если доступен
+            if self.llama_cpp_ready and self.llama_cpp_deployment:
+                try:
+                    self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+                    
+                    response_text = self.llama_cpp_deployment.generate(
+                        prompt=query,
+                        max_new_tokens=max_new_tokens or 2048,
+                        temperature=temperature or 0.7,
+                        top_p=top_p or 0.9,
+                        repeat_penalty=repetition_penalty or 1.1
+                    )
+                    
+                    if response_text and len(response_text) > 0:
+                        return {
+                            "response": response_text,
+                            "text": response_text,
+                            "status": "ok",
+                            "confidence": 0.9,
+                            "source": "llama_cpp",
+                            "fallback_level": 0,
+                            "processing_time": time.time() - start_time
+                        }
+                        
+                except Exception as e:
+                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+            
             # If Qwen not ready, return error
             if not self.qwen_model_manager or not self.qwen_model_manager.initialized:
                 return {
@@ -1109,6 +1171,40 @@ class CoreBrain:
             # Add current query
             messages.append({"role": "user", "content": query})
             
+            # Приоритет: используем LlamaCpp если доступен
+            if self.llama_cpp_ready and self.llama_cpp_deployment:
+                try:
+                    self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+                    
+                    # Формируем prompt из messages
+                    prompt = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+                    
+                    response_text = self.llama_cpp_deployment.generate(
+                        prompt=prompt,
+                        max_new_tokens=max_new_tokens or 2048,
+                        temperature=temperature,
+                        top_p=top_p,
+                        repeat_penalty=repetition_penalty
+                    )
+                    
+                    if response_text and len(response_text) > 0:
+                        self.query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
+                        return {
+                            "response": response_text,
+                            "text": response_text,
+                            "status": "ok",
+                            "confidence": 0.9,
+                            "source": "llama_cpp",
+                            "fallback_level": 0,
+                            "processing_time": time.time() - start_time
+                        }
+                    else:
+                        self.query_logger.warning("LlamaCpp вернул пустой ответ, пробуем PyTorch Qwen")
+                        
+                except Exception as e:
+                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}, пробуем PyTorch Qwen")
+            
+            # Используем PyTorch QwenModelManager
             response_text = self.qwen_model_manager.generate(
                 messages,
                 max_new_tokens=2048,
