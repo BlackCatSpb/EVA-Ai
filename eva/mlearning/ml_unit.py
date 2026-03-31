@@ -493,6 +493,16 @@ class MLUnit:
     def _init_training_orchestrator(self):
         """Инициализирует оркестратор обучения."""
         try:
+            # Проверяем конфиг - не инициализируем если обучение отключено
+            if self.brain and hasattr(self.brain, 'config'):
+                learning_config = self.brain.config.get("learning", {})
+                if learning_config.get("training_disabled", False):
+                    logger.info("TrainingOrchestrator пропущен (training_disabled=True)")
+                    return True
+                if learning_config.get("enable_training", True) == False:
+                    logger.info("TrainingOrchestrator пропущен (enable_training=False)")
+                    return True
+            
             from eva.mlearning.training_orchestrator import TrainingOrchestrator
             
             batch_size = 1
@@ -502,7 +512,8 @@ class MLUnit:
             self.training_orchestrator = TrainingOrchestrator(
                 brain=self.brain,
                 batch_size=batch_size,
-                overlap_tokens=16
+                overlap_tokens=16,
+                auto_adapt=False  # Отключаем auto_adapt
             )
             
             # Регистрируем TrainingOrchestrator в CoreBrain

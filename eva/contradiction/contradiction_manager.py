@@ -212,3 +212,137 @@ class ContradictionManager(BaseComponent):
             c_type = c.get('type', 'unknown')
             type_counts[c_type] = type_counts.get(c_type, 0) + 1
         return type_counts
+
+    def check_with_context(
+        self,
+        text: str,
+        query: str = "",
+        conversation_history: Optional[List[Dict]] = None,
+        knowledge_context: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Проверяет текст на противоречия с учётом контекста
+        
+        Args:
+            text: Текст для проверки
+            query: Оригинальный запрос
+            conversation_history: История диалогов
+            knowledge_context: Контекст из knowledge graph
+            
+        Returns:
+            Dict с результатами проверки и весами противоречий
+        """
+        logger.info("Проверка противоречий с контекстом...")
+        
+        # Базовая проверка
+        base_result = self.detect_contradictions(text)
+        contradictions = base_result.get('contradictions', [])
+        
+        # Рассчитываем веса противоречий
+        weighted_contradictions = []
+        for contr in contradictions:
+            weight = self._calculate_contradiction_weight(contr, query, knowledge_context)
+            contr_with_weight = contr.copy()
+            contr_with_weight['weight'] = weight
+            contr_with_weight['is_significant'] = weight >= 0.3
+            weighted_contradictions.append(contr_with_weight)
+        
+        # Отделяем значимые противоречия
+        significant = [c for c in weighted_contradictions if c.get('is_significant', False)]
+        minor = [c for c in weighted_contradictions if not c.get('is_significant', True)]
+        
+        return {
+            'contradictions': weighted_contradictions,
+            'significant_contradictions': significant,
+            'minor_contradictions': minor,
+            'total_count': len(weighted_contradictions),
+            'significant_count': len(significant),
+            'has_conflicts': len(significant) > 0
+        }
+    
+    def _calculate_contradiction_weight(
+        self,
+        contradiction: Dict[str, Any],
+        query: str,
+        knowledge_context: Optional[List[str]] = None
+    ) -> float:
+        """
+        Рассчитывает вес противоречия (0.0-1.0)
+        
+        Чем выше вес - тем важнее противоречие для регенерации
+        """
+        weight = 0.5  # Базовый вес
+        
+        # Увеличиваем вес если противоречие связано с запросом
+        if query:
+            concept = contradiction.get('concept', '').lower()
+            query_lower = query.lower()
+            if concept and concept in query_lower:
+                weight += 0.3
+        
+        # Увеличиваем вес если есть противоречие с известными фактами
+        divergence = contradiction.get('divergence_level', 0.0)
+        if isinstance(divergence, (int, float)):
+            weight += divergence * 0.2
+        
+        # Проверяем контекст знаний
+        if knowledge_context:
+            conflicting_facts = contradiction.get('conflicting_facts', [])
+            for fact in conflicting_facts:
+                fact_str = str(fact).lower()
+                for ctx in knowledge_context:
+                    if any(w in ctx.lower() for w in ['не', 'нет', 'нельзя']) and any(
+                        w in fact_str for w in ctx.lower().split()
+                    ):
+                        weight += 0.1
+        
+        return min(1.0, max(0.0, weight))
+    
+    def generate_refinement_prompt(
+        self,
+        contradiction_result: Dict[str, Any],
+        query: str = "",
+        response: str = ""
+    ) -> str:
+        """
+        Генерирует промпт для регенерации на основе противоречий
+        
+        Args:
+            contradiction_result: Результат check_with_context()
+            query: Оригинальный запрос
+            response: Текущий ответ
+            
+        Returns:
+            str: Промпт для Qwen
+        """
+        significant = contradiction_result.get('significant_contradictions', [])
+        
+        if not significant:
+            return ""  # Нет значимых противоречий
+        
+        parts = []
+        
+        for i, contr in enumerate(significant[:3], 1):
+            concept = contr.get('concept', 'unknown')
+            facts = contr.get('conflicting_facts', [])
+            
+            parts.append(f"{i}. Противоречие в концепции '{concept}':")
+            
+            if facts:
+                for fact in facts[:2]:
+                    if isinstance(fact, dict):
+                        parts.append(f"   - Факт: {fact.get('fact', str(fact))}")
+                    else:
+                        parts.append(f"   - Факт: {fact}")
+            
+            parts.append(f"   Важность: {contr.get('weight', 0.5):.2f}")
+        
+        prompt = """Обнаружены противоречия в ответе:
+"""
+        prompt += "\n".join(parts)
+        prompt += """
+
+Переформулируй ответ, устранив противоречия. 
+Сохрани основную информацию, но исправь логические ошибки."""
+
+        return prompt

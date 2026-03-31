@@ -332,6 +332,7 @@ class WebGUI:
         elif self.brain and hasattr(self.brain, 'process_query'):
             debug_info["has_process_query"] = True
             debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
+            debug_info["enhanced_reasoning_loaded"] = self.brain is not None and hasattr(self.brain, 'enhanced_reasoning_engine') and self.brain.enhanced_reasoning_engine is not None
             result = self.brain.process_query(query, user_context)
             debug_info["result_keys"] = list(result.keys()) if result and isinstance(result, dict) else []
             debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result and isinstance(result, dict) else None
@@ -383,6 +384,54 @@ class WebGUI:
                         reasoning_data = reasoning_text
                     elif brain_reasoning:
                         # Fallback to simple reasoning
+                        reasoning_data = str(brain_reasoning)
+                elif brain_reasoning:
+                    reasoning_data = str(brain_reasoning)
+            
+            # For EnhancedReasoningEngine - show iteration chain with module prompts
+            elif source == 'enhanced_reasoning_engine':
+                if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
+                    chain = brain_reasoning_raw.get('reasoning_chain', [])
+                    if chain:
+                        reasoning_text = "Регенерация ответа:\n\n"
+                        for i, iteration in enumerate(chain):
+                            resp_preview = iteration.get('response', '')[:80]
+                            conf = iteration.get('confidence', 0)
+                            has_contr = iteration.get('has_contradictions', False)
+                            has_ethics = iteration.get('has_ethics_issues', False)
+                            module_prompts = iteration.get('module_prompts', {})
+                            
+                            # Добавляем промты модулей
+                            prompts_text = ""
+                            if module_prompts:
+                                prompts_text = "\nПромты модулей:"
+                                for mod, prompt in module_prompts.items():
+                                    prompts_text += f"\n  [{mod.upper()}]: {prompt[:100]}..."
+                            
+                            reasoning_steps.append({
+                                'step': i + 1,
+                                'phase': 'regeneration',
+                                'thought': resp_preview,
+                                'confidence': conf,
+                                'has_contradictions': has_contr,
+                                'has_ethics_issues': has_ethics,
+                                'module_prompts': module_prompts
+                            })
+                            
+                            status = ""
+                            if has_contr:
+                                status += " [противоречия]"
+                            if has_ethics:
+                                status += " [этика]"
+                            
+                            reasoning_text += f"Итерация {i+1}: {resp_preview}...{status}\n"
+                            reasoning_text += f"  Уверенность: {conf:.2f}\n"
+                            if prompts_text:
+                                reasoning_text += f"  {prompts_text}\n"
+                            reasoning_text += "\n"
+                        
+                        reasoning_data = reasoning_text
+                    elif brain_reasoning:
                         reasoning_data = str(brain_reasoning)
                 elif brain_reasoning:
                     reasoning_data = str(brain_reasoning)
@@ -709,16 +758,20 @@ def api_chat():
     if not web_gui_instance:
         return jsonify({'error': 'Сервер не инициализирован'}), 500
     
-    data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Invalid JSON'}), 400
-    message = data.get('message', '')
-    session_id = data.get('session_id')
-    user_id = data.get('user_id')
-    file_data = data.get('file_data')  # {file_id, filename, extracted_text}
-    
-    result = web_gui_instance.process_message(message, session_id, user_id, file_data)
-    return jsonify(result)
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        message = data.get('message', '')
+        session_id = data.get('session_id')
+        user_id = data.get('user_id')
+        file_data = data.get('file_data')  # {file_id, filename, extracted_text}
+        
+        result = web_gui_instance.process_message(message, session_id, user_id, file_data)
+        return jsonify(result)
+    except Exception as e:
+        logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/entities/<session_id>', methods=['GET'])
@@ -832,9 +885,17 @@ def api_analytics():
             # Get system metrics
             if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
                 snapshot = web_gui_instance.brain.get_resource_snapshot()
-                analytics['cpu'] = snapshot.get('cpu_percent', 0)
-                analytics['memory'] = snapshot.get('memory_percent', 0)
-                analytics['vram'] = snapshot.get('gpu_memory_percent', 0)
+                # Handle different key names from get_resource_snapshot
+                analytics['cpu'] = snapshot.get('cpu_usage', snapshot.get('cpu_percent', 0))
+                analytics['memory'] = snapshot.get('memory_usage', snapshot.get('memory_percent', 0))
+                analytics['vram'] = snapshot.get('gpu_memory', snapshot.get('gpu_memory_percent', 0))
+            
+            # Get cache stats for metrics view
+            if hasattr(web_gui_instance.brain, 'get_cache_stats'):
+                cache_stats = web_gui_instance.brain.get_cache_stats()
+                # Add to metrics API
+                metrics['cache_hit_rate'] = cache_stats.get('hit_rate', 0.0)
+                metrics['cache_utilization'] = cache_stats.get('cache_utilization_percent', 0.0)
             
             # Get learning stats
             if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
@@ -859,7 +920,7 @@ def api_analytics():
             if hasattr(web_gui_instance.brain, 'memory_manager'):
                 mm = web_gui_instance.brain.memory_manager
                 nodes_count = getattr(mm, 'nodes', [])
-                if nodes_count:
+                if nodes_count and len(nodes_count) > 0:
                     activities.append({
                         'icon': 'memory',
                         'title': f'Память: {len(nodes_count)} узлов',

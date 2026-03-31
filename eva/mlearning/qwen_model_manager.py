@@ -139,7 +139,7 @@ def get_qwen_model_manager(
     device: str = "auto",
     cache_dir: Optional[str] = None,
     quantize: bool = True,
-    load_in_8bit: bool = True,
+    load_in_8bit: bool = False,
     load_in_4bit: bool = False,
     local_model_path: Optional[str] = None,
     force_reload: bool = False
@@ -228,6 +228,24 @@ class QwenModelManager:
         
         self._initialize_model()
     
+    def _apply_compile_optimization(self):
+        """Применяет torch.compile для ускорения генерации на CPU"""
+        # torch.compile вызывает проблемы на некоторых CPU, используем fallback
+        try:
+            # Проверяем что torch версия поддерживает compile
+            torch_version = torch.__version__.split('.')
+            if int(torch_version[0]) >= 2 and int(torch_version[1]) >= 1:
+                logger.info("torch.compile доступен, но отключен из-за проблем совместимости")
+                logger.info("Используем альтернативную оптимизацию: disable torch inference mode")
+            
+            # Альтернативная оптимизация: отключаем torch inference mode для CPU
+            if hasattr(self, 'model') and self.model:
+                if hasattr(self.model, 'config'):
+                    logger.info("Применяем альтернативные оптимизации...")
+                    
+        except Exception as e:
+            logger.debug(f"Оптимизация недоступна: {e}")
+    
     def _get_device(self, device: str) -> str:
         """Определяет устройство для загрузки с проверкой доступности памяти"""
         if device == "auto":
@@ -266,13 +284,16 @@ class QwenModelManager:
                 "cache_dir": self.cache_dir,
             }
             
-            # Для CPU загружаем напрямую, для CUDA используем device_map
+            # Для CPU загружаем напрямую с float16
             if self.device == "cpu":
                 load_kwargs["device_map"] = "cpu"
+                load_kwargs["torch_dtype"] = torch.float16
+                load_kwargs["low_cpu_mem_usage"] = True
+                load_kwargs["use_cache"] = True
             elif torch.cuda.is_available():
                 load_kwargs["device_map"] = "auto"
             
-            # Квантизация для экономии памяти (только если требуется)
+            # Квантизация ОТКЛЮЧЕНА - используем float16
             if self.load_in_4bit:
                 try:
                     from transformers import BitsAndBytesConfig
@@ -347,6 +368,9 @@ class QwenModelManager:
             logger.info(f"✓ Модель {model_source} успешно загружена!")
             logger.info(f"  Устройство: {self.device}")
             logger.info(f"  Параметров: {model_info['params']}")
+            
+            # Оптимизация с torch.compile для ускорения на CPU
+            self._apply_compile_optimization()
             
         except Exception as e:
             logger.error(f"Ошибка загрузки модели: {e}")

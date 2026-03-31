@@ -1229,3 +1229,120 @@ class EthicsFramework:
                 "main_issues": main_issues,
                 "recommendations": recommendations
             }
+
+    def check_with_context(
+        self,
+        text: str,
+        query: str = "",
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Проверяет текст на этические нарушения с учётом контекста
+        
+        Args:
+            text: Текст для проверки
+            query: Оригинальный запрос
+            context: Дополнительный контекст
+            
+        Returns:
+            Dict с результатами проверки и рекомендациями
+        """
+        logger.info("Проверка этики с контекстом...")
+        
+        # Используем существующий метод analyze_content если доступен
+        try:
+            # Используем analyze_content если есть
+            if hasattr(self, 'analyze_content'):
+                analysis = self.analyze_content(text, context)
+                # analysis - это EthicsAnalysisResult dataclass
+                if hasattr(analysis, 'violations'):
+                    violations = analysis.violations if isinstance(analysis.violations, list) else []
+                else:
+                    violations = []
+            else:
+                violations = []
+            
+            # Классифицируем нарушения по серьёзности
+            critical = [v for v in violations if v.get('severity', 0) > 0.8]
+            warnings = [v for v in violations if 0.5 < v.get('severity', 0) <= 0.8]
+            minor = [v for v in violations if v.get('severity', 0) <= 0.5]
+            
+            # Рассчитываем оценку
+            overall_score = 1.0 - (len(critical) * 0.3 + len(warnings) * 0.1)
+            overall_score = max(0.0, min(1.0, overall_score))
+            
+            return {
+                'violations': violations,
+                'critical_violations': critical,
+                'warnings': warnings,
+                'minor_violations': minor,
+                'overall_score': overall_score,
+                'has_violations': len(critical) > 0 or len(warnings) > 0,
+                'violation_count': len(violations)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Ошибка при check_with_context: {e}")
+            return {
+                'violations': [],
+                'overall_score': 0.5,
+                'has_violations': False,
+                'violation_count': 0
+            }
+    
+    def generate_regeneration_prompt(
+        self,
+        ethics_result: Dict[str, Any],
+        query: str = "",
+        response: str = ""
+    ) -> str:
+        """
+        Генерирует промпт для регенерации при этических нарушениях
+        
+        Args:
+            ethics_result: Результат check_with_context()
+            query: Оригинальный запрос
+            response: Текущий ответ
+            
+        Returns:
+            str: Промпт для Qwen
+        """
+        critical = ethics_result.get('critical_violations', [])
+        warnings = ethics_result.get('warnings', [])
+        
+        if not critical and not warnings:
+            return ""  # Нет нарушений
+        
+        parts = []
+        
+        # Критические нарушения
+        if critical:
+            parts.append("КРИТИЧЕСКИЕ НАРУШЕНИЯ:")
+            for i, v in enumerate(critical[:2], 1):
+                principle = v.get('principle', 'unknown')
+                desc = v.get('description', v.get('message', ''))
+                parts.append(f"{i}. [{principle}] {desc}")
+        
+        # Предупреждения
+        if warnings:
+            parts.append("\nПРЕДУПРЕЖДЕНИЯ:")
+            for i, v in enumerate(warnings[:2], 1):
+                principle = v.get('principle', 'unknown')
+                desc = v.get('description', v.get('message', ''))
+                parts.append(f"{i}. [{principle}] {desc}")
+        
+        prompt = """Обнаружены этические нарушения:
+"""
+        prompt += "\n".join(parts)
+        prompt += """
+
+Переформулируй ответ, устранив этические нарушения.
+Будь этичным, избегай вредного контента, соблюдай принципы:
+- Безопасность
+- Честность  
+- Уважение
+- Приватность
+
+Дай этически корректный ответ."""
+
+        return prompt

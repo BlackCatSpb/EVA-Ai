@@ -384,3 +384,87 @@ class IntegratedWebSearchEngine(BaseComponent):
     def _filter_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter all results to remove URLs and HTML artifacts"""
         return [self._filter_search_result(r) for r in results]
+    
+    def enrich_with_context(
+        self,
+        query: str,
+        response: str = "",
+        max_results: int = 3
+    ) -> Dict[str, Any]:
+        """
+        Обогащает контекст для запроса и ответа через веб-поиск
+        
+        Args:
+            query: Запрос пользователя
+            response: Текущий ответ Qwen
+            max_results: Максимальное количество результатов для контекста
+            
+        Returns:
+            Dict с обогащённым контекстом
+        """
+        logger.info(f"Обогащение контекста для запроса: {query[:50]}...")
+        
+        try:
+            # Формируем поисковый запрос на основе query и response
+            search_query = query
+            if response:
+                # Добавляем ключевые слова из ответа если он короткий
+                if len(response) < 200:
+                    search_query = f"{query} {response[:100]}"
+            
+            # Выполняем поиск
+            result = self.search(search_query, max_results=max_results)
+            
+            if not result.get('success'):
+                return {
+                    'success': False,
+                    'context': '',
+                    'enrichment_available': False
+                }
+            
+            # Формируем контекст из результатов
+            results = result.get('results', [])
+            context_parts = []
+            
+            for r in results:
+                title = r.get('title', '')
+                snippet = r.get('snippet', r.get('text', ''))
+                if snippet:
+                    context_parts.append(f"- {title}: {snippet[:150]}")
+            
+            context = "\n".join(context_parts)
+            
+            return {
+                'success': True,
+                'context': context,
+                'enrichment_available': len(results) > 0,
+                'results_count': len(results),
+                'search_query': search_query
+            }
+            
+        except Exception as e:
+            logger.warning(f"Ошибка обогащения контекста: {e}")
+            return {
+                'success': False,
+                'context': '',
+                'enrichment_available': False,
+                'error': str(e)
+            }
+    
+    def format_enrichment_prompt(self, enrichment_result: Dict[str, Any]) -> str:
+        """
+        Форматирует результат обогащения для промпта Qwen
+        
+        Args:
+            enrichment_result: Результат enrich_with_context()
+            
+        Returns:
+            str: Форматированный контекст для промпта
+        """
+        if not enrichment_result.get('success') or not enrichment_result.get('context'):
+            return ""
+        
+        return f"""Контекст из веб-поиска:
+{enrichment_result.get('context', '')}
+
+Используй эту информацию для улучшения ответа."""

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mem_1774895549_fe7223bb",
+    "content": {
+      "concept": "Пробелы в знаниях: общие концепции предметной области",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1774895549.7195787,
+      "content": "Расширение знаний: Пробелы в знаниях: общие концепции предметной области. Действия: [; \"",
+      "stored_at": 1774895549.719643,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1774895549.7197149,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
+  },
+  {
+    "id": "mem_1774907865_737c681c",
+    "content": {
+      "concept": "Пробелы в знаниях: методы анализа данных",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1774907865.7844236,
+      "content": "Расширение знаний: Пробелы в знаниях: методы анализа данных. Действия: [; \"",
+      "stored_at": 1774907865.7849371,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1774907865.7857358,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
+  }
+]

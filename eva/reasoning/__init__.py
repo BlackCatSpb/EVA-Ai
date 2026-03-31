@@ -7,6 +7,7 @@ from .confidence_scorer import calculate_overall_confidence, should_terminate, C
 from .clarification_generator import ClarificationGenerator
 from .reasoning_types import ReasoningStep, ReasoningResult, ReasoningPhase, AnalysisResult
 from .integration import ReasoningIntegration, integrate_reasoning
+from .enhanced_reasoning_engine import EnhancedReasoningEngine, ReasoningIteration
 
 from .fractal_ml import FractalStorage, FractalNode, FractalNodeType, FractalRetriever, FractalEmbedder
 
@@ -25,6 +26,10 @@ __all__ = [
     'AnalysisResult',
     'ReasoningIntegration',
     'integrate_reasoning',
+    
+    # Enhanced Reasoning
+    'EnhancedReasoningEngine',
+    'ReasoningIteration',
     
     # Fractal Storage
     'FractalStorage',

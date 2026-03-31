@@ -130,7 +130,7 @@
     function showWelcome() {
         const c = $('#chatMessages');
         if (c.children.length === 0) {
-            c.innerHTML = `<div class="welcome"><h2>CogniFlex</h2><p>Напишите сообщение, чтобы начать</p></div>`;
+            c.innerHTML = `<div class="welcome"><h2>ЕВА</h2><p>Напишите сообщение, чтобы начать</p></div>`;
         }
     }
 
@@ -199,7 +199,7 @@
             `;
         }
 
-        const roleLabel = role === 'user' ? 'Вы' : 'CogniFlex';
+        const roleLabel = role === 'user' ? 'Вы' : 'ЕВА';
         const roleClass = role;
 
         div.innerHTML = `
@@ -221,7 +221,7 @@
         div.id = 'typingIndicator';
         div.innerHTML = `
             <div class="msg-inner">
-                <div class="msg-role system">CogniFlex</div>
+                <div class="msg-role system">ЕВА</div>
                 <div class="msg-text typing-dots"><span>·</span><span>·</span><span>·</span></div>
             </div>
         `;
@@ -388,6 +388,21 @@
             
             // Добавляем финальный ответ
             addMsg('system', d.response || 'Нет ответа', null, d.reasoning);
+            
+            // Показываем уточняющий вопрос если есть
+            if (d.clarification_question) {
+                const clarHtml = `
+                    <div class="clarification-box">
+                        <div class="clarification-icon">❓</div>
+                        <div class="clarification-text">${esc(d.clarification_question)}</div>
+                    </div>
+                `;
+                const lastMsg = c.lastElementChild;
+                const lastMsgInner = lastMsg?.querySelector?.('.msg-inner');
+                if (lastMsgInner) {
+                    lastMsgInner.insertAdjacentHTML('beforeend', clarHtml);
+                }
+            }
             
             // Показываем самодиалог если есть (в свернутом виде)
             if (d.self_dialog) {

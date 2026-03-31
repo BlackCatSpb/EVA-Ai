@@ -1,4 +1,4 @@
-/* CogniFlex — Minimal dark theme */
+/* ЕВА — Minimal dark theme */
 
 :root {
     --bg: #0a0a0a;
@@ -1107,6 +1107,29 @@ body {
 
 .toggle-switch.active::after {
     transform: translateX(20px);
+}
+
+/* ─── Clarification Question ─── */
+.clarification-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border: 1px solid #6366f1;
+    border-radius: var(--radius);
+}
+
+.clarification-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.clarification-text {
+    font-size: 13px;
+    color: #e2e8f0;
+    line-height: 1.5;
 }
 
 /* ─── Self-Dialog ─── */

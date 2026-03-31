@@ -1032,8 +1032,8 @@ class CoreBrain:
                 
                 self.qwen_model_manager = get_qwen_model_manager(
                     model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                    device=qwen_device,
-                    load_in_8bit=True,
+                    device='cpu',
+                    load_in_8bit=False,
                     load_in_4bit=False
                 )
                 
@@ -1057,8 +1057,8 @@ class CoreBrain:
                 greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
                 if any(g in query_lower for g in greeting_keywords):
                     return {
-                        "response": "Привет! Я ЕВА, рад общению. Что хотите обсудить?",
-                        "text": "Привет! Я ЕВА, рад общению. Что хотите обсудить?",
+                        "response": "Привет! Я ЕВА, рада общению. Чем могу помочь?",
+                        "text": "Привет! Я ЕВА, рада общению. Чем могу помочь?",
                         "status": "ok",
                         "confidence": 1.0,
                         "source": "greeting_handler",
@@ -1175,6 +1175,77 @@ class CoreBrain:
                 self.query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "self_reasoning_engine", "error": str(e), "type": type(e).__name__})
         
+        # Уровень 0.5: EnhancedReasoningEngine (новый движок с модульной регенерацией)
+        enhanced_engine = getattr(self, 'enhanced_reasoning_engine', None)
+        if enhanced_engine:
+            try:
+                self.query_logger.info("Используем EnhancedReasoningEngine для генерации с регенерацией")
+                
+                # Get conversation history
+                conversation_history = None
+                if user_context and 'conversation_history' in user_context:
+                    conversation_history = user_context['conversation_history']
+                
+                # Get knowledge context
+                knowledge_context = None
+                if hasattr(self, 'knowledge_graph'):
+                    try:
+                        from eva.knowledge.knowledge_graph import KnowledgeGraph
+                        if isinstance(self.knowledge_graph, KnowledgeGraph):
+                            # Get relevant knowledge
+                            relevant = self.knowledge_graph.get_relevant_nodes(query, limit=5)
+                            if relevant:
+                                knowledge_context = []
+                                for node in relevant:
+                                    if hasattr(node, 'content') and node.content:
+                                        knowledge_context.append(node.content)
+                                    elif hasattr(node, 'name') and node.name:
+                                        knowledge_context.append(str(node.name))
+                    except Exception as e:
+                        self.query_logger.debug(f"Не удалось получить контекст знаний: {e}")
+                
+                # Process with enhanced engine
+                enhanced_result = enhanced_engine.process_query(
+                    query=query,
+                    conversation_history=conversation_history,
+                    knowledge_context=knowledge_context
+                )
+                
+                if enhanced_result.get('response'):
+                    response_text = enhanced_result.get('response', '')
+                    conf = enhanced_result.get('confidence', 0.0)
+                    
+                    # Get min_confidence from engine config or use default
+                    min_conf = 0.7
+                    if enhanced_engine and hasattr(enhanced_engine, 'min_confidence'):
+                        min_conf = enhanced_engine.min_confidence
+                    
+                    # Require minimum confidence
+                    if conf < min_conf:
+                        self.query_logger.info(f"EnhancedReasoningEngine низкая уверенность ({conf:.2f}), fallback")
+                        error_chain.append({"source": "enhanced_reasoning_engine", "error": "low_confidence", "confidence": conf})
+                    else:
+                        response_dict = {
+                        "response": response_text,
+                        "text": response_text,
+                        "status": enhanced_result.get('status', 'ok'),
+                        "confidence": conf,
+                        "reasoning": {
+                            "iterations": enhanced_result.get('iterations', 0),
+                            "processing_time": enhanced_result.get('processing_time', 0),
+                            "chain": enhanced_result.get('reasoning_chain', [])
+                        },
+                        "reasoning_raw": enhanced_result,
+                        "source": "enhanced_reasoning_engine",
+                        "fallback_level": 0.5,
+                        "processing_time": time.time() - start_time
+                    }
+                    self.query_logger.info(f"Успешно использован enhanced_reasoning_engine (confidence: {conf:.2f})")
+                    return response_dict
+            except Exception as e:
+                self.query_logger.warning(f"EnhancedReasoningEngine недоступен: {e}")
+                error_chain.append({"source": "enhanced_reasoning_engine", "error": str(e), "type": type(e).__name__})
+        
         # Уровень 2: QwenModelManager (приоритетная модель для диалогов)
         try:
             # Lazy loading - загружаем модель только при первом запросе
@@ -1194,8 +1265,8 @@ class CoreBrain:
                             
                             self.qwen_model_manager = get_qwen_model_manager(
                                 model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                                device=qwen_device,
-                                load_in_8bit=True,
+                                device='cpu',
+                                load_in_8bit=False,
                                 load_in_4bit=False
                             )
                             
@@ -1252,7 +1323,10 @@ class CoreBrain:
                 )
                 
                 if response_text and not response_text.startswith("Ошибка"):
-                    return {
+                    # Проверяем уверенность и генерируем уточняющий вопрос если нужно
+                    clarification = self._generate_clarification_if_needed(query, response_text, 0.9)
+                    
+                    result = {
                         "response": response_text,
                         "text": response_text,
                         "status": "ok",
@@ -1261,6 +1335,12 @@ class CoreBrain:
                         "fallback_level": 0,
                         "processing_time": time.time() - start_time
                     }
+                    
+                    if clarification:
+                        result["clarification_question"] = clarification
+                        result["confidence"] = 0.7  # Снижаем уверенность since we need clarification
+                    
+                    return result
         except Exception as e:
             self.query_logger.warning(f"QwenModelManager недоступен: {e}")
             error_chain.append({"source": "qwen_model", "error": str(e), "type": type(e).__name__})
@@ -1439,6 +1519,76 @@ class CoreBrain:
                 return category
         
         return 'general'
+    
+    def _generate_clarification_if_needed(self, query: str, response: str, confidence: float) -> Optional[str]:
+        """Генерирует уточняющий вопрос если система не уверена в ответе."""
+        if confidence >= 0.8:
+            return None
+        
+        low_confidence_indicators = [
+            'вероятно', 'возможно', 'не уверен', 'не могу точно', 'может быть',
+            'не знаю', 'не уверена', 'сложно сказать', 'точно не могу',
+            'недостаточно информации', 'нужно уточнить', 'зависит от',
+            'я думаю', 'по-видимому', 'кажется', 'вроде', 'вполне возможно'
+        ]
+        
+        response_lower = response.lower()
+        
+        # Проверяем есть ли в ответе признаки неуверенности
+        has_uncertainty = any(indicator in response_lower for indicator in low_confidence_indicators)
+        
+        # Проверяем наличие неопределённых конструкций в запросе пользователя
+        query_lower = query.lower()
+        vague_indicators = ['может', 'возможно', 'иногда', 'примерно', 'около', 'примерно', 'вроде']
+        has_vague_query = any(indicator in query_lower for indicator in vague_indicators)
+        
+        # Проверяем запросы с "или" (альтернативные вопросы)
+        has_alternative = ' или ' in query.lower() and query.count('?') > 0
+        
+        # Проверяем наличие чисел/дат/имён в запросе без подтверждения в ответе
+        import re
+        numbers_in_query = re.findall(r'\d{4}|\d{2}\.\d{2}|с\d{4}|в \d{4}', query)
+        has_numbers_uncertainty = numbers_in_query and not any(num in response for num in numbers_in_query)
+        
+        # Определяем фактор неопределённости
+        uncertain_factor = None
+        
+        if has_alternative:
+            uncertain_factor = "конкретизация альтернативы"
+        elif has_vague_query:
+            uncertain_factor = "уточнение неопределённого запроса"
+        elif has_numbers_uncertainty:
+            uncertain_factor = "проверка даты/числа"
+        elif has_uncertainty:
+            uncertain_factor = "подтверждение неуверенного ответа"
+        
+        if uncertain_factor:
+            clarification_templates = {
+                "конкретизация альтернативы": [
+                    "Уточните, пожалуйста, какой именно вариант вас интересует?",
+                    "Что именно вы хотите узнать из этих вариантов?",
+                    "Можете уточнить, какой из вариантов вам нужен?",
+                ],
+                "уточнение неопределённого запроса": [
+                    "Не могли бы вы уточнить, что именно вас интересует?",
+                    "Можете дать больше деталей о том, что вы хотите узнать?",
+                    "Уточните, пожалуйста, какой аспект вас интересует?",
+                ],
+                "проверка даты/числа": [
+                    "Вы имеете в виду конкретную дату/число из запроса?",
+                    "Хотите уточнить период или значение?",
+                ],
+                "подтверждение неуверенного ответа": [
+                    "Этот ответ вам подходит или нужно уточнить?",
+                    "Хотите получить более подробную информацию?",
+                    "Могу уточнить детали, если нужно.",
+                ]
+            }
+            
+            templates = clarification_templates.get(uncertain_factor, ["Уточните, пожалуйста, ваш запрос."])
+            return random.choice(templates)
+        
+        return None
     
     def _format_reasoning_for_gui(self, reasoning_result: Dict[str, Any]) -> str:
         """Форматирует результат рассуждения для отображения в GUI."""

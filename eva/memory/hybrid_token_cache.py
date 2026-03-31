@@ -360,7 +360,7 @@ class HybridTokenCache:
     def __init__(
         self,
         brain,
-        max_memory_tokens: int = 25000,  # Уменьшаем для оптимизации
+        max_memory_tokens: int = 100000,  # Увеличено до 100K для hot window refinement prompts
         disk_cache_dir: str = "token_cache",
         target_memory_gb: float = 50.0,  # Увеличиваем до 50 ГБ для лучшей производительности
         max_disk_cache_gb: float = 50.0,  # Расширяем до 50 ГБ на SSD

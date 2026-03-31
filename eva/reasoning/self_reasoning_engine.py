@@ -13,7 +13,14 @@ from .reasoning_types import (
     AnalysisResult,
     ReasoningPhase
 )
-from .confidence_scorer import calculate_overall_confidence, should_terminate, CONFIDENCE_THRESHOLD
+from .confidence_scorer import (
+    calculate_overall_confidence, 
+    should_terminate, 
+    CONFIDENCE_THRESHOLD,
+    get_adaptive_weights,
+    get_adaptive_threshold,
+    calculate_adaptive_confidence
+)
 from .clarification_generator import ClarificationGenerator
 
 logger = logging.getLogger(__name__)
@@ -194,17 +201,25 @@ class SelfReasoningEngine:
             # Шаг 2: Анализ ответа
             analysis = self._analyze_response(current_query, response)
             
-            # Шаг 3: Расчёт уверенности
-            confidence = calculate_overall_confidence(
+            # Шаг 3: Расчёт уверенности с адаптивными весами (coarse-to-fine)
+            adaptive_weights = get_adaptive_weights(iteration)
+            current_threshold = get_adaptive_threshold(iteration)
+            
+            logger.info(f"Адаптивные веса итерации {iteration}: ethics={adaptive_weights['ethics']:.2f}, "
+                       f"contradiction={adaptive_weights['contradiction']:.2f}, knowledge={adaptive_weights['knowledge']:.2f}")
+            logger.info(f"Адаптивный порог итерации {iteration}: {current_threshold:.2f}")
+            
+            confidence = calculate_adaptive_confidence(
                 ethics_result=analysis.ethics_result,
                 contradiction_result=analysis.contradiction_result,
                 knowledge_result=analysis.knowledge_result,
-                query=current_query
+                query=current_query,
+                iteration=iteration
             )
             
             step = ReasoningStep(
                 phase=ReasoningPhase.FINAL_SYNTHESIS.value,
-                thought=f"Анализ завершён. Уверенность: {confidence:.2f}",
+                thought=f"Анализ завершён (итерация {iteration}). Уверенность: {confidence:.2f}, порог: {current_threshold:.2f}",
                 confidence=confidence
             )
             result.steps.append(step)
@@ -287,9 +302,10 @@ class SelfReasoningEngine:
             except Exception as e:
                 logger.debug(f"Ошибка анализа факторов: {e}")
             
-            # Шаг 4: Проверка на завершение
-            if should_terminate(confidence, self.confidence_threshold):
-                logger.info(f"Достаточная уверенность {confidence:.2f} >= {self.confidence_threshold}. Завершаем.")
+            # Шаг 4: Проверка на завершение с адаптивным порогом
+            current_threshold = get_adaptive_threshold(iteration)
+            if should_terminate(confidence, self.confidence_threshold, iteration):
+                logger.info(f"Достаточная уверенность {confidence:.2f} >= {current_threshold:.2f} (итерация {iteration}). Завершаем.")
                 result.final_response = response
                 break
             
@@ -298,7 +314,7 @@ class SelfReasoningEngine:
                 questions = self._generate_clarification(analysis, current_query)
                 result.clarification_questions = questions
                 
-                logger.info(f"Уверенность {confidence:.2f} < {self.confidence_threshold}. Вопросы: {questions}")
+                logger.info(f"Уверенность {confidence:.2f} < {current_threshold:.2f}. Вопросы: {questions}")
                 
                 # Задаём первый вопрос пользователю (в качестве ответа)
                 if questions:
@@ -875,7 +891,7 @@ class SelfReasoningEngine:
             'что такое': 'Для объяснения понятий мне нужно больше контекста.',
             'как работает': 'Могу объяснить принципы работы, но для точного ответа уточните область.',
             'кто такой': 'Для идентификации личности нужны дополнительные детали.',
-            'спасиб': 'Пожалуйста! Рад был помочь.',
+            'спасиб': 'Пожалуйста! Рада была помочь.',
             'благодар': 'Спасибо! Обращайтесь ещё.',
             'пока': 'До свидания! Возвращайтесь с новыми вопросами.',
             'помоги': 'Опишите подробнее, что именно вам нужно, и я постараюсь помочь.',

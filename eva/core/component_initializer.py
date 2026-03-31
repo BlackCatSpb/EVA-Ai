@@ -96,6 +96,9 @@ class ComponentInitializer:
         # Fractal Reasoning (2) - добавлены позже
         'fractal_storage',
         'self_reasoning_engine',
+        
+        # Enhanced Reasoning (1) - добавлен позже
+        'enhanced_reasoning_engine',
     ]
     
     def __init__(self, core_brain):
@@ -205,6 +208,7 @@ class ComponentInitializer:
             # Fractal Reasoning компоненты (фрактальное хранилище для саморассуждений)
             'fractal_storage': [],
             'self_reasoning_engine': ['fractal_storage', 'knowledge_graph'],
+            'enhanced_reasoning_engine': ['fractal_storage', 'knowledge_graph', 'contradiction_manager', 'ethics_framework', 'web_search_engine'],
         }
     
     def _register_component_factories(self):
@@ -364,11 +368,11 @@ class ComponentInitializer:
                 hybrid_cache = getattr(self.core_brain, 'hybrid_cache', None)
                 if hybrid_cache:
                     text_processor.hybrid_cache = hybrid_cache
-                    self.logger.info("   └─ Гибридный кэш подключен")
+                    self.logger.info("   +-- Hybrid cache podklyuchen")
                 text_processor.initialize()
                 text_processor._setup_component()
                 self.core_brain.text_processor = text_processor
-                self.logger.info("[OK] TextProcessor создан")
+                self.logger.info("[OK] TextProcessor sozdan")
                 return text_processor
             except Exception as e:
                 self.logger.error(f"[FAIL] Ошибка создания text_processor: {e}", exc_info=True)
@@ -758,6 +762,50 @@ class ComponentInitializer:
                 self.failed_components.add('self_reasoning_engine')
                 return None
         
+        def create_enhanced_reasoning_engine():
+            """Создает Enhanced Reasoning Engine с модульной регенерацией."""
+            try:
+                try:
+                    from eva.reasoning import EnhancedReasoningEngine
+                except ImportError:
+                    self.logger.warning("[WARN] EnhancedReasoningEngine не найден - пропускаем")
+                    self.failed_components.add('enhanced_reasoning_engine')
+                    return None
+                
+                # Получаем конфигурацию из brain_config
+                reasoning_config = self.core_brain.config.get('reasoning', {}) if hasattr(self.core_brain, 'config') else {}
+                
+                # Enhanced reasoning config (nested under reasoning)
+                enhanced_config = reasoning_config.get('enhanced_reasoning', {})
+                
+                # Check if enabled (default True if section exists)
+                if not enhanced_config.get('enabled', True):
+                    self.logger.info("[SKIP] EnhancedReasoningEngine отключен в конфигурации")
+                    return None
+                
+                # Создаем движок
+                enhanced_engine = EnhancedReasoningEngine(
+                    brain=self.core_brain,
+                    config={
+                        'max_iterations': enhanced_config.get('max_iterations', 5),
+                        'stability_threshold': enhanced_config.get('stability_threshold', 0.95),
+                        'improvement_threshold': enhanced_config.get('improvement_threshold', 0.05),
+                        'min_confidence': enhanced_config.get('min_confidence', 0.7),
+                        'use_self_learning': enhanced_config.get('use_self_learning', True),
+                        'use_fractal_qwen': enhanced_config.get('use_fractal_qwen', True),
+                    }
+                )
+                
+                # Регистрируем в core_brain
+                self.core_brain.enhanced_reasoning_engine = enhanced_engine
+                
+                self.logger.info("[OK] EnhancedReasoningEngine создан")
+                return enhanced_engine
+            except Exception as e:
+                self.logger.error(f"[FAIL] Ошибка создания enhanced_reasoning_engine: {e}", exc_info=True)
+                self.failed_components.add('enhanced_reasoning_engine')
+                return None
+        
         # Регистрируем все фабрики
         self.component_factories = {
             # Системные
@@ -796,6 +844,7 @@ class ComponentInitializer:
             # Fractal Reasoning
             'fractal_storage': create_fractal_storage,
             'self_reasoning_engine': create_self_reasoning_engine,
+            'enhanced_reasoning_engine': create_enhanced_reasoning_engine,
         }
         
         self.logger.info(f"Зарегистрировано {len(self.component_factories)} фабрик компонентов")

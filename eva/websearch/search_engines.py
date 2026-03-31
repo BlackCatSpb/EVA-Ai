@@ -4,6 +4,7 @@ import logging
 import re
 import json
 import time
+import random
 from typing import List
 from urllib.parse import quote, urljoin
 from bs4 import BeautifulSoup
@@ -11,34 +12,59 @@ from .search_models import SearchResult
 
 logger = logging.getLogger("eva.web_search.engines")
 
+# Ротация User-Agent для обхода блокировок
+USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/120.0.0.0',
+]
+
+
 class SearchEngines:
     """Класс для работы с различными поисковыми системами."""
 
     def __init__(self):
         self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        })
-
+        self._rotate_user_agent()
+        
         # API endpoints
         self.duckduckgo_url = "https://html.duckduckgo.com/html/"
-        self.searx_url = "https://searx.be/search"
+        self.searx_instances = [
+            "https://searx.be/search",
+            "https://searx.org/search", 
+            "https://search.bus-sc.com/search",
+            "https://searx.fmac.xyz/search"
+        ]
+        self.current_searx = 0
+        
+    def _rotate_user_agent(self):
+        """Ротирует User-Agent для обхода блокировок"""
+        self.session.headers.update({
+            'User-Agent': random.choice(USER_AGENTS),
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        })
+    
+    def _random_delay(self):
+        """Добавляет случайную задержку между запросами"""
+        time.sleep(random.uniform(0.5, 2.0))
 
     def search_google(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Google (использует DuckDuckGo из-за ограничений Google API).
-        
-        Note: Прямой поиск Google требует API ключ. Используем DuckDuckGo как fallback.
-        """
-        logger.info(f"Google search fallback to DuckDuckGo for: {query[:30]}...")
-        return self.search_duckduckgo(query, max_results)
+        """Выполняет поиск через Google (с ротацией и fallback на несколько систем)."""
+        logger.info(f"Выполняем поиск для: {query[:30]}...")
+        return self._search_duckduckgo_html(query, max_results)
 
     def search_yandex(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Yandex (использует DuckDuckGo из-за ограничений Yandex API).
-        
-        Note: Прямой поиск Yandex требует API ключ. Используем DuckDuckGo как fallback.
-        """
-        logger.info(f"Yandex search fallback to DuckDuckGo for: {query[:30]}...")
-        return self.search_duckduckgo(query, max_results)
+        """Выполняет поиск через Yandex (с ротацией и fallback на несколько систем)."""
+        logger.info(f"Выполняем поиск для: {query[:30]}...")
+        return self._search_brave(query, max_results)
 
     def search_bing(self, query: str, max_results: int) -> List[SearchResult]:
         """Выполняет поиск через Bing."""
@@ -90,64 +116,148 @@ class SearchEngines:
             
             # Сначала пробуем локальные результаты для скорости
             local_results = self._create_local_results(query, max_results)
-            if local_results and any(r.source == "local_knowledge" for r in local_results):
-                logger.info(f"Используем локальные результаты для: {query}")
-                return local_results
             
-            # Если локальных результатов недостаточно, пробуем веб
-            params = {
-                'q': query,
-                'kl': 'ru-ru'
-            }
+            # Ротируем User-Agent перед запросом
+            self._rotate_user_agent()
+            self._random_delay()
             
-            # Выполняем запрос
-            response = self.session.get("https://html.duckduckgo.com/html/", params=params, timeout=5)
+            # Пробуем несколько поисковых систем
+            search_methods = [
+                self._search_duckduckgo_html,
+                self._search_searx,
+                self._search_brave
+            ]
+            
+            for search_method in search_methods:
+                try:
+                    results = search_method(query, max_results)
+                    if results and len(results) > 0:
+                        logger.info(f"Найдено {len(results)} результатов через {search_method.__name__}")
+                        return results
+                except Exception as e:
+                    logger.debug(f"{search_method.__name__} недоступен: {e}")
+                    continue
+            
+            # Если все методы не сработали - возвращаем локальные
+            logger.warning(f"Все поисковые системы недоступны, используем локальные результаты")
+            return local_results
+            
+        except Exception as e:
+            logger.warning(f"DuckDuckGo недоступен, используем локальные результаты: {e}")
+            return self._create_local_results(query, max_results)
+    
+    def _search_duckduckgo_html(self, query: str, max_results: int) -> List[SearchResult]:
+        """DuckDuckGo HTML версия"""
+        params = {
+            'q': query,
+            'kl': 'ru-ru',
+            'b': str(random.randint(1, 5))  # Different batch
+        }
+        
+        response = self.session.get("https://html.duckduckgo.com/html/", params=params, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = []
+        
+        for result in soup.find_all('div', class_='result')[:max_results]:
+            try:
+                title_elem = result.find('a', class_='result__a')
+                if not title_elem:
+                    continue
+                
+                title = title_elem.get_text(strip=True)
+                url = title_elem.get('href', '')
+                
+                snippet_elem = result.find('a', class_='result__snippet')
+                snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                
+                results.append(SearchResult(
+                    title=title,
+                    url=url,
+                    snippet=snippet,
+                    source="duckduckgo",
+                    relevance_score=0.9,
+                    query=query
+                ))
+            except Exception:
+                continue
+        
+        return results
+    
+    def _search_searx(self, query: str, max_results: int) -> List[SearchResult]:
+        """Поиск через Searx инстансы"""
+        for _ in range(len(self.searx_instances)):
+            try:
+                url = self.searx_instances[self.current_searx]
+                params = {'q': query, 'format': 'json', 'engines': 'google,wikipedia'}
+                
+                response = self.session.get(url, params=params, timeout=10)
+                response.raise_for_status()
+                
+                data = response.json()
+                results = []
+                
+                for i, r in enumerate(data.get('results', [])[:max_results]):
+                    results.append(SearchResult(
+                        title=r.get('title', ''),
+                        url=r.get('url', ''),
+                        snippet=r.get('content', '')[:200],
+                        source='searx',
+                        relevance_score=0.8 - i * 0.1,
+                        query=query
+                    ))
+                
+                # Ротируем следующий инстанс
+                self.current_searx = (self.current_searx + 1) % len(self.searx_instances)
+                
+                if results:
+                    return results
+                    
+            except Exception as e:
+                logger.debug(f"Searx {self.current_searx} failed: {e}")
+                self.current_searx = (self.current_searx + 1) % len(self.searx_instances)
+                continue
+        
+        return []
+    
+    def _search_brave(self, query: str, max_results: int) -> List[SearchResult]:
+        """Поиск через Brave Search API"""
+        try:
+            url = f"https://search.brave.com/search?q={quote(query)}"
+            response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
-            # Парсим HTML
             soup = BeautifulSoup(response.text, 'html.parser')
             results = []
             
-            # Ищем результаты
-            for result in soup.find_all('div', class_='result')[:max_results]:
+            for result in soup.find_all('div', class_='snippet')[:max_results]:
                 try:
-                    # Заголовок и ссылка
-                    title_elem = result.find('a', class_='result__a')
+                    title_elem = result.find('a')
                     if not title_elem:
                         continue
                     
                     title = title_elem.get_text(strip=True)
                     url = title_elem.get('href', '')
                     
-                    # Описание
-                    snippet_elem = result.find('a', class_='result__snippet')
+                    snippet_elem = result.find('p')
                     snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
                     
-                    # Создаем результат
-                    search_result = SearchResult(
+                    results.append(SearchResult(
                         title=title,
                         url=url,
                         snippet=snippet,
-                        source="duckduckgo",
-                        relevance_score=self._calculate_relevance(title, snippet, query),
+                        source="brave",
+                        relevance_score=0.7,
                         query=query
-                    )
-                    results.append(search_result)
-                    
-                except Exception as e:
-                    logger.debug(f"Ошибка парсинга результата: {e}")
+                    ))
+                except Exception:
                     continue
             
-            if results:
-                logger.info(f"Найдено {len(results)} результатов через DuckDuckGo")
-                return results
-            else:
-                logger.warning(f"DuckDuckGo не дал результатов, используем локальные: {query}")
-                return local_results
-            
+            return results
         except Exception as e:
-            logger.warning(f"DuckDuckGo недоступен, используем локальные результаты: {e}")
-            return self._create_local_results(query, max_results)
+            logger.debug(f"Brave search failed: {e}")
+            return []
     
     def _create_local_results(self, query: str, max_results: int) -> List[SearchResult]:
         """Создает локальные результаты на основе запроса."""

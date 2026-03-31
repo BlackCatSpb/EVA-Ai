@@ -29,12 +29,25 @@ def setup_logging(log_dir: str = "diagnostic_logs", log_file: str = "eva_app.log
         def emit(self, record):
             try:
                 msg = self.format(record)
+                # Full ASCII replacement for maximum safety
+                replacements = {
+                    '\u2514': '[OK]',
+                    '\u2500': '-',
+                    '\u2502': '|',
+                    '\u251c': '[OK]',
+                    '\u252c': '--',
+                    '\u2534': '--',
+                    '\u250c': '[OK]',
+                    '\u2510': '[OK]',
+                }
+                for old, new in replacements.items():
+                    msg = msg.replace(old, new)
+                # Convert any remaining unicode to ASCII replacements
+                msg = msg.encode('ascii', 'replace').decode('ascii')
                 stream = self.stream
-                if hasattr(stream, 'encoding') and stream.encoding and stream.encoding.lower() in ('cp1251', 'cp866'):
-                    msg = msg.encode('utf-8', 'replace').decode('utf-8', 'replace')
                 stream.write(msg + self.terminator)
                 self.flush()
-            except (AttributeError, OSError, IOError, UnicodeError, RuntimeError):
+            except Exception:
                 self.handleError(record)
     
     console_handler = SafeStreamHandler()
