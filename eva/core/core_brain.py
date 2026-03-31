@@ -801,6 +801,19 @@ class CoreBrain:
                 self.query_logger.warning(f"Failed to start GraphCurator: {e}")
                 self.graph_curator = None
             
+            # Initialize GGUFTrainingSystem (separate training instance)
+            try:
+                from eva.training.gguf_training_system import GGUFTrainingSystem
+                self.gguf_training = GGUFTrainingSystem(
+                    brain=self,
+                    config=self.config.get('gguf_training', {})
+                )
+                # НЕ запускаем автоматически - только по запросу
+                self.query_logger.info("GGUFTrainingSystem initialized (not auto-started)")
+            except Exception as e:
+                self.query_logger.warning(f"Failed to initialize GGUFTrainingSystem: {e}")
+                self.gguf_training = None
+            
             return True
             
         except Exception as e:
