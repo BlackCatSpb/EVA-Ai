@@ -788,6 +788,19 @@ class CoreBrain:
                 except Exception as e:
                     self.query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
             
+            # Initialize GraphCurator
+            try:
+                from eva.knowledge.graph_curator import GraphCurator
+                self.graph_curator = GraphCurator(
+                    brain=self,
+                    config=self.config.get('graph_curator', {})
+                )
+                self.graph_curator.start()
+                self.query_logger.info("GraphCurator started")
+            except Exception as e:
+                self.query_logger.warning(f"Failed to start GraphCurator: {e}")
+                self.graph_curator = None
+            
             return True
             
         except Exception as e:
