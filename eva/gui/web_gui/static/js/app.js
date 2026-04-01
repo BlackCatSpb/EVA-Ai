@@ -346,7 +346,7 @@
             if (d.reasoning_steps && d.reasoning_steps.length > 0) {
                 allReasoning += '🔬 Этапы рассуждений:\n';
                 d.reasoning_steps.forEach((step, idx) => {
-                    const icons = {'generation': '💭', 'contradiction_check': '⚖️', 'ethics_check': '⚡', 'web_search': '🌐', 'refinement': '🔄', 'final_synthesis': '✨'};
+                    const icons = {'generation': '💭', 'contradiction_check': '⚖️', 'ethics_check': '⚡', 'web_search': '🌐', 'refinement': '🔄', 'final_synthesis': '✨', 'document_analysis': '📄'};
                     const icon = icons[step.phase] || '•';
                     allReasoning += step.step + '. ' + icon + ' [' + step.phase + '] ' + step.thought + ' (conf: ' + step.confidence.toFixed(2) + ')\n';
                 });

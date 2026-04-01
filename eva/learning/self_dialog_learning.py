@@ -921,22 +921,45 @@ class SelfDialogLearningSystem:
         return f"Наблюдение: общий исход диалога {outcome}. Требуется работа над {len(gaps)} аспектами."
     
     def _identify_knowledge_gaps(self, content: str, topic: str) -> List[str]:
-        """Выявляет пробелы в знаниях."""
+        """Выявляет пробелы в знаниях на основе анализа контента."""
         gaps = []
         
         topic_lower = topic.lower()
+        content_lower = content.lower() if content else ""
         
-        if "анализ" in topic_lower or "analysis" in topic_lower:
-            gaps.append("методы анализа данных")
-        if "обучение" in topic_lower or "learning" in topic_lower:
-            gaps.append("алгоритмы машинного обучения")
-        if "знание" in topic_lower or "knowledge" in topic_lower:
-            gaps.append("управление знаниями")
-        if any(word in topic_lower for word in ["когнитив", "cognitive", "мышление", "thinking"]):
-            gaps.append("когнитивные функции")
+        # Проверяем на реальную неопределенность в контенте
+        uncertainty_indicators = [
+            "не знаю", "не могу", "не уверен", "возможно", "вероятно",
+            "недостаточно", "сложно", "требует", "необходимо изучить"
+        ]
         
-        if not gaps:
+        has_uncertainty = any(indicator in content_lower for indicator in uncertainty_indicators)
+        
+        # Проверяем по ключевым словам темы
+        topic_keywords = {
+            "анализ": "методы анализа данных",
+            "analysis": "методы анализа данных",
+            "обучение": "алгоритмы машинного обучения",
+            "learning": "алгоритмы машинного обучения",
+            "знание": "управление знаниями",
+            "knowledge": "управление знаниями",
+            "когнитив": "когнитивные функции",
+            "cognitive": "когнитивные функции",
+            "мышление": "когнитивные функции",
+            "thinking": "когнитивные функции",
+            "нейро": "нейронные сети",
+            "neuro": "нейронные сети"
+        }
+        
+        for keyword, gap in topic_keywords.items():
+            if keyword in topic_lower:
+                gaps.append(gap)
+        
+        # Добавляем общий пробел только при реальной неопределенности
+        if not gaps and has_uncertainty:
             gaps.append("общие концепции предметной области")
+        elif not gaps:
+            return []  # Нет значимых пробелов
         
         self.stats["knowledge_gaps_identified"] += len(gaps)
         

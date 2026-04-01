@@ -373,13 +373,24 @@ class WebGUI:
                     web_search_info += f"\n{i+1}. {title}... ({url})"
             
             # For qwen_only_mode with modules - show module interactions
-            if source == 'llama_cpp_with_modules':
+            if source == 'llama_cpp_with_modules' or (file_data and file_data.get('extracted_text')):
                 # Build reasoning steps from module results
                 reasoning_steps = []
                 
+                # Step 0: Document analysis (if file attached)
+                if file_data and file_data.get('extracted_text'):
+                    filename = file_data.get('filename', 'file')
+                    text_len = len(file_data.get('extracted_text', ''))
+                    reasoning_steps.append({
+                        'step': 0,
+                        'phase': 'document_analysis',
+                        'thought': f'Анализ документа "{filename}" - извлечено {text_len} символов',
+                        'confidence': 0.9
+                    })
+                
                 # Step 1: Initial generation
                 reasoning_steps.append({
-                    'step': 1,
+                    'step': len(reasoning_steps) + 1,
                     'phase': 'generation',
                     'thought': 'Первичная генерация ответа через LlamaCpp (GGUF)',
                     'confidence': 0.5
@@ -576,6 +587,8 @@ class WebGUI:
         self.running = True
         
         def run():
+            import click
+            click.echo = lambda *args, **kwargs: None
             app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
         
         self.thread = threading.Thread(target=run, daemon=True)

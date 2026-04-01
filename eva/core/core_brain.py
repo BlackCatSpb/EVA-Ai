@@ -4,6 +4,7 @@
 import sys
 import os
 import logging
+from typing import TYPE_CHECKING
 import time
 import threading
 import queue
@@ -1192,6 +1193,48 @@ class CoreBrain:
         
         # === Qwen-only mode WITH module integration ===
         if qwen_only_mode:
+            # === PRE-PROCESSING: Извлечение сущностей и уточнений ===
+            preprocessed_result = None
+            session_id = user_context.get('session_id') if user_context else None
+            
+            if session_id and hasattr(self, 'preprocessing_pipeline') and self.preprocessing_pipeline:
+                try:
+                    # Получаем контекст сессии из hybrid cache
+                    session_context = ""
+                    if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                        cached = self.hybrid_cache.get_context(session_id)
+                        if cached:
+                            session_context = cached.get('raw_text', '')[:500]
+                    
+                    # Запускаем preprocessing
+                    preprocessed_result = self.preprocessing_pipeline.process(
+                        query=query,
+                        session_context=session_context,
+                        session_id=session_id
+                    )
+                    
+                    # Если нужно уточнение - возвращаем его сразу
+                    if preprocessed_result and preprocessed_result.clarification_needed:
+                        self.query_logger.info(f"Требуется уточнение: {preprocessed_result.clarification_question}")
+                        return {
+                            "response": preprocessed_result.clarification_question,
+                            "text": preprocessed_result.clarification_question,
+                            "status": "clarification_needed",
+                            "confidence": 0.5,
+                            "source": "llama_cpp_with_modules",
+                            "clarification_question": preprocessed_result.clarification_question,
+                            "missing_info": preprocessed_result.missing_info,
+                            "preprocessed_entities": [e.name for e in preprocessed_result.entities],
+                            "processing_time": time.time() - start_time
+                        }
+                    
+                    # Добавляем информацию об извлеченных сущностях в лог
+                    if preprocessed_result and preprocessed_result.entities:
+                        self.query_logger.debug(f"Извлечено сущностей: {len(preprocessed_result.entities)}")
+                        
+                except Exception as e:
+                    self.query_logger.debug(f"Ошибка preprocessing: {e}")
+            
             # Получаем контекст из графа знаний ПЕРЕД генерацией
             knowledge_context = ""
             knowledge_graph = getattr(self, 'knowledge_graph', None)
@@ -1265,14 +1308,43 @@ class CoreBrain:
                         
                         if web_search and hasattr(web_search, 'search') and not is_simple_query:
                             try:
-                                web_result = web_search.search(query, max_results=5)
-                                raw_results = web_result.get('results', []) if web_result else []
-                                # Конвертируем SearchResult в dict - более безопасный метод
+                                # Используем ТОЛЬКО оригинальный запрос для веб-поиска
+                                search_query = query.strip()
+                                
+                                # Проверяем кэш перед поиском
+                                query_hash = str(abs(hash(search_query)))
+                                cached_results = None
+                                if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                                    cached_results = self.hybrid_cache.get_search_results(query_hash)
+                                
+                                if cached_results:
+                                    self.query_logger.info("Использованы закэшированные результаты поиска")
+                                    raw_results = cached_results.get('results', [])
+                                else:
+                                    web_result = web_search.search(search_query, max_results=5)
+                                    raw_results = web_result.get('results', []) if web_result else []
+                                    
+                                    # Кэшируем результаты
+                                    if raw_results and hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                                        try:
+                                            self.hybrid_cache.add_search_results(
+                                                query_hash=query_hash,
+                                                query=search_query,
+                                                results=[{
+                                                    'title': getattr(r, 'title', str(r)) if hasattr(r, 'title') else str(r),
+                                                    'url': getattr(r, 'url', '') if hasattr(r, 'url') else '',
+                                                    'snippet': getattr(r, 'snippet', '') if hasattr(r, 'snippet') else '',
+                                                    'source': getattr(r, 'source', '') if hasattr(r, 'source') else ''
+                                                } for r in raw_results]
+                                            )
+                                        except Exception as e:
+                                            self.query_logger.debug(f"Не удалось закэшировать: {e}")
+                                
+                                # Конвертируем SearchResult в dict
                                 search_results = []
                                 for sr in raw_results:
                                     try:
                                         if hasattr(sr, 'title') and hasattr(sr, 'url'):
-                                            # Это SearchResult объект
                                             search_results.append({
                                                 'title': str(sr.title) if sr.title else '',
                                                 'url': str(sr.url) if sr.url else '',

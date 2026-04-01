@@ -939,5 +939,223 @@ class HybridTokenCache:
             return token_hash in self.memory_cache
 
 
+
+
+    # ========================================================================
+    # Raw Context Cache для preprocessing
+    # ========================================================================
+
+    def add_context(self, session_id: str, query: str, entities: List[str], 
+                    raw_text: str, ttl: int = 3600) -> None:
+        """
+        Сохраняет необработанный контекст для сессии.
+        
+        Args:
+            session_id: ID сессии пользователя
+            query: Оригинальный запрос
+            entities: Список извлеченных сущностей
+            raw_text: Сырой текст контекста
+            ttl: Время жизни в секундах (по умолчанию 1 час)
+        """
+        context_key = f"context:{session_id}"
+        
+        context_data = {
+            "query": query,
+            "entities": entities,
+            "raw_text": raw_text,
+            "timestamp": time.time(),
+            "ttl": ttl
+        }
+        
+        self.add_token(context_key, context_data)
+        
+        logger.debug(f"Сохранен raw context для сессии {session_id}")
+
+    def get_context(self, session_id: str) -> Optional[Dict]:
+        """
+        Получает закэшированный контекст для сессии.
+        
+        Returns:
+            Dict с query, entities, raw_text или None
+        """
+        context_key = f"context:{session_id}"
+        data = self.get_token(context_key)
+        
+        if data and isinstance(data, dict):
+            # Проверяем TTL
+            timestamp = data.get("timestamp", 0)
+            ttl = data.get("ttl", 3600)
+            
+            if time.time() - timestamp < ttl:
+                return data
+        
+        return None
+
+    def get_recent_contexts(self, limit: int = 10) -> List[Dict]:
+        """
+        Получает последние контексты из всех сессий.
+        
+        Returns:
+            Список контекстов (query, entities, raw_text)
+        """
+        contexts = []
+        
+        with self._lock:
+            for token_id, metadata in self.token_metadata.items():
+                if token_id.startswith("context:"):
+                    data = self.get_token(token_id)
+                    if data and isinstance(data, dict):
+                        contexts.append({
+                            "session_id": token_id.replace("context:", ""),
+                            "query": data.get("query", ""),
+                            "entities": data.get("entities", []),
+                            "timestamp": data.get("timestamp", 0)
+                        })
+        
+        # Сортируем по timestamp
+        contexts.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        
+        return contexts[:limit]
+
+
+    # ========================================================================
+    # Document Cache для импортированных документов
+    # ========================================================================
+
+    def add_document(self, session_id: str, doc_id: str, filename: str,
+                    extracted_text: str, entities: List[str],
+                    doc_type: str = "unknown", ttl: int = 86400) -> None:
+        """Сохраняет обработанный документ в кэш."""
+        doc_key = f"doc:{session_id}:{doc_id}"
+
+        doc_data = {
+            "filename": filename,
+            "extracted_text": extracted_text,
+            "entities": entities,
+            "doc_type": doc_type,
+            "timestamp": time.time(),
+            "ttl": ttl,
+            "size": len(extracted_text)
+        }
+
+        self.add_token(doc_key, doc_data)
+
+    def get_document(self, session_id: str, doc_id: str) -> Optional[Dict]:
+        """Получает закэшированный документ."""
+        doc_key = f"doc:{session_id}:{doc_id}"
+        data = self.get_token(doc_key)
+
+        if data and isinstance(data, dict):
+            timestamp = data.get("timestamp", 0)
+            ttl = data.get("ttl", 86400)
+
+            if time.time() - timestamp < ttl:
+                return data
+
+        return None
+
+    def get_session_documents(self, session_id: str) -> List[Dict]:
+        """Получает все документы для сессии."""
+        docs = []
+
+        with self._lock:
+            for token_id in self.token_metadata.keys():
+                if token_id.startswith(f"doc:{session_id}:"):
+                    data = self.get_token(token_id)
+                    if data and isinstance(data, dict):
+                        docs.append({
+                            "doc_id": token_id.split(":")[-1],
+                            "filename": data.get("filename", ""),
+                            "doc_type": data.get("doc_type", ""),
+                            "size": data.get("size", 0),
+                            "entities": data.get("entities", []),
+                            "timestamp": data.get("timestamp", 0)
+                        })
+
+        return docs
+
+    def delete_document(self, session_id: str, doc_id: str) -> bool:
+        """Удаляет документ из кэша."""
+        doc_key = f"doc:{session_id}:{doc_id}"
+
+        with self._lock:
+            if doc_key in self.token_metadata:
+                del self.token_metadata[doc_key]
+                return True
+
+        return False
+
+    # ========================================================================
+    # Search Results Cache для веб-поиска
+    # ========================================================================
+
+    def add_search_results(self, query_hash: str, query: str,
+                         results: List[Dict], ttl: int = 43200) -> None:
+        """Сохраняет результаты веб-поиска в кэш с токенизацией."""
+        import re
+
+        search_key = f"search:{query_hash}"
+
+        # Токенизируем результаты для последующей обработки
+        tokenized_results = []
+        for r in results:
+            snippet = r.get("snippet", "")
+            tokenized = {
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "snippet": snippet,
+                "source": r.get("source", ""),
+                "tokens": re.findall(r'\b\w+\b', snippet.lower())[:100],
+                "entities": re.findall(r'\b[A-ZА-Я][a-zа-я]+\b', snippet)[:20]
+            }
+            tokenized_results.append(tokenized)
+
+        search_data = {
+            "query": query,
+            "results": tokenized_results,
+            "timestamp": time.time(),
+            "ttl": ttl,
+            "count": len(results)
+        }
+
+        self.add_token(search_key, search_data)
+
+    def get_search_results(self, query_hash: str) -> Optional[Dict]:
+        """Получает закэшированные результаты поиска."""
+        search_key = f"search:{query_hash}"
+        data = self.get_token(search_key)
+
+        if data and isinstance(data, dict):
+            timestamp = data.get("timestamp", 0)
+            ttl = data.get("ttl", 43200)
+
+            if time.time() - timestamp < ttl:
+                return data
+
+        return None
+
+    def get_search_cache_stats(self) -> Dict:
+        """Статистика кэша поиска."""
+        search_count = 0
+        doc_count = 0
+        context_count = 0
+
+        with self._lock:
+            for token_id in self.token_metadata.keys():
+                if token_id.startswith("search:"):
+                    search_count += 1
+                elif token_id.startswith("doc:"):
+                    doc_count += 1
+                elif token_id.startswith("context:"):
+                    context_count += 1
+
+        return {
+            "search_entries": search_count,
+            "document_entries": doc_count,
+            "context_entries": context_count
+        }
+
+
+
 # Экспорт для совместимости
 __all__ = ['HybridTokenCache', 'LRUCache', 'get_shared_cache']

@@ -1,16 +1,21 @@
 {
   "hybrid_cache": {
-    "hot_window_size_mb": 256,
-    "max_hot_tokens": 8192,
+    "hot_window_size_mb": 512,
+    "max_hot_tokens": 16384,
     "gpu_acceleration": false,
     "device": "cpu",
-    "ram_buffer_mb": 1024,
+    "ram_buffer_mb": 2048,
     "ssd_cache_enabled": true,
     "max_context_length": 32768,
     "max_batch_size": 4,
     "memory_check_interval": 5,
     "aggressive_eviction": true,
-    "prefetch_enabled": true
+    "prefetch_enabled": true,
+    "max_disk_cache_gb": 50.0,
+    "eviction_policy": "lru",
+    "context_ttl": 7200,
+    "document_ttl": 86400,
+    "search_ttl": 43200
   },
   "model": {
     "name": "qwen3.5-0.8b",
