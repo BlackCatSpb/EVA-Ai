@@ -1311,3 +1311,98 @@ body {
     word-break: break-word;
     color: #86efac;
 }
+
+
+/* Memory Grid */
+.memory-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.memory-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+}
+
+.memory-card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+}
+
+/* Document List */
+.document-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.doc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    background: var(--bg3);
+    transition: background 0.2s;
+}
+
+.doc-item:hover {
+    background: var(--bg4);
+}
+
+.doc-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.doc-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.doc-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-meta {
+    font-size: 10px;
+    color: var(--text2);
+}
+
+/* Knowledge Graph */
+.knowledge-graph {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.kg-node {
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    background: var(--bg3);
+    border-left: 3px solid #3b82f6;
+}
+
+.kg-node-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.kg-node-content {
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.4;
+}

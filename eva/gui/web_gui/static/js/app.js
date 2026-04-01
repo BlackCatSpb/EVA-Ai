@@ -282,6 +282,57 @@
         $('#filePreview').style.display = 'none';
     }
 
+    /* ── Documents ── */
+    function loadDocuments() {
+        if (!activeSessionId) return;
+        
+        api('/documents', { params: { session_id: activeSessionId } }).then(data => {
+            if (data.error) return;
+            
+            const docs = data.documents || [];
+            const docEl = $('#documentList');
+            
+            if (docEl) {
+                if (docs.length > 0) {
+                    docEl.innerHTML = docs.map(d => `
+                        <div class="doc-item">
+                            <div class="doc-icon">📄</div>
+                            <div class="doc-info">
+                                <div class="doc-name">${esc(d.filename || 'Unknown')}</div>
+                                <div class="doc-meta">${d.doc_type || 'file'} · ${esc(d.file_id?.substring(0, 8) || '')}</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    docEl.innerHTML = '<div class="empty-state">Нет загруженных документов</div>';
+                }
+            }
+        }).catch(() => {});
+    }
+    
+    /* ── Knowledge Graph ── */
+    function loadKnowledgeGraph() {
+        api('/knowledge-graph', { params: { action: 'get' } }).then(data => {
+            if (data.error) return;
+            
+            const nodes = data.nodes || [];
+            const kgEl = $('#knowledgeGraph');
+            
+            if (kgEl) {
+                if (nodes.length > 0) {
+                    kgEl.innerHTML = nodes.map(n => `
+                        <div class="kg-node">
+                            <div class="kg-node-name">${esc(n.name || n.id)}</div>
+                            <div class="kg-node-content">${esc(n.content || '')}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    kgEl.innerHTML = '<div class="empty-state">Граф знаний пуст</div>';
+                }
+            }
+        }).catch(() => {});
+    }
+    
     /* ── Memory ── */
     function loadMemory() {
         api('/memory-graph').then(data => {
@@ -307,7 +358,11 @@
         });
     }
     
-    $('#refreshMemory')?.addEventListener('click', loadMemory);
+    $('#refreshMemory')?.addEventListener('click', () => {
+        loadMemory();
+        loadDocuments();
+        loadKnowledgeGraph();
+    });
 
     /* ── Chat ── */
     function sendMessage() {

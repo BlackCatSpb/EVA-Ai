@@ -17,6 +17,39 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from eva.mlearning.hot_deployment import HotDeploymentManager, GraphNode, NodeState
 
 
+def load_ethics_prompt() -> str:
+    """Загружает этический промпт из EVA_ethics.md"""
+    try:
+        # Ищем EVA_ethics.md в корне проекта
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        ethics_path = os.path.join(project_root, "EVA_ethics.md")
+        
+        if os.path.exists(ethics_path):
+            with open(ethics_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Убираем markdown заголовок "# Системный промт для GGUF-модели"
+                lines = content.split('\n')
+                filtered_lines = []
+                for line in lines:
+                    if not line.startswith('# Системный промт'):
+                        filtered_lines.append(line)
+                return '\n'.join(filtered_lines).strip()
+        else:
+            logger.warning(f"EVA_ethics.md не найден")
+            return ""
+    except Exception as e:
+        logger.error(f"Ошибка загрузки EVA_ethics.md: {e}")
+        return ""
+
+
+def format_prompt_with_ethics(prompt: str) -> str:
+    """Форматирует промпт с этическим контекстом"""
+    ethics = load_ethics_prompt()
+    if ethics:
+        return f"{ethics}\n\n---\n\n## Запрос пользователя\n\n{prompt}\n\nОтветь в соответствии с описанными выше правилами:"
+    return prompt
+
+
 class LlamaCppHotNode(GraphNode):
     """
     Узел графа с llama.cpp моделью в горячем состоянии.
@@ -178,9 +211,12 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         try:
             start = time.time()
             
+            # Форматируем промпт с этическим контекстом
+            formatted_prompt = format_prompt_with_ethics(prompt)
+            
             # Используем llama.cpp напрямую (без узлов для скорости)
             response = self.llama.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=[{"role": "user", "content": formatted_prompt}],
                 max_tokens=max_new_tokens,
                 temperature=kwargs.get("temperature", 0.7),
                 top_p=kwargs.get("top_p", 0.9),

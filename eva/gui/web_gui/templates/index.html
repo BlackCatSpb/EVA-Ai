@@ -101,8 +101,21 @@
                 <div class="memory-stats">
                     <div class="stat"><span class="stat-val" id="totalNodes">0</span><span class="stat-lbl">Узлов</span></div>
                     <div class="stat"><span class="stat-val" id="totalEdges">0</span><span class="stat-lbl">Связей</span></div>
+                    <div class="stat"><span class="stat-val" id="totalDocs">0</span><span class="stat-lbl">Документов</span></div>
                 </div>
-                <div class="memory-graph" id="memoryGraph"></div>
+                <div class="memory-grid">
+                    <div class="memory-card">
+                        <h3>Граф знаний</h3>
+                        <div class="memory-graph" id="memoryGraph"></div>
+                        <div class="knowledge-graph" id="knowledgeGraph"></div>
+                    </div>
+                    <div class="memory-card">
+                        <h3>Документы</h3>
+                        <div class="document-list" id="documentList">
+                            <div class="empty-state">Нет загруженных документов</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Analytics View -->
