@@ -236,8 +236,11 @@ class PreprocessingPipeline:
         """
         Обрабатывает запрос и возвращает структурированный результат
         """
+        logger.debug(f"Preprocessing: query_len={len(query)}, session={session_id}")
+        
         # 1. Извлекаем сущности
         entities = self.entity_extractor.extract_entities(query, session_context)
+        logger.debug(f"Extracted {len(entities)} entities")
         
         # 2. Проверяем нужно ли уточнение
         clarification_needed, clarification_question, missing_info = \
@@ -252,6 +255,7 @@ class PreprocessingPipeline:
         # 5. Сохраняем в hybrid cache если есть
         if self.hybrid_cache and session_id:
             self._save_to_cache(session_id, query, entities, raw_context)
+            logger.debug(f"Context cached for session {session_id}")
         
         return PreprocessedQuery(
             original_query=query,

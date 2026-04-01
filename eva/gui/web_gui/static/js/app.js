@@ -787,6 +787,47 @@
     
     $('#refreshLearning')?.addEventListener('click', loadLearning);
 
+    /* ── System Info ── */
+    function loadSystemInfo() {
+        api('/system').then(data => {
+            if (data.error) return;
+            
+            // Update model in settings
+            const modelEl = document.querySelector('#settingsView .setting-group:last-child .setting-row:nth-child(2) span');
+            if (modelEl) {
+                modelEl.textContent = data.model;
+            }
+            
+            // Update status indicator
+            const statusDot = $('.status-dot');
+            const statusText = $('.status-text');
+            
+            if (statusDot && statusText) {
+                if (data.llama_cpp_ready || data.qwen_ready) {
+                    statusDot.classList.add('active');
+                    statusText.textContent = 'Готов';
+                } else {
+                    statusDot.classList.remove('active');
+                    statusText.textContent = 'Загрузка...';
+                }
+            }
+        }).catch(() => {});
+    }
+    
+    // Check system status on load and periodically
+    loadSystemInfo();
+    setInterval(loadSystemInfo, 30000);
+    
+    /* ── Cache Stats ── */
+    function loadCacheStats() {
+        api('/cache-stats').then(data => {
+            if (data.error) return;
+            
+            // Could display cache stats somewhere if needed
+            console.log('Cache stats:', data);
+        }).catch(() => {});
+    }
+    
     /* ── Settings toggles ── */
     function setupToggle(id, key) {
         const toggle = $(id);

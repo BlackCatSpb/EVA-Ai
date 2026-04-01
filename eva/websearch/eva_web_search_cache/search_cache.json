@@ -1403,5 +1403,50 @@
         "query": "Отвечай на русском"
       }
     ]
+  },
+  "e2c3d59fd7f3170ef426961b12ae77f5": {
+    "timestamp": 1775027675.3127384,
+    "results": [
+      {
+        "title": "Stack Overflowru.stackoverflow.com› help  › abuse-blockПочему мое сообщение было заблокировано за «спам и нарушения из моей сети»? - Справка - Stack Overflow на русском",
+        "url": "https://ru.stackoverflow.com/help/abuse-block",
+        "snippet": "",
+        "source": "brave",
+        "relevance_score": 0.7,
+        "content": null,
+        "timestamp": 1775027675.3103495,
+        "query": "Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"\n\nКакая причина блокировки предыдущего сообщения?"
+      },
+      {
+        "title": "Stack Exchangerus.stackexchange.com› help  › locked-postsЧто такое заблокированное сообщение? - Справка - Русский язык",
+        "url": "https://rus.stackexchange.com/help/locked-posts",
+        "snippet": "",
+        "source": "brave",
+        "relevance_score": 0.7,
+        "content": null,
+        "timestamp": 1775027675.310469,
+        "query": "Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"\n\nКакая причина блокировки предыдущего сообщения?"
+      },
+      {
+        "title": "Merlin AIgetmerlin.in› home  › blog  › chatgpt app  › вот как можно исправить ошибку \"извините, вы были заблокированы\" в chatgptВот как можно исправить ошибку \"Извините, вы были заблокированы\" в ChatGPT",
+        "url": "https://www.getmerlin.in/ru/blogs/chatgpt-app/here-s-how-you-can-fix-the-sorry-you-have-been-blocked-error-in-chat-gpt",
+        "snippet": "",
+        "source": "brave",
+        "relevance_score": 0.7,
+        "content": null,
+        "timestamp": 1775027675.3105607,
+        "query": "Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"\n\nКакая причина блокировки предыдущего сообщения?"
+      },
+      {
+        "title": "Google Supportsupport.google.com› mail  › thread  › 15739804  › Сообщение-заблокированоСообщение заблокировано - Форум – Gmail",
+        "url": "https://support.google.com/mail/thread/15739804/%D0%A1%D0%BE%D0%BE%D0%B1%D1%89%D0%B5%D0%BD%D0%B8%D0%B5-%D0%B7%D0%B0%D0%B1%D0%BB%D0%BE%D0%BA%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%BE?hl=ru",
+        "snippet": "",
+        "source": "brave",
+        "relevance_score": 0.7,
+        "content": null,
+        "timestamp": 1775027675.310633,
+        "query": "Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"\n\nКакая причина блокировки предыдущего сообщения?"
+      }
+    ]
   }
 }

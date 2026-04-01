@@ -30208,5 +30208,575 @@
     },
     "sources": [],
     "relations": {}
+  },
+  "415995422d3da2ad3cd1d429": {
+    "id": "415995422d3da2ad3cd1d429",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027350.1654851,
+    "updated_at": 1775027350.1654854,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "05378fe4053262461b9c301c": {
+    "id": "05378fe4053262461b9c301c",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027350.165498,
+    "updated_at": 1775027350.165498,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "44c6ba59b2b4703dde19d1b2": {
+    "id": "44c6ba59b2b4703dde19d1b2",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027350.1655073,
+    "updated_at": 1775027350.1655076,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8b9ac932bec38d84d006d785": {
+    "id": "8b9ac932bec38d84d006d785",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Проанализирую и изучую текст....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027350.1655164,
+    "updated_at": 1775027350.1655166,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "78ac21e03444e97e6202667f": {
+    "id": "78ac21e03444e97e6202667f",
+    "content": "Генерирую ответ на: Объясни: Продолжение предыдуще...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027459.4444335,
+    "updated_at": 1775027459.4444335,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "149f4b20e2e338af39ac3660": {
+    "id": "149f4b20e2e338af39ac3660",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027459.4444413,
+    "updated_at": 1775027459.4444413,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8952e2f589acae6244243fe3": {
+    "id": "8952e2f589acae6244243fe3",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027459.444447,
+    "updated_at": 1775027459.444447,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжение предыдущего. Проанализируй и изучи и это:",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e62c863b86081b0889ad2bd2": {
+    "id": "e62c863b86081b0889ad2bd2",
+    "content": "Генерирую ответ на: Объясни: Расскажи подробнее о:...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027677.7320614,
+    "updated_at": 1775027677.7320616,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b88cf7e0b00bc1c0e518c1ea": {
+    "id": "b88cf7e0b00bc1c0e518c1ea",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027677.732072,
+    "updated_at": 1775027677.732072,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2b380e056b5c5339f39a7688": {
+    "id": "2b380e056b5c5339f39a7688",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027677.7320786,
+    "updated_at": 1775027677.7320786,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Извините, это сообщение заблокировано.\"",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3acb98d5458f5f9173e4a358": {
+    "id": "3acb98d5458f5f9173e4a358",
+    "content": "Генерирую ответ на: Объясни: Хорошо, теперь расска...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027805.0086641,
+    "updated_at": 1775027805.0086644,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, теперь расскажи мне историю России на основе предоставленного мной ранее материала",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f6b9e3a6454e9d52125cef0a": {
+    "id": "f6b9e3a6454e9d52125cef0a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.79, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027805.0086734,
+    "updated_at": 1775027805.0086734,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, теперь расскажи мне историю России на основе предоставленного мной ранее материала",
+      "confidence": 0.7850000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "639530a551ad01e20bb190ab": {
+    "id": "639530a551ad01e20bb190ab",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027805.0086792,
+    "updated_at": 1775027805.0086794,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, теперь расскажи мне историю России на основе предоставленного мной ранее материала",
+      "confidence": 0.8954545454545455,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d7e8eb90c8ae2fb059132cf7": {
+    "id": "d7e8eb90c8ae2fb059132cf7",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027805.0086846,
+    "updated_at": 1775027805.0086846,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, теперь расскажи мне историю России на основе предоставленного мной ранее материала",
+      "confidence": 0.8954545454545455,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e7377cce9e23c0aec90631be": {
+    "id": "e7377cce9e23c0aec90631be",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Основные этапы истории России на основе предоставленного материала: 1. 1917-1921 годы: Россия стала ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027805.0086932,
+    "updated_at": 1775027805.0086935,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, теперь расскажи мне историю России на основе предоставленного мной ранее материала",
+      "confidence": 0.36363636363636365,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3c76ffefcb8d8ecfa1a33822": {
+    "id": "3c76ffefcb8d8ecfa1a33822",
+    "content": "Генерирую ответ на: Краткий ответ:...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027883.3363776,
+    "updated_at": 1775027883.3363776,
+    "version": 1,
+    "context": {
+      "query": "Краткий ответ:",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "554ddb8ca8a56963ffac9d34": {
+    "id": "554ddb8ca8a56963ffac9d34",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027883.3363862,
+    "updated_at": 1775027883.3363862,
+    "version": 1,
+    "context": {
+      "query": "Краткий ответ:",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "31c77c7aa08c447f72809f67": {
+    "id": "31c77c7aa08c447f72809f67",
+    "content": "Генерирую ответ на: Краткий ответ:...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027885.4521482,
+    "updated_at": 1775027885.4521482,
+    "version": 1,
+    "context": {
+      "query": "Краткий ответ:",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "57a2e30e75fcdf6653c1fb70": {
+    "id": "57a2e30e75fcdf6653c1fb70",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027885.452156,
+    "updated_at": 1775027885.452156,
+    "version": 1,
+    "context": {
+      "query": "Краткий ответ:",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b9b13de06b9dca22610e0607": {
+    "id": "b9b13de06b9dca22610e0607",
+    "content": "Генерирую ответ на: Объясняю истории России....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027892.776532,
+    "updated_at": 1775027892.7765322,
+    "version": 1,
+    "context": {
+      "query": "Объясняю истории России.",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "171d1ed226b038ca0a1cfe7c": {
+    "id": "171d1ed226b038ca0a1cfe7c",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027892.846529,
+    "updated_at": 1775027892.846529,
+    "version": 1,
+    "context": {
+      "query": "Объясняю истории России.",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a26fbbd45c11794aa10fb1c0": {
+    "id": "a26fbbd45c11794aa10fb1c0",
+    "content": "Генерирую ответ на: Объясни: Какие выводы ты сдела...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027952.158801,
+    "updated_at": 1775027952.1588013,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какие выводы ты сделала на основе чтения информации о истории России?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ede7a1a75f330fe9cdfefaa9": {
+    "id": "ede7a1a75f330fe9cdfefaa9",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027952.1588159,
+    "updated_at": 1775027952.158816,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какие выводы ты сделала на основе чтения информации о истории России?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "898fbba96a5585701e5d05ad": {
+    "id": "898fbba96a5585701e5d05ad",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027952.1588242,
+    "updated_at": 1775027952.1588242,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какие выводы ты сделала на основе чтения информации о истории России?",
+      "confidence": 0.9000000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "1cabe430852945ba7e7ba914": {
+    "id": "1cabe430852945ba7e7ba914",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027952.1588311,
+    "updated_at": 1775027952.1588311,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какие выводы ты сделала на основе чтения информации о истории России?",
+      "confidence": 0.9000000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "10aada96b4bf67c06ddf748c": {
+    "id": "10aada96b4bf67c06ddf748c",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Я не могу провести конкретные выводы по исходному чтению информации о истории России, так как я не и...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027952.158847,
+    "updated_at": 1775027952.1588473,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какие выводы ты сделала на основе чтения информации о истории России?",
+      "confidence": 0.33333333333333337,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "aaa1885ad518ddc8b6872efb": {
+    "id": "aaa1885ad518ddc8b6872efb",
+    "content": "Генерирую ответ на: Объясни: Перечитай последние 1...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027965.8377502,
+    "updated_at": 1775027965.8377504,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Перечитай последние 10 сообщений, что я тебе писал и проанализируй их текст",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9dbeb52ebf3aea3779ce8a50": {
+    "id": "9dbeb52ebf3aea3779ce8a50",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027965.8377585,
+    "updated_at": 1775027965.8377588,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Перечитай последние 10 сообщений, что я тебе писал и проанализируй их текст",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "74ca76931eff10e64e6752c5": {
+    "id": "74ca76931eff10e64e6752c5",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027965.8377635,
+    "updated_at": 1775027965.8377635,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Перечитай последние 10 сообщений, что я тебе писал и проанализируй их текст",
+      "confidence": 0.89375,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5644e85d73a52023b798a06d": {
+    "id": "5644e85d73a52023b798a06d",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775027965.8377678,
+    "updated_at": 1775027965.8377678,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Перечитай последние 10 сообщений, что я тебе писал и проанализируй их текст",
+      "confidence": 0.89375,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
   }
 }
