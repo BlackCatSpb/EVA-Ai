@@ -350,22 +350,70 @@ body {
 .msg-role {
     font-size: 13px;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
-.msg-role.user { color: var(--text); }
-.msg-role.system { color: var(--text2); }
+.msg-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.msg:hover .msg-actions {
+    opacity: 1;
+}
+
+.msg-action-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.msg-action-btn:hover {
+    background: var(--bg4);
+    color: var(--text);
+}
+
+.msg-action-btn.like:hover {
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
+.msg-action-btn.dislike:hover {
+    border-color: #f44336;
+    color: #f44336;
+}
+
+.msg-action-btn.copied {
+    border-color: #4caf50;
+    color: #4caf50;
+    background: rgba(76, 175, 80, 0.1);
+}
+
+.msg-role.user { color: #e0e0e0; font-weight: 500; }
+.msg-role.system { color: #888; }
 
 .msg-text {
-    font-size: 14px;
-    line-height: 1.7;
-    color: var(--text2);
+    font-size: 15px;
+    line-height: 1.75;
+    color: #d0d0d0;
+    font-weight: 400;
 }
 
-.msg-role.user + .msg-text { color: var(--text); }
+.msg-role.user + .msg-text { color: #f0f0f0; }
 
 .msg-file {
     display: inline-flex;

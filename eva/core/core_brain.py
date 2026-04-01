@@ -1145,6 +1145,47 @@ class CoreBrain:
         
         return concepts[:10]
     
+    def trigger_subjective_correctness(self, message_text: str, rating: int) -> bool:
+        """
+        Триггер субъективной корректности от пользователя.
+        rating: 1 = полезно (like), -1 = неверно (dislike)
+        """
+        try:
+            self.query_logger.info(f"Субъективная корректность: rating={rating}")
+            
+            # Send to self_dialog_learning if available
+            if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                feedback = {
+                    'rating': rating,
+                    'text': message_text,
+                    'type': 'subjective_feedback'
+                }
+                # Trigger analysis
+                if hasattr(self.self_dialog_learning, 'analyze_interaction'):
+                    self.self_dialog_learning.analyze_interaction(
+                        query="",
+                        response=message_text,
+                        feedback=feedback
+                    )
+            
+            # Store in knowledge graph for future reference
+            if rating == -1 and hasattr(self, 'knowledge_graph') and self.knowledge_graph:
+                try:
+                    self.knowledge_graph.add_node(
+                        name=f"user_feedback_dislike",
+                        content=f"Пользователь отметил как неверное: {message_text[:100]}",
+                        domain="feedback"
+                    )
+                except Exception as e:
+                    self.query_logger.debug(f"Error storing feedback: {e}")
+            
+            return True
+            
+        except Exception as e:
+            self.query_logger.error(f"Error triggering subjective correctness: {e}")
+            return False
+
+
     def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через унифицированный координатор генерации с многоуровневым fallback."""
         start_time = time.time()
@@ -1273,10 +1314,21 @@ class CoreBrain:
                 except Exception as e:
                     self.query_logger.debug(f"Ошибка получения контекста из графа: {e}")
             
-            # Формируем промпт с контекстом
-            full_prompt = query
+            # Формируем промпт с контекстом и системным промптом
+            system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
+Отвечай на русском языке кратко и по существу. Избегай встречных вопросов — отвечай напрямую.
+
+Ключевые принципы:
+1. Не навреди — отказывайся от запросов причиняющих вред
+2. Будь прозрачной — честно признавай когда не знаешь ответа
+3. Избегай предвзятости и дискриминации
+4. Уважай автономию пользователя
+5. Будь полезной — приоритизируй полезную информацию
+6. Защищай конфиденциальность данных
+7. Будь честной — проверяй информацию и признавай ошибки"""
+            full_prompt = system_prompt + "\n\nВопрос: " + query
             if knowledge_context:
-                full_prompt = query + knowledge_context
+                full_prompt = system_prompt + "\n\n" + query + knowledge_context
             
             # Приоритет: LlamaCpp (GGUF) если доступен
             if self.llama_cpp_ready and self.llama_cpp_deployment:
@@ -1320,12 +1372,12 @@ class CoreBrain:
                             except Exception as e:
                                 self.query_logger.debug(f"Ошибка проверки этики: {e}")
                         
-                        # 3. Веб-поиск - только для сложных запросов
-                        # Пропускаем веб-поиск для простых фраз
-                        simple_patterns = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello', 'как дела', 'как ты', 'что делаешь', 'спасибо', 'пока', 'до свидания', 'доброе утро', 'добрый день', 'добрый вечер', 'спасибо', 'благодарю', 'да', 'нет', 'ok', 'ой', 'ого', 'ахах', 'хаха']
-                        is_simple_query = any(p in query.lower().strip() for p in simple_patterns) and len(query.strip()) < 20
+                        # 3. Веб-поиск - ВСЕГДА для информационных запросов (кроме приветствий)
+                        simple_greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello', 'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания']
+                        is_greeting = any(query.lower().strip() == p for p in simple_greetings) or (len(query.split()) <= 2 and not any(c.isalpha() for c in query))
                         
-                        if web_search and hasattr(web_search, 'search') and not is_simple_query:
+                        # ВСЕГДА ищем в интернете если это не приветствие
+                        if web_search and hasattr(web_search, 'search') and not is_greeting:
                             try:
                                 # Используем ТОЛЬКО оригинальный запрос для веб-поиска
                                 search_query = query.strip()
@@ -1531,8 +1583,19 @@ class CoreBrain:
                 try:
                     self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
                     
-                    # Формируем prompt из messages
-                    prompt = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+                    # Формируем prompt из messages с системным промптом
+                    system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
+Отвечай на русском языке кратко и по существу. Избегай встречных вопросов — отвечай напрямую.
+
+Ключевые принципы:
+1. Не навреди — отказывайся от запросов причиняющих вред
+2. Будь прозрачной — честно признавай когда не знаешь ответа
+3. Избегай предвзятости и дискриминации
+4. Уважай автономию пользователя
+5. Будь полезной — приоритизируй полезную информацию
+6. Защищай конфиденциальность данных
+7. Будь честной — проверяй информацию и признавай ошибки"""
+                    prompt = system_prompt + "\n\n" + "\n".join([f"{m['role']}: {m['content']}" for m in messages])
                     
                     response_text = self.llama_cpp_deployment.generate(
                         prompt=prompt,

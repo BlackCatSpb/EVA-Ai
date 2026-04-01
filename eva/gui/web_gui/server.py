@@ -362,6 +362,9 @@ class WebGUI:
             source = result.get('source', '')
             confidence = result.get('confidence', 0)
             search_results = result.get('search_results', [])
+            # Get ethics result early so it's available for return_data (but keep local result if brain returns None)
+            if ethics_result is None and result.get('ethics_result'):
+                ethics_result = result.get('ethics_result')
             
             # Extract web search info if available
             web_search_info = None
@@ -398,6 +401,7 @@ class WebGUI:
                 
                 # Step 2: Contradiction check
                 contr_result = result.get('contradiction_result')
+                contr_count = 0
                 if contr_result:
                     contr_count = contr_result.get('significant_count', 0)
                     contr_conf = 1.0 - contr_result.get('contradiction_level', 0.0)
@@ -408,8 +412,10 @@ class WebGUI:
                         'confidence': contr_conf
                     })
                 
-                # Step 3: Ethics check
-                ethics_result = result.get('ethics_result')
+                # Step 3: Ethics check (keep local result if brain returns None)
+                if ethics_result is None:
+                    ethics_result = result.get('ethics_result')
+                has_violations = False
                 if ethics_result:
                     has_violations = ethics_result.get('has_violations', False)
                     ethics_conf = ethics_result.get('is_ethical', 1.0)
@@ -570,7 +576,7 @@ class WebGUI:
         return_data = {
             'response': response_text,
             'status': 'ok',
-            'warnings': ethics_result.get('warnings', []),
+            'warnings': ethics_result.get('warnings', []) if ethics_result else [],
             'reasoning': reasoning_data,
             'reasoning_steps': reasoning_steps,
             'self_dialog': self_dialog_result,
@@ -887,6 +893,43 @@ def api_entities(session_id):
     return jsonify({'error': 'Сессия не найдена'}), 404
 
 
+@app.route('/api/feedback', methods=['POST'])
+def api_feedback():
+    """Receive user feedback (like/dislike) for messages"""
+    if not web_gui_instance:
+        return jsonify({'error': 'not_initialized'})
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        
+        rating = data.get('rating', 0)  # 1 = like, -1 = dislike
+        message_text = data.get('message_text', '')
+        message_index = data.get('message_index', 0)
+        
+        # Log feedback for learning system
+        logger.info(f"User feedback: rating={rating}, index={message_index}")
+        
+        # Send to brain if available
+        if web_gui_instance.brain:
+            try:
+                # Use subjective correctness trigger
+                if hasattr(web_gui_instance.brain, 'trigger_subjective_correctness'):
+                    web_gui_instance.brain.trigger_subjective_correctness(
+                        message_text=message_text,
+                        rating=rating
+                    )
+            except Exception as e:
+                logger.debug(f"Feedback brain trigger error: {e}")
+        
+        return jsonify({'success': True, 'rating': rating})
+    
+    except Exception as e:
+        logger.error(f"Error processing feedback: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/status')
 def api_status():
     if not web_gui_instance:
@@ -923,13 +966,15 @@ def api_metrics():
     }
     
     try:
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
+        
         if web_gui_instance.brain:
             if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
                 snapshot = web_gui_instance.brain.get_resource_snapshot()
                 metrics.update(snapshot)
             if hasattr(web_gui_instance.brain, 'get_cache_stats'):
                 cache = web_gui_instance.brain.get_cache_stats()
-                metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
+                analytics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
     
@@ -964,6 +1009,7 @@ def api_memory_graph():
 def api_analytics():
     """Get analytics data for dashboard."""
     if not web_gui_instance:
+        logger.warning("api_analytics: web_gui_instance is None")
         return jsonify({'error': 'not_initialized'})
     
     analytics = {
@@ -980,6 +1026,8 @@ def api_analytics():
     }
     
     try:
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
+        
         if web_gui_instance.brain:
             # Get system metrics
             if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
@@ -993,8 +1041,8 @@ def api_analytics():
             if hasattr(web_gui_instance.brain, 'get_cache_stats'):
                 cache_stats = web_gui_instance.brain.get_cache_stats()
                 # Add to metrics API
-                metrics['cache_hit_rate'] = cache_stats.get('hit_rate', 0.0)
-                metrics['cache_utilization'] = cache_stats.get('cache_utilization_percent', 0.0)
+                analytics['cache_hit_rate'] = cache_stats.get('hit_rate', 0.0)
+                analytics['cache_utilization'] = cache_stats.get('cache_utilization_percent', 0.0)
             
             # Get learning stats
             if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
@@ -1043,6 +1091,12 @@ def api_analytics():
     except Exception as e:
         logger.error(f"Error getting analytics: {e}")
     
+    # Add fallback for demo mode if no brain
+    if not web_gui_instance or not web_gui_instance.brain:
+        analytics['dialogs'] = 0
+        analytics['gaps'] = 0
+        analytics['learned'] = 0
+    
     return jsonify(analytics)
 
 
@@ -1050,6 +1104,7 @@ def api_analytics():
 def api_learning():
     """Get learning opportunities and stats."""
     if not web_gui_instance:
+        logger.warning("api_learning: web_gui_instance is None")
         return jsonify({'error': 'not_initialized'})
     
     learning = {
@@ -1061,6 +1116,8 @@ def api_learning():
     }
     
     try:
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
+        
         if web_gui_instance.brain:
             # Get learning opportunities
             if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
@@ -1106,6 +1163,12 @@ def api_learning():
             
     except Exception as e:
         logger.error(f"Error getting learning data: {e}")
+    
+    # Add fallback for demo mode if no brain
+    if not web_gui_instance or not web_gui_instance.brain:
+        learning['total'] = 0
+        learning['success'] = 0
+        learning['pending'] = 0
     
     return jsonify(learning)
 
@@ -1153,6 +1216,8 @@ def api_settings():
         return jsonify({'error': 'Invalid JSON'}), 400
     
     try:
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
+        
         if web_gui_instance.brain:
             if 'auto_learning' in data and hasattr(web_gui_instance.brain, 'self_dialog_learning'):
                 sdl = web_gui_instance.brain.self_dialog_learning
@@ -1332,6 +1397,8 @@ def api_system():
     }
     
     try:
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
+        
         if web_gui_instance.brain:
             brain = web_gui_instance.brain
             

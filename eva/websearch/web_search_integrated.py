@@ -464,7 +464,7 @@ class IntegratedWebSearchEngine(BaseComponent):
         if not enrichment_result.get('success') or not enrichment_result.get('context'):
             return ""
         
-        return f"""Контекст из веб-поиска:
-{enrichment_result.get('context', '')}
+        return """Вот результаты веб-поиска:
+""" + enrichment_result.get('context', '') + """
 
-Используй эту информацию для улучшения ответа."""
+Используя эти результаты, дай развёрнутый и информативный ответ пользователю."""

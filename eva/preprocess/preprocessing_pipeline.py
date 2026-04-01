@@ -63,8 +63,12 @@ class GGUFEntityExtractor:
         self.clarification_prompt = """Проанализируй запрос и определи, нужно ли уточнение.
 Запрос: {query}
 
-Требуется ли уточнение? (да/нет)
-Если да, укажи что именно непонятно и сформулируй вопрос.
+Требуется уточнение ТОЛЬКО если:
+- Запрос содержит неоднозначные местоимения без контекста (он, она, это без предыдущего упоминания)
+- Запрос содержит расплывчатые формулировки (что-то, кто-то, любой)
+- Не хватает критически важной информации для ответа
+
+Для простых запросов (привет, как дела, расскажи о X) уточнение НЕ требуется.
 Формат JSON:
 {{
   "clarification_needed": true/false,
@@ -165,8 +169,11 @@ class GGUFEntityExtractor:
         if not self.llama:
             return False, None, []
         
-        # Проверяем только если есть неоднозначные сущности
-        ambiguous = [e for e in entities if e.confidence < 0.7]
+        # Проверяем только если есть сильно неоднозначные сущности (confidence < 0.5)
+        # Also skip for short/simple queries
+        if len(query.split()) < 4:
+            return False, None, []
+        ambiguous = [e for e in entities if e.confidence < 0.5]
         if not ambiguous:
             return False, None, []
         
