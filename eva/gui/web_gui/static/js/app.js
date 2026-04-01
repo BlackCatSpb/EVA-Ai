@@ -202,12 +202,31 @@
         const roleLabel = role === 'user' ? 'Вы' : 'ЕВА';
         const roleClass = role;
 
+        // Add action buttons for all messages (copy, like, dislike)
+        const actionsHtml = `
+            <div class="msg-actions">
+                <button class="msg-action-btn" onclick="copyMessage(this, \`${esc(text)}\`)" title="Копировать">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Копировать
+                </button>
+                <button class="msg-action-btn like" onclick="rateMessage('\`${esc(text)}\`', 1)" title="Полезно">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    Полезно
+                </button>
+                <button class="msg-action-btn dislike" onclick="rateMessage('\`${esc(text)}\`', -1)" title="Неверно">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                    Неверно
+                </button>
+            </div>
+        `;
+
         div.innerHTML = `
             <div class="msg-inner">
                 <div class="msg-role ${roleClass}">${roleLabel}</div>
                 <div class="msg-text">${formatText(text)}</div>
                 ${fileHtml}
                 ${reasoningHtml}
+                ${actionsHtml}
             </div>
         `;
         c.appendChild(div);

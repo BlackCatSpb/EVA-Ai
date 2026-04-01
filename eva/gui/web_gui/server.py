@@ -1022,6 +1022,8 @@ def api_analytics():
         'dialogs': 0,
         'gaps': 0,
         'learned': 0,
+        'cache_hit_rate': 0,
+        'cache_utilization': 0,
         'activities': []
     }
     
@@ -1112,6 +1114,7 @@ def api_learning():
         'total': 0,
         'success': 0,
         'pending': 0,
+        'dialogs': [],
         'recent_dialogs': []
     }
     
