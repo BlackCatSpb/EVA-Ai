@@ -304,19 +304,25 @@ class WebGUI:
         result = None
         debug_info = {"brain": self.brain is not None, "has_process_query": False}
         
-        # Get conversation history for context
+        # Get conversation history for context - pairs user/assistant messages
         conversation_history = []
         if session_id and isinstance(session_id, str) and session_id.strip():
             session = self.session_manager.get_session(session_id)
             if session and isinstance(session, dict) and 'context_nodes' in session:
                 context_nodes = session.get('context_nodes')
                 if context_nodes and isinstance(context_nodes, list):
-                    for node in context_nodes[-10:]:
+                    # Pair user and assistant messages
+                    user_msg = None
+                    for node in context_nodes[-20:]:
                         if isinstance(node, dict):
-                            if 'user_message' in node and isinstance(node['user_message'], str):
-                                conversation_history.append({"role": "user", "content": node['user_message']})
-                            if 'assistant_message' in node and isinstance(node['assistant_message'], str):
-                                conversation_history.append({"role": "assistant", "content": node['assistant_message']})
+                            if 'user_message' in node and node['user_message']:
+                                user_msg = node['user_message']
+                            elif 'assistant_message' in node and node['assistant_message']:
+                                if user_msg:
+                                    conversation_history.append({"role": "user", "content": user_msg})
+                                    conversation_history.append({"role": "assistant", "content": node['assistant_message']})
+                                    user_msg = None
+                    logger.debug(f"Loaded {len(conversation_history)} messages for context")
         
         user_context = {
             'session_id': session_id,
