@@ -1058,23 +1058,54 @@ def api_analytics():
             # Get performance stats
             if hasattr(web_gui_instance.brain, 'performance_analyzer'):
                 pa = web_gui_instance.brain.performance_analyzer
-                analytics['queries'] = getattr(pa, 'total_queries', 0)
-                analytics['avg_time'] = getattr(pa, 'avg_query_time', 0)
-                analytics['success_rate'] = getattr(pa, 'success_rate', 0)
+                if hasattr(pa, 'analyze_performance'):
+                    try:
+                        perf_data = pa.analyze_performance()
+                        analytics['queries'] = perf_data.get('total_queries', 0)
+                        analytics['avg_time'] = perf_data.get('avg_query_time_ms', 0)
+                        analytics['success_rate'] = perf_data.get('success_rate', 0)
+                    except Exception as e:
+                        logger.debug(f"PerformanceAnalyzer error: {e}")
+                        # Fallback - count from session data
+                        analytics['queries'] = 0
+                        analytics['avg_time'] = 0
+                        analytics['success_rate'] = 0
+            
+            # Get real system metrics if available
+            try:
+                import psutil
+                analytics['cpu'] = psutil.cpu_percent(interval=None)
+                analytics['memory'] = psutil.virtual_memory().percent
+            except ImportError:
+                pass  # Use defaults
             
             # Build activity list
             activities = []
             
-            # Memory activity
-            if hasattr(web_gui_instance.brain, 'memory_manager'):
+            # Memory activity - check if memory_manager exists
+            if hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                 mm = web_gui_instance.brain.memory_manager
-                nodes_count = getattr(mm, 'nodes', [])
-                if nodes_count and len(nodes_count) > 0:
-                    activities.append({
-                        'icon': 'memory',
-                        'title': f'Память: {len(nodes_count)} узлов',
-                        'time': 'Сейчас'
-                    })
+                try:
+                    # Try to get actual memory data
+                    if hasattr(mm, 'get_recent_interactions'):
+                        interactions = mm.get_recent_interactions(limit=100)
+                        count = len(interactions) if interactions else 0
+                    elif hasattr(mm, 'nodes') and mm.nodes:
+                        count = len(mm.nodes)
+                    elif hasattr(mm, 'get_stats'):
+                        stats = mm.get_stats()
+                        count = stats.get('total_nodes', 0)
+                    else:
+                        count = 0
+                    
+                    if count > 0:
+                        activities.append({
+                            'icon': 'memory',
+                            'title': f'Память: {count} записей',
+                            'time': 'Сейчас'
+                        })
+                except Exception as e:
+                    logger.debug(f"Memory activity error: {e}")
             
             # Learning activity
             if hasattr(web_gui_instance.brain, 'self_dialog_learning'):

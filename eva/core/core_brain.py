@@ -79,6 +79,11 @@ except ImportError:
     SelfDialogLearningSystem = None
 
 try:
+    from eva.learning.performance_analyzer import PerformanceAnalyzer
+except ImportError:
+    PerformanceAnalyzer = None
+
+try:
     from eva.knowledge.online_knowledge import OnlineKnowledgeAccess
 except ImportError:
     OnlineKnowledgeAccess = None
@@ -333,6 +338,17 @@ class CoreBrain:
         except Exception as e:
             self.self_dialog_learning = None
             self.query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
+        
+        # Performance Analyzer
+        try:
+            if PerformanceAnalyzer:
+                self.performance_analyzer = PerformanceAnalyzer(brain=self)
+                self.query_logger.info("PerformanceAnalyzer initialized")
+            else:
+                self.performance_analyzer = None
+        except Exception as e:
+            self.performance_analyzer = None
+            self.query_logger.debug(f"PerformanceAnalyzer not available: {e}")
         
         # Online Knowledge Access
         try:
@@ -1376,11 +1392,21 @@ class CoreBrain:
                         simple_greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello', 'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания']
                         is_greeting = any(query.lower().strip() == p for p in simple_greetings) or (len(query.split()) <= 2 and not any(c.isalpha() for c in query))
                         
-                        # ВСЕГДА ищем в интернете если это не приветствие
-                        if web_search and hasattr(web_search, 'search') and not is_greeting:
+                        # Извлекаем оригинальный запрос для веб-поиска (если запрос содержит контекст файла)
+                        search_query = query
+                        if "Запрос пользователя:" in query:
+                            parts = query.split("Запрос пользователя:")
+                            if len(parts) > 1:
+                                search_query = parts[-1].strip()
+                        elif "Пользователь прикрепил файл" in query:
+                            # Skip web search for file analysis queries
+                            is_greeting = True
+                        
+                        # ВСЕГДА ищем в интернете если это не приветствие и не анализ файла
+                        if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500:
                             try:
-                                # Используем ТОЛЬКО оригинальный запрос для веб-поиска
-                                search_query = query.strip()
+                                # Используем только оригинальный запрос для веб-поиска
+                                search_query = search_query[:200]
                                 
                                 # Проверяем кэш перед поиском
                                 query_hash = str(abs(hash(search_query)))
