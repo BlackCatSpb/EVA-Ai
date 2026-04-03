@@ -233,7 +233,8 @@ class SelfDialogLearningSystem:
                 return
             
             self.stats["opportunities_found"] += len(opportunities)
-            logger.info(f"Найдено {len(opportunities)} возможностей для обучения")
+            if len(opportunities) > 0:
+                logger.debug(f"Найдено {len(opportunities)} возможностей для обучения")
             
             for opportunity in opportunities:
                 self._execute_learning_opportunity(opportunity)
