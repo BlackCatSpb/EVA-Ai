@@ -654,16 +654,11 @@ def api_login():
             # Получаем существующие сессии пользователя
             existing_sessions = web_gui_instance.session_manager.get_user_sessions(user['user_id'])
             
-            # Если есть сессии - используем первую, иначе создаём новую
-            if existing_sessions:
-                session_id = existing_sessions[0]['id']
-                # Обновляем last_active
-                web_gui_instance.session_manager.update_session(session_id, {})
-            else:
-                session_id = web_gui_instance.session_manager.create_session(
-                    user['user_id'], 
-                    f"Сессия {username}"
-                )
+            # Всегда создаём новую чистую сессию при логине
+            session_id = web_gui_instance.session_manager.create_session(
+                user['user_id'], 
+                f"Сессия {username}"
+            )
             
             # Обновляем список сессий
             sessions = web_gui_instance.session_manager.get_user_sessions(user['user_id'])
