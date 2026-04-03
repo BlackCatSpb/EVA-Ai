@@ -1,0 +1,125 @@
+{
+  "hybrid_cache": {
+    "hot_window_size_mb": 512,
+    "max_hot_tokens": 16384,
+    "gpu_acceleration": false,
+    "device": "cpu",
+    "ram_buffer_mb": 2048,
+    "ssd_cache_enabled": true,
+    "max_context_length": 32768,
+    "max_batch_size": 4,
+    "memory_check_interval": 5,
+    "aggressive_eviction": true,
+    "prefetch_enabled": true,
+    "max_disk_cache_gb": 50.0,
+    "eviction_policy": "lru",
+    "context_ttl": 7200,
+    "document_ttl": 86400,
+    "search_ttl": 43200
+  },
+  "model": {
+    "name": "qwen3.5-0.8b",
+    "type": "qwen",
+    "path": "eva/mlearning/eva_models/qwen3.5-0.8b",
+    "vocab_size": 151936,
+    "max_length": 2048,
+    "max_new_tokens": 512,
+    "device": "cpu",
+    "quantization": "none",
+    "torch_dtype": "float16",
+    "qwen_only_mode": true,
+    "disable_fallback": false,
+    "use_llama_cpp": true,
+    "gguf_model_path": "eva/models/qwen2.5-0.5b-instruct-q4_0.gguf",
+    "llama_cpp_threads": 8,
+    "llama_cpp_n_ctx": 4096
+  },
+  "generation": {
+    "temperature": 0.6,
+    "top_p": 0.85,
+    "top_k": 50,
+    "max_new_tokens": 2048,
+    "do_sample": true,
+    "repetition_penalty": 1.3,
+    "pad_token_id": 151643
+  },
+  "optimization": {
+    "use_gpu": false,
+    "cpu_fallback": false,
+    "cache_responses": true,
+    "batch_processing": false,
+    "force_cpu": true
+  },
+  "learning": {
+    "enable_training": false,
+    "training_disabled": true,
+    "auto_learning_enabled": false,
+    "learning_rate": 0.001,
+    "batch_size": 8
+  },
+  "self_dialog_learning": {
+    "enabled": true,
+    "auto_execute_enabled": true,
+    "auto_learning_interval": 60,
+    "auto_dialog_interval": 300,
+    "cycles_per_session": 3,
+    "min_quality_threshold": 0.5,
+    "topics": [
+      "philosophy and consciousness",
+      "scientific method",
+      "ethical decision making",
+      "creativity and problem solving",
+      "knowledge and understanding",
+      "language and communication",
+      "logic and reasoning",
+      "history and human experience"
+    ]
+  },
+  "system": {
+    "disable_learning_threads": true,
+    "disable_background_training": true,
+    "max_concurrent_operations": 4,
+    "log_throttle_seconds": 30,
+    "query_timeout": 30
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "eva.log",
+    "console": true,
+    "performance_tracking": true
+  },
+  "online_knowledge": {
+    "enabled": true,
+    "cache_ttl": 3600,
+    "wikipedia_lang": "ru"
+  },
+  "curiosity_engine": {
+    "enabled": true,
+    "curiosity_interval": 600,
+    "unknown_entity_threshold": 0.3,
+    "gap_confidence_threshold": 0.5
+  },
+  "knowledge_awareness": {
+    "enabled": true
+  },
+  "reasoning": {
+    "enabled": true,
+    "max_iterations": 5,
+    "confidence_threshold": 0.75,
+    "storage_dir": "./cache/fractal_reasoning",
+    "weights": {
+      "ethics": 0.3,
+      "contradiction": 0.3,
+      "knowledge": 0.4
+    },
+    "enhanced_reasoning": {
+      "enabled": true,
+      "max_iterations": 5,
+      "stability_threshold": 0.95,
+      "improvement_threshold": 0.05,
+      "min_confidence": 0.7,
+      "use_self_learning": true,
+      "use_fractal_qwen": true
+    }
+  }
+}

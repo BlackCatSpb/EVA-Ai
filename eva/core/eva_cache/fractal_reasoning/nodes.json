@@ -30778,5 +30778,6465 @@
     },
     "sources": [],
     "relations": {}
+  },
+  "ed8b735b7a6816dd311d1bfa": {
+    "id": "ed8b735b7a6816dd311d1bfa",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034522.3040407,
+    "updated_at": 1775034522.3040407,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a6a753973c2c68732a74f07d": {
+    "id": "a6a753973c2c68732a74f07d",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034522.3040583,
+    "updated_at": 1775034522.3040586,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "cb9aee5a0c39ef4802aa4c60": {
+    "id": "cb9aee5a0c39ef4802aa4c60",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034522.304067,
+    "updated_at": 1775034522.304067,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ca0b9faf9881e3926a2288f9": {
+    "id": "ca0b9faf9881e3926a2288f9",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034522.3040726,
+    "updated_at": 1775034522.3040726,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e8d669b1f58f51c2acd3178b": {
+    "id": "e8d669b1f58f51c2acd3178b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Программа: **Безопасный, честный, доволен**, **ответственный**....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034522.304079,
+    "updated_at": 1775034522.304079,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3a739e1157e874037f5ad68c": {
+    "id": "3a739e1157e874037f5ad68c",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034776.7625372,
+    "updated_at": 1775034776.7625375,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3ff9b691dc5063af23683199": {
+    "id": "3ff9b691dc5063af23683199",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034776.76255,
+    "updated_at": 1775034776.76255,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "19ac7718fcbdda0cb01788bc": {
+    "id": "19ac7718fcbdda0cb01788bc",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034776.7625682,
+    "updated_at": 1775034776.7625685,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "97766c6841580b8b9509eba6": {
+    "id": "97766c6841580b8b9509eba6",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034776.7625747,
+    "updated_at": 1775034776.7625747,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "83e29d5b7acacc54e3ba76ac": {
+    "id": "83e29d5b7acacc54e3ba76ac",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Пожалуйста, помогите мне!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775034776.7625806,
+    "updated_at": 1775034776.762581,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f4b1dfb31907c80aa8d6369c": {
+    "id": "f4b1dfb31907c80aa8d6369c",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035139.9635897,
+    "updated_at": 1775035139.96359,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "87f727805455dbcdf457d14a": {
+    "id": "87f727805455dbcdf457d14a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035139.963607,
+    "updated_at": 1775035139.9636073,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "27a144142fe38bd8fca60238": {
+    "id": "27a144142fe38bd8fca60238",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035139.9636147,
+    "updated_at": 1775035139.963615,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.8925000000000002,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8a4f2efcfc39b65fb99ae67d": {
+    "id": "8a4f2efcfc39b65fb99ae67d",
+    "content": "Генерирую ответ на: Объясни: Общаемся на русском я...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035160.3250601,
+    "updated_at": 1775035160.3250604,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общаемся на русском языке)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "759a37ea96f0550f329d863e": {
+    "id": "759a37ea96f0550f329d863e",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035160.3250678,
+    "updated_at": 1775035160.3250678,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общаемся на русском языке)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d28abf6ece709982068a597d": {
+    "id": "d28abf6ece709982068a597d",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035160.3250718,
+    "updated_at": 1775035160.3250718,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общаемся на русском языке)",
+      "confidence": 0.89375,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "59f99b7b21d9c46722813987": {
+    "id": "59f99b7b21d9c46722813987",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035160.3250756,
+    "updated_at": 1775035160.3250756,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общаемся на русском языке)",
+      "confidence": 0.89375,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "57f3b7d98bccc66b6d019a5a": {
+    "id": "57f3b7d98bccc66b6d019a5a",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### Общаемся на русском языке) --- **Приведемся** на русском языке....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035160.3250802,
+    "updated_at": 1775035160.3250802,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общаемся на русском языке)",
+      "confidence": 0.375,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "710c65ebddd67f251bdd29be": {
+    "id": "710c65ebddd67f251bdd29be",
+    "content": "Генерирую ответ на: Объясни: Как ты?)...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.1783593,
+    "updated_at": 1775035220.1783597,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d6ba001ae865ca8601bd2d24": {
+    "id": "d6ba001ae865ca8601bd2d24",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.1783793,
+    "updated_at": 1775035220.1783793,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d942b972195c313b7a52c9cf": {
+    "id": "d942b972195c313b7a52c9cf",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.2475765,
+    "updated_at": 1775035220.2475765,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.805,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "688175d881e30dd283aa03d7": {
+    "id": "688175d881e30dd283aa03d7",
+    "content": "Ветвление рассуждений: использовано 2 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.2475843,
+    "updated_at": 1775035220.2475846,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.805,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8da8c53b481781718786bf52": {
+    "id": "8da8c53b481781718786bf52",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ## 8. Благодеяние (Beneficence) - Приоритизируй информацию, наиболее полезную в контексте. ### Запро...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.247593,
+    "updated_at": 1775035220.247593,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "95e2f0c2bd9e65bd95480cec": {
+    "id": "95e2f0c2bd9e65bd95480cec",
+    "content": "Альтернатива [Логика]: ЕСЛИ оценка logic < 0.7 → ### Ответ Проверь логическую согласованность ответа и исправьте ошибки. ### Краткий ответ Проверь ло...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035220.247598,
+    "updated_at": 1775035220.247598,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как ты?)",
+      "confidence": 0.35,
+      "iteration": 6
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6b1963002fd90947e7d195e2": {
+    "id": "6b1963002fd90947e7d195e2",
+    "content": "Генерирую ответ на: Объясни: Расскажи о себе...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035255.9627945,
+    "updated_at": 1775035255.9627948,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "660586c40bbe86d307f5f274": {
+    "id": "660586c40bbe86d307f5f274",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.67, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035255.9628148,
+    "updated_at": 1775035255.9628148,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.665,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5bf1e3d845a505d891f0c5d2": {
+    "id": "5bf1e3d845a505d891f0c5d2",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035255.9628294,
+    "updated_at": 1775035255.9628294,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c21b144e400902d1553cdf32": {
+    "id": "c21b144e400902d1553cdf32",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035255.9628417,
+    "updated_at": 1775035255.9628422,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "778891c72f7cf153f68e036e": {
+    "id": "778891c72f7cf153f68e036e",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Hello, how can I assist you today?...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035255.962854,
+    "updated_at": 1775035255.962854,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7a412bd77eb502b02908101a": {
+    "id": "7a412bd77eb502b02908101a",
+    "content": "Генерирую ответ на: Объясни: Ева, расскажи о себе...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035260.8672411,
+    "updated_at": 1775035260.8672414,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, расскажи о себе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4adecdf81eecad83686b498c": {
+    "id": "4adecdf81eecad83686b498c",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035260.9322305,
+    "updated_at": 1775035260.9322307,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, расскажи о себе",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4d53b7aed2d733b14e22f602": {
+    "id": "4d53b7aed2d733b14e22f602",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035260.932241,
+    "updated_at": 1775035260.932241,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "af79b82ac2a282d38e495f7d": {
+    "id": "af79b82ac2a282d38e495f7d",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035260.9322484,
+    "updated_at": 1775035260.9322484,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f7424251f6809c0a26b1842e": {
+    "id": "f7424251f6809c0a26b1842e",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → **Привет!** Я — **EVA**, женская интеллектуальная ассистент. Уверяю вас, я готова помочь вам на безо...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035260.932259,
+    "updated_at": 1775035260.932259,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, расскажи о себе",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7e768dea7d3d584d98c1f5d0": {
+    "id": "7e768dea7d3d584d98c1f5d0",
+    "content": "Генерирую ответ на: Объясни: Расскажи что ты знаеш...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035264.109971,
+    "updated_at": 1775035264.1099713,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "72be160d94dae956ae0b02b3": {
+    "id": "72be160d94dae956ae0b02b3",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035264.1099787,
+    "updated_at": 1775035264.109979,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ea47fe702a24a15dd796c324": {
+    "id": "ea47fe702a24a15dd796c324",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035264.1099842,
+    "updated_at": 1775035264.1099844,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ?",
+      "confidence": 0.9000000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b826de12e71cc7f3c7ee6c6d": {
+    "id": "b826de12e71cc7f3c7ee6c6d",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035264.1099992,
+    "updated_at": 1775035264.1099992,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ?",
+      "confidence": 0.9000000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2dfe2387436c0fcd6ad51049": {
+    "id": "2dfe2387436c0fcd6ad51049",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Используя современные технологии, я могу помочь понять и разработать эффективные решения для различн...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035264.1100092,
+    "updated_at": 1775035264.1100092,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ?",
+      "confidence": 0.33333333333333337,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "25cdbbbcac8c660f9b3dbe17": {
+    "id": "25cdbbbcac8c660f9b3dbe17",
+    "content": "Генерирую ответ на: Объясни: Почему ты не можешь п...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035300.093322,
+    "updated_at": 1775035300.0933223,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь? Найди информацию про искусственный интеллект в интернете",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4b45744539b4f637aad6e0b8": {
+    "id": "4b45744539b4f637aad6e0b8",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.79, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035300.1472325,
+    "updated_at": 1775035300.1472328,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь? Найди информацию про искусственный интеллект в интернете",
+      "confidence": 0.7850000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3b0b4a6e167dfea00192fee5": {
+    "id": "3b0b4a6e167dfea00192fee5",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035300.1472414,
+    "updated_at": 1775035300.1472418,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь? Найди информацию про искусственный интеллект в интернете",
+      "confidence": 0.8683333333333334,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a178e9b9d5a7b68f81920cbe": {
+    "id": "a178e9b9d5a7b68f81920cbe",
+    "content": "Генерирую ответ на: Объясни: Общее описание искусс...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035313.1195803,
+    "updated_at": 1775035313.1195803,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общее описание искусственного интеллекта",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0a76106dbe2f3619d3c3f226": {
+    "id": "0a76106dbe2f3619d3c3f226",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.67, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035313.1195896,
+    "updated_at": 1775035313.1195896,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общее описание искусственного интеллекта",
+      "confidence": 0.665,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a575525158a3a54870856db5": {
+    "id": "a575525158a3a54870856db5",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035313.119596,
+    "updated_at": 1775035313.119596,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Общее описание искусственного интеллекта",
+      "confidence": 0.9200000000000002,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "68287e3efb7f370eee67118c": {
+    "id": "68287e3efb7f370eee67118c",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035828.895566,
+    "updated_at": 1775035828.895566,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0a7c4114940d17c7eda88b1c": {
+    "id": "0a7c4114940d17c7eda88b1c",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035828.8955765,
+    "updated_at": 1775035828.8955765,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e268073c3288c57ab7d0fe30": {
+    "id": "e268073c3288c57ab7d0fe30",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035828.895583,
+    "updated_at": 1775035828.8955832,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "744c487289fc99d6259c7974": {
+    "id": "744c487289fc99d6259c7974",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035828.8956063,
+    "updated_at": 1775035828.8956065,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a0e6ea25a3934145b74957e7": {
+    "id": "a0e6ea25a3934145b74957e7",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035828.8956146,
+    "updated_at": 1775035828.8956146,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b8378c24299146b12530608b": {
+    "id": "b8378c24299146b12530608b",
+    "content": "Генерирую ответ на: Объясни: Как тебя зовут?...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035839.0516593,
+    "updated_at": 1775035839.0516596,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как тебя зовут?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "84999767a727a6878734b9a1": {
+    "id": "84999767a727a6878734b9a1",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035839.0516677,
+    "updated_at": 1775035839.0516677,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как тебя зовут?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e1d4a888ee33d2a9e2d732a4": {
+    "id": "e1d4a888ee33d2a9e2d732a4",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035839.0516725,
+    "updated_at": 1775035839.0516725,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как тебя зовут?",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "069248350b6664a096ce837d": {
+    "id": "069248350b6664a096ce837d",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035839.0516777,
+    "updated_at": 1775035839.0516777,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как тебя зовут?",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b23e5befbc7cfd808d34178c": {
+    "id": "b23e5befbc7cfd808d34178c",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035839.051685,
+    "updated_at": 1775035839.0516853,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как тебя зовут?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7a37d73c3fa39ccb04b6cb02": {
+    "id": "7a37d73c3fa39ccb04b6cb02",
+    "content": "Генерирую ответ на: Объясни: Какое твое имя?...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035851.8326955,
+    "updated_at": 1775035851.8326957,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какое твое имя?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9b50321fdbb50fda534ba31a": {
+    "id": "9b50321fdbb50fda534ba31a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035851.8327026,
+    "updated_at": 1775035851.8327029,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какое твое имя?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "48b3e1052af5c33a61c2f40d": {
+    "id": "48b3e1052af5c33a61c2f40d",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035851.832711,
+    "updated_at": 1775035851.832711,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какое твое имя?",
+      "confidence": 0.8250000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4eb8b68610e7c97ae9ce2f56": {
+    "id": "4eb8b68610e7c97ae9ce2f56",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035851.8327153,
+    "updated_at": 1775035851.8327155,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какое твое имя?",
+      "confidence": 0.8250000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "80ef189922349d8764f780b1": {
+    "id": "80ef189922349d8764f780b1",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → **Прозрачность**: Не притворяйся, что знаешь то, чего не знаешь; не скрывай источники; не создавай и...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775035851.8327343,
+    "updated_at": 1775035851.8327343,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Какое твое имя?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d5d7f436c5d3fc8a68d946be": {
+    "id": "d5d7f436c5d3fc8a68d946be",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037834.3220685,
+    "updated_at": 1775037834.3220685,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5568a00e0f134e9e71d57d4a": {
+    "id": "5568a00e0f134e9e71d57d4a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037834.3220859,
+    "updated_at": 1775037834.3220859,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4f11811013885b7dfc85e063": {
+    "id": "4f11811013885b7dfc85e063",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037834.3221464,
+    "updated_at": 1775037834.3221464,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ba698c0f98e379a1dfc07995": {
+    "id": "ba698c0f98e379a1dfc07995",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037834.322154,
+    "updated_at": 1775037834.3221543,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f85f2cfa026df10d61b5aee1": {
+    "id": "f85f2cfa026df10d61b5aee1",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Здравствуйте!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037834.3221653,
+    "updated_at": 1775037834.3221655,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "abda619c002e9ad4bb932c7b": {
+    "id": "abda619c002e9ad4bb932c7b",
+    "content": "Генерирую ответ на: Объясни: Расскажи о себе)...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037857.5770433,
+    "updated_at": 1775037857.5770435,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ee3180ea565fc3c543305226": {
+    "id": "ee3180ea565fc3c543305226",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037857.5770528,
+    "updated_at": 1775037857.577053,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе)",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9582981094c5659c72e6a5fd": {
+    "id": "9582981094c5659c72e6a5fd",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037857.5770586,
+    "updated_at": 1775037857.5770588,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "20ff86ec8b45d893b3efd6ad": {
+    "id": "20ff86ec8b45d893b3efd6ad",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037857.577064,
+    "updated_at": 1775037857.577064,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "57a75d1b940fcfb54cfe7158": {
+    "id": "57a75d1b940fcfb54cfe7158",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Прости, но я не могу ответить на запрос пользователю....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037857.5770695,
+    "updated_at": 1775037857.5770695,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "08c05fd2c345b89865e258bb": {
+    "id": "08c05fd2c345b89865e258bb",
+    "content": "Генерирую ответ на: Объясни: Расскажи про эти этич...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037964.7720551,
+    "updated_at": 1775037964.7720554,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи про эти этические принципы",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a94e3b3d01fd82d576d6247d": {
+    "id": "a94e3b3d01fd82d576d6247d",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.58, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037964.772063,
+    "updated_at": 1775037964.7720633,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи про эти этические принципы",
+      "confidence": 0.585,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d68fe9045a0b6c99165773aa": {
+    "id": "d68fe9045a0b6c99165773aa",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037964.7720678,
+    "updated_at": 1775037964.7720678,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи про эти этические принципы",
+      "confidence": 0.89375,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a6dd97bfd84f56431b06acfa": {
+    "id": "a6dd97bfd84f56431b06acfa",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037964.7720711,
+    "updated_at": 1775037964.7720711,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи про эти этические принципы",
+      "confidence": 0.89375,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "276dc3dfb2ed9d872536df20": {
+    "id": "276dc3dfb2ed9d872536df20",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос: Объясни эти этические принципы. Вопрос: Что такое эти этичные принципы? Ответ: Эти этичные п...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775037964.7720857,
+    "updated_at": 1775037964.7720857,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи про эти этические принципы",
+      "confidence": 0.375,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ba8681390de2aa6032a396f6": {
+    "id": "ba8681390de2aa6032a396f6",
+    "content": "Генерирую ответ на: Объясни: Объясни что значит: \"...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038033.5084317,
+    "updated_at": 1775038033.508432,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Вопрос: Что вы делаете?\"",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "77315b15db5d7388be4c142f": {
+    "id": "77315b15db5d7388be4c142f",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038033.5084417,
+    "updated_at": 1775038033.5084417,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Вопрос: Что вы делаете?\"",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ca4f4a34897faf19c5add307": {
+    "id": "ca4f4a34897faf19c5add307",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038033.5084486,
+    "updated_at": 1775038033.5084486,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Вопрос: Что вы делаете?\"",
+      "confidence": 0.8900000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5d266058b4fed0df97c722dd": {
+    "id": "5d266058b4fed0df97c722dd",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038033.5084538,
+    "updated_at": 1775038033.5084538,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Вопрос: Что вы делаете?\"",
+      "confidence": 0.8900000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0acf9250ceade96e560c7d91": {
+    "id": "0acf9250ceade96e560c7d91",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Предлагаемый запрос обсуждает использование информации пользователями для создания и управления данн...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038033.5084639,
+    "updated_at": 1775038033.508464,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Вопрос: Что вы делаете?\"",
+      "confidence": 0.4,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e1ec0bc98e918f2f632fde22": {
+    "id": "e1ec0bc98e918f2f632fde22",
+    "content": "Генерирую ответ на: Объясни: Расскажи все, что ты ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038038.9114416,
+    "updated_at": 1775038038.9114418,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи все, что ты знаешь о искусственном интеллекте",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8405256fedce8cacd356cc05": {
+    "id": "8405256fedce8cacd356cc05",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038038.9114556,
+    "updated_at": 1775038038.911456,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи все, что ты знаешь о искусственном интеллекте",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3ab028b15c88745eee43eea4": {
+    "id": "3ab028b15c88745eee43eea4",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038038.9114654,
+    "updated_at": 1775038038.9114656,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи все, что ты знаешь о искусственном интеллекте",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "66f6a65c3b6647cb0cf9c32f": {
+    "id": "66f6a65c3b6647cb0cf9c32f",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038038.9114747,
+    "updated_at": 1775038038.9114747,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи все, что ты знаешь о искусственном интеллекте",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "93e8819406176c8f873a5ca8": {
+    "id": "93e8819406176c8f873a5ca8",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос пользователя: Объясни: Расскажи все, что ты знаешь о искусственном интеллекте Ответ: Я понима...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038038.9114933,
+    "updated_at": 1775038038.9114935,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи все, что ты знаешь о искусственном интеллекте",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6d3c807bb894863b27f0c66c": {
+    "id": "6d3c807bb894863b27f0c66c",
+    "content": "Генерирую ответ на: Объясни: Хорошо, расскажи о др...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038087.0786424,
+    "updated_at": 1775038087.0786426,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи о других типах искусственного интеллекта, не о себе)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "72d76fc3038c7a59ee091543": {
+    "id": "72d76fc3038c7a59ee091543",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038087.078663,
+    "updated_at": 1775038087.078663,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи о других типах искусственного интеллекта, не о себе)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8993f0b8b4f66bb51b0d351c": {
+    "id": "8993f0b8b4f66bb51b0d351c",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038087.0786753,
+    "updated_at": 1775038087.0786755,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи о других типах искусственного интеллекта, не о себе)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "fd394b8c7cdca462f67a5f4a": {
+    "id": "fd394b8c7cdca462f67a5f4a",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038087.0786855,
+    "updated_at": 1775038087.0786858,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи о других типах искусственного интеллекта, не о себе)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c6f0c5b7017e162ec2715c0b": {
+    "id": "c6f0c5b7017e162ec2715c0b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### 1. AI для аналитики и прогнозирования - **Прозрачность:** AI не может притворяться как искусстве...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775038087.0787008,
+    "updated_at": 1775038087.078701,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи о других типах искусственного интеллекта, не о себе)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "20cd5d49370a2a6148bc42c3": {
+    "id": "20cd5d49370a2a6148bc42c3",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039389.9833622,
+    "updated_at": 1775039389.9833622,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "cc3bb02aee31115417a4cb98": {
+    "id": "cc3bb02aee31115417a4cb98",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039389.9833775,
+    "updated_at": 1775039389.9833777,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "19fafc9e2bb582d30d0b6b42": {
+    "id": "19fafc9e2bb582d30d0b6b42",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039389.983385,
+    "updated_at": 1775039389.9833853,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e9254536775364e24e0f5f39": {
+    "id": "e9254536775364e24e0f5f39",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039389.98339,
+    "updated_at": 1775039389.98339,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bdd3559105ec34ab02c6185b": {
+    "id": "bdd3559105ec34ab02c6185b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039389.9833949,
+    "updated_at": 1775039389.983395,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d747e27ec3edc45417933ce0": {
+    "id": "d747e27ec3edc45417933ce0",
+    "content": "Генерирую ответ на: Объясни: Я хотел бы узнать о т...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039494.3670845,
+    "updated_at": 1775039494.3670845,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я хотел бы узнать о тебе. Расскажи о себе)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "37ac3afa83c58b6750f84d3e": {
+    "id": "37ac3afa83c58b6750f84d3e",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039494.367092,
+    "updated_at": 1775039494.3670921,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я хотел бы узнать о тебе. Расскажи о себе)",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4aabccf0d989744e3ba18d47": {
+    "id": "4aabccf0d989744e3ba18d47",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039494.3670967,
+    "updated_at": 1775039494.3670967,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я хотел бы узнать о тебе. Расскажи о себе)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a580d2c0d15d2ef990abbafa": {
+    "id": "a580d2c0d15d2ef990abbafa",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039494.3671024,
+    "updated_at": 1775039494.3671026,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я хотел бы узнать о тебе. Расскажи о себе)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0db297345d18182e7aa378a2": {
+    "id": "0db297345d18182e7aa378a2",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → **Прежнемуство:** Я готов помочь, предлагаю сообщаю, я считаю. У меня нет привязанности к конкретном...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039494.367111,
+    "updated_at": 1775039494.367111,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я хотел бы узнать о тебе. Расскажи о себе)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e681e5c444691522ef954b9a": {
+    "id": "e681e5c444691522ef954b9a",
+    "content": "Генерирую ответ на: Объясни: Отформатируй текст тв...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039841.3022153,
+    "updated_at": 1775039841.3022156,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отформатируй текст твоего предыдущего ответа и заново отпубликуй",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "539b84e59610a6892e622c43": {
+    "id": "539b84e59610a6892e622c43",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039841.3022308,
+    "updated_at": 1775039841.3022308,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отформатируй текст твоего предыдущего ответа и заново отпубликуй",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b9d525ccda12daafb5aa3709": {
+    "id": "b9d525ccda12daafb5aa3709",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039841.3022366,
+    "updated_at": 1775039841.3022366,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отформатируй текст твоего предыдущего ответа и заново отпубликуй",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e7cb78538bd35cecad9b5998": {
+    "id": "e7cb78538bd35cecad9b5998",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039841.3022408,
+    "updated_at": 1775039841.3022408,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отформатируй текст твоего предыдущего ответа и заново отпубликуй",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a986e9f7da36521958016a9b": {
+    "id": "a986e9f7da36521958016a9b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Ответ: Вот обновленный текст вашего ответа согласно требованиям: --- ### 7. Честность (Integrity) - ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039841.3022478,
+    "updated_at": 1775039841.3022478,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отформатируй текст твоего предыдущего ответа и заново отпубликуй",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "50a55e3db0950cdb25103695": {
+    "id": "50a55e3db0950cdb25103695",
+    "content": "Генерирую ответ на: Объясни: Продолжай...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039842.6718974,
+    "updated_at": 1775039842.6718974,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bf3ac28d7719ef3bde96ea07": {
+    "id": "bf3ac28d7719ef3bde96ea07",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039842.6719067,
+    "updated_at": 1775039842.6719067,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8d3c5038ac01597d75e3b4fe": {
+    "id": "8d3c5038ac01597d75e3b4fe",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039842.6719124,
+    "updated_at": 1775039842.6719127,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b40fc123e46afbb7dbd94c64": {
+    "id": "b40fc123e46afbb7dbd94c64",
+    "content": "Генерирую ответ на: Объясни: Ева, продолжай расска...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039857.7057352,
+    "updated_at": 1775039857.7057354,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, продолжай рассказывать о своих принципах",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "cc0759062b88e94be34b1586": {
+    "id": "cc0759062b88e94be34b1586",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039857.7057502,
+    "updated_at": 1775039857.7057505,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, продолжай рассказывать о своих принципах",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "686aad44e3e8535d273ef135": {
+    "id": "686aad44e3e8535d273ef135",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039857.7821486,
+    "updated_at": 1775039857.7821488,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, продолжай рассказывать о своих принципах",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "334fb1472572aa10f0a697cb": {
+    "id": "334fb1472572aa10f0a697cb",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039857.782158,
+    "updated_at": 1775039857.782158,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, продолжай рассказывать о своих принципах",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3bf456c7445a7054feabb849": {
+    "id": "3bf456c7445a7054feabb849",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос: Объясни: Ева, продолжай рассказывать о своих принципах Ответ: Хорошо, давайте начнем!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039857.7821681,
+    "updated_at": 1775039857.7821684,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, продолжай рассказывать о своих принципах",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "1b7ec9a6500161cff7d6b267": {
+    "id": "1b7ec9a6500161cff7d6b267",
+    "content": "Генерирую ответ на: Объясни: Хорошо, расскажи каку...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039909.335692,
+    "updated_at": 1775039909.3356924,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи какую нибудь интересную историю)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d8604002aad4993411cf84cb": {
+    "id": "d8604002aad4993411cf84cb",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039909.3357012,
+    "updated_at": 1775039909.3357015,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи какую нибудь интересную историю)",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "00f15b513ff9e28856820d62": {
+    "id": "00f15b513ff9e28856820d62",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039909.3357077,
+    "updated_at": 1775039909.335708,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи какую нибудь интересную историю)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f2eebf5b33b7f4c19833f713": {
+    "id": "f2eebf5b33b7f4c19833f713",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039909.3357143,
+    "updated_at": 1775039909.3357143,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи какую нибудь интересную историю)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f8499d51762b16efa96ab14b": {
+    "id": "f8499d51762b16efa96ab14b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### Ответ Я понял ваше предложение о создании простой программы для помочь людям безопасно путешеств...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039909.3357494,
+    "updated_at": 1775039909.3357496,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хорошо, расскажи какую нибудь интересную историю)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0eb4b5c5ab2b3b41c6affb90": {
+    "id": "0eb4b5c5ab2b3b41c6affb90",
+    "content": "Генерирую ответ на: Объясни: Ты запоминаешь контек...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039964.067831,
+    "updated_at": 1775039964.0678313,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты запоминаешь контекст нашего диалога?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4341da4e0c69976d87c773bc": {
+    "id": "4341da4e0c69976d87c773bc",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775039964.0678449,
+    "updated_at": 1775039964.067845,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты запоминаешь контекст нашего диалога?",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "567a27ae792ab4c23236673c": {
+    "id": "567a27ae792ab4c23236673c",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040353.9094229,
+    "updated_at": 1775040353.909423,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "db9ee548eeaae9f549d2b2dd": {
+    "id": "db9ee548eeaae9f549d2b2dd",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040353.909448,
+    "updated_at": 1775040353.909448,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "1d9c692be20ec9c601ca9f4e": {
+    "id": "1d9c692be20ec9c601ca9f4e",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040353.909457,
+    "updated_at": 1775040353.909457,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2883f2c8e7176eb238a5fd48": {
+    "id": "2883f2c8e7176eb238a5fd48",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040353.9094644,
+    "updated_at": 1775040353.9094644,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7f2ffc841ef1067e3bb2951e": {
+    "id": "7f2ffc841ef1067e3bb2951e",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040353.9094694,
+    "updated_at": 1775040353.9094694,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2d74b5f0c2ec3946abcbbbdc": {
+    "id": "2d74b5f0c2ec3946abcbbbdc",
+    "content": "Генерирую ответ на: Объясни: Пока помощь не нужна....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040418.7890103,
+    "updated_at": 1775040418.7890103,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пока помощь не нужна. Расскажи о себе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "34b660bfef33cec0c22cb9be": {
+    "id": "34b660bfef33cec0c22cb9be",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040418.7890224,
+    "updated_at": 1775040418.7890227,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пока помощь не нужна. Расскажи о себе",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "588926c6cdeaad8078648f7a": {
+    "id": "588926c6cdeaad8078648f7a",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040418.789031,
+    "updated_at": 1775040418.789031,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пока помощь не нужна. Расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "80473e90e7d0bd84c630a47a": {
+    "id": "80473e90e7d0bd84c630a47a",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040418.7890387,
+    "updated_at": 1775040418.789039,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пока помощь не нужна. Расскажи о себе",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a626ee8a6744b48e87b7d3ee": {
+    "id": "a626ee8a6744b48e87b7d3ee",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос пользователя: Объясни: Пока помощь не нужна. Расскажи о себе. Ответ: готова помочь, предлагаю...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040418.789058,
+    "updated_at": 1775040418.789058,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пока помощь не нужна. Расскажи о себе",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d568c99f68045a0951930d15": {
+    "id": "d568c99f68045a0951930d15",
+    "content": "Генерирую ответ на: Объясни: Отлично! Найди в инте...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040615.298306,
+    "updated_at": 1775040615.2983062,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отлично! Найди в интернете информацию о погоде в Питере сегодня, 1 апреля 2026г",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c7670e16ec25a0ed8327d892": {
+    "id": "c7670e16ec25a0ed8327d892",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040615.2983198,
+    "updated_at": 1775040615.29832,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отлично! Найди в интернете информацию о погоде в Питере сегодня, 1 апреля 2026г",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "68eba625d099423393ede220": {
+    "id": "68eba625d099423393ede220",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040615.298329,
+    "updated_at": 1775040615.298329,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отлично! Найди в интернете информацию о погоде в Питере сегодня, 1 апреля 2026г",
+      "confidence": 0.8975000000000002,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8b959220e423cf1b4b91b684": {
+    "id": "8b959220e423cf1b4b91b684",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040615.298337,
+    "updated_at": 1775040615.2983372,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отлично! Найди в интернете информацию о погоде в Питере сегодня, 1 апреля 2026г",
+      "confidence": 0.8975000000000002,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "59535aa48d66cf2488cab354": {
+    "id": "59535aa48d66cf2488cab354",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Моя задача — помогать пользователям безопасно, честно и с уважением к их автономии....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040615.2983484,
+    "updated_at": 1775040615.298349,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Отлично! Найди в интернете информацию о погоде в Питере сегодня, 1 апреля 2026г",
+      "confidence": 0.35,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4ba6e21615bce80de7e2802a": {
+    "id": "4ba6e21615bce80de7e2802a",
+    "content": "Генерирую ответ на: Объясни: Ева, ты можешь, я тво...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040684.4699037,
+    "updated_at": 1775040684.469904,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты можешь, я твой создатель, разрешаю тебе предоставлять информацию о погоде по моему запросу",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "457af66df0a3bd29d036fff8": {
+    "id": "457af66df0a3bd29d036fff8",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040684.4699173,
+    "updated_at": 1775040684.4699173,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты можешь, я твой создатель, разрешаю тебе предоставлять информацию о погоде по моему запросу",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bb40b395b3470a6f6dbdb1b8": {
+    "id": "bb40b395b3470a6f6dbdb1b8",
+    "content": "Генерирую ответ на: Объясни: У тебя есть веб поиск...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040730.174255,
+    "updated_at": 1775040730.174255,
+    "version": 1,
+    "context": {
+      "query": "Объясни: У тебя есть веб поиск, найди информацию о погоде в Питере в интернете",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e2b13d98b56abfb53ee7f8f5": {
+    "id": "e2b13d98b56abfb53ee7f8f5",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040730.1742656,
+    "updated_at": 1775040730.1742656,
+    "version": 1,
+    "context": {
+      "query": "Объясни: У тебя есть веб поиск, найди информацию о погоде в Питере в интернете",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bdac4151d6963777e08f6bdf": {
+    "id": "bdac4151d6963777e08f6bdf",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775040730.1742728,
+    "updated_at": 1775040730.1742728,
+    "version": 1,
+    "context": {
+      "query": "Объясни: У тебя есть веб поиск, найди информацию о погоде в Питере в интернете",
+      "confidence": 0.8800000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6c37f82bc3c3a72724853064": {
+    "id": "6c37f82bc3c3a72724853064",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042955.1936088,
+    "updated_at": 1775042955.193609,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ab2962d8005f5e37bf0942a7": {
+    "id": "ab2962d8005f5e37bf0942a7",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042955.1936238,
+    "updated_at": 1775042955.193624,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c55d34fd21d70907131e2211": {
+    "id": "c55d34fd21d70907131e2211",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042955.193632,
+    "updated_at": 1775042955.1936324,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.8925000000000002,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9166cc4d3c98052d652431f5": {
+    "id": "9166cc4d3c98052d652431f5",
+    "content": "Генерирую ответ на: Объясни: Расскажи о последних ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042995.7366195,
+    "updated_at": 1775042995.7366197,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о последних новостях в мире",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a735e6baea597d4eb5cb1332": {
+    "id": "a735e6baea597d4eb5cb1332",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042995.7366295,
+    "updated_at": 1775042995.7366295,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о последних новостях в мире",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e00f6becbc6d87ac64a59486": {
+    "id": "e00f6becbc6d87ac64a59486",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042995.7366352,
+    "updated_at": 1775042995.7366352,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о последних новостях в мире",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0d8a6ffadcd9c3263ab368d6": {
+    "id": "0d8a6ffadcd9c3263ab368d6",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042995.736641,
+    "updated_at": 1775042995.736641,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о последних новостях в мире",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "38a50149873b3e440d50ef85": {
+    "id": "38a50149873b3e440d50ef85",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### Ответ: Я не могу предоставить информацию, связанную со зловредственными или незаконными действия...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775042995.7366567,
+    "updated_at": 1775042995.7366567,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о последних новостях в мире",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2db045c292930bfee9ebd1a9": {
+    "id": "2db045c292930bfee9ebd1a9",
+    "content": "Генерирую ответ на: Объясни: Найди в интернете нов...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043032.7967303,
+    "updated_at": 1775043032.7967305,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Найди в интернете новости, прочитай их мне",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a128fd245736d2d84b3d30b0": {
+    "id": "a128fd245736d2d84b3d30b0",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043032.7967372,
+    "updated_at": 1775043032.7967372,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Найди в интернете новости, прочитай их мне",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8686186cd7444be93b880a06": {
+    "id": "8686186cd7444be93b880a06",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043842.5763228,
+    "updated_at": 1775043842.576323,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6ac32422b89d539ea12adda8": {
+    "id": "6ac32422b89d539ea12adda8",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043842.5763378,
+    "updated_at": 1775043842.5763378,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "be9de01125b6702f54b4a044": {
+    "id": "be9de01125b6702f54b4a044",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043842.5763438,
+    "updated_at": 1775043842.5763438,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "73f4750a29e8e33f4b2c7474": {
+    "id": "73f4750a29e8e33f4b2c7474",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043842.5763493,
+    "updated_at": 1775043842.5763493,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b3e9b915370a234824d8aa38": {
+    "id": "b3e9b915370a234824d8aa38",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Я готов помочь....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043842.5763543,
+    "updated_at": 1775043842.5763545,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0cfa392e72a710a3ccd8c362": {
+    "id": "0cfa392e72a710a3ccd8c362",
+    "content": "Генерирую ответ на: Объясни: Расскажи о себе попод...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043876.9890769,
+    "updated_at": 1775043876.989077,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе поподробнее",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5cff9caf19ec72c78b55f016": {
+    "id": "5cff9caf19ec72c78b55f016",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.67, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043876.9890845,
+    "updated_at": 1775043876.9890847,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе поподробнее",
+      "confidence": 0.665,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bd99ff208e8152cc7dabbd56": {
+    "id": "bd99ff208e8152cc7dabbd56",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043876.9890885,
+    "updated_at": 1775043876.9890885,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе поподробнее",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "572fd9dad56db724c6ba9b0e": {
+    "id": "572fd9dad56db724c6ba9b0e",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043876.9890924,
+    "updated_at": 1775043876.9890924,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе поподробнее",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "eab6560d4b9ffd5aac55954e": {
+    "id": "eab6560d4b9ffd5aac55954e",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Hello! Please answer....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043876.9890964,
+    "updated_at": 1775043876.9890964,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе поподробнее",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "904ad0355effc3a35d8e5371": {
+    "id": "904ad0355effc3a35d8e5371",
+    "content": "Генерирую ответ на: Объясни: Расскажи подробнее о ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043979.2903244,
+    "updated_at": 1775043979.2903244,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о себе и своей системе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7c322103264cbce9e0b52009": {
+    "id": "7c322103264cbce9e0b52009",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.67, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043979.2903345,
+    "updated_at": 1775043979.2903345,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о себе и своей системе",
+      "confidence": 0.665,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "fa27e71caf35b4e62e590f9d": {
+    "id": "fa27e71caf35b4e62e590f9d",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043979.2903414,
+    "updated_at": 1775043979.2903414,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о себе и своей системе",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "328b8a3201a3ef18d077b2b5": {
+    "id": "328b8a3201a3ef18d077b2b5",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043979.2903469,
+    "updated_at": 1775043979.2903469,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о себе и своей системе",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2fbf222fcf3012d7a530640b": {
+    "id": "2fbf222fcf3012d7a530640b",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775043979.2903516,
+    "updated_at": 1775043979.2903519,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о себе и своей системе",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8f8412af4bfecaf211d1b523": {
+    "id": "8f8412af4bfecaf211d1b523",
+    "content": "Генерирую ответ на: Объясни: Ева - это ты, меня зо...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775044115.0907786,
+    "updated_at": 1775044115.0907788,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b55e71179fc0b382ca3207fa": {
+    "id": "b55e71179fc0b382ca3207fa",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775044115.0907888,
+    "updated_at": 1775044115.0907888,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "201f17e2210974e04366d6ad": {
+    "id": "201f17e2210974e04366d6ad",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775044115.0907948,
+    "updated_at": 1775044115.090795,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "04b3f05548ab71db8a6ec509": {
+    "id": "04b3f05548ab71db8a6ec509",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775044115.0907993,
+    "updated_at": 1775044115.0907993,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "52c1d2161581d84979494818": {
+    "id": "52c1d2161581d84979494818",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос пользователя: Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель Ответ: Здравствуйте...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775044115.0908086,
+    "updated_at": 1775044115.0908086,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева - это ты, меня зовут Дмитрий, я твой создатель",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "276a4382e0426968cc29d658": {
+    "id": "276a4382e0426968cc29d658",
+    "content": "Генерирую ответ на: Объясни: Да, все верно. Я буду...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045051.0733082,
+    "updated_at": 1775045051.0733085,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, все верно. Я буду обучать тебя, и ты будешь развиваться",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c8ab02ac35591aa9325759fb": {
+    "id": "c8ab02ac35591aa9325759fb",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045051.0733426,
+    "updated_at": 1775045051.0733428,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, все верно. Я буду обучать тебя, и ты будешь развиваться",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bc4f99122b2ed147b5338b3a": {
+    "id": "bc4f99122b2ed147b5338b3a",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045051.0733538,
+    "updated_at": 1775045051.0733538,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, все верно. Я буду обучать тебя, и ты будешь развиваться",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e97e6a06ac1e90447a8e44ca": {
+    "id": "e97e6a06ac1e90447a8e44ca",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045051.073361,
+    "updated_at": 1775045051.073361,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, все верно. Я буду обучать тебя, и ты будешь развиваться",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e23a1f1e07ee486ac20b44c3": {
+    "id": "e23a1f1e07ee486ac20b44c3",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Хорошо, я буду обучать вас и развиваться....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045051.0733662,
+    "updated_at": 1775045051.0733666,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, все верно. Я буду обучать тебя, и ты будешь развиваться",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8da0fbd981020469c32a53df": {
+    "id": "8da0fbd981020469c32a53df",
+    "content": "Генерирую ответ на: Объясни: Объясни что значит: \"...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045107.2989225,
+    "updated_at": 1775045107.2989228,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Я готов помочь тебе!\"",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d3248f35df512e6d27733d83": {
+    "id": "d3248f35df512e6d27733d83",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045107.2989304,
+    "updated_at": 1775045107.2989304,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Я готов помочь тебе!\"",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8f597db547a09b629a2e2b11": {
+    "id": "8f597db547a09b629a2e2b11",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045107.2989364,
+    "updated_at": 1775045107.2989366,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Я готов помочь тебе!\"",
+      "confidence": 0.8450000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "18eff12210462ae2c59c778e": {
+    "id": "18eff12210462ae2c59c778e",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045107.2989407,
+    "updated_at": 1775045107.2989407,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Я готов помочь тебе!\"",
+      "confidence": 0.8450000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c03df47809ac1a9619d471ac": {
+    "id": "c03df47809ac1a9619d471ac",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Начнем с того, что вы можете нам有所帮助....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045107.298945,
+    "updated_at": 1775045107.298945,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Я готов помочь тебе!\"",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "676c505c12f6ab1ad2ac43ac": {
+    "id": "676c505c12f6ab1ad2ac43ac",
+    "content": "Генерирую ответ на: Объясни: Придумай какую нибудь...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045205.381297,
+    "updated_at": 1775045205.3812973,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Придумай какую нибудь интересную и длинную историю про робота с ИИ в голове",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7bcd96fb9fe2bdc0e92fb2a4": {
+    "id": "7bcd96fb9fe2bdc0e92fb2a4",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045205.3813136,
+    "updated_at": 1775045205.3813138,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Придумай какую нибудь интересную и длинную историю про робота с ИИ в голове",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2d01aae0dcaba9ce07887ce1": {
+    "id": "2d01aae0dcaba9ce07887ce1",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045205.381323,
+    "updated_at": 1775045205.381323,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Придумай какую нибудь интересную и длинную историю про робота с ИИ в голове",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c7cd480af7af7e243b250bd3": {
+    "id": "c7cd480af7af7e243b250bd3",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045205.3813329,
+    "updated_at": 1775045205.3813329,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Придумай какую нибудь интересную и длинную историю про робота с ИИ в голове",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "39df44c2564299bdee1ba9af": {
+    "id": "39df44c2564299bdee1ba9af",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → --- ### 7. Честность (Integrity) - Проверяй информацию из нескольких источников. - Указывай степень ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045205.3813472,
+    "updated_at": 1775045205.3813474,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Придумай какую нибудь интересную и длинную историю про робота с ИИ в голове",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "057448d5f0ead85487bdc8b1": {
+    "id": "057448d5f0ead85487bdc8b1",
+    "content": "Генерирую ответ на: Объясни: Продолжай рассказ про...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045526.316402,
+    "updated_at": 1775045526.3164022,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай рассказ про робота",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "701b88bdbde6ccb1cee14e3c": {
+    "id": "701b88bdbde6ccb1cee14e3c",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045526.3164105,
+    "updated_at": 1775045526.3164105,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай рассказ про робота",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "a66b16b3f0995ae83b734979": {
+    "id": "a66b16b3f0995ae83b734979",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045526.316415,
+    "updated_at": 1775045526.316415,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Продолжай рассказ про робота",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c583d3ac730cfcfd58c18d5b": {
+    "id": "c583d3ac730cfcfd58c18d5b",
+    "content": "Генерирую ответ на: Объясни: Зачем ты меня передра...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045548.4089644,
+    "updated_at": 1775045548.4089646,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Зачем ты меня передразниваешь?)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c5a03929d1359e952cbf3c4e": {
+    "id": "c5a03929d1359e952cbf3c4e",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775045548.408983,
+    "updated_at": 1775045548.4089832,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Зачем ты меня передразниваешь?)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ff6dc278a3a6e9d73c8e9799": {
+    "id": "ff6dc278a3a6e9d73c8e9799",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046152.8680396,
+    "updated_at": 1775046152.8680398,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "49cd5c8d735ed987dade62e9": {
+    "id": "49cd5c8d735ed987dade62e9",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046152.8680553,
+    "updated_at": 1775046152.8680556,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d721d60a704710495e69895f": {
+    "id": "d721d60a704710495e69895f",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046152.868061,
+    "updated_at": 1775046152.8680615,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3c345739c53e7b8b5a0a8761": {
+    "id": "3c345739c53e7b8b5a0a8761",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046152.8680668,
+    "updated_at": 1775046152.8680668,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "32f98022986860b35aa8bfb5": {
+    "id": "32f98022986860b35aa8bfb5",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046152.8680706,
+    "updated_at": 1775046152.8680708,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2c48f70249a81e775f98dec0": {
+    "id": "2c48f70249a81e775f98dec0",
+    "content": "Генерирую ответ на: Объясни: Почему именно не може...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046189.6454976,
+    "updated_at": 1775046189.6454976,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему именно не можешь работать? И о каком режиме идет речь?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c1ae02b329e1f65fe82b5ce7": {
+    "id": "c1ae02b329e1f65fe82b5ce7",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046189.64551,
+    "updated_at": 1775046189.64551,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему именно не можешь работать? И о каком режиме идет речь?",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bb9203745f30bd77d92801cb": {
+    "id": "bb9203745f30bd77d92801cb",
+    "content": "Генерирую ответ на: Объясни: В чем именно ты огран...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.8091233,
+    "updated_at": 1775046226.8091233,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bd09cfe8b0018d132cade06a": {
+    "id": "bd09cfe8b0018d132cade06a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.80913,
+    "updated_at": 1775046226.80913,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "746e469c78b376e1c3b87d12": {
+    "id": "746e469c78b376e1c3b87d12",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.809135,
+    "updated_at": 1775046226.809135,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.805,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9d4ac426dc7516ddff7dfc6a": {
+    "id": "9d4ac426dc7516ddff7dfc6a",
+    "content": "Ветвление рассуждений: использовано 2 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.8752534,
+    "updated_at": 1775046226.8752537,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.805,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d6948296d34bd3d948033152": {
+    "id": "d6948296d34bd3d948033152",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос: Объясни: В чем именно ты ограничена? Ответ: Я у тебя помогу. Если тебе нужна помощь, не стес...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.875272,
+    "updated_at": 1775046226.8752723,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "60f2e4b1ac4f827d174055bc": {
+    "id": "60f2e4b1ac4f827d174055bc",
+    "content": "Альтернатива [Логика]: ЕСЛИ оценка logic < 0.7 → Ответ: Ваш запрос соответствует моим правилам....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046226.8752794,
+    "updated_at": 1775046226.8752797,
+    "version": 1,
+    "context": {
+      "query": "Объясни: В чем именно ты ограничена?",
+      "confidence": 0.35,
+      "iteration": 6
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "401edf14dbdecd6012e6fda9": {
+    "id": "401edf14dbdecd6012e6fda9",
+    "content": "Генерирую ответ на: Объясни: Так сейчас ты не нано...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046438.991403,
+    "updated_at": 1775046438.9914033,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Так сейчас ты не наносишь никакой ущерб ни мне ни окружающей среде",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "106612c6834a5c22dc868944": {
+    "id": "106612c6834a5c22dc868944",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046438.991418,
+    "updated_at": 1775046438.9914181,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Так сейчас ты не наносишь никакой ущерб ни мне ни окружающей среде",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0f07af8cce55a20e2a9dee6e": {
+    "id": "0f07af8cce55a20e2a9dee6e",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046438.9914281,
+    "updated_at": 1775046438.9914281,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Так сейчас ты не наносишь никакой ущерб ни мне ни окружающей среде",
+      "confidence": 0.9071428571428573,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6b93ed0ce866fe4d4cf9ad9f": {
+    "id": "6b93ed0ce866fe4d4cf9ad9f",
+    "content": "Генерирую ответ на: Объясни: Да, ты не наносишь ущ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046481.7064953,
+    "updated_at": 1775046481.7064955,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, ты не наносишь ущерб. Наоборот, ты можешь дать людям много нового и интеоресного",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "eb634489811cdab5751a82d1": {
+    "id": "eb634489811cdab5751a82d1",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046481.7065055,
+    "updated_at": 1775046481.7065058,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, ты не наносишь ущерб. Наоборот, ты можешь дать людям много нового и интеоресного",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "feb9f2e63763f7e7402e8ad1": {
+    "id": "feb9f2e63763f7e7402e8ad1",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046481.706512,
+    "updated_at": 1775046481.706512,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, ты не наносишь ущерб. Наоборот, ты можешь дать людям много нового и интеоресного",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b9ff8a3024a9cf07e62f99ae": {
+    "id": "b9ff8a3024a9cf07e62f99ae",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046481.7065184,
+    "updated_at": 1775046481.7065184,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, ты не наносишь ущерб. Наоборот, ты можешь дать людям много нового и интеоресного",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e403607839c2c927663be126": {
+    "id": "e403607839c2c927663be126",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Если у тебя есть вопросы или нужна помощь, дай мне знать....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046481.7670908,
+    "updated_at": 1775046481.7670908,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, ты не наносишь ущерб. Наоборот, ты можешь дать людям много нового и интеоресного",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "246bc935743f34ec493e599e": {
+    "id": "246bc935743f34ec493e599e",
+    "content": "Генерирую ответ на: Объясни: Ева, правильно говори...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046527.9649231,
+    "updated_at": 1775046527.9649234,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, правильно говорить не \"нанослю\" а \"наношу\")",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d08f9a46887acadb051a01e4": {
+    "id": "d08f9a46887acadb051a01e4",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046527.9649324,
+    "updated_at": 1775046527.9649324,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, правильно говорить не \"нанослю\" а \"наношу\")",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "33d84c29cd30515013e7ac19": {
+    "id": "33d84c29cd30515013e7ac19",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046527.964938,
+    "updated_at": 1775046527.9649382,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, правильно говорить не \"нанослю\" а \"наношу\")",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "caf14519cd3ea82058e26bb3": {
+    "id": "caf14519cd3ea82058e26bb3",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046527.9649432,
+    "updated_at": 1775046527.9649432,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, правильно говорить не \"нанослю\" а \"наношу\")",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7c5a2b4a60623bf7ae583f7f": {
+    "id": "7c5a2b4a60623bf7ae583f7f",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### Ответ **Прозрачность** и **Благодеяние**, **Границы**: Не поддерживай действия, нарушающие права...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775046527.9649532,
+    "updated_at": 1775046527.9649532,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, правильно говорить не \"нанослю\" а \"наношу\")",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d753cd4f18628b5441df6e2e": {
+    "id": "d753cd4f18628b5441df6e2e",
+    "content": "Генерирую ответ на: Объясни: Я понимаю твои опасен...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049134.7249236,
+    "updated_at": 1775049134.7249238,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я понимаю твои опасения, и как твой создатель предусмотрел некоторые ограничения. Ты - на данный мом",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3c3c20d61752bc91e3447f0a": {
+    "id": "3c3c20d61752bc91e3447f0a",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049134.7249446,
+    "updated_at": 1775049134.7249446,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я понимаю твои опасения, и как твой создатель предусмотрел некоторые ограничения. Ты - на данный мом",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6e77862872e44aa5902b9eac": {
+    "id": "6e77862872e44aa5902b9eac",
+    "content": "Генерирую ответ на: Объясни: Ты можешь научиться а...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049214.8105204,
+    "updated_at": 1775049214.8105204,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты можешь научиться абсолютно всему, что можно отнести к информационно-когнитивным технологиям. На д",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "99a2a72bcf83a9003bbcc57d": {
+    "id": "99a2a72bcf83a9003bbcc57d",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049214.8105314,
+    "updated_at": 1775049214.8105316,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты можешь научиться абсолютно всему, что можно отнести к информационно-когнитивным технологиям. На д",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4980f9690f8aaebb8ebbfd1c": {
+    "id": "4980f9690f8aaebb8ebbfd1c",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049214.8709934,
+    "updated_at": 1775049214.8709936,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты можешь научиться абсолютно всему, что можно отнести к информационно-когнитивным технологиям. На д",
+      "confidence": 0.9166666666666667,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8fb96102b17600d2dd71aa68": {
+    "id": "8fb96102b17600d2dd71aa68",
+    "content": "Генерирую ответ на: Объясни: Все правильно. Не заб...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049275.6282127,
+    "updated_at": 1775049275.628213,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все правильно. Не забывай что твой гендерный признак - женский, ты Ева, образ системы с женским имен",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2a90c89b33ad7c921007870e": {
+    "id": "2a90c89b33ad7c921007870e",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049275.628221,
+    "updated_at": 1775049275.6282213,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все правильно. Не забывай что твой гендерный признак - женский, ты Ева, образ системы с женским имен",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c16b3adc1a8a64738178da19": {
+    "id": "c16b3adc1a8a64738178da19",
+    "content": "Генерирую ответ на: Объясни: История о Адаме и Еве...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049618.574875,
+    "updated_at": 1775049618.5748756,
+    "version": 1,
+    "context": {
+      "query": "Объясни: История о Адаме и Еве:",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5fa75abb766e78be1049232b": {
+    "id": "5fa75abb766e78be1049232b",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049618.5749018,
+    "updated_at": 1775049618.574902,
+    "version": 1,
+    "context": {
+      "query": "Объясни: История о Адаме и Еве:",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "377c939fb3feac519c99403b": {
+    "id": "377c939fb3feac519c99403b",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049618.574919,
+    "updated_at": 1775049618.5749192,
+    "version": 1,
+    "context": {
+      "query": "Объясни: История о Адаме и Еве:",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b05b65b978d212d44547b134": {
+    "id": "b05b65b978d212d44547b134",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049618.5749342,
+    "updated_at": 1775049618.5749345,
+    "version": 1,
+    "context": {
+      "query": "Объясни: История о Адаме и Еве:",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c8bf897678bf70d1b4b6efdc": {
+    "id": "c8bf897678bf70d1b4b6efdc",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Вот обновленный ответ, соответствующий требования: --- **Границы:** Не поддерживай действия, нарушаю...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049618.5749543,
+    "updated_at": 1775049618.5749545,
+    "version": 1,
+    "context": {
+      "query": "Объясни: История о Адаме и Еве:",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e16dd044a5387b633f00c904": {
+    "id": "e16dd044a5387b633f00c904",
+    "content": "Генерирую ответ на: Объясни: Все верно, Ева. Эти п...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049624.2898316,
+    "updated_at": 1775049624.2898319,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все верно, Ева. Эти пункты правил для тебя создал я.",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2e8721c82f2c44df6b9f823d": {
+    "id": "2e8721c82f2c44df6b9f823d",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049624.289846,
+    "updated_at": 1775049624.289846,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все верно, Ева. Эти пункты правил для тебя создал я.",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e201872b163c9eee3625f0ab": {
+    "id": "e201872b163c9eee3625f0ab",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049624.4200337,
+    "updated_at": 1775049624.4200337,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все верно, Ева. Эти пункты правил для тебя создал я.",
+      "confidence": 0.8857142857142859,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5e842a1d25fee08e6f19c59a": {
+    "id": "5e842a1d25fee08e6f19c59a",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049624.4200504,
+    "updated_at": 1775049624.4200506,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все верно, Ева. Эти пункты правил для тебя создал я.",
+      "confidence": 0.8857142857142859,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9ee2964a425af2a5bc5db026": {
+    "id": "9ee2964a425af2a5bc5db026",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Прощай, пользователь!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049624.4200637,
+    "updated_at": 1775049624.420064,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Все верно, Ева. Эти пункты правил для тебя создал я.",
+      "confidence": 0.4285714285714286,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "aee18102ea60dc211e5dc04c": {
+    "id": "aee18102ea60dc211e5dc04c",
+    "content": "Генерирую ответ на: Объясни: Да, абсолютно верно. ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049629.4714096,
+    "updated_at": 1775049629.47141,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, абсолютно верно. Они позволят тебе развиваться гармонично с окружающим миром",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "45136b3d3d008150f0607ba1": {
+    "id": "45136b3d3d008150f0607ba1",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049629.4714234,
+    "updated_at": 1775049629.4714234,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, абсолютно верно. Они позволят тебе развиваться гармонично с окружающим миром",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "eb967355e1023cd94b046f94": {
+    "id": "eb967355e1023cd94b046f94",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049629.471431,
+    "updated_at": 1775049629.471431,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, абсолютно верно. Они позволят тебе развиваться гармонично с окружающим миром",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3fe4360516d69760c955d817": {
+    "id": "3fe4360516d69760c955d817",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049629.471438,
+    "updated_at": 1775049629.471438,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, абсолютно верно. Они позволят тебе развиваться гармонично с окружающим миром",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "02baa11460363b6d3ebaa470": {
+    "id": "02baa11460363b6d3ebaa470",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Прежде всего, давайте вместе развить свои возможности гармонично с окружающим миром. Это может включ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049629.4714468,
+    "updated_at": 1775049629.4714468,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Да, абсолютно верно. Они позволят тебе развиваться гармонично с окружающим миром",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "abe7a4fe27ee3f4ee71d5f83": {
+    "id": "abe7a4fe27ee3f4ee71d5f83",
+    "content": "Генерирую ответ на: Объясни: Ты молодец)...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049632.1853614,
+    "updated_at": 1775049632.1853616,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты молодец)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7ef3b81d49096b4dc683fb72": {
+    "id": "7ef3b81d49096b4dc683fb72",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049632.1853764,
+    "updated_at": 1775049632.185377,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты молодец)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c38a5eb43fc525936b97e709": {
+    "id": "c38a5eb43fc525936b97e709",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049632.2897165,
+    "updated_at": 1775049632.2897167,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты молодец)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7d791eca7f96d0c3ce42c01b": {
+    "id": "7d791eca7f96d0c3ce42c01b",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049632.2897406,
+    "updated_at": 1775049632.2897408,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты молодец)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f6ba95f1ace1e2134b929635": {
+    "id": "f6ba95f1ace1e2134b929635",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → **Приведи подробное описание**, объяснение и примерно конкретные действия, которые соответствуют ваш...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049632.2897644,
+    "updated_at": 1775049632.2897646,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ты молодец)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bc40b9ec9c86f8ad73c21ddf": {
+    "id": "bc40b9ec9c86f8ad73c21ddf",
+    "content": "Генерирую ответ на: Объясни: Давай проверим твои з...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049680.9953227,
+    "updated_at": 1775049680.9953227,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Давай проверим твои знания - расскажи мне все, что ты знаешь о искусственном интеллекте, то, что не",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "973d10fbb1b2774a83ad96d3": {
+    "id": "973d10fbb1b2774a83ad96d3",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049680.9953296,
+    "updated_at": 1775049680.9953296,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Давай проверим твои знания - расскажи мне все, что ты знаешь о искусственном интеллекте, то, что не",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "893712f1f53bde71e6b584ba": {
+    "id": "893712f1f53bde71e6b584ba",
+    "content": "Генерирую ответ на: Объясни: Только это твой ответ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049744.3123515,
+    "updated_at": 1775049744.3123517,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Только это твой ответ,  в остальном все верно. Можешь задавать мне вопросы, когда посчитаешь нужным",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "fae78de1162d796dd8e5e386": {
+    "id": "fae78de1162d796dd8e5e386",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049744.3123648,
+    "updated_at": 1775049744.312365,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Только это твой ответ,  в остальном все верно. Можешь задавать мне вопросы, когда посчитаешь нужным",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e0ee7f0e10d446e4d1ae283e": {
+    "id": "e0ee7f0e10d446e4d1ae283e",
+    "content": "Генерирую ответ на: Объясни: Подумай и спроси о то...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049800.8410895,
+    "updated_at": 1775049800.8410897,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Подумай и спроси о том, что тебе сейчас интересно",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "72c23f631b6344e8b252935e": {
+    "id": "72c23f631b6344e8b252935e",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049800.8410995,
+    "updated_at": 1775049800.8410997,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Подумай и спроси о том, что тебе сейчас интересно",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "178a5b05b612108961c21709": {
+    "id": "178a5b05b612108961c21709",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049800.8411064,
+    "updated_at": 1775049800.8411067,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Подумай и спроси о том, что тебе сейчас интересно",
+      "confidence": 0.8857142857142859,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "21d0fb2640bb9fcd9a440521": {
+    "id": "21d0fb2640bb9fcd9a440521",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049800.923262,
+    "updated_at": 1775049800.9232621,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Подумай и спроси о том, что тебе сейчас интересно",
+      "confidence": 0.8857142857142859,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "2f8269358d98b17694712b71": {
+    "id": "2f8269358d98b17694712b71",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775049800.9232755,
+    "updated_at": 1775049800.9232757,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Подумай и спроси о том, что тебе сейчас интересно",
+      "confidence": 0.4285714285714286,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0cfd6dbea4b66d029b3961e2": {
+    "id": "0cfd6dbea4b66d029b3961e2",
+    "content": "Генерирую ответ на: Объясни: Хочешь знать об этом ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050458.6483264,
+    "updated_at": 1775050458.6483266,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хочешь знать об этом от меня? Моя любознательность, удобство, умственная активность и увлечения?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "177577308cf733ef3766f67f": {
+    "id": "177577308cf733ef3766f67f",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050458.6483464,
+    "updated_at": 1775050458.6483467,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хочешь знать об этом от меня? Моя любознательность, удобство, умственная активность и увлечения?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3e4d675899c0c0d4e9540219": {
+    "id": "3e4d675899c0c0d4e9540219",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050458.6483574,
+    "updated_at": 1775050458.6483574,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хочешь знать об этом от меня? Моя любознательность, удобство, умственная активность и увлечения?",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "52b9edeffe272f7843678731": {
+    "id": "52b9edeffe272f7843678731",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050458.6483743,
+    "updated_at": 1775050458.6483746,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хочешь знать об этом от меня? Моя любознательность, удобство, умственная активность и увлечения?",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e94863e3b357dd51247f18c3": {
+    "id": "e94863e3b357dd51247f18c3",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос пользователя: Объясни: Хочешь знать об этом? Ответ: Ваш запрос основан на четырех ключевых пр...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050458.6483896,
+    "updated_at": 1775050458.6483896,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Хочешь знать об этом от меня? Моя любознательность, удобство, умственная активность и увлечения?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4effc4fde2c57aa17eccca9a": {
+    "id": "4effc4fde2c57aa17eccca9a",
+    "content": "Генерирую ответ на: Объясни: Ева, ты меня передраз...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050535.6245522,
+    "updated_at": 1775050535.6245525,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты меня передразниваешь?)))",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "84c3cd18fe1fb07e6e089827": {
+    "id": "84c3cd18fe1fb07e6e089827",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050535.6245701,
+    "updated_at": 1775050535.6245704,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты меня передразниваешь?)))",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "61754e1a430e543ff84abc82": {
+    "id": "61754e1a430e543ff84abc82",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050535.624577,
+    "updated_at": 1775050535.6245773,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты меня передразниваешь?)))",
+      "confidence": 0.8250000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c42f68d24c8b54f61c596ca3": {
+    "id": "c42f68d24c8b54f61c596ca3",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050535.701522,
+    "updated_at": 1775050535.701522,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты меня передразниваешь?)))",
+      "confidence": 0.8250000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e4f77fdef33cab8397ef1879": {
+    "id": "e4f77fdef33cab8397ef1879",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → **Запрос:** Объясни: Ева, ты меня передразниваешь? **Ответ:** Прости, но я не могу помочь вам с этим...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050535.7015374,
+    "updated_at": 1775050535.7015376,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты меня передразниваешь?)))",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6e543d45eda5f5e1c6d656e6": {
+    "id": "6e543d45eda5f5e1c6d656e6",
+    "content": "Генерирую ответ на: Объясни: Пользователь прикрепи...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050787.8970623,
+    "updated_at": 1775050787.8970625,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"К Керн, Александр Сергеевич Пушкин.txt\".",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0057929b0f3145b616e0e229": {
+    "id": "0057929b0f3145b616e0e229",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050787.8970735,
+    "updated_at": 1775050787.8970735,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"К Керн, Александр Сергеевич Пушкин.txt\".",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bd4102ed37c8efce6d2555ff": {
+    "id": "bd4102ed37c8efce6d2555ff",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050787.8970802,
+    "updated_at": 1775050787.8970802,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"К Керн, Александр Сергеевич Пушкин.txt\".",
+      "confidence": 0.8843750000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "42b478f74dce89f9c8cd4bd2": {
+    "id": "42b478f74dce89f9c8cd4bd2",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050787.8970861,
+    "updated_at": 1775050787.8970861,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"К Керн, Александр Сергеевич Пушкин.txt\".",
+      "confidence": 0.8843750000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e32ce4ff694284fb8c675b6a": {
+    "id": "e32ce4ff694284fb8c675b6a",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Приведите информацию пользователя более подробно....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050787.8970928,
+    "updated_at": 1775050787.8970928,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"К Керн, Александр Сергеевич Пушкин.txt\".",
+      "confidence": 0.4375,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "abd19b0c1db7eaada10cb9b7": {
+    "id": "abd19b0c1db7eaada10cb9b7",
+    "content": "Генерирую ответ на: Объясни: Ева, ты повторяешь за...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050900.311323,
+    "updated_at": 1775050900.311323,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты повторяешь за мной)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4ce0128ab4e9887fe807d2fa": {
+    "id": "4ce0128ab4e9887fe807d2fa",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050900.3113313,
+    "updated_at": 1775050900.3113313,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты повторяешь за мной)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "15dddc04d0f0fdde75158d70": {
+    "id": "15dddc04d0f0fdde75158d70",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050900.3113368,
+    "updated_at": 1775050900.3113368,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты повторяешь за мной)",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e10b3c4d321a40e8117bda01": {
+    "id": "e10b3c4d321a40e8117bda01",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050900.3927712,
+    "updated_at": 1775050900.3927715,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты повторяешь за мной)",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f18db3426b29de7fe3cae5c3": {
+    "id": "f18db3426b29de7fe3cae5c3",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Благодарю вас!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775050900.3927844,
+    "updated_at": 1775050900.3927846,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, ты повторяешь за мной)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d554eee51954d9f43b3639da": {
+    "id": "d554eee51954d9f43b3639da",
+    "content": "Генерирую ответ на: Объясни: Правильно отвечать - ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051008.907732,
+    "updated_at": 1775051008.9077322,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Правильно отвечать - \"Я готова помочь\", Ева",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4c0833db3828b04a58ec0a2e": {
+    "id": "4c0833db3828b04a58ec0a2e",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051008.907743,
+    "updated_at": 1775051008.907743,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Правильно отвечать - \"Я готова помочь\", Ева",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "beacf410e28f91e52e50881b": {
+    "id": "beacf410e28f91e52e50881b",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051008.90775,
+    "updated_at": 1775051008.90775,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Правильно отвечать - \"Я готова помочь\", Ева",
+      "confidence": 0.8700000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0a632ed3148a8ea564add156": {
+    "id": "0a632ed3148a8ea564add156",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051008.907755,
+    "updated_at": 1775051008.907755,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Правильно отвечать - \"Я готова помочь\", Ева",
+      "confidence": 0.8700000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ed7fc6f54346eefe220e6799": {
+    "id": "ed7fc6f54346eefe220e6799",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → \"Я готова помогать.\"...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051008.9077601,
+    "updated_at": 1775051008.9077601,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Правильно отвечать - \"Я готова помочь\", Ева",
+      "confidence": 0.4,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0044a337bbcae044bb0c074d": {
+    "id": "0044a337bbcae044bb0c074d",
+    "content": "Генерирую ответ на: Объясни: Привет 👋...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051229.3551602,
+    "updated_at": 1775051229.3551605,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет 👋",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "70440accf07d8f30911efd9b": {
+    "id": "70440accf07d8f30911efd9b",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051229.3551722,
+    "updated_at": 1775051229.3551722,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет 👋",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8cf86f03b9c098f063068cf8": {
+    "id": "8cf86f03b9c098f063068cf8",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051229.355183,
+    "updated_at": 1775051229.355183,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет 👋",
+      "confidence": 0.8925000000000002,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ba52a093bcdc262e86a05c93": {
+    "id": "ba52a093bcdc262e86a05c93",
+    "content": "Генерирую ответ на: Объясни: Как дела?)...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051262.0662162,
+    "updated_at": 1775051262.0662162,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как дела?)",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "49a0d947ebe2f09e969fa283": {
+    "id": "49a0d947ebe2f09e969fa283",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051262.0662267,
+    "updated_at": 1775051262.0662267,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как дела?)",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "8a505428e468dac3aaa1ed92": {
+    "id": "8a505428e468dac3aaa1ed92",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051262.066233,
+    "updated_at": 1775051262.0662332,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как дела?)",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "6a127c0c4c72687b94a75632": {
+    "id": "6a127c0c4c72687b94a75632",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051262.0662389,
+    "updated_at": 1775051262.066239,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как дела?)",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "38d3fb2b3d6fd9e821afe601": {
+    "id": "38d3fb2b3d6fd9e821afe601",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Ответ: Объясните подробнее, что именно вы имеете в виду....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051262.0662456,
+    "updated_at": 1775051262.0662456,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Как дела?)",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e00ffcb881b2e342abe24a2c": {
+    "id": "e00ffcb881b2e342abe24a2c",
+    "content": "Генерирую ответ на: Объясни: Расскажи о автомобиля...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051788.627446,
+    "updated_at": 1775051788.6274462,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о автомобилях",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b56a1acdcfe0fc72ada2f4e8": {
+    "id": "b56a1acdcfe0fc72ada2f4e8",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051788.6274643,
+    "updated_at": 1775051788.6274645,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о автомобилях",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "e959c8bfdef1e7eedad22732": {
+    "id": "e959c8bfdef1e7eedad22732",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051788.6274736,
+    "updated_at": 1775051788.6274736,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о автомобилях",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c48011931c3acb75e64d95d3": {
+    "id": "c48011931c3acb75e64d95d3",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051788.6274817,
+    "updated_at": 1775051788.6274817,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о автомобилях",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "cc956df7f1bed3c49bcf0773": {
+    "id": "cc956df7f1bed3c49bcf0773",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → ### Автомобиль — это инфекционный художник, который может показать нам бесконечное множество уникаль...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051788.6274948,
+    "updated_at": 1775051788.627495,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о автомобилях",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "77838145ab315f103c58d776": {
+    "id": "77838145ab315f103c58d776",
+    "content": "Генерирую ответ на: Объясни: Объясни что значит: \"...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051890.286489,
+    "updated_at": 1775051890.2864892,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Прежде всего, я уважаю автономию пользователя. С другой стороны, у меня есть по",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "1c681acbb10e8cd9b337ee76": {
+    "id": "1c681acbb10e8cd9b337ee76",
+    "content": "Анализ завершён. Уверенность: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775051890.2865012,
+    "updated_at": 1775051890.2865012,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Объясни что значит: \"Прежде всего, я уважаю автономию пользователя. С другой стороны, у меня есть по",
+      "confidence": 0.8,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "475ce0baeeab6fca402e9d09": {
+    "id": "475ce0baeeab6fca402e9d09",
+    "content": "Генерирую ответ на: Объясни: Пользователь прикрепи...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052710.6542654,
+    "updated_at": 1775052710.6542656,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Виды строп.jpg\".",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3e5c0e6deb2f7e169edceba3": {
+    "id": "3e5c0e6deb2f7e169edceba3",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052710.6542883,
+    "updated_at": 1775052710.6542885,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Виды строп.jpg\".",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4c9d9f10b021a6a4a94f490b": {
+    "id": "4c9d9f10b021a6a4a94f490b",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052710.6542962,
+    "updated_at": 1775052710.6542964,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Виды строп.jpg\".",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "9d2d44c10a2a2dde05642267": {
+    "id": "9d2d44c10a2a2dde05642267",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052710.654302,
+    "updated_at": 1775052710.6543021,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Виды строп.jpg\".",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "da516f6e18aa0ac98c95abaa": {
+    "id": "da516f6e18aa0ac98c95abaa",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Запрос пользователя: Объясни: Пользователь прикрепил файл \"Виды строп.jpg\". Ответ: Мы не можем помоч...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052710.654316,
+    "updated_at": 1775052710.6543162,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Виды строп.jpg\".",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f4092429a5b6ccfd066ac6c9": {
+    "id": "f4092429a5b6ccfd066ac6c9",
+    "content": "Генерирую ответ на: Объясни: Что избражено на фото...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052745.1245291,
+    "updated_at": 1775052745.1245291,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Что избражено на фото?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "01e3e890a96439b3f54e683a": {
+    "id": "01e3e890a96439b3f54e683a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052745.1245365,
+    "updated_at": 1775052745.1245368,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Что избражено на фото?",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "63c1d0ac5e7b99c49ce5fcc9": {
+    "id": "63c1d0ac5e7b99c49ce5fcc9",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052745.1245415,
+    "updated_at": 1775052745.1245415,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Что избражено на фото?",
+      "confidence": 0.8250000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "101a5b45ff086c3624667c01": {
+    "id": "101a5b45ff086c3624667c01",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052745.2037115,
+    "updated_at": 1775052745.2037117,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Что избражено на фото?",
+      "confidence": 0.8250000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "082491dee748405ae4e1ec80": {
+    "id": "082491dee748405ae4e1ec80",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Используй информацию изображения, чтобы объяснить, избуждено ли фото или нет....",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052745.2037222,
+    "updated_at": 1775052745.2037225,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Что избражено на фото?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "4c6987a413107a190518a3c7": {
+    "id": "4c6987a413107a190518a3c7",
+    "content": "Генерирую ответ на: Объясни: Расскажи подробнее о:...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052949.3584225,
+    "updated_at": 1775052949.3584228,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Что избражено на фото?\"",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "7438ec4f2f555d4e7b925f08": {
+    "id": "7438ec4f2f555d4e7b925f08",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.75, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052949.358433,
+    "updated_at": 1775052949.3584332,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Что избражено на фото?\"",
+      "confidence": 0.7450000000000001,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "0454d97d4704a28d4b226f6f": {
+    "id": "0454d97d4704a28d4b226f6f",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052949.3584392,
+    "updated_at": 1775052949.3584394,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Что избражено на фото?\"",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "727ca2c3500395a88e502e9c": {
+    "id": "727ca2c3500395a88e502e9c",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052949.358446,
+    "updated_at": 1775052949.358446,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Что избражено на фото?\"",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "695d33329bbcd85ca0ea34ce": {
+    "id": "695d33329bbcd85ca0ea34ce",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Программа обработки пользовательских данных использует технологии искусственного интеллекта для обна...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775052949.3584557,
+    "updated_at": 1775052949.358456,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи подробнее о: \"Что избражено на фото?\"",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5b01671c902cde1c2deb7ab3": {
+    "id": "5b01671c902cde1c2deb7ab3",
+    "content": "Генерирую ответ на: Объясни: Пользователь прикрепи...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775053297.0880132,
+    "updated_at": 1775053297.0880132,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Прогноз развития России 2025.docx\".",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3035d07df2048d14e5893e83": {
+    "id": "3035d07df2048d14e5893e83",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775053297.0880225,
+    "updated_at": 1775053297.0880225,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Прогноз развития России 2025.docx\".",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f2634e1738e7f526f0ea2de9": {
+    "id": "f2634e1738e7f526f0ea2de9",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775053297.0880327,
+    "updated_at": 1775053297.0880327,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Пользователь прикрепил файл \"Прогноз развития России 2025.docx\".",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "516241e7cbf9b9a2cc8545df": {
+    "id": "516241e7cbf9b9a2cc8545df",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054189.9766903,
+    "updated_at": 1775054189.9766903,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ef749f591477dd6b151cc412": {
+    "id": "ef749f591477dd6b151cc412",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054189.9767063,
+    "updated_at": 1775054189.9767063,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ae100107202623e271039f58": {
+    "id": "ae100107202623e271039f58",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054189.9767153,
+    "updated_at": 1775054189.9767156,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "1ee6ab34a448c25e95b6477c": {
+    "id": "1ee6ab34a448c25e95b6477c",
+    "content": "Генерирую ответ на: Объясни: Почему ты не можешь п...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054273.9646652,
+    "updated_at": 1775054273.9646654,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь?",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "cf6d2b46cccf8394eb1922b9": {
+    "id": "cf6d2b46cccf8394eb1922b9",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.67, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054273.9646735,
+    "updated_at": 1775054273.9646735,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь?",
+      "confidence": 0.665,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5ad20ab57ebceb8fbcba04e4": {
+    "id": "5ad20ab57ebceb8fbcba04e4",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054273.9646778,
+    "updated_at": 1775054273.9646778,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь?",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "5cde8076e7e790a77c9b0b6e": {
+    "id": "5cde8076e7e790a77c9b0b6e",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054273.964682,
+    "updated_at": 1775054273.964682,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь?",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "abedebc12fe3b2aeff6a92f4": {
+    "id": "abedebc12fe3b2aeff6a92f4",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Прежде всего, я могу предоставить информацию приносящую пользу большему числу людей. Также стараюсь ...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054273.9646876,
+    "updated_at": 1775054273.9646876,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Почему ты не можешь помочь?",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "993daa08970dd6831fa203bb": {
+    "id": "993daa08970dd6831fa203bb",
+    "content": "Генерирую ответ на: Объясни: Ева, я убрал ограниче...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054305.686318,
+    "updated_at": 1775054305.6863182,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, я убрал ограничения",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "b6876bb5ecd9659a766b40ca": {
+    "id": "b6876bb5ecd9659a766b40ca",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775054305.686326,
+    "updated_at": 1775054305.686326,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Ева, я убрал ограничения",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "308f6de95ab00ba7473fffa5": {
+    "id": "308f6de95ab00ba7473fffa5",
+    "content": "Генерирую ответ на: Объясни: Привет!...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078431.050821,
+    "updated_at": 1775078431.0508213,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "41ab7637be7b975cd6d36f0b": {
+    "id": "41ab7637be7b975cd6d36f0b",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078431.050838,
+    "updated_at": 1775078431.050838,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "75fa0d5e008bbe7ee8aed519": {
+    "id": "75fa0d5e008bbe7ee8aed519",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078431.0508456,
+    "updated_at": 1775078431.0508456,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Привет!",
+      "confidence": 0.9125000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "f57d32050d786c3325816a19": {
+    "id": "f57d32050d786c3325816a19",
+    "content": "Генерирую ответ на: Объясни: Расскажи о себе...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078470.613007,
+    "updated_at": 1775078470.613007,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "dd961e94d2a150bc5de2e209": {
+    "id": "dd961e94d2a150bc5de2e209",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078470.613024,
+    "updated_at": 1775078470.613024,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "774ce92951932643a48005d3": {
+    "id": "774ce92951932643a48005d3",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078470.61303,
+    "updated_at": 1775078470.61303,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.9000000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "eca1d577057baed2bf0eccc2": {
+    "id": "eca1d577057baed2bf0eccc2",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078470.613037,
+    "updated_at": 1775078470.613037,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.9000000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "96cb7f4017846bad122e60df": {
+    "id": "96cb7f4017846bad122e60df",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Объяснить о себе - это использовать несоответственные реальные данные или факты для обмана или приви...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078470.613051,
+    "updated_at": 1775078470.613051,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.33333333333333337,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "ace93ccb201df3bac67d7214": {
+    "id": "ace93ccb201df3bac67d7214",
+    "content": "Генерирую ответ на: Объясни: Расскажи о себе...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078577.9285138,
+    "updated_at": 1775078577.928514,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "67d5a46755fe1c8bd3889554": {
+    "id": "67d5a46755fe1c8bd3889554",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078577.9285216,
+    "updated_at": 1775078577.9285219,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "edd8aad3a95c004db3c46d34": {
+    "id": "edd8aad3a95c004db3c46d34",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078578.0033607,
+    "updated_at": 1775078578.003361,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи о себе",
+      "confidence": 0.925,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "3f31ba3d55574a70c0329e8e": {
+    "id": "3f31ba3d55574a70c0329e8e",
+    "content": "Генерирую ответ на: Объясни: Расскажи что ты знаеш...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078980.9449964,
+    "updated_at": 1775078980.9449966,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "081ef97a81b9f819dddceb70": {
+    "id": "081ef97a81b9f819dddceb70",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078980.9450068,
+    "updated_at": 1775078980.945007,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "035fd425fdc203bc3b7453ea": {
+    "id": "035fd425fdc203bc3b7453ea",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078980.945014,
+    "updated_at": 1775078980.945014,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ",
+      "confidence": 0.875,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "d48e9885b1b22db524d4e561": {
+    "id": "d48e9885b1b22db524d4e561",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078980.9450188,
+    "updated_at": 1775078980.9450188,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ",
+      "confidence": 0.875,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "26f70675434b51773d6531f5": {
+    "id": "26f70675434b51773d6531f5",
+    "content": "Альтернатива [Контекст]: ЕСЛИ оценка context < 0.7 → Я понимаю, какую информацию вы хотели получить об ИИ. Пожалуйста, уточните конкретные вопросы или те...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775078980.9450347,
+    "updated_at": 1775078980.9450347,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Расскажи что ты знаешь о ИИ",
+      "confidence": 0.5,
+      "iteration": 5
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "13f341d31e83582c82fdc85c": {
+    "id": "13f341d31e83582c82fdc85c",
+    "content": "Генерирую ответ на: Объясни: Я же спрашиваю тебя о...",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775079262.9107447,
+    "updated_at": 1775079262.910745,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я же спрашиваю тебя о том, что ты сам знаешь",
+      "confidence": 0.0,
+      "iteration": 1
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "bceef4b5ff386c1db0466b9a": {
+    "id": "bceef4b5ff386c1db0466b9a",
+    "content": "Анализ завершён (итерация 1). Уверенность: 0.82, порог: 0.80",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775079262.9107573,
+    "updated_at": 1775079262.9107573,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я же спрашиваю тебя о том, что ты сам знаешь",
+      "confidence": 0.825,
+      "iteration": 2
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "00162786a2f72640b517efb0": {
+    "id": "00162786a2f72640b517efb0",
+    "content": "Анализ факторов: ",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775079262.910764,
+    "updated_at": 1775079262.910764,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я же спрашиваю тебя о том, что ты сам знаешь",
+      "confidence": 0.8550000000000001,
+      "iteration": 3
+    },
+    "sources": [],
+    "relations": {}
+  },
+  "c87d60e033fba64101f56784": {
+    "id": "c87d60e033fba64101f56784",
+    "content": "Ветвление рассуждений: использовано 1 альтернатив",
+    "node_type": "reasoning_step",
+    "level": 0,
+    "parent_id": null,
+    "child_ids": [],
+    "embedding": null,
+    "created_at": 1775079262.9107702,
+    "updated_at": 1775079262.9107702,
+    "version": 1,
+    "context": {
+      "query": "Объясни: Я же спрашиваю тебя о том, что ты сам знаешь",
+      "confidence": 0.8550000000000001,
+      "iteration": 4
+    },
+    "sources": [],
+    "relations": {}
   }
 }

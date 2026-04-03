@@ -52,5 +52,41 @@
       "type": "learned_content"
     },
     "user_id": null
+  },
+  {
+    "id": "mem_1775034816_4a12aa11",
+    "content": {
+      "concept": "Пробелы в знаниях: не выявлены",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1775034816.9549818,
+      "content": "Расширение знаний: Пробелы в знаниях: не выявлены. Действия: [; \"",
+      "stored_at": 1775034816.955077,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1775034816.9552033,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
+  },
+  {
+    "id": "mem_1775049242_5bbe8bf2",
+    "content": {
+      "concept": "Пробелы в знаниях: когнитивные функции",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1775049242.9828923,
+      "content": "Расширение знаний: Пробелы в знаниях: когнитивные функции. Действия: [; \"",
+      "stored_at": 1775049242.9838054,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1775049242.984549,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
   }
 ]
