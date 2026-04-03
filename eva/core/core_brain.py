@@ -469,13 +469,14 @@ class CoreBrain:
                 if model_a_path and model_b_path:
                     from eva.core.recursive_model_pipeline import RecursiveModelPipeline
                     
-                    # Use global os (already imported at top)
+                    # Use project root (not cwd) for relative paths
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                     if not os.path.isabs(model_a_path):
-                        model_a_path = os.path.join(os.getcwd(), model_a_path)
+                        model_a_path = os.path.join(project_root, model_a_path)
                     if not os.path.isabs(model_b_path):
-                        model_b_path = os.path.join(os.getcwd(), model_b_path)
+                        model_b_path = os.path.join(project_root, model_b_path)
                     if model_c_path and not os.path.isabs(model_c_path):
-                        model_c_path = os.path.join(os.getcwd(), model_c_path)
+                        model_c_path = os.path.join(project_root, model_c_path)
                     
                     # Check model files exist
                     logger.info(f"DEBUG: Checking model files - A: {model_a_path}, exists: {os.path.exists(model_a_path)}")
