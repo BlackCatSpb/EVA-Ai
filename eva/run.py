@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import warnings
+import atexit
 warnings.filterwarnings('ignore')
 
 # Обход проверки CVE-2025-32434 для torch.load
@@ -15,6 +16,44 @@ logger = logging.getLogger("eva.run")
 
 # Важно: задаём конфигурацию аллокатора CUDA до импорта torch/transformers
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+# ── Singleton: защита от множественных запусков ──
+_PID_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".eva_instance.pid")
+
+def _cleanup_pid():
+    """Удаляет PID-файл при завершении."""
+    try:
+        if os.path.exists(_PID_FILE):
+            os.remove(_PID_FILE)
+            logger.info("PID-файл удалён")
+    except Exception:
+        pass
+
+def _check_singleton():
+    """Проверяет, не запущен ли уже экземпляр EVA."""
+    if os.path.exists(_PID_FILE):
+        try:
+            with open(_PID_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            # Проверяем, жив ли процесс
+            import subprocess
+            result = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {old_pid}", "/NH", "/FO", "CSV"],
+                capture_output=True, text=True
+            )
+            if str(old_pid) in result.stdout:
+                logger.error(f"EVA уже запущена (PID {old_pid}). Завершите старый процесс или удалите {_PID_FILE}")
+                sys.exit(1)
+            else:
+                logger.info(f"Найден stale PID-файл (PID {old_pid}), удаляю")
+                os.remove(_PID_FILE)
+        except (ValueError, FileNotFoundError):
+            os.remove(_PID_FILE)
+
+    with open(_PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+    atexit.register(_cleanup_pid)
+    logger.info(f"PID-файл создан: PID {os.getpid()}")
 
 # Настраиваем TF32 по новому API PyTorch до загрузки остальной системы
 try:
@@ -92,4 +131,5 @@ if __name__ == "__main__":
     # Если файл запускается напрямую, настраиваем логирование.
     # Если он импортируется, предполагается, что логирование уже настроено.
     setup_logging(log_dir="logs")
+    _check_singleton()
     main()
