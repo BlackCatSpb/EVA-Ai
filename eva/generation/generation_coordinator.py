@@ -1,488 +1,537 @@
-import os
+#!/usr/bin/env python3
+"""
+Унифицированный координатор генерации текста ЕВА
+Обеспечивает единую точку входа/выхода для всех модулей
+"""
+
 import time
-import torch
-import json
 import logging
-from typing import List, Dict, Any, Optional, Tuple
-from transformers import AutoTokenizer, AutoConfig
+from typing import Dict, Any, Optional, Union
+from abc import ABC, abstractmethod
 
-# Relative imports
-from ..memory.hybrid_token_cache import HybridTokenCache, get_shared_cache
-from ..mlearning.parallel_tokenization import ParallelTokenizer
-from ..memory.disk_cache import DiskCache
-
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _load_brain_config() -> Dict[str, Any]:
-    """Loads brain configuration from brain_config.json."""
-    config_path = os.path.join(_get_project_root(), 'brain_config.json')
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load brain_config.json: {e}")
-    return {}
+class GenerationRequest:
+    """Стандартизированный запрос на генерацию"""
+    
+    def __init__(self, text: str, **kwargs):
+        self.text = text
+        self.max_tokens = kwargs.get('max_tokens', 2048)
+        self.temperature = kwargs.get('temperature', 0.7)
+        self.top_p = kwargs.get('top_p', 0.9)
+        self.top_k = kwargs.get('top_k', 50)
+        self.context = kwargs.get('context')
+        self.user_context = kwargs.get('user_context')
+        self.source = kwargs.get('source', 'unknown')
+        self.priority = kwargs.get('priority', 'normal')
+        self.metadata = kwargs.get('metadata', {})
+        self.do_sample = kwargs.get('do_sample', True)
 
 
-def _get_generation_config() -> Dict[str, Any]:
-    """Returns generation config from brain_config.json."""
-    config = _load_brain_config()
-    return config.get('generation', {})
+class GenerationResponse:
+    """Стандартизированный ответ от генерации"""
+    
+    def __init__(self, text: str, status: str = "ok", **kwargs):
+        self.text = text
+        self.status = status
+        self.source = kwargs.get('source', 'unknown')
+        self.model_name = kwargs.get('model_name', 'unknown')
+        self.tokens_generated = kwargs.get('tokens_generated', 0)
+        self.generation_time = kwargs.get('generation_time', 0.0)
+        self.error_message = kwargs.get('error_message')
+        self.metadata = kwargs.get('metadata', {})
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Преобразует ответ в словарь"""
+        result = {
+            "text": self.text,
+            "status": self.status,
+            "source": self.source,
+            "model_name": self.model_name,
+            "tokens_generated": self.tokens_generated,
+            "generation_time": self.generation_time,
+            "timestamp": time.time(),
+            "metadata": self.metadata
+        }
+        
+        if self.error_message:
+            result["error"] = self.error_message
+            
+        return result
 
 
-def _get_project_root() -> str:
-    """Возвращает корневую директорию проекта"""
-    possible_roots = []
-    current_file = os.path.abspath(__file__)
-    current_dir = os.path.dirname(current_file)
-    possible_roots.append(os.path.dirname(os.path.dirname(current_dir)))
-    possible_roots.append(os.path.dirname(current_dir))
+class GenerationProvider(ABC):
+    """Абстрактный провайдер генерации"""
     
-    for root in possible_roots:
-        if os.path.exists(os.path.join(root, 'eva')):
-            return root
+    @abstractmethod
+    def is_available(self) -> bool:
+        """Проверяет доступность провайдера"""
+        pass
     
-    drive = os.path.splitdrive(os.getcwd())[0] or 'C:'
-    username = os.environ.get('USERNAME', 'user')
-    onedrive_path = os.path.join(drive, 'Users', username, 'OneDrive', 'Desktop', 'ЕВА')
-    if os.path.exists(os.path.join(onedrive_path, 'eva')):
-        return onedrive_path
+    @abstractmethod
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
+        """Генерирует ответ"""
+        pass
     
-    return os.getcwd()
+    @abstractmethod
+    def get_priority(self) -> int:
+        """Возвращает приоритет провайдера (меньше = выше приоритет)"""
+        pass
 
-class GenerationCoordinator:
-    def __init__(
-        self,
-        model_name: str = "qwen3.5-0.8b",
-        num_workers: int = 4,
-        cache_dir: str = "./cache",
-        max_cache_size_gb: int = 50,
-        brain=None
-    ):
-        """
-        Инициализация координатора генерации с использованием существующей инфраструктуры кеширования
-        :param model_name: Название модели
-        :param num_workers: Количество воркеров для обработки промптов
-        :param cache_dir: Директория для кеша
-        :param max_cache_size_gb: Максимальный размер кеша в ГБ
-        :param brain: Ссылка на объект Brain (если есть)
-        """
-        self.model_name = model_name
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.num_workers = num_workers
-        self.is_ready = False
-        self.init_error = None
-        
-        # Load generation config from brain_config.json
-        gen_config = _get_generation_config()
-        model_config = _load_brain_config().get('model', {})
-        
-        # Use max_length from config (model.max_length in config, default 32768)
-        self.max_length = model_config.get('max_length', 32768)
-        self.temperature = gen_config.get('temperature', 0.7)
-        self.top_p = gen_config.get('top_p', 0.9)
-        self.top_k = gen_config.get('top_k', 50)
-        self.repetition_penalty = gen_config.get('repetition_penalty', 1.1)
-        self.max_new_tokens = gen_config.get('max_new_tokens', 2048)
-        
-        logger.info(f"GenerationCoordinator config: max_length={self.max_length}, temperature={self.temperature}, top_p={self.top_p}")
-        
-        # Инициализация гибридного кеша
-        self.brain = brain or self._create_mock_brain(cache_dir, max_cache_size_gb)
-        existing = getattr(self.brain, 'token_cache', None) or getattr(self.brain, 'hybrid_cache', None)
-        if existing is not None:
-            self.cache = existing
-        else:
-            self.cache = get_shared_cache(self.brain, "default")
-        
-        self.model = None
-        self.model_config = None
-        
-        # Инициализация токенизатора с использованием Qwen3.5-2B
-        try:
-            # Проверяем наличие Qwen3.5-2B
-            project_root = _get_project_root()
-            possible_paths = [
-                os.path.join(project_root, 'eva', 'mlearning', 'eva_models', 'qwen3.5-0.8b'),
-                'eva/mlearning/eva_models/qwen3.5-0.8b',
-            ]
-            
-            local_model_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    local_model_path = path
-                    logger.info(f"Найден Qwen3.5-2B по пути: {os.path.abspath(path)}")
-                    break
-            
-            if not local_model_path:
-                raise FileNotFoundError(f"Локальная модель Qwen не найдена. Проверенные пути:\n" + 
-                                    "\n".join(f"  - {os.path.abspath(p)}" for p in possible_paths))
-            
-            logger.info(f"Используем Qwen модель: {os.path.abspath(local_model_path)}")
-                
-            self.tokenizer = AutoTokenizer.from_pretrained(
-                local_model_path,
-                local_files_only=True,
-                trust_remote_code=False
-            )
-            logger.info(f"Qwen токенизатор успешно загружен из: {local_model_path}")
-            
-        except Exception as e:
-            logger.error(f"Ошибка загрузки токенизатора: {e}")
-            raise RuntimeError("Не удалось загрузить токенизатор Qwen.")
-            
-        # Инициализация параллельного токенизатора
-        self.parallel_tokenizer = ParallelTokenizer(
-            brain=self.brain,
-            max_data_window_bytes=3 * 1024**3,  # 3GB
-            worker_count=self.num_workers
-        )
-            
-    def check_generation_ready(self) -> Tuple[bool, Optional[str]]:
-        """
-        Проверяет готовность системы к генерации
-        Returns:
-            Tuple[bool, Optional[str]]: (готовность, сообщение об ошибке)
-        """
-        try:
-            # Проверяем состояние моделей
-            if self.brain and hasattr(self.brain, 'model_manager'):
-                for model_id in ['generator', 'ethics', 'knowledge']:
-                    state = self.brain.model_manager.model_states.get(model_id)
-                    if state == "loading":
-                        return False, "Модели ещё загружаются. Пожалуйста, дождитесь готовности."
-                    elif state == "error":
-                        error = self.brain.model_manager.loading_errors.get(model_id, "недоступно")
-                        return False, f"Ошибка загрузки модели {model_id}: {error}"
-                    elif not state:
-                        return False, f"Модель {model_id} не загружена"
-                        
-            # Проверяем состояние памяти
-            if not hasattr(self.brain, 'memory_manager') or not self.brain.memory_manager.initialized:
-                return False, "Система памяти не инициализирована"
-                
-            # Проверяем состояние графа знаний
-            if not hasattr(self.brain, 'knowledge_graph') or not self.brain.knowledge_graph.is_initialized:
-                return False, "Граф знаний не инициализирован"
-                
-            return True, None
-        except Exception as e:
-            return False, f"Ошибка проверки готовности: {str(e)}"
-            
-    def initialize(self):
-        """Инициализация и запуск параллельного токенизатора"""
-        self.parallel_tokenizer.start()
-        logger.info(f"Инициализирован GenerationCoordinator с {self.num_workers} воркерами")
+
+class HybridModelProvider(GenerationProvider):
+    """Провайдер на основе гибридного менеджера моделей"""
     
-    def _create_mock_brain(self, cache_dir: str, max_cache_size_gb: int):
-        """Создает минимальный объект Brain с необходимыми атрибутами"""
-        class MockBrain:
-            def __init__(self, cache_dir):
-                self.cache_dir = cache_dir
-                self.config = {
-                    'hybrid_cache': {
-                        'max_memory_size': 10000,
-                        'disk_cache_threshold': 5000,
-                        'eviction_policy': 'lru',
-                        'cache_ttl': 86400,
-                        'disk_cache_size': 120000,
-                        'min_relevance_score': 0.3,
-                        'max_context_tokens': 1000,
-                        'target_memory_gb': max_cache_size_gb,
-                        'dynamic_memory_limit': True
-                    }
-                }
-                self.resource_queue = None  # Можно заменить на реальную очередь ресурсов
-        
-        return MockBrain(cache_dir)
-        
-    def load_model(self):
-        """Загрузка модели теперь через QwenModelManager (lazy loading)"""
-        if self.model is not None:
-            return True
-            
-        logger.info("GenerationCoordinator: текстовая генерация теперь через QwenModelManager")
-        return False
+    def __init__(self, hybrid_model_manager):
+        self.hybrid_model_manager = hybrid_model_manager
     
-    def generate_response(
-        self,
-        prompt: str,
-        max_new_tokens: int = 2048,
-        temperature: float = 0.7,
-        top_k: int = 30,
-        top_p: float = 0.8,
-        repetition_penalty: float = 2.0,
-        num_return_sequences: int = 1,
-        use_cache: bool = True,
-        do_sample: bool = False,
-        num_beams: int = 1,
-        no_repeat_ngram_size: int = 3,
-        early_stopping: bool = True
-    ) -> Dict[str, Any]:
-        """
-        Генерация ответа на промпт с использованием гибридного кеширования
-        
-        :param prompt: Текст промпта для генерации
-        :param max_new_tokens: Максимальное количество новых токенов для генерации
-        :param temperature: Температура генерации (0.0-1.0, выше = более случайно)
-        :param top_k: Количество топовых токенов для выборки (0 для отключения)
-        :param top_p: Ядерная выборка (0.0-1.0), альтернатива top_k
-        :param repetition_penalty: Штраф за повторения (1.0 = нет штрафа, >1.0 = меньше повторений)
-        :param num_return_sequences: Количество возвращаемых вариантов ответа
-        :param use_cache: Использовать ли кеширование для ускорения повторных запросов
-        :param do_sample: Включить стохастическую выборку (True) или жадный поиск (False)
-        :param num_beams: Количество лучей для beam search (работает только с do_sample=False)
-        :param no_repeat_ngram_size: Запрещать n-граммы указанного размера (для уменьшения повторений)
-        :param early_stopping: Останавливать генерацию, когда все лучи достигли конца последовательности
-        
-        :return: Словарь с результатами генерации, содержащий:
-                 - status: 'success' или 'error'
-                 - generated_text: сгенерированный текст (если успех)
-                 - cached: был ли использован кешированный результат
-                 - processing_time: время обработки в секундах
-                 - model: имя использованной модели
-                 - num_generated_tokens: количество сгенерированных токенов
-                 - device: устройство, на котором выполнялась генерация
-        """
+    def is_available(self) -> bool:
+        return (self.hybrid_model_manager is not None and 
+                hasattr(self.hybrid_model_manager, 'get_available_models'))
+    
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
         start_time = time.time()
-        cache_key = f"prompt_{hash(prompt) & 0xFFFFFFFF}"
         
-        # 1. Проверяем кеш, если включено кеширование
-        if use_cache:
-            cached_response = self.cache.get(cache_key)
-            if cached_response is not None:
-                logger.info("Используем кешированный ответ")
-                return {
-                    'status': 'success',
-                    'generated_text': cached_response,
-                    'cached': True,
-                    'processing_time': 0.0,
-                    'model': self.model_name
-                }
-        
-        # 2. Загружаем модель, если она еще не загружена
-        if self.model is None and not self.load_model():
-            return {
-                'status': 'error',
-                'message': 'Не удалось загрузить модель'
-            }
-        
-        # 3. Токенизируем входные данные
         try:
-            logger.info("Токенизация входных данных...")
-            inputs = self.tokenizer(
-                prompt,
-                return_tensors="pt",
-                padding=False,  # Отключаем padding для генерации
-                truncation=True,
-                max_length=self.max_length,  # Use config value (default 32768 from brain_config.json)
-                return_attention_mask=True
-            ).to(self.device)
-            
-            # 4. Генерация текста
-            logger.info("Запуск генерации...")
-            
-            # Подготавливаем параметры генерации
-            generation_params = {
-                **inputs,
-                'max_new_tokens': max_new_tokens,
-                'temperature': temperature if do_sample else 1.0,
-                'top_k': top_k if do_sample else 0,  # top_k=0 отключается при do_sample=False
-                'top_p': top_p if do_sample else 1.0,
-                'repetition_penalty': repetition_penalty,
-                'num_return_sequences': num_return_sequences,
-                'pad_token_id': self.tokenizer.eos_token_id or self.tokenizer.pad_token_id,
-                'use_cache': True,
-                'do_sample': do_sample,
-                'num_beams': num_beams if not do_sample else 1,  # beam search работает только с do_sample=False
-                'no_repeat_ngram_size': no_repeat_ngram_size,
-                'early_stopping': early_stopping
-            }
-            
-            # Удаляем None значения из параметров
-            generation_params = {k: v for k, v in generation_params.items() if v is not None}
-            
-            with torch.no_grad():
-                outputs = self.model.generate(**generation_params)
-            
-            # 5. Декодируем сгенерированный текст
-            generated_texts = []
-            for i, output in enumerate(outputs):
-                # Пропускаем промпт в выводе
-                prompt_length = inputs['input_ids'].shape[1]
-                generated_tokens = output[prompt_length:]
-                
-                # Декодируем токены в текст
-                text = self.tokenizer.decode(
-                    generated_tokens,
-                    skip_special_tokens=True
+            # Используем первую доступную модель
+            available_models = self.hybrid_model_manager.get_available_models()
+            if not available_models:
+                return GenerationResponse(
+                    text="Ошибка: нет доступных моделей",
+                    status="error",
+                    error_message="Нет доступных моделей в гибридном менеджере",
+                    generation_time=time.time() - start_time
                 )
-                generated_texts.append(text.strip())
             
-            # Если сгенерирован только один вариант, возвращаем строку
-            result_text = generated_texts[0] if num_return_sequences == 1 else generated_texts
+            model_name = list(available_models.keys())[0]
             
-            # Сохраняем в кеш, если включено кеширование
-            if use_cache and result_text:
-                self.cache.set(cache_key, result_text)
+            # Генерация через гибридный менеджер
+            response = self.hybrid_model_manager.generate_response(
+                model_name=model_name,
+                prompt=request.text,
+                max_tokens=request.max_tokens,
+                temperature=getattr(request, 'temperature', 0.7)
+            )
             
-            return {
-                'status': 'success',
-                'generated_text': result_text,
-                'processing_time': time.time() - start_time,
-                'num_generated_tokens': len(generated_tokens) if num_return_sequences == 1 
-                                    else [len(t) for t in generated_texts],
-                'model': self.model_name,
-                'device': self.device,
-                'cached': False
-            }
+            # Обрабатываем разные форматы ответа
+            if isinstance(response, dict):
+                response_text = response.get('text', str(response))
+            else:
+                response_text = str(response)
+            
+            generation_time = time.time() - start_time
+            
+            return GenerationResponse(
+                text=response_text,
+                status="ok",
+                source="HybridModelProvider",
+                model_name=model_name,
+                tokens_generated=len(response_text.split()),
+                generation_time=generation_time,
+                metadata={
+                    "provider": "HybridModelProvider",
+                    "actual_model": model_name,
+                    "window_type": available_models[model_name].get('window_type', 'unknown'),
+                    "device": available_models[model_name].get('device', 'unknown')
+                }
+            )
             
         except Exception as e:
-            logger.error(f"Ошибка при генерации: {e}", exc_info=True)
-            return {
-                'status': 'error',
-                'message': f'Ошибка при генерации: {str(e)}',
-                'processing_time': time.time() - start_time
-            }
+            generation_time = time.time() - start_time
+            logger.error(f"Ошибка генерации в HybridModelProvider: {e}")
+            
+            return GenerationResponse(
+                text=f"Ошибка генерации: {str(e)}",
+                status="error",
+                source="HybridModelProvider",
+                generation_time=generation_time,
+                error_message=str(e)
+            )
     
-    def clear_cache(self):
-        """Очистка кеша и освобождение ресурсов"""
-        try:
-            if hasattr(self, 'cache') and self.cache is not None:
-                # Проверяем наличие метода cleanup в HybridTokenCache
-                if hasattr(self.cache, 'cleanup'):
-                    self.cache.cleanup()
-                elif hasattr(self.cache, 'clear'):
-                    self.cache.clear()
-                logger.info("Кеш успешно очищен")
-            
-            # Останавливаем параллельный токенизатор, если он был инициализирован
-            if hasattr(self, 'parallel_tokenizer') and self.parallel_tokenizer is not None:
-                if hasattr(self.parallel_tokenizer, 'stop'):
-                    self.parallel_tokenizer.stop()
-                    logger.info("Параллельный токенизатор остановлен")
-                
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка при очистке кеша: {e}", exc_info=True)
-            return False
-    
-    def cleanup(self):
-        """Очистка ресурсов и освобождение памяти"""
-        try:
-            # Очищаем кеш
-            self.clear_cache()
-            
-            # Выгружаем модель с GPU
-            if hasattr(self, 'model') and self.model is not None:
-                # Если модель поддерживает очистку, используем её
-                if hasattr(self.model, 'cpu'):
-                    self.model.cpu()
-                if hasattr(self.model, 'to'):
-                    self.model.to('cpu')
-                del self.model
-                self.model = None
-                
-            # Очищаем токенизатор
-            if hasattr(self, 'tokenizer'):
-                if hasattr(self.tokenizer, 'save_pretrained'):
-                    try:
-                        self.tokenizer.save_pretrained(os.path.join(os.getcwd(), 'tokenizer_cache'))
-                    except Exception as e:
-                        logger.warning(f"Не удалось сохранить токенизатор: {e}")
-                self.tokenizer = None
-            
-            # Очищаем кэш CUDA, если доступен
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                
-            # Принудительный сбор мусора
-            import gc
-            gc.collect()
-                
-            logger.info("Ресурсы успешно освобождены")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка при освобождении ресурсов: {e}", exc_info=True)
-            return False
-        
-    def __del__(self):
-        """Деструктор - вызывается при удалении объекта"""
-        self.cleanup()
+    def get_priority(self) -> int:
+        return 1  # Высший приоритет
 
-def main():
-    """Основная функция для демонстрации работы генератора"""
-    coordinator = None
-    try:
-        # Инициализируем координатор
-        print("Инициализация координатора генерации...")
-        coordinator = GenerationCoordinator(
-            model_name="qwen3.5-0.8b",
-            num_workers=4,
-            cache_dir="./cache",
-            max_cache_size_gb=50
-        )
-        
-        # Улучшенный промпт с вопросом о графе памяти
-        prompt = """
-        Искусственный интеллект и графы знаний:
-        
-        Графы памяти (Knowledge Graphs) играют важную роль в современных системах ИИ, 
-        обеспечивая структурированное представление знаний и взаимосвязей между сущностями.
-        
-        Пожалуйста, напиши развернутый анализ на следующие темы:
-        1. Как графы памяти используются в современных языковых моделях?
-        2. Какие преимущества дает использование графов памяти в системах генерации текста?
-        3. Какие существуют подходы к интеграции графов знаний в архитектуру нейронных сетей?
-        4. Каковы перспективы развития графовых методов в ИИ?
-        
-        Проанализируй каждый аспект подробно, приведи конкретные примеры и технические детали.
-        """
-        
-        # Генерируем ответ с увеличенным лимитом токенов
-        print("\nГенерация развернутого ответа...")
+
+class FractalModelProvider(GenerationProvider):
+    """Провайдер на основе фрактальной модели"""
+    
+    def __init__(self, fractal_model_manager):
+        self.fractal_model_manager = fractal_model_manager
+    
+    def is_available(self) -> bool:
+        return (self.fractal_model_manager is not None and 
+                hasattr(self.fractal_model_manager, 'initialized') and 
+                self.fractal_model_manager.initialized)
+    
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
         start_time = time.time()
         
-        result = coordinator.generate_response(
-            prompt=prompt,
-            max_new_tokens=2048,  # Увеличили лимит токенов
-            temperature=0.7,
-            top_p=0.9,
-            top_k=50,
-            use_cache=True,
-            do_sample=True
-        )
-        
-        # Выводим результат
-        if result['status'] == 'success':
-            print("\n=== СГЕНЕРИРОВАННЫЙ ТЕКСТ ===")
-            print(result['generated_text'])
-            print("\n=== МЕТАДАННЫЕ ===")
-            print(f"Статус: {result['status']}")
-            print(f"Время обработки: {result['processing_time']:.2f} сек")
-            print(f"Сгенерировано токенов: {result['num_generated_tokens']}")
-            print(f"Устройство: {result['device']}")
-            print(f"Использован кеш: {'да' if result.get('cached', False) else 'нет'}")
-        else:
-            print(f"\nОшибка: {result.get('message', 'Неизвестная ошибка')}")
+        try:
+            if not self.is_available():
+                return GenerationResponse(
+                    text="",
+                    status="error",
+                    error_message="Фрактальная модель недоступна",
+                    source="fractal_model"
+                )
             
-    except KeyboardInterrupt:
-        print("\nПрервано пользователем")
-    except Exception as e:
-        print(f"\nКритическая ошибка: {str(e)}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        # Всегда освобождаем ресурсы
-        if coordinator is not None:
-            print("\nОчистка ресурсов...")
-            coordinator.cleanup()
-            print("Ресурсы освобождены")
+            # Генерация через модель (RuGPT-3 или Fractal)
+            response_text = self.fractal_model_manager.generate_response(
+                request.text, 
+                max_tokens=request.max_tokens,
+                temperature=getattr(request, 'temperature', 0.7),
+                top_p=getattr(request, 'top_p', 0.9),
+                top_k=getattr(request, 'top_k', 50),
+                do_sample=True,  # Sampling для разнообразия
+                no_repeat_ngram_size=3
+            )
+            
+            generation_time = time.time() - start_time
+            
+            # Определяем имя модели
+            model_name = getattr(self.fractal_model_manager, 'model_name', 'unknown')
+            if 'rugpt' in model_name.lower():
+                model_display_name = "ruGPT-3"
+            elif 'gpt2' in model_name.lower():
+                model_display_name = "GPT-2"
+            else:
+                model_display_name = model_name
+            
+            return GenerationResponse(
+                text=response_text,
+                status="ok",
+                source="fractal_model",
+                model_name=model_display_name,
+                generation_time=generation_time,
+                metadata={
+                    "provider": "FractalModelProvider",
+                    "actual_model": model_name,
+                    "device": getattr(self.fractal_model_manager, 'device', 'unknown')
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации через фрактальную модель: {e}")
+            return GenerationResponse(
+                text="",
+                status="error",
+                error_message=str(e),
+                source="fractal_model",
+                generation_time=time.time() - start_time
+            )
+    
+    def get_priority(self) -> int:
+        return 1  # Высший приоритет
 
-if __name__ == "__main__":
-    main()
+
+class ResponseGeneratorProvider(GenerationProvider):
+    """Провайдер на основе ResponseGenerator"""
+    
+    def __init__(self, response_generator):
+        self.response_generator = response_generator
+    
+    def is_available(self) -> bool:
+        return self.response_generator is not None
+    
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
+        start_time = time.time()
+        
+        try:
+            if not self.is_available():
+                return GenerationResponse(
+                    text="",
+                    status="error",
+                    error_message="ResponseGenerator недоступен",
+                    source="response_generator"
+                )
+            
+            # Генерация через ResponseGenerator
+            kwargs = {
+                'max_tokens': request.max_tokens,
+                'temperature': request.temperature,
+                'context': request.context,
+                'user_context': request.user_context
+            }
+            
+            response_data = self.response_generator.generate_response(request.text, **kwargs)
+            
+            generation_time = time.time() - start_time
+            
+            # Извлекаем текст из ответа
+            if isinstance(response_data, dict):
+                text = response_data.get('text', str(response_data))
+                model_name = response_data.get('model_name', 'unknown')
+                status = response_data.get('status', 'ok')
+                error = response_data.get('error')
+            else:
+                text = str(response_data)
+                model_name = 'unknown'
+                status = 'ok'
+                error = None
+            
+            return GenerationResponse(
+                text=text,
+                status=status,
+                source="response_generator",
+                model_name=model_name,
+                generation_time=generation_time,
+                error_message=error,
+                metadata={"provider": "ResponseGeneratorProvider"}
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации через ResponseGenerator: {e}")
+            return GenerationResponse(
+                text="",
+                status="error",
+                error_message=str(e),
+                source="response_generator",
+                generation_time=time.time() - start_time
+            )
+    
+    def get_priority(self) -> int:
+        return 2
+
+
+class MLUnitProvider(GenerationProvider):
+    """Провайдер на основе MLUnit"""
+    
+    def __init__(self, ml_unit):
+        self.ml_unit = ml_unit
+    
+    def is_available(self) -> bool:
+        return self.ml_unit is not None
+    
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
+        start_time = time.time()
+        
+        try:
+            if not self.is_available():
+                return GenerationResponse(
+                    text="",
+                    status="error",
+                    error_message="MLUnit недоступен",
+                    source="ml_unit"
+                )
+            
+            # Генерация через MLUnit
+            kwargs = {
+                'max_tokens': request.max_tokens,
+                'temperature': request.temperature,
+                'context': request.context,
+                'user_context': request.user_context
+            }
+            
+            response_data = self.ml_unit.generate_response(request.text, **kwargs)
+            
+            generation_time = time.time() - start_time
+            
+            # Извлекаем текст из ответа
+            if isinstance(response_data, dict):
+                text = response_data.get('text', response_data.get('response', str(response_data)))
+                model_name = response_data.get('model_name', 'unknown')
+                status = response_data.get('status', 'ok')
+                error = response_data.get('error')
+            else:
+                text = str(response_data)
+                model_name = 'unknown'
+                status = 'ok'
+                error = None
+            
+            return GenerationResponse(
+                text=text,
+                status=status,
+                source="ml_unit",
+                model_name=model_name,
+                generation_time=generation_time,
+                error_message=error,
+                metadata={"provider": "MLUnitProvider"}
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации через MLUnit: {e}")
+            return GenerationResponse(
+                text="",
+                status="error",
+                error_message=str(e),
+                source="ml_unit",
+                generation_time=time.time() - start_time
+            )
+    
+    def get_priority(self) -> int:
+        return 3
+
+
+class UnifiedGenerationCoordinator:
+    """Унифицированный координатор генерации текста"""
+    
+    def __init__(self):
+        self.providers = []
+        self.default_provider = None
+        self.fallback_response = "Извините, произошла ошибка при генерации ответа."
+    
+    def register_provider(self, provider: GenerationProvider):
+        """Регистрирует провайдера генерации"""
+        self.providers.append(provider)
+        # Сортируем по приоритету
+        self.providers.sort(key=lambda p: p.get_priority())
+        logger.debug(f"Зарегистрирован провайдер: {provider.__class__.__name__}")
+    
+    def set_default_provider(self, provider: GenerationProvider):
+        """Устанавливает провайдер по умолчанию"""
+        self.default_provider = provider
+        logger.debug(f"Провайдер по умолчанию: {provider.__class__.__name__}")
+    
+    def generate(self, text: str, **kwargs) -> GenerationResponse:
+        """
+        Основной метод генерации текста
+        
+        Args:
+            text: Текст запроса
+            **kwargs: Дополнительные параметры
+            
+        Returns:
+            GenerationResponse: Стандартизированный ответ
+        """
+        request = GenerationRequest(text, **kwargs)
+        
+        logger.info(f"Запрос на генерацию: '{text[:50]}...' (провайдеров: {len(self.providers)})")
+        
+        # Пробуем провайдеры в порядке приоритета
+        for provider in self.providers:
+            try:
+                if provider.is_available():
+                    logger.debug(f"Используем провайдер: {provider.__class__.__name__}")
+                    response = provider.generate(request)
+                    
+                    if response.status == "ok":
+                        logger.info(f"Успешная генерация через {provider.__class__.__name__}")
+                        return response
+                    else:
+                        logger.warning(f"Провайдер {provider.__class__.__name__} вернул ошибку: {response.error_message}")
+                        continue
+                else:
+                    logger.debug(f"Провайдер {provider.__class__.__name__} недоступен")
+                    
+            except Exception as e:
+                logger.error(f"Критическая ошибка провайдера {provider.__class__.__name__}: {e}")
+                continue
+        
+        # Если все провайдеры недоступны или вернули ошибки
+        logger.error("Все провайдеры генерации недоступны или вернули ошибки")
+        
+        # Пробуем провайдер по умолчанию
+        if self.default_provider and self.default_provider.is_available():
+            try:
+                logger.info(f"Используем провайдер по умолчанию: {self.default_provider.__class__.__name__}")
+                return self.default_provider.generate(request)
+            except Exception as e:
+                logger.error(f"Ошибка провайдера по умолчанию: {e}")
+        
+        # Возвращаем fallback ответ
+        return GenerationResponse(
+            text=self.fallback_response,
+            status="error",
+            error_message="Все провайдеры недоступны",
+            source="fallback"
+        )
+
+    def generate_response(self, prompt: str, max_tokens: int = 200, **kwargs) -> str:
+        """
+        Упрощенный метод генерации текста для обратной совместимости.
+        
+        Args:
+            prompt: Текст промпта
+            max_tokens: Максимальное количество токенов (по умолчанию 200)
+            **kwargs: Дополнительные параметры
+            
+        Returns:
+            str: Сгенерированный текст
+        """
+        try:
+            response = self.generate(prompt, max_tokens=max_tokens, **kwargs)
+            if response and hasattr(response, 'text'):
+                return response.text
+            elif response and hasattr(response, 'content'):
+                return response.content
+            elif isinstance(response, str):
+                return response
+            else:
+                return str(response) if response else ""
+        except Exception as e:
+            logger.error(f"Ошибка генерации ответа: {e}")
+            return ""
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Возвращает статус координатора и провайдеров"""
+        providers_status = []
+        
+        for provider in self.providers:
+            providers_status.append({
+                "name": provider.__class__.__name__,
+                "available": provider.is_available(),
+                "priority": provider.get_priority()
+            })
+        
+        return {
+            "total_providers": len(self.providers),
+            "available_providers": sum(1 for p in self.providers if p.is_available()),
+            "default_provider": self.default_provider.__class__.__name__ if self.default_provider else None,
+            "providers": providers_status
+        }
+
+
+# Глобальный экземпляр координатора
+_generation_coordinator = None
+
+
+def get_generation_coordinator() -> UnifiedGenerationCoordinator:
+    """Возвращает глобальный координатор генерации"""
+    global _generation_coordinator
+    if _generation_coordinator is None:
+        _generation_coordinator = UnifiedGenerationCoordinator()
+    return _generation_coordinator
+
+
+def initialize_generation_coordinator(brain):
+    """Инициализирует координатор генерации с компонентами brain"""
+    coordinator = get_generation_coordinator()
+    
+    # Регистрируем провайдеров в порядке приоритета
+    
+    # 1. HybridModelManager (высший приоритет)
+    if hasattr(brain, 'model_manager') and brain.model_manager:
+        # Проверяем является ли это HybridModelManager
+        if hasattr(brain.model_manager, 'get_available_models') and hasattr(brain.model_manager, 'generate_response'):
+            hybrid_provider = HybridModelProvider(brain.model_manager)
+            coordinator.register_provider(hybrid_provider)
+            logger.info("[OK] Зарегистрирован HybridModelProvider")
+        else:
+            # Fallback на старый провайдер
+            model_provider = FractalModelProvider(brain.model_manager)
+            coordinator.register_provider(model_provider)
+            logger.info("[OK] Зарегистрирован FractalModelProvider (fallback)")
+    
+    # 2. Fallback на другие менеджеры (если доступны)
+    elif hasattr(brain, 'fractal_model_manager') and brain.fractal_model_manager:
+        if hasattr(brain.fractal_model_manager, 'initialized') and brain.fractal_model_manager.initialized:
+            fractal_provider = FractalModelProvider(brain.fractal_model_manager)
+            coordinator.register_provider(fractal_provider)
+            logger.info("[OK] Зарегистрирован fractal_model_manager")
+        else:
+            logger.warning("[WARN] fractal_model_manager не инициализирован, пропускаем")
+    
+    # 3. ResponseGenerator
+    if hasattr(brain, 'components') and 'response_generator' in brain.components:
+        response_provider = ResponseGeneratorProvider(brain.components['response_generator'])
+        coordinator.register_provider(response_provider)
+    
+    # 3. MLUnit
+    if hasattr(brain, 'components') and 'ml_unit' in brain.components:
+        ml_provider = MLUnitProvider(brain.components['ml_unit'])
+        coordinator.register_provider(ml_provider)
+    
+    logger.info(f"Координатор генерации инициализирован с {len(coordinator.providers)} провайдерами")
+    
+    return coordinator

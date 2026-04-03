@@ -62,7 +62,7 @@ class GUIBridge:
         logger.debug(f"Query received: {data.get('query', '')[:50]}...")
         
         if self.web_gui:
-            self.web_gui.emit_system_notification({
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'info',
                 'message': f"Получен запрос: {data.get('query', '')[:30]}..."
             })
@@ -76,7 +76,7 @@ class GUIBridge:
         
         if reasoning and self.web_gui:
             for step in reasoning:
-                self.web_gui.emit_reasoning_update({
+                getattr(self.web_gui, "emit_reasoning_update", lambda x: None)({
                     'step': step.get('step', 0),
                     'title': step.get('title', ''),
                     'detail': step.get('detail', ''),
@@ -86,7 +86,7 @@ class GUIBridge:
     def _on_training_progress(self, data: Dict[str, Any]):
         """Обработка прогресса обучения"""
         if self.web_gui:
-            self.web_gui.emit_training_update({
+            getattr(self.web_gui, "emit_training_update", lambda x: None)({
                 'state': data.get('state', 'training'),
                 'progress': data.get('progress', 0),
                 'epoch': data.get('epoch', 0),
@@ -100,7 +100,7 @@ class GUIBridge:
     def _on_reasoning_step(self, data: Dict[str, Any]):
         """Обработка шага рассуждения"""
         if self.web_gui:
-            self.web_gui.emit_reasoning_update({
+            getattr(self.web_gui, "emit_reasoning_update", lambda x: None)({
                 'text': data.get('text', ''),
                 'step': data.get('step', 0),
                 'timestamp': data.get('timestamp')
@@ -112,7 +112,7 @@ class GUIBridge:
         logger.warning(f"System error: {error_msg}")
         
         if self.web_gui:
-            self.web_gui.emit_system_notification({
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'error',
                 'message': f"Ошибка системы: {error_msg}"
             })
@@ -131,7 +131,7 @@ class GUIBridge:
             return
         
         if self.web_gui:
-            self.web_gui.emit_system_notification({
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'info' if 'error' not in event else 'error',
                 'message': message
             })
@@ -139,7 +139,7 @@ class GUIBridge:
     def _on_models_ready(self, data=None):
         """Обработка готовности моделей"""
         if self.web_gui:
-            self.web_gui.emit_system_notification({
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'success',
                 'message': 'Все модели готовы к работе'
             })

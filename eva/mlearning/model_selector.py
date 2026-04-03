@@ -111,7 +111,20 @@ class ModelSelector:
         return False
     
     def _load_qwen(self, model_name: str) -> bool:
-        """Загружает Qwen модель"""
+        """Загружает Qwen модель (пропускаем если PyTorch отключён)"""
+        # Проверяем disable_pytorch
+        try:
+            import json
+            config_path = "brain_config.json"
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    if config.get('model', {}).get('disable_pytorch', False):
+                        logger.info("PyTorch отключён - пропускаем загрузку Qwen")
+                        return False
+        except:
+            pass
+        
         try:
             from eva.mlearning.qwen_model_manager import QwenModelManager
             

@@ -16,7 +16,16 @@
     async function api(path, opts = {}) {
         const headers = { 'Content-Type': 'application/json' };
         if (userId) headers['X-User-ID'] = userId;
-        const r = await fetch(`/api${path}`, {
+        
+        // Build URL with query params if provided
+        let url = `/api${path}`;
+        if (opts.params) {
+            const params = new URLSearchParams(opts.params);
+            url += '?' + params.toString();
+            delete opts.params;
+        }
+        
+        const r = await fetch(url, {
             ...opts,
             headers: { ...headers, ...opts.headers },
             body: opts.body ? JSON.stringify(opts.body) : undefined
@@ -173,16 +182,63 @@
         
         // Use reasoning from brain if available
         if (reasoning) {
-            const reasoningText = typeof reasoning === 'string' ? reasoning : JSON.stringify(reasoning, null, 2);
-            reasoningHtml = `
-                <div class="msg-reasoning">
-                    <button class="reasoning-toggle" onclick="this.classList.toggle('open')">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                        Рассуждения
-                    </button>
-                    <div class="reasoning-body"><pre>${esc(reasoningText)}</pre></div>
-                </div>
-            `;
+            // Check if reasoning is structured (array of steps) or plain text
+            if (Array.isArray(reasoning) && reasoning.length > 0) {
+                // Render structured reasoning steps
+                const stepsHtml = reasoning.map((step, idx) => {
+                    const phase = step.phase || step.action || 'unknown';
+                    const thought = step.thought || step.text || '';
+                    const conf = step.confidence || 0;
+                    const confClass = conf >= 0.7 ? 'high' : conf >= 0.4 ? 'medium' : 'low';
+                    const confLabel = (conf * 100).toFixed(0) + '%';
+                    const icons = {
+                        'generation': '💭',
+                        'model_a_generation': '🧠',
+                        'model_b_generation': '💡',
+                        'query_analysis': '🔍',
+                        'quality_check_a': '✅',
+                        'quality_check_b': '✅',
+                        'final_synthesis': '📝',
+                        'contradiction_check': '⚖️',
+                        'ethics_check': '🛡️',
+                        'web_search': '🌐',
+                        'refinement': '✨'
+                    };
+                    const icon = icons[phase] || '🔹';
+                    return `
+                        <div class="reasoning-step">
+                            <span class="step-icon">${icon}</span>
+                            <span class="step-num">${idx + 1}</span>
+                            <span class="step-phase">${esc(phase)}</span>
+                            <span class="step-thought">${esc(thought)}</span>
+                            <span class="step-conf ${confClass}">${confLabel}</span>
+                        </div>
+                    `;
+                }).join('');
+                reasoningHtml = `
+                    <div class="msg-reasoning">
+                        <button class="reasoning-toggle" onclick="this.classList.toggle('open')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                            Рассуждения (${reasoning.length} шагов)
+                        </button>
+                        <div class="reasoning-body">
+                            <div class="reasoning-steps">${stepsHtml}</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                // Plain text reasoning
+                const reasoningText = typeof reasoning === 'string' ? reasoning : JSON.stringify(reasoning, null, 2);
+                reasoningHtml = `
+                    <div class="msg-reasoning">
+                        <button class="reasoning-toggle" onclick="this.classList.toggle('open')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                            Рассуждения
+                        </button>
+                        <div class="reasoning-body"><pre>${esc(reasoningText)}</pre></div>
+                    </div>
+                `;
+            }
         } else if (entities && entities.length > 0) {
             // Fallback to entity-based reasoning
             const steps = entities.map((e, i) =>
@@ -412,37 +468,47 @@
         }).then(d => {
             removeTyping();
             
-            // Рассуждения в folded меню
-            // Объединяем все рассуждения в одно меню
-            let allReasoning = '';
-            
-            // 1. Основные рассуждения (steps)
+            // Рассуждения - передаём structured steps для рендеринга карточками
+            let reasoningData = null;
+
+            // 1. Основные рассуждения (steps) - передаём как массив
             if (d.reasoning_steps && d.reasoning_steps.length > 0) {
-                allReasoning += '🔬 Этапы рассуждений:\n';
-                d.reasoning_steps.forEach((step, idx) => {
-                    const icons = {'generation': '💭', 'contradiction_check': '⚖️', 'ethics_check': '⚡', 'web_search': '🌐', 'refinement': '🔄', 'final_synthesis': '✨', 'document_analysis': '📄'};
-                    const icon = icons[step.phase] || '•';
-                    allReasoning += step.step + '. ' + icon + ' [' + step.phase + '] ' + step.thought + ' (conf: ' + step.confidence.toFixed(2) + ')\n';
+                reasoningData = d.reasoning_steps;
+            }
+
+            // 2. Веб-поиск - добавляем как дополнительный шаг
+            if (d.web_search_info) {
+                if (!reasoningData) reasoningData = [];
+                reasoningData.push({
+                    step: reasoningData.length + 1,
+                    phase: 'web_search',
+                    thought: d.web_search_info,
+                    confidence: 0.8
                 });
             }
-            
-            // 2. Веб-поиск
-            if (d.web_search_info) {
-                allReasoning += '\n🌐 Результаты поиска:\n' + d.web_search_info + '\n';
-            }
-            
-            // 3. Самодиалог
+
+            // 3. Самодиалог - добавляем как дополнительный шаг
             if (d.self_dialog) {
                 const sd = d.self_dialog;
-                allReasoning += '\n🔄 Самодиалог:\n';
-                allReasoning += 'Тема: ' + (sd.topic || '') + '\n';
-                allReasoning += 'Исход: ' + (sd.outcome || '') + '\n';
-                if (sd.gaps && sd.gaps.length > 0) allReasoning += 'Пробелы: ' + sd.gaps.join(', ') + '\n';
-                if (sd.actions && sd.actions.length > 0) allReasoning += 'Действия: ' + sd.actions.join(', ') + '\n';
+                let sdText = 'Самодиалог: ' + (sd.topic || '');
+                if (sd.outcome) sdText += ' → ' + sd.outcome;
+                if (sd.gaps && sd.gaps.length > 0) sdText += '. Пробелы: ' + sd.gaps.join(', ');
+                if (!reasoningData) reasoningData = [];
+                reasoningData.push({
+                    step: reasoningData.length + 1,
+                    phase: 'self_dialog',
+                    thought: sdText,
+                    confidence: sd.confidence || 0.5
+                });
             }
-            
-            // Добавляем финальный ответ с объединенными рассуждениями
-            addMsg('system', d.response || 'Нет ответа', null, allReasoning || d.reasoning);
+
+            // Fallback на plain text reasoning
+            if (!reasoningData && d.reasoning) {
+                reasoningData = d.reasoning;
+            }
+
+            // Добавляем финальный ответ со структурированными рассуждениями
+            addMsg('system', d.response || 'Нет ответа', null, reasoningData);
             
             // Показываем уточняющий вопрос если есть
             if (d.clarification_question) {
@@ -452,7 +518,8 @@
                         <div class="clarification-text">${esc(d.clarification_question)}</div>
                     </div>
                 `;
-                const lastMsg = c.lastElementChild;
+                const chatContainer = document.getElementById('chatMessages');
+            const lastMsg = chatContainer ? chatContainer.lastElementChild : null;
                 const lastMsgInner = lastMsg?.querySelector?.('.msg-inner');
                 if (lastMsgInner) {
                     lastMsgInner.insertAdjacentHTML('beforeend', clarHtml);
@@ -922,5 +989,136 @@
     setupToggle('#toggleMemory', 'memory_enabled');
     setupToggle('#toggleTheme', 'dark_theme');
     setupToggle('#toggleSound', 'sound_enabled');
+
+    /* ── Model Status ── */
+    function loadModelStatus() {
+        api('/model-status').then(data => {
+            if (data.error) return;
+            
+            // Update model indicators
+            const models = data.models || {};
+            Object.keys(models).forEach(key => {
+                const model = models[key];
+                const el = $(`#model-${key}`);
+                if (el) {
+                    el.className = `model-indicator ${model.loaded ? 'loaded' : 'unloaded'}`;
+                    el.innerHTML = `
+                        <span class="model-name">${model.name}</span>
+                        <span class="model-role">${model.role}</span>
+                        <span class="model-status">${model.loaded ? 'Загружена' : 'Не загружена'}</span>
+                    `;
+                }
+            });
+            
+            // Update pipeline status
+            const pipelineEl = $('#pipelineStatus');
+            if (pipelineEl) {
+                pipelineEl.className = `pipeline-status ${data.pipeline_ready ? 'ready' : 'not-ready'}`;
+                pipelineEl.textContent = data.pipeline_ready ? 'Пайплайн готов' : 'Пайплайн не готов';
+            }
+            
+            // Update fractal memory info
+            const fm = data.fractal_memory || {};
+            const fmEl = $('#fractalMemoryInfo');
+            if (fmEl && fm.enabled) {
+                fmEl.innerHTML = `
+                    <span>Узлов: ${fm.nodes}</span>
+                    <span>Связей: ${fm.edges}</span>
+                    <span>Опытов: ${fm.experiences}</span>
+                    <span>Концептов: ${fm.concepts}</span>
+                `;
+            }
+        }).catch(() => {});
+    }
+    
+    // Load model status on startup
+    if ($('#modelStatus')) loadModelStatus();
+    setInterval(loadModelStatus, 60000);
+
+    /* ── Self-Dialog ── */
+    function loadSelfDialog() {
+        api('/self-dialog').then(data => {
+            if (data.error) return;
+            
+            const statusEl = $('#selfDialogStatus');
+            if (statusEl) {
+                statusEl.innerHTML = `
+                    <div class="sd-stat">
+                        <span class="sd-label">Всего диалогов</span>
+                        <span class="sd-value">${data.total_dialogs || 0}</span>
+                    </div>
+                    <div class="sd-stat">
+                        <span class="sd-label">Успешных</span>
+                        <span class="sd-value">${data.successful || 0}</span>
+                    </div>
+                    <div class="sd-stat">
+                        <span class="sd-label">Неудачных</span>
+                        <span class="sd-value">${data.failed || 0}</span>
+                    </div>
+                `;
+            }
+        }).catch(() => {});
+    }
+    
+    // Trigger self-dialog
+    function triggerSelfDialog() {
+        api('/self-dialog', {
+            method: 'POST',
+            body: {}
+        }).then(data => {
+            if (data.status === 'success') {
+                toast('Самодиалог запущен: ' + (data.topic || 'общая тема'), 'success');
+                loadSelfDialog();
+            } else {
+                toast('Ошибка запуска самодиалога: ' + (data.error || ''), 'error');
+            }
+        }).catch(() => {
+            toast('Ошибка запуска самодиалога', 'error');
+        });
+    }
+    
+    $('#triggerSelfDialog')?.addEventListener('click', triggerSelfDialog);
+    if ($('#selfDialogStatus')) loadSelfDialog();
+
+    /* ── Snapshots ── */
+    function loadSnapshots() {
+        api('/snapshots').then(data => {
+            if (data.error) return;
+            
+            const listEl = $('#snapshotList');
+            if (listEl && data.snapshots) {
+                if (data.snapshots.length > 0) {
+                    listEl.innerHTML = data.snapshots.map(s => `
+                        <div class="snapshot-item">
+                            <span class="snapshot-name">${esc(s.name)}</span>
+                            <span class="snapshot-info">${s.experiences} опытов, ${s.concepts} концептов</span>
+                        </div>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<div class="empty-state">Нет слепков</div>';
+                }
+            }
+        }).catch(() => {});
+    }
+    
+    function createSnapshot() {
+        api('/snapshots', {
+            method: 'POST',
+            body: {}
+        }).then(data => {
+            if (data.status === 'success') {
+                toast('Слепок создан', 'success');
+                loadSnapshots();
+            } else {
+                toast('Ошибка создания слепка', 'error');
+            }
+        }).catch(() => {
+            toast('Ошибка создания слепка', 'error');
+        });
+    }
+    
+    $('#createSnapshot')?.addEventListener('click', createSnapshot);
+    if ($('#snapshotList')) loadSnapshots();
+
 
 })();

@@ -11,13 +11,18 @@ from transformers import AutoTokenizer, GenerationConfig
 logger = logging.getLogger(__name__)
 
 # Импортируем правильный класс модели
-try:
-    from transformers import Qwen3_5ForConditionalGeneration as QwenModelClass
-except ImportError:
-    from transformers import AutoModelForCausalLM as QwenModelClass
-    logger.warning("Qwen3_5ForConditionalGeneration не найден, используем AutoModelForCausalLM")
+from transformers import AutoModelForCausalLM as QwenModelClass
+logger.info("Используем AutoModelForCausalLM для загрузки моделей")
 
 QWEN_MODELS = {
+    # Qwen2.5 Series (Апрель 2026) - Минимальная для GGUF
+    "qwen2.5-0.5b": {
+        "name": "Qwen/Qwen2.5-0.5B",
+        "params": "0.5B",
+        "ram_fp16": "1GB",
+        "ram_q4": "0.3GB",
+        "description": "Минимальная - для GGUF llama.cpp (РЕКОМЕНДУЕТСЯ)"
+    },
     # Qwen3.5 Small Series (Март 2026) - РЕКОМЕНДУЕТСЯ
     "qwen3.5-0.8b": {
         "name": "Qwen/Qwen3.5-0.8B",
@@ -94,7 +99,7 @@ QWEN_MODELS = {
 }
 
 
-def get_qwen_model_path(model_size: str = "qwen3.5-0.8b") -> str:
+def get_qwen_model_path(model_size: str = "qwen2.5-0.5b") -> str:
     """Возвращает путь к локальной модели Qwen"""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(current_dir))
@@ -264,8 +269,8 @@ class QwenModelManager:
         """Загружает модель и токенизатор"""
         try:
             if self.model_size not in QWEN_MODELS:
-                logger.warning(f"Модель {self.model_size} не найдена, используем qwen3.5-2b")
-                self.model_size = "qwen3.5-2b"
+                logger.warning(f"Модель {self.model_size} не найдена, используем qwen2.5-0.5b")
+                self.model_size = "qwen2.5-0.5b"
             
             model_info = QWEN_MODELS[self.model_size]
             model_source = model_info["name"]

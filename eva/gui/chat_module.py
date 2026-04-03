@@ -1935,8 +1935,7 @@ class ChatModule:
                 tor = ml_unit.training_orchestrator
             
             if tor is None:
-                from eva.mlearning.training_orchestrator import TrainingOrchestrator
-                tor = TrainingOrchestrator(brain=brain, progress_cb=self._training_progress_cb)
+                                pass  # Training disabled
             
             result = tor.train_from_document(imported)
             status = (result or {}).get("status")

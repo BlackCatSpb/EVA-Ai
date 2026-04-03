@@ -101,22 +101,36 @@ class FractalModelManager:
             from eva.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
             
             project_root = _get_project_root()
-            gguf_path = os.path.join(project_root, "eva", "models", "qwen2.5-0.5b-instruct-q4_0.gguf")
             
-            if os.path.exists(gguf_path):
-                self.llama_cpp_deployment = LlamaCppHotDeployment(
-                    model_path=gguf_path,
-                    n_ctx=4096,
-                    n_threads=8
-                )
-                
-                if self.llama_cpp_deployment.initialize(preload_root=True):
-                    self.llama_cpp_ready = True
-                    logger.info(f"FractalModelManager GGUF ready: {gguf_path}")
-                else:
-                    logger.warning("FractalModelManager: LlamaCpp initialization failed")
+            # Проверяем несколько путей для GGUF
+            possible_paths = [
+                os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "eva", "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+            ]
+            
+            gguf_path = None
+            for p in possible_paths:
+                if os.path.exists(p):
+                    gguf_path = p
+                    logger.info(f"Найден GGUF файл: {p}")
+                    break
+            
+            if gguf_path is None:
+                logger.warning("GGUF model not found in any path")
+                return
+            
+            self.llama_cpp_deployment = LlamaCppHotDeployment(
+                model_path=gguf_path,
+                n_ctx=4096,
+                n_threads=8
+            )
+            
+            if self.llama_cpp_deployment.initialize(preload_root=True):
+                self.llama_cpp_ready = True
+                logger.info(f"FractalModelManager GGUF ready: {gguf_path}")
             else:
-                logger.warning(f"GGUF model not found: {gguf_path}")
+                logger.warning("FractalModelManager: LlamaCpp initialization failed")
                 
         except Exception as e:
             logger.debug(f"FractalModelManager GGUF не инициализирован: {e}")
@@ -126,7 +140,7 @@ class FractalModelManager:
         """Инициализирует модель - теперь через Qwen3.5-2B"""
         try:
             project_root = _get_project_root()
-            qwen_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
+            qwen_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen2.5-0.5b")
             
             logger.info(f"Qwen3.5-2B path: {qwen_path}")
             logger.info("Текстовая генерация теперь через Qwen3.5-2B (lazy loading)")
@@ -379,7 +393,7 @@ class FractalModelManager:
             "device": self.device,
             "model_type": "GPT-2" if self.initialized else "None",
             "total_parameters": 124000000,  # 124M для GPT-2
-            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b"
+            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen2.5-0.5b") if self.config else "qwen2.5-0.5b"
         }
     
     def is_ready(self) -> bool:
@@ -390,7 +404,7 @@ class FractalModelManager:
         """Возвращает статистику производительности"""
         return {
             "initialized": self.initialized,
-            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b",
+            "model_name": (self.config.get("model", {}) or {}).get("name", "qwen2.5-0.5b") if self.config else "qwen2.5-0.5b",
             "device": str(self.device)
         }
     
@@ -467,7 +481,7 @@ class FractalModelManager:
         
         # Возвращаем информацию о текущей модели
         model_info = {
-            "name": (self.config.get("model", {}) or {}).get("name", "qwen3.5-0.8b") if self.config else "qwen3.5-0.8b",
+            "name": (self.config.get("model", {}) or {}).get("name", "qwen2.5-0.5b") if self.config else "qwen2.5-0.5b",
             "display_name": "Qwen3.5-0.8B",
             "type": "text-generation",
             "status": "loaded" if self.model and self.tokenizer else "error",
@@ -480,5 +494,5 @@ class FractalModelManager:
         
         # Возвращаем только одну модель - Qwen
         return {
-            "qwen3.5-0.8b_fractal": model_info
+            "qwen2.5-0.5b_fractal": model_info
         }

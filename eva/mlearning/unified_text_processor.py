@@ -157,16 +157,7 @@ class UnifiedTextProcessor(BaseComponent):
         try:
             # Инициализируем лемматизатор NLTK
             self.lemmatizer = WordNetLemmatizer()
-            
-            # Создаем локальный токенизатор
-            try:
-                from eva.nlp.text_processor import TextProcessor
-                self.tokenizer = TextProcessor(model_name="qwen3.5-0.8b")
-                logger.info("Локальный токенизатор Qwen3.5-2B создан успешно")
-            except Exception as e:
-                logger.warning(f"Не удалось создать локальный токенизатор: {e}")
-                self.tokenizer = None
-            
+                        
             # Пытаемся загрузить языковую модель spaCy
             try:
                 # Сначала пробуем загрузить русскую модель

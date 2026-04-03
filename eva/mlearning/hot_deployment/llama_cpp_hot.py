@@ -124,6 +124,8 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         n_ctx: int = 4096,
         n_threads: int = 8,
         n_gpu_layers: int = 0,
+        system_prompt: str = None,
+        purpose: str = "general",
         **kwargs
     ):
         # Определяем путь к GGUF модели
@@ -145,13 +147,15 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         self.n_ctx = n_ctx
         self.n_threads = n_threads
         self.n_gpu_layers = n_gpu_layers
+        self.system_prompt = system_prompt
+        self.purpose = purpose
         
         self.llama = None
         
-        logger.info(f"LlamaCppHotDeployment: model={model_path}, n_ctx={n_ctx}, threads={n_threads}")
+        logger.info(f"LlamaCppHotDeployment: model={model_path}, n_ctx={n_ctx}, threads={n_threads}, purpose={purpose}")
     
-    def initialize(self, preload_root: bool = True) -> bool:
-        """Инициализация с llama.cpp"""
+    def initialize(self, preload_root: bool = False) -> bool:
+        """Инициализация с llama.cpp (без активации узла для скорости)"""
         try:
             from llama_cpp import Llama
             
@@ -168,27 +172,13 @@ class LlamaCppHotDeployment(HotDeploymentManager):
             
             logger.info("llama.cpp модель загружена!")
             
-            # Активируем корневой узел
-            if preload_root:
-                root = self.graph._root
-                
-                # Преобразуем в LlamaCppHotNode
-                hot_node = LlamaCppHotNode(
-                    node_id=root.node_id,
-                    parent_id=root.parent_id,
-                    address=root.address,
-                    depth=root.depth
-                )
-                hot_node.activate_with_llama(self.llama)
-                
-                # Заменяем в графе
-                self.graph._nodes[root.node_id] = hot_node
-                
-                self.ready = True
-                logger.info("LlamaCppHotDeployment готов!")
+            # Убираем тяжёлую активацию узла - она не нужна для генерации
+            # Горячий узел активируется только при реальном использовании
+            self.ready = True
+            logger.info(f"LlamaCppHotDeployment [{self.purpose}] готов к работе (быстрая инициализация)!")
             
             return self.ready
-            
+        
         except Exception as e:
             logger.error(f"Ошибка инициализации llama.cpp: {e}")
             import traceback
@@ -201,6 +191,10 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         max_new_tokens: int = 100,
         node_address: Optional[str] = None,
         use_best_node: bool = True,
+        system_prompt: str = None,
+        temperature: float = None,
+        top_p: float = None,
+        repeat_penalty: float = None,
         **kwargs
     ) -> Optional[str]:
         """Генерация через llama.cpp"""
@@ -211,17 +205,28 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         try:
             start = time.time()
             
-            # Форматируем промпт с этическим контекстом
-            formatted_prompt = format_prompt_with_ethics(prompt)
+            # Определяем системный промпт: приоритет у переданного, потом у своего, потом этический
+            final_system = system_prompt or self.system_prompt or ""
+            
+            # Формируем сообщения с системным промптом
+            messages = []
+            if final_system:
+                messages.append({"role": "system", "content": final_system})
+            messages.append({"role": "user", "content": prompt})
+            
+            # Используем параметры или значения по умолчанию
+            temp = temperature if temperature is not None else kwargs.get("temperature", 0.7)
+            tp = top_p if top_p is not None else kwargs.get("top_p", 0.9)
+            rp = repeat_penalty if repeat_penalty is not None else kwargs.get("repeat_penalty", 1.1)
             
             # Используем llama.cpp напрямую (без узлов для скорости)
             response = self.llama.create_chat_completion(
-                messages=[{"role": "user", "content": formatted_prompt}],
+                messages=messages,
                 max_tokens=max_new_tokens,
-                temperature=kwargs.get("temperature", 0.7),
-                top_p=kwargs.get("top_p", 0.9),
+                temperature=temp,
+                top_p=tp,
                 top_k=kwargs.get("top_k", 40),
-                repeat_penalty=kwargs.get("repeat_penalty", 1.1),
+                repeat_penalty=rp,
                 stop=kwargs.get("stop", ["<|endoftext|>", "<|im_end|>"])
             )
             
@@ -231,14 +236,14 @@ class LlamaCppHotDeployment(HotDeploymentManager):
             tokens = response.get('usage', {}).get('completion_tokens', max_new_tokens)
             speed = tokens / elapsed if elapsed > 0 else 0
             
-            logger.info(f"GGUF: {tokens} токенов за {elapsed:.2f}s ({speed:.1f} tok/s)")
+            logger.info(f"GGUF [{self.purpose}]: {tokens} токенов за {elapsed:.2f}s ({speed:.1f} tok/s)")
             
             # Проверяем на повторения и убираем
             if text:
                 text = self._remove_repetitions(text)
             
             return text
-            
+        
         except Exception as e:
             logger.error(f"Ошибка генерации: {e}")
             return None

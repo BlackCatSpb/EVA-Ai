@@ -59,14 +59,12 @@ class LearningManager:
         try:
             logger.info(f"Начало обучения модели {model_id}")
             
-            # Проверяем доступность TrainingOrchestrator
             training_orchestrator = self._get_training_orchestrator()
             if not training_orchestrator:
                 return self._create_error_result(model_id, "training_orchestrator_unavailable")
             
             # Определяем тип данных и используем соответствующий метод обучения
             if hasattr(data, 'iter_segments'):
-                # Документ с сегментами - используем TrainingOrchestrator
                 result = training_orchestrator.train_from_document(
                     imported_doc=data,
                     model_id=model_id,
@@ -74,7 +72,6 @@ class LearningManager:
                     fractal_config=kwargs.get('fractal_config', {})
                 )
                 
-                logger.info(f"Обучение модели {model_id} через TrainingOrchestrator завершено")
                 return result
                 
             elif isinstance(data, (list, tuple)):
@@ -97,29 +94,7 @@ class LearningManager:
             return self._create_error_result(model_id, error_msg)
     
     def _get_training_orchestrator(self):
-        """Получает TrainingOrchestrator из различных источников."""
-        try:
-            # Проверяем в brain
-            if self.brain and hasattr(self.brain, 'training_orchestrator'):
-                return self.brain.training_orchestrator
-            
-            # Проверяем в ml_unit
-            if self.brain and hasattr(self.brain, 'ml_unit'):
-                ml_unit = self.brain.ml_unit
-                if hasattr(ml_unit, 'training_orchestrator'):
-                    return ml_unit.training_orchestrator
-            
-            # Пробуем создать новый экземпляр
-            if self.brain:
-                try:
-                    from eva.mlearning.training_orchestrator import TrainingOrchestrator
-                    return TrainingOrchestrator(brain=self.brain)
-                except ImportError as e:
-                    logger.warning(f"TrainingOrchestrator not available: {e}")
-                
-        except Exception as e:
-            logger.error(f"Ошибка получения TrainingOrchestrator: {e}")
-        
+        # TrainingOrchestrator removed - using SelfDialogLearning instead
         return None
     
     def _train_from_segments(self, model_id: str, segments: List[str], **kwargs) -> Dict[str, Any]:
@@ -145,7 +120,6 @@ class LearningManager:
             
             temp_doc = TempDocument(segments)
             
-            # Используем TrainingOrchestrator
             training_orchestrator = self._get_training_orchestrator()
             if training_orchestrator:
                 return training_orchestrator.train_from_document(

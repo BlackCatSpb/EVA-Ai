@@ -108,9 +108,27 @@ class EnhancedReasoningEngine:
             logger.info("WebSearch connected")
     
     def _get_qwen(self):
-        """Получает экземпляр Qwen"""
+        """Получает экземпляр Qwen или GGUF если PyTorch отключён"""
         if self._qwen is not None:
             return self._qwen
+        
+        # Проверяем, отключён ли PyTorch
+        disable_pytorch = False
+        try:
+            if self.brain and hasattr(self.brain, 'config'):
+                disable_pytorch = self.brain.config.get('model', {}).get('disable_pytorch', False)
+        except:
+            pass
+        
+        # Если PyTorch отключён, пробуем GGUF
+        if disable_pytorch:
+            try:
+                if self.brain and hasattr(self.brain, 'llama_cpp_deployment') and self.brain.llama_cpp_deployment:
+                    logger.info("PyTorch отключён - используем GGUF в EnhancedReasoningEngine")
+                    return self.brain.llama_cpp_deployment
+            except Exception as e:
+                logger.debug(f"Cannot get GGUF: {e}")
+            return None
         
         try:
             if self.brain is not None:

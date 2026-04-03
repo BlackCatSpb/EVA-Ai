@@ -263,14 +263,14 @@ class IntegratedLearningManager:
                 logger.warning("Документ не предоставлен для обучения")
                 return
             
-            # Используем TrainingOrchestrator если доступен
+            # Обучение через самодиалог
             if self.training_orchestrator:
                 result = self.training_orchestrator.train_from_document(
                     imported_doc=document,
                     model_id=model_id,
                     use_fractal=self.config.use_fractal_storage
                 )
-                logger.info(f"Обучение через TrainingOrchestrator: {result.get('status', 'unknown')}")
+                logger.info(f"Обучение завершено: {result.get('status', 'unknown')}")
             else:
                 # Fallback - простое обучение
                 self._simple_document_training(document, model_id)

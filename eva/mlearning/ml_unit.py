@@ -394,37 +394,6 @@ class MLUnit:
             
             logger.info("Компоненты MLUnit успешно связаны.")
             
-            # Обновляем ссылки оркестратора обучения теперь, когда компоненты связаны
-            try:
-                if self.training_orchestrator is not None:
-                    # Убедимся, что оркестратор видит актуальные компоненты
-                    self.training_orchestrator.ml_unit = self
-                    
-                    # Устанавливаем токенизатор
-                    if hasattr(self, 'token_streamer') and self.token_streamer:
-                        self.training_orchestrator.token_streamer = self.token_streamer
-                    elif self.text_processor and hasattr(self.text_processor, 'tokenizer'):
-                        self.training_orchestrator.token_streamer = self.text_processor
-                    elif self.model_manager and hasattr(self.model_manager, 'tokenizer'):
-                        self.training_orchestrator.token_streamer = self.model_manager.tokenizer
-                    
-                    # Устанавливаем гибридный кэш
-                    if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-                        self.training_orchestrator.hybrid_cache = self.hybrid_cache
-                    elif self.text_processor and hasattr(self.text_processor, 'hybrid_cache'):
-                        self.training_orchestrator.hybrid_cache = self.text_processor.hybrid_cache
-                    
-                    # Устанавливаем knowledge_graph
-                    if self.brain is not None and hasattr(self.brain, 'knowledge_graph'):
-                        self.training_orchestrator.knowledge_graph = self.brain.knowledge_graph
-                    
-                    # Принудительно обновляем компоненты в оркестраторе
-                    self.training_orchestrator._try_init_components()
-                    
-                    logger.info("TrainingOrchestrator успешно связан с компонентами MLUnit")
-            except Exception as e:
-                logger.debug(f"Не удалось обновить ссылки TrainingOrchestrator после связывания: {e}")
-            
             # Проверяем основные функции после связывания (пропускаем в режиме обучения/тренировки)
             if not self._is_training_mode():
                 self._verify_basic_functionality()
@@ -491,48 +460,9 @@ class MLUnit:
             logger.error(f"Ошибка проверки базовой функциональности: {e}", exc_info=True)
     
     def _init_training_orchestrator(self):
-        """Инициализирует оркестратор обучения."""
-        try:
-            # Проверяем конфиг - не инициализируем если обучение отключено
-            if self.brain and hasattr(self.brain, 'config'):
-                learning_config = self.brain.config.get("learning", {})
-                if learning_config.get("training_disabled", False):
-                    logger.info("TrainingOrchestrator пропущен (training_disabled=True)")
-                    return True
-                if learning_config.get("enable_training", True) == False:
-                    logger.info("TrainingOrchestrator пропущен (enable_training=False)")
-                    return True
-            
-            from eva.mlearning.training_orchestrator import TrainingOrchestrator
-            
-            batch_size = 1
-            if self.brain and hasattr(self.brain, 'config'):
-                batch_size = self.brain.config.get("learning", {}).get("batch_size", 1)
-            
-            self.training_orchestrator = TrainingOrchestrator(
-                brain=self.brain,
-                batch_size=batch_size,
-                overlap_tokens=16,
-                auto_adapt=False  # Отключаем auto_adapt
-            )
-            
-            # Регистрируем TrainingOrchestrator в CoreBrain
-            if self.brain and hasattr(self.brain, 'register_component'):
-                self.brain.register_component('training_orchestrator', self.training_orchestrator)
-                logger.info("TrainingOrchestrator зарегистрирован в CoreBrain")
-            elif self.brain:
-                # Fallback - сохраняем напрямую в brain
-                self.brain.training_orchestrator = self.training_orchestrator
-                logger.info("TrainingOrchestrator сохранен в CoreBrain (fallback)")
-            else:
-                logger.warning("CoreBrain недоступен для регистрации TrainingOrchestrator")
-            
-            logger.info("TrainingOrchestrator инициализирован")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка при инициализации TrainingOrchestrator: {e}", exc_info=True)
-            return False
+        """Обучение теперь через SelfDialogLearning, TrainingOrchestrator не используется."""
+        logger.info("TrainingOrchestrator отключен - обучение через SelfDialogLearning")
+        return True
     
     def _is_training_mode(self):
         """Проверяет, находится ли система в режиме тренировки."""

@@ -90,6 +90,21 @@ class EventTypes:
     ADAPTATION_STARTED = "adaptation.started"
     ADAPTATION_COMPLETED = "adaptation.completed"
     ADAPTATION_FAILED = "adaptation.failed"
+    
+    # Two-Model Pipeline (GGUF Model A + Model B)
+    PIPELINE_START = "pipeline.start"
+    PIPELINE_MODEL_A_START = "pipeline.model_a.start"
+    PIPELINE_MODEL_A_COMPLETE = "pipeline.model_a.complete"
+    PIPELINE_WEB_SEARCH_COMPLETE = "pipeline.web_search.complete"
+    PIPELINE_CONTRADICTION_CHECK_COMPLETE = "pipeline.contradiction.check_complete"
+    PIPELINE_ETHICS_CHECK_COMPLETE = "pipeline.ethics.check_complete"
+    PIPELINE_MODEL_B_START = "pipeline.model_b.start"
+    PIPELINE_MODEL_B_COMPLETE = "pipeline.model_b.complete"
+    PIPELINE_RELEVANCE_CHECK_COMPLETE = "pipeline.relevance.check_complete"
+    PIPELINE_REFINEMENT_NEEDED = "pipeline.refinement.needed"
+    PIPELINE_REFINEMENT_ATTEMPT = "pipeline.refinement.attempt"
+    PIPELINE_COMPLETE = "pipeline.complete"
+    PIPELINE_FAILED = "pipeline.failed"
 
 class EventBus:
     """Центральная шина событий ЕВА"""

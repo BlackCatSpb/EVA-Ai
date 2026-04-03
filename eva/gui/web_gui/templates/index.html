@@ -20,7 +20,7 @@
                 <button type="submit" class="login-btn">Войти</button>
             </form>
             <div class="login-error" id="loginError"></div>
-            <div class="login-hint">admin / eva</div>
+            <div class="login-hint">admin / cogniflex</div>
         </div>
     </div>
 
@@ -79,7 +79,7 @@
                         <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
                         </button>
-                        <button class="emoji-btn" id="emojiBtn" title="Эмодзи">
+                        <button class="emoji-btn" id="emojiBtn" title="Эмодзи (отключено)" style="opacity: 0.3; pointer-events: none;">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
                         </button>
                         <input type="file" id="fileInput" style="display:none" accept=".txt,.pdf,.docx,.py,.js,.ts,.java,.cpp,.c,.h,.html,.css,.json,.xml,.yaml,.yml,.md,.jpg,.jpeg,.png,.gif,.bmp">
@@ -256,6 +256,6 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    <script src="/static/js/emoji.js"></script>
+    <!-- Emoji functionality disabled -->
 </body>
 </html>

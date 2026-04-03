@@ -2,6 +2,7 @@
 import sys
 import os
 import logging
+import time
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
@@ -71,8 +72,7 @@ def main():
     
     try:
         while True:
-            import time
-            time.sleep(1)
+                    time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopping server...")
         if brain:

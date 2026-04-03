@@ -3,7 +3,7 @@
 
 Содержит класс TextProcessor, который предоставляет функциональность
 для токенизации, нормализации и предобработки текста.
-Теперь использует Qwen3.5-2B токенизатор.
+Теперь использует Qwen2.5-0.5B токенизатор.
 """
 
 import re
@@ -11,6 +11,7 @@ import os
 import logging
 from typing import List, Dict, Any, Optional, Union
 
+from functools import lru_cache
 import torch
 from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
@@ -41,11 +42,11 @@ class TextProcessor:
     """Класс для обработки текста с поддержкой различных токенизаторов.
     
     Предоставляет унифицированный интерфейс для работы с разными токенизаторами
-    и выполняет предобработку текста. Теперь использует Qwen3.5-2B.
+    и выполняет предобработку текста. Теперь использует Qwen2.5-0.5B.
     """
     
     def __init__(self, 
-                 model_name: str = "qwen3.5-0.8b",
+                 model_name: str = "qwen2.5-0.5b",
                  **tokenizer_kwargs):
         """Инициализация процессора текста.
         
@@ -65,8 +66,8 @@ class TextProcessor:
         
         project_root = _get_project_root()
         
-        if model_name == "qwen3.5-0.8b":
-            self.tokenizer_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
+        if model_name == "qwen2.5-0.5b":
+            self.tokenizer_path = "Qwen/Qwen2.5-0.5B"
         elif model_name == "qwen3.5-2b":
             self.tokenizer_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-2b")
         elif os.path.isdir(model_name):
@@ -75,7 +76,7 @@ class TextProcessor:
             self.tokenizer_path = os.path.join(project_root, "eva", "mlearning", "eva_models", model_name) if not os.path.isabs(model_name) else model_name
         
         self._tokenizer = None
-        self._initialize_tokenizer()
+        # Lazy loading - do not call _initialize_tokenizer() here
     
     @property
     def tokenizer(self) -> PreTrainedTokenizerBase:
@@ -85,32 +86,37 @@ class TextProcessor:
         return self._tokenizer
     
     def _initialize_tokenizer(self):
-        """Инициализирует токенизатор с указанными параметрами."""
+        """Initializes tokenizer via TokenizerRegistry (singleton)."""
         try:
+            from eva.mlearning.tokenizer_registry import TokenizerRegistry
+            
+            # Try to get from registry (singleton)
+            self._tokenizer = TokenizerRegistry.get_tokenizer(self.tokenizer_path)
+            
+            if self._tokenizer is not None:
+                logger.info(f"Tokenizer loaded via TokenizerRegistry: {self.tokenizer_path}")
+                return
+            
+            # Fallback: direct load
+            logger.warning(f"TokenizerRegistry failed, trying direct load: {self.tokenizer_path}")
+            from transformers import AutoTokenizer
+            
             init_params = {
                 'local_files_only': True,
-                'use_fast': False,
+                'use_fast': True,
+                'trust_remote_code': True,
             }
             
-            logger.info(f"Пробуем загрузить токенизатор из: {self.tokenizer_path}")
-            
-            tokenizer_path = self.tokenizer_path
-            # Проверяем существование пути перед загрузкой
-            if not os.path.exists(tokenizer_path):
-                logger.warning(f"Путь к токенизатору не существует: {tokenizer_path}")
-                raise FileNotFoundError(f"Путь к токенизатору не существует: {tokenizer_path}")
-            
-            if os.path.isabs(tokenizer_path) and os.name == 'nt':
+            if os.path.isabs(self.tokenizer_path) and os.name == 'nt':
                 try:
                     self._tokenizer = AutoTokenizer.from_pretrained(
-                        tokenizer_path,
+                        self.tokenizer_path,
                         **init_params
                     )
                 except Exception as path_error:
-                    logger.warning(f"Не удалось загрузить с абсолютного пути: {path_error}")
+                    logger.warning(f"Failed to load from absolute path: {path_error}")
                     project_root = _get_project_root()
-                    rel_path = os.path.relpath(tokenizer_path, project_root)
-                    logger.info(f"Пробуем относительный путь: {rel_path}")
+                    rel_path = os.path.relpath(self.tokenizer_path, project_root)
                     self._tokenizer = AutoTokenizer.from_pretrained(
                         rel_path,
                         **init_params
@@ -118,23 +124,24 @@ class TextProcessor:
                     self.tokenizer_path = rel_path
             else:
                 self._tokenizer = AutoTokenizer.from_pretrained(
-                    tokenizer_path,
+                    self.tokenizer_path,
                     **init_params
                 )
-            logger.info(f"Токенизатор успешно загружен через AutoTokenizer из: {self.tokenizer_path}")
             
-            # Устанавливаем pad_token для Qwen
+            # Set pad_token
             if self._tokenizer.pad_token is None:
-                if hasattr(self._tokenizer, 'eos_token') and self._tokenizer.eos_token:
-                    self._tokenizer.pad_token = self._tokenizer.eos_token
-                    logger.info("Установлен pad_token = eos_token")
-                else:
-                    self._tokenizer.pad_token = '</pad>'
-                    logger.info("Установлен pad_token по умолчанию")
+                self._tokenizer.pad_token = self._tokenizer.eos_token or '</pad>'
+            
+            # Register in registry for other components
+            TokenizerRegistry._tokenizer = self._tokenizer
+            TokenizerRegistry._model_path = self.tokenizer_path
+            
+            logger.info(f"Tokenizer loaded directly: {self.tokenizer_path}")
             
         except Exception as e:
-            logger.error(f"Не удалось загрузить токенизатор {self.tokenizer_path}: {str(e)}")
-            raise Exception(f"Не удалось инициализировать токенизатор: {e}")
+            logger.error(f"Failed to load tokenizer {self.tokenizer_path}: {e}")
+            self._tokenizer = None
+
 
     
     def tokenize(self, text: str, **kwargs) -> List[str]:
@@ -148,11 +155,29 @@ class TextProcessor:
             Список токенов.
         """
         try:
-            return self.tokenizer.tokenize(text, **kwargs)
+            tok = self.tokenizer
+            if tok is None:
+                return text.split()
+            return tok.tokenize(text, **kwargs)
         except Exception as e:
-            logger.error(f"Ошибка токенизации: {str(e)}")
-            return text.split()  # Fallback на простой сплит по пробелам
+            logger.error(f"Tokenization error: {e}")
+            return text.split()
     
+
+    @lru_cache(maxsize=2048)
+    def _encode_cached(self, text: str):
+        """Cached encoding for repeated queries."""
+        params = {k: v for k, v in self.tokenizer_kwargs.items()
+                  if k not in ('cache_dir', 'local_files_only', 'use_fast', 'use_auth_token', 'trust_remote_code')}
+        tok = self._tokenizer
+        if tok is None:
+            return {"input_ids": torch.tensor([]), "attention_mask": torch.tensor([])}
+        return tok(text, **params)
+
+    def clear_cache(self):
+        """Clears the encoding cache."""
+        self._encode_cached.cache_clear()
+
     def encode(self, text: Union[str, List[str]], **kwargs) -> Dict[str, torch.Tensor]:
         """Кодирует текст в числовые идентификаторы.
         
@@ -170,11 +195,12 @@ class TextProcessor:
         }
         
         try:
-            if isinstance(text, str):
-                return self.tokenizer(text, **params)
-            return self.tokenizer(text, **params)
+            tok = self.tokenizer
+            if tok is None:
+                return {"input_ids": torch.tensor([]), "attention_mask": torch.tensor([])}
+            return tok(text, **params)
         except Exception as e:
-            logger.error(f"Ошибка кодирования: {str(e)}")
+            logger.error(f"Encoding error: {e}")
             raise
     
     def decode(self, token_ids: Union[torch.Tensor, List[int], List[List[int]]], **kwargs) -> str:
@@ -188,11 +214,14 @@ class TextProcessor:
             Декодированный текст.
         """
         try:
+            tok = self.tokenizer
+            if tok is None:
+                return ""
             if isinstance(token_ids, torch.Tensor):
                 token_ids = token_ids.tolist()
-            return self.tokenizer.decode(token_ids, **kwargs)
+            return tok.decode(token_ids, **kwargs)
         except Exception as e:
-            logger.error(f"Ошибка декодирования: {str(e)}")
+            logger.error(f"Decoding error: {e}")
             return ""
     
     def preprocess_text(self, text: str, **kwargs) -> str:
@@ -278,4 +307,5 @@ class TextProcessor:
     
     def get_vocab_size(self) -> int:
         """Возвращает размер словаря токенизатора."""
-        return len(self.tokenizer) if self._tokenizer else 0
+        tok = self.tokenizer
+        return len(tok) if tok else 0

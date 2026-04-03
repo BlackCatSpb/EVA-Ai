@@ -1,6 +1,6 @@
 """
 Import Pipeline for TXT, PDF, and EPUB with optional OCR fallback.
-Produces a normalized, chunked iterable suitable for TrainingOrchestrator.train_from_document().
+Provides normalized, chunked iterable for self-dialog learning.
 """
 from __future__ import annotations
 

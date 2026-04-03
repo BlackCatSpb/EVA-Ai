@@ -844,7 +844,7 @@ class LearningModule:
         self.learning_status_label.pack(anchor=tk.W)
 
     def _on_import_and_train(self):
-        """Открывает файл, импортирует через ImportPipeline и запускает TrainingOrchestrator в фоне."""
+        """Открывает файл для изучения через самодиалог."""
         try:
             if not self.gui or not getattr(self.gui, 'brain', None):
                 self._show_error("Ошибка", "Ядро системы недоступно")
@@ -888,8 +888,7 @@ class LearningModule:
                 except Exception:
                     pass
 
-            from eva.mlearning.training_orchestrator import TrainingOrchestrator
-            self._orchestrator = TrainingOrchestrator(
+                        pass  # Training disabled
                 self.gui.brain,
                 batch_size=32,
                 overlap_tokens=16,
@@ -939,7 +938,7 @@ class LearningModule:
             self._safe_after(0, show_error)
 
     def _handle_train_progress(self, evt: Dict[str, Any]):
-        """Обрабатывает события прогресса от TrainingOrchestrator."""
+        """Обрабатывает события прогресса обучения."""
         try:
             if not self.active or not self.gui or not getattr(self.gui, 'root', None):
                 return

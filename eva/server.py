@@ -7,7 +7,7 @@ import threading
 import json
 import uuid
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
 
 from flask import Flask, render_template, jsonify, request
@@ -331,8 +331,11 @@ class WebGUI:
         }
         
         result = None
-        # Use brain.process_query directly (Two-Model Pipeline)
-        if self.brain and hasattr(self.brain, 'process_query'):
+        if self.integrator:
+            result = self.integrator.process_query(query, user_context)
+            if result and isinstance(result, dict):
+                response_text = result.get('response', response_text)
+        elif self.brain and hasattr(self.brain, 'process_query'):
             debug_info["has_process_query"] = True
             debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
             debug_info["enhanced_reasoning_loaded"] = self.brain is not None and hasattr(self.brain, 'enhanced_reasoning_engine') and self.brain.enhanced_reasoning_engine is not None
@@ -346,12 +349,18 @@ class WebGUI:
         else:
             debug_info["reason"] = "no brain or no process_query"
         
+        # DEBUG - special query to get debug info
+        if query.strip().lower() == "debug123":
+            return {
+                'response': 'Debug info: ' + str(debug_info),
+                'status': 'ok',
+                'reasoning': str(debug_info)
+            }
+        
         # Get reasoning from brain result if available
         brain_reasoning = None
         reasoning_data = None
         reasoning_steps = []  # Для live display
-        search_results = []
-        web_search_info = None
         
         if result and isinstance(result, dict):
             brain_reasoning = result.get('reasoning')
@@ -359,17 +368,12 @@ class WebGUI:
             source = result.get('source', '')
             confidence = result.get('confidence', 0)
             search_results = result.get('search_results', [])
-            
-            # Get reasoning steps directly from result if available
-            if result.get('reasoning_steps'):
-                reasoning_steps = result.get('reasoning_steps', [])
-                logger.debug(f"Got {len(reasoning_steps)} reasoning steps from result")
-            
             # Get ethics result early so it's available for return_data (but keep local result if brain returns None)
-            if result.get('ethics_result') and not ethics_result:
+            if ethics_result is None and result.get('ethics_result'):
                 ethics_result = result.get('ethics_result')
             
             # Extract web search info if available
+            web_search_info = None
             if search_results and len(search_results) > 0:
                 web_search_info = f"Найдено {len(search_results)} результатов:"
                 for i, sr in enumerate(search_results[:3]):
@@ -467,19 +471,7 @@ class WebGUI:
             
             # For SelfReasoningEngine - show reasoning steps if available
             if source == 'self_reasoning_engine':
-                # Handle new reasoning_steps from Two-Model Pipeline
-                if result.get('reasoning_steps'):
-                    reasoning_steps = result.get('reasoning_steps', [])
-                    reasoning_text = "Рассуждения системы:\n\n"
-                    for i, step in enumerate(reasoning_steps):
-                        phase = step.get('phase', 'unknown')
-                        thought = step.get('thought', '')
-                        conf = step.get('confidence', 0)
-                        model = step.get('model', '')
-                        if i < 15:
-                            reasoning_text += f"{i+1}. [{phase}] {thought} (conf: {conf:.2f})\n"
-                    reasoning_data = reasoning_text
-                elif brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
+                if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
                     # Extract reasoning steps
                     steps = brain_reasoning_raw.get('steps', [])
                     if steps:
@@ -911,7 +903,7 @@ def api_entities(session_id):
 def api_feedback():
     """Receive user feedback (like/dislike) for messages"""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     try:
         data = request.get_json()
@@ -970,7 +962,7 @@ def api_status():
 @app.route('/api/metrics')
 def api_metrics():
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     metrics = {
         'cpu_usage': 0.0,
@@ -980,7 +972,7 @@ def api_metrics():
     }
     
     try:
-        logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
         
         if web_gui_instance.brain:
             if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
@@ -988,7 +980,7 @@ def api_metrics():
                 metrics.update(snapshot)
             if hasattr(web_gui_instance.brain, 'get_cache_stats'):
                 cache = web_gui_instance.brain.get_cache_stats()
-                metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
+                analytics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
     except Exception as e:
         logger.error(f"Error getting metrics: {e}")
     
@@ -998,7 +990,7 @@ def api_metrics():
 @app.route('/api/memory-graph')
 def api_memory_graph():
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     graph_data = {'nodes': [], 'edges': [], 'stats': {}}
     
@@ -1024,7 +1016,7 @@ def api_analytics():
     """Get analytics data for dashboard."""
     if not web_gui_instance:
         logger.warning("api_analytics: web_gui_instance is None")
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     analytics = {
         'queries': 0,
@@ -1042,7 +1034,7 @@ def api_analytics():
     }
     
     try:
-        logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
         
         if web_gui_instance.brain:
             # Get system metrics
@@ -1152,7 +1144,7 @@ def api_learning():
     """Get learning opportunities and stats."""
     if not web_gui_instance:
         logger.warning("api_learning: web_gui_instance is None")
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     learning = {
         'opportunities': [],
@@ -1164,7 +1156,7 @@ def api_learning():
     }
     
     try:
-        logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
         
         if web_gui_instance.brain:
             # Get learning opportunities
@@ -1229,7 +1221,7 @@ def api_learning():
 def api_settings():
     """Получить или обновить настройки системы."""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     if request.method == 'GET':
         settings = {
@@ -1264,7 +1256,7 @@ def api_settings():
         return jsonify({'error': 'Invalid JSON'}), 400
     
     try:
-        logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
         
         if web_gui_instance.brain:
             if 'auto_learning' in data and hasattr(web_gui_instance.brain, 'self_dialog_learning'):
@@ -1285,7 +1277,7 @@ def api_settings():
 def api_documents():
     """Получить список документов для текущей сессии."""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     user_id = request.headers.get('X-User-ID')
     session_id = request.args.get('session_id')
@@ -1329,7 +1321,7 @@ def api_documents():
 def api_knowledge_graph():
     """Операции с графом знаний."""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     if request.method == 'GET':
         # Get graph data
@@ -1388,7 +1380,7 @@ def api_knowledge_graph():
 def api_cache_stats():
     """Получить статистику кэша."""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     stats = {
         'hybrid_cache': {},
@@ -1424,7 +1416,7 @@ def api_cache_stats():
 def api_system():
     """Получить общую информацию о системе."""
     if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
+        return jsonify({'error': 'not_initialized'})
     
     system_info = {
         'version': '1.0.0',
@@ -1445,7 +1437,7 @@ def api_system():
     }
     
     try:
-        logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
+        logger.debug(f"api_analytics: brain = {web_gui_instance.brain}")
         
         if web_gui_instance.brain:
             brain = web_gui_instance.brain
@@ -1474,253 +1466,6 @@ def api_system():
     
     return jsonify(system_info)
 
-
-
-
-
-
-# ========================================================================
-# Self-Dialog Learning API
-# ========================================================================
-
-@app.route('/api/self-dialog', methods=['GET', 'POST'])
-def api_self_dialog():
-    """Управление самодиалогом обучения."""
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
-    
-    if request.method == 'GET':
-        # Get self-dialog status
-        status = {
-            'enabled': False,
-            'running': False,
-            'total_dialogs': 0,
-            'successful': 0,
-            'failed': 0,
-            'recent_topics': []
-        }
-        
-        try:
-            brain = web_gui_instance.brain
-            if brain and hasattr(brain, 'self_dialog_learning'):
-                sdl = brain.self_dialog_learning
-                status['enabled'] = getattr(sdl, 'enabled', False)
-                status['running'] = getattr(sdl, 'running', False)
-                
-                if hasattr(sdl, 'get_stats'):
-                    stats = sdl.get_stats()
-                    status['total_dialogs'] = stats.get('total_dialogs', 0)
-                    status['successful'] = stats.get('successful', 0)
-                    status['failed'] = stats.get('failed', 0)
-                
-                if hasattr(sdl, 'get_recent_topics'):
-                    status['recent_topics'] = sdl.get_recent_topics(5)
-        except Exception as e:
-            logger.error(f"Error getting self-dialog status: {e}")
-        
-        return jsonify(status)
-    
-    elif request.method == 'POST':
-        # Trigger self-dialog
-        data = request.json or {}
-        topic = data.get('topic', '')
-        
-        try:
-            brain = web_gui_instance.brain
-            if brain and hasattr(brain, 'self_dialog_learning'):
-                sdl = brain.self_dialog_learning
-                if hasattr(sdl, 'create_dialog'):
-                    result = sdl.create_dialog(topic=topic if topic else None)
-                    return jsonify({
-                        'status': 'success',
-                        'dialog_id': result.get('dialog_id', ''),
-                        'topic': result.get('topic', topic)
-                    })
-                else:
-                    return jsonify({'error': 'create_dialog not available'}), 500
-            else:
-                return jsonify({'error': 'Self-dialog learning not available'}), 500
-        except Exception as e:
-            logger.error(f"Error triggering self-dialog: {e}")
-            return jsonify({'error': str(e)}), 500
-
-
-# ========================================================================
-# Model Status API - Model A/B/C pipeline status
-# ========================================================================
-
-@app.route('/api/model-status')
-def api_model_status():
-    """Получить статус моделей пайплайна."""
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
-    
-    model_status = {
-        'pipeline_ready': False,
-        'models': {
-            'model_a': {
-                'name': 'Qwen 2.5 3B Instruct',
-                'role': 'Логика и факты',
-                'loaded': False,
-                'n_ctx': 2048,
-                'temperature': 0.3
-            },
-            'model_b': {
-                'name': 'Qwen 2.5 3B Instruct',
-                'role': 'Развитие мысли',
-                'loaded': False,
-                'n_ctx': 2048,
-                'temperature': 0.3
-            },
-            'model_c': {
-                'name': 'Qwen 2.5 Coder 1.5B Instruct',
-                'role': 'Генерация кода',
-                'loaded': False,
-                'n_ctx': 2048,
-                'temperature': 0.1,
-                'lazy_load': True
-            }
-        },
-        'fractal_memory': {
-            'enabled': False,
-            'nodes': 0,
-            'edges': 0,
-            'experiences': 0,
-            'concepts': 0
-        }
-    }
-    
-    try:
-        brain = web_gui_instance.brain
-        if brain:
-            # Pipeline status
-            if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
-                pipeline = brain.two_model_pipeline
-                model_status['pipeline_ready'] = True
-                model_status['models']['model_a']['loaded'] = pipeline.model_a is not None
-                model_status['models']['model_b']['loaded'] = pipeline.model_b is not None
-                model_status['models']['model_c']['loaded'] = pipeline.model_c is not None
-            
-            # Fractal memory status
-            if hasattr(brain, 'fractal_memory') and brain.fractal_memory:
-                fm = brain.fractal_memory
-                model_status['fractal_memory']['enabled'] = True
-                stats = fm.get_stats()
-                model_status['fractal_memory']['nodes'] = stats.get('total_nodes', 0)
-                model_status['fractal_memory']['edges'] = stats.get('total_edges', 0)
-                
-                # Count experiences and concepts
-                exp_dir = os.path.join(fm.storage_dir, 'experiences')
-                concept_dir = os.path.join(fm.storage_dir, 'concepts')
-                if os.path.exists(exp_dir):
-                    model_status['fractal_memory']['experiences'] = len([f for f in os.listdir(exp_dir) if f.endswith('.json')])
-                if os.path.exists(concept_dir):
-                    model_status['fractal_memory']['concepts'] = len([f for f in os.listdir(concept_dir) if f.endswith('.json')])
-    except Exception as e:
-        logger.error(f"Error getting model status: {e}")
-    
-    return jsonify(model_status)
-
-
-# ========================================================================
-# Fractal Memory Graph API
-# ========================================================================
-
-@app.route('/api/fractal-graph')
-def api_fractal_graph():
-    """Получить данные фрактального графа памяти для визуализации."""
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
-    
-    graph_data = {
-        'nodes': [],
-        'edges': [],
-        'stats': {}
-    }
-    
-    try:
-        brain = web_gui_instance.brain
-        if brain and hasattr(brain, 'fractal_memory') and brain.fractal_memory:
-            fm = brain.fractal_memory
-            
-            # Get model nodes
-            for node_id, node in fm.nodes.items():
-                if 'model::' in node_id:
-                    ctx = getattr(node, 'context', {})
-                    node_type = ctx.get('node_type', 'unknown')
-                    level = getattr(node, 'level', 0)
-                    
-                    graph_data['nodes'].append({
-                        'id': node_id,
-                        'label': node_type,
-                        'level': level,
-                        'group': node_type,
-                        'size': max(5, 20 - level * 3),
-                        'content': getattr(node, 'content', '')[:100]
-                    })
-            
-            # Get edges
-            for edge_id, edge in fm.edges.items():
-                graph_data['edges'].append({
-                    'from': edge.source_id,
-                    'to': edge.target_id,
-                    'relation': edge.relation_type
-                })
-            
-            graph_data['stats'] = {
-                'total_nodes': len(fm.nodes),
-                'model_nodes': len([n for n in graph_data['nodes'] if 'model::' in n.get('id', '')]),
-                'total_edges': len(fm.edges)
-            }
-    except Exception as e:
-        logger.error(f"Error getting fractal graph: {e}")
-    
-    return jsonify(graph_data)
-
-
-# ========================================================================
-# Snapshots API
-# ========================================================================
-
-@app.route('/api/snapshots', methods=['GET', 'POST'])
-def api_snapshots():
-    """Управление слепками знаний."""
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
-    
-    if request.method == 'GET':
-        # List snapshots
-        try:
-            brain = web_gui_instance.brain
-            if brain and hasattr(brain, 'fractal_memory') and brain.fractal_memory:
-                fm = brain.fractal_memory
-                if fm.snapshot_manager:
-                    snapshots = fm.snapshot_manager.list_snapshots()
-                    return jsonify({'snapshots': snapshots})
-        except Exception as e:
-            logger.error(f"Error listing snapshots: {e}")
-        
-        return jsonify({'snapshots': []})
-    
-    elif request.method == 'POST':
-        # Create snapshot
-        data = request.json or {}
-        name = data.get('name', '')
-        
-        try:
-            brain = web_gui_instance.brain
-            if brain and hasattr(brain, 'fractal_memory') and brain.fractal_memory:
-                fm = brain.fractal_memory
-                if fm.snapshot_manager:
-                    path = fm.snapshot_manager.export_snapshot(name if name else None)
-                    return jsonify({
-                        'status': 'success',
-                        'path': path
-                    })
-        except Exception as e:
-            logger.error(f"Error creating snapshot: {e}")
-        
-        return jsonify({'error': 'Failed to create snapshot'}), 500
 
 
 
