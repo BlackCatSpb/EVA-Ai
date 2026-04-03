@@ -500,7 +500,7 @@ class SelfReasoningEngine:
         
         Args:
             query: Текущий запрос пользователя
-            conversation_history: История предыдущих сообщений
+            conversation_history: История предыдущих сообщений (role + content)
             
         Returns:
             Расширенный промпт с контекстом
@@ -508,7 +508,7 @@ class SelfReasoningEngine:
         if not conversation_history:
             return query
         
-        # Берем последние 5 сообщений для контекста
+        # Берем последние 10 сообщений
         recent_history = conversation_history[-10:]
         
         context_parts = []
@@ -517,7 +517,7 @@ class SelfReasoningEngine:
             content = msg.get('content', '')
             if content:
                 role_label = 'Пользователь' if role == 'user' else 'Ассистент'
-                context_parts.append(f"{role_label}: {content[:200]}")
+                context_parts.append(f"{role_label}: {content[:300]}")
         
         if not context_parts:
             return query

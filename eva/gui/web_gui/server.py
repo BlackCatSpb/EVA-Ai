@@ -97,6 +97,7 @@ class SessionManager:
                 'name': session_name,
                 'created_at': datetime.now().isoformat(),
                 'last_active': datetime.now().isoformat(),
+                'chat_history': [],
                 'context_nodes': [],
                 'entities': []
             }
@@ -129,6 +130,29 @@ class SessionManager:
             if session_id in self.sessions:
                 self.sessions[session_id]['context_nodes'].append(node)
                 self._save_sessions()
+    
+    def add_chat_message(self, session_id: str, role: str, content: str):
+        """Добавляет сообщение в историю чата (сырой текст)."""
+        with self._lock:
+            if session_id in self.sessions:
+                self.sessions[session_id]['chat_history'].append({
+                    'role': role,
+                    'content': content,
+                    'timestamp': datetime.now().isoformat()
+                })
+                # Храним последние 50 сообщений
+                if len(self.sessions[session_id]['chat_history']) > 50:
+                    self.sessions[session_id]['chat_history'] = self.sessions[session_id]['chat_history'][-50:]
+                self._save_sessions()
+    
+    def get_chat_history(self, session_id: str, limit: int = 20) -> list:
+        """Возвращает историю чата для контекста генерации."""
+        with self._lock:
+            session = self.sessions.get(session_id)
+            if session:
+                history = session.get('chat_history', [])
+                return history[-limit:]
+            return []
     
     def add_entity(self, session_id: str, entity: Dict):
         with self._lock:
@@ -285,12 +309,16 @@ class WebGUI:
         entities = self.entity_extractor.extract_entities(query)
         
         if session_id:
+            # Добавляем в сырую историю чата (для контекста генерации)
+            self.session_manager.add_chat_message(session_id, 'user', query)
+            
+            # Добавляем в структурированные узлы (для анализа/обучения)
             context_node = {
                 'id': str(uuid.uuid4()),
                 'user_message': query,
                 'timestamp': datetime.now().isoformat(),
                 'entities': entities,
-                'file_data': file_data  # Save file info in context
+                'file_data': file_data
             }
             self.session_manager.add_context_node(session_id, context_node)
             
@@ -304,25 +332,10 @@ class WebGUI:
         result = None
         debug_info = {"brain": self.brain is not None, "has_process_query": False}
         
-        # Get conversation history for context - pairs user/assistant messages
+        # Get conversation history from chat_history (raw text, not context_nodes)
         conversation_history = []
         if session_id and isinstance(session_id, str) and session_id.strip():
-            session = self.session_manager.get_session(session_id)
-            if session and isinstance(session, dict) and 'context_nodes' in session:
-                context_nodes = session.get('context_nodes')
-                if context_nodes and isinstance(context_nodes, list):
-                    # Pair user and assistant messages
-                    user_msg = None
-                    for node in context_nodes[-20:]:
-                        if isinstance(node, dict):
-                            if 'user_message' in node and node['user_message']:
-                                user_msg = node['user_message']
-                            elif 'assistant_message' in node and node['assistant_message']:
-                                if user_msg:
-                                    conversation_history.append({"role": "user", "content": user_msg})
-                                    conversation_history.append({"role": "assistant", "content": node['assistant_message']})
-                                    user_msg = None
-                    logger.debug(f"Loaded {len(conversation_history)} messages for context")
+            conversation_history = self.session_manager.get_chat_history(session_id, limit=20)
         
         user_context = {
             'session_id': session_id,
@@ -556,6 +569,10 @@ class WebGUI:
             # reasoning_data stays None
         
         if session_id and response_text:
+            # Добавляем ответ в сырую историю чата
+            self.session_manager.add_chat_message(session_id, 'assistant', response_text)
+            
+            # Добавляем в структурированные узлы (для анализа/обучения)
             response_node = {
                 'id': str(uuid.uuid4()),
                 'assistant_message': response_text,
