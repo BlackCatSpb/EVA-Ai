@@ -441,9 +441,12 @@ class CoreBrain:
         self.two_model_pipeline = None
         self.two_model_pipeline_ready = False
         self.fractal_memory = None
+        
         try:
             model_config = self.config.get('model', {})
             use_two_model = model_config.get('use_two_model_pipeline', False)
+            
+            logger.info("DEBUG brain: use_two_model = " + str(use_two_model))
             
             if use_two_model:
                 model_a_path = model_config.get('model_a_gguf_path', '')
