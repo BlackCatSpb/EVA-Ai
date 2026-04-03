@@ -1,9 +1,10 @@
 """
-Singleton кэш для sentence-transformers моделей
+Singleton кэш для sentence-transformers моделей + кеш эмбеддингов
 Избегает повторной загрузки модели (5+ секунд каждый раз)
+Избегает повторного вычисления эмбеддингов (через EmbeddingCache)
 """
 import logging
-from typing import Optional
+from typing import Optional, List
 
 logger = logging.getLogger("eva.sentence_transformers_cache")
 
@@ -29,13 +30,31 @@ def _detect_device() -> str:
     return "cpu"
 
 
+def _encode_with_cache(text: str, model) -> Optional[List[float]]:
+    """Вычисляет эмбеддинг с кешированием."""
+    try:
+        from eva.memory.embedding_cache import get_embedding_cache
+        cache = get_embedding_cache()
+        
+        def compute_fn(t):
+            emb = model.encode([t])[0]
+            return emb.tolist() if hasattr(emb, 'tolist') else list(emb)
+        
+        return cache.get_or_compute(text, compute_fn)
+    except Exception as e:
+        logger.debug(f"EmbeddingCache недоступен: {e}")
+        # Fallback без кеширования
+        emb = model.encode([text])[0]
+        return emb.tolist() if hasattr(emb, 'tolist') else list(emb)
+
+
 def get_sentence_transformer(model_name: str = "intfloat/multilingual-e5-base", device: str = "auto") -> Optional[object]:
     """
     Возвращает кэшированную модель sentence-transformers.
     Если модель уже загружена - возвращает кэш, иначе загружает и кэширует.
     
     Args:
-        model_name: Имя модели (по умолчанию intfloat/multilingual-e5-small)
+        model_name: Имя модели (по умолчанию intfloat/multilingual-e5-base)
         device: Устройство ('cpu', 'cuda', 'auto')
     
     Returns:
@@ -62,6 +81,46 @@ def get_sentence_transformer(model_name: str = "intfloat/multilingual-e5-base", 
     except Exception as e:
         logger.warning(f"Не удалось загрузить sentence-transformers модель {model_name}: {e}")
         return None
+
+
+def encode_text(text: str, model_name: str = "intfloat/multilingual-e5-base", device: str = "auto") -> Optional[List[float]]:
+    """
+    Вычисляет эмбеддинг текста с автоматическим кешированием.
+    
+    Args:
+        text: Текст для эмбеддинга
+        model_name: Модель эмбеддинга
+        device: Устройство
+    
+    Returns:
+        Embedding vector или None
+    """
+    model = get_sentence_transformer(model_name, device)
+    if model is None:
+        return None
+    
+    return _encode_with_cache(text, model)
+
+
+def encode_batch(texts: List[str], model_name: str = "intfloat/multilingual-e5-base", device: str = "auto") -> Optional[List[List[float]]]:
+    """
+    Вычисляет эмбеддинги батча текстов с кешированием.
+    
+    Returns:
+        List of embedding vectors
+    """
+    model = get_sentence_transformer(model_name, device)
+    if model is None:
+        return None
+    
+    results = []
+    for text in texts:
+        emb = _encode_with_cache(text, model)
+        if emb:
+            results.append(emb)
+        else:
+            results.append(None)
+    return results
 
 
 def clear_sentence_transformer_cache():
