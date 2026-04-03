@@ -397,6 +397,11 @@ body {
     color: #f44336;
 }
 
+.msg-action-btn.regenerate:hover {
+    border-color: #ff9800;
+    color: #ff9800;
+}
+
 .msg-action-btn.copied {
     border-color: #4caf50;
     color: #4caf50;

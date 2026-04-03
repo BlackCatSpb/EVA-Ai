@@ -258,7 +258,7 @@
         const roleLabel = role === 'user' ? 'Вы' : 'ЕВА';
         const roleClass = role;
 
-        // Add action buttons for all messages (copy, like, dislike)
+        // Add action buttons for all messages (copy, like, dislike, regenerate)
         const actionsHtml = `
             <div class="msg-actions">
                 <button class="msg-action-btn" onclick="copyMessage(this, \`${esc(text)}\`)" title="Копировать">
@@ -273,6 +273,12 @@
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
                     Неверно
                 </button>
+                ${role !== 'user' ? `
+                <button class="msg-action-btn regenerate" onclick="regenerateMessage(this, \`${esc(text)}\`)" title="Перегенерировать">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
+                    Перегенерировать
+                </button>
+                ` : ''}
             </div>
         `;
 
@@ -1120,5 +1126,38 @@
     $('#createSnapshot')?.addEventListener('click', createSnapshot);
     if ($('#snapshotList')) loadSnapshots();
 
+    /* ── Message Actions ── */
+    function copyMessage(btn, text) {
+        navigator.clipboard.writeText(text).then(() => {
+            toast('Скопировано', 'success');
+        }).catch(() => {
+            toast('Ошибка копирования', 'error');
+        });
+    }
+    
+    function rateMessage(text, rating) {
+        console.log('Rate message:', rating, text);
+        toast(rating === 1 ? 'Спасибо за оценку!' : 'О учтём', 'success');
+    }
+    
+    function regenerateMessage(btn, oldText) {
+        const msgDiv = btn.closest('.msg');
+        if (!msgDiv) return;
+        
+        const userMsgDiv = msgDiv.previousElementSibling;
+        if (!userMsgDiv || !userMsgDiv.classList.contains('user')) {
+            toast('Не найден предыдущий запрос', 'error');
+            return;
+        }
+        
+        const userText = userMsgDiv.querySelector('.msg-text')?.textContent;
+        if (!userText) {
+            toast('Не удалось получить текст запроса', 'error');
+            return;
+        }
+        
+        msgDiv.remove();
+        sendMessage(userText);
+    }
 
 })();
