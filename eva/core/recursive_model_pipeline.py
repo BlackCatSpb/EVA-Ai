@@ -45,7 +45,7 @@ class AdaptiveParameterController:
     
     SEMANTIC_STUCK_THRESHOLD = 0.85
     
-    def __init__(self, base_params: Dict[str, float] = None, model_a_instance=None):
+    def __init__(self, base_params: Dict[str, float] = None):
         self.base_params = base_params or dict(self.DEFAULT_PARAMS)
         self.current_params = dict(self.base_params)
         self.failure_history: List[Dict] = []
@@ -53,19 +53,19 @@ class AdaptiveParameterController:
         self.failed_response_embeddings: list = []
         self.success_count = 0
         self.failure_count = 0
-        self._model_a = model_a_instance  # Используем Model A как эмбеддер
+        self._embedder = None
     
     def _get_embedder(self):
-        """Используем Model A как эмбеддер (уже загружена с embedding=True)."""
-        if self._model_a is not None:
-            return self._model_a
-        # Fallback на sentence-transformers если Model A недоступна
-        try:
-            from eva.mlearning.sentence_transformers_cache import get_sentence_transformer
-            return get_sentence_transformer('intfloat/multilingual-e5-base', device='cpu')
-        except Exception as e:
-            logger.debug(f"AdaptiveController: эмбеддер недоступен: {e}")
-        return None
+        """Ленивая загрузка эмбеддера для семантического анализа."""
+        if self._embedder is None:
+            try:
+                from eva.mlearning.sentence_transformers_cache import get_sentence_transformer
+                self._embedder = get_sentence_transformer('intfloat/multilingual-e5-base', device='cpu')
+                if self._embedder is not None:
+                    logger.debug("AdaptiveController: эмбеддер загружен для семантического анализа")
+            except Exception as e:
+                logger.debug(f"AdaptiveController: эмбеддер недоступен: {e}")
+        return self._embedder
     
     def _compute_embedding(self, text: str) -> Optional[list]:
         """Вычисляет эмбеддинг текста через Model A (или fallback)."""
@@ -292,14 +292,14 @@ class RecursiveModelPipeline:
             'top_k': self.MODEL_A_TOP_K,
             'repeat_penalty': self.MODEL_A_REPEAT_PENALTY,
             'max_tokens': self.MODEL_A_MAX_TOKENS,
-        }, model_a_instance=None)  # Will be set after load_models()
+        })
         self.model_b_params = AdaptiveParameterController({
             'temperature': self.MODEL_B_TEMPERATURE,
             'top_p': self.MODEL_B_TOP_P,
             'top_k': self.MODEL_B_TOP_K,
             'repeat_penalty': self.MODEL_B_REPEAT_PENALTY,
             'max_tokens': self.MODEL_B_MAX_TOKENS,
-        }, model_a_instance=None)  # Will be set after load_models()
+        })
         
         logger.info(f"RecursiveModelPipeline инициализирован (3-модельный, адаптивные параметры)")
     
@@ -315,10 +315,9 @@ class RecursiveModelPipeline:
             n_threads=self.n_threads,
             verbose=False,
             cache_type_k='q8_0',
-            cache_type_v='q8_0',
-            embedding=True  # Включаем режим эмбеддингов
+            cache_type_v='q8_0'
         )
-        logger.info(f"Model A загружена с контекстом {a_ctx}, KV-кэш q8_0, embedding=True")
+        logger.info(f"Model A загружена с контекстом {a_ctx}, KV-кэш q8_0")
         
         if self.fractal_memory:
             self.fractal_memory.register_model_instance("model_a", self.model_a)
@@ -332,15 +331,9 @@ class RecursiveModelPipeline:
             n_threads=self.n_threads,
             verbose=False,
             cache_type_k='q8_0',
-            cache_type_v='q8_0',
-            embedding=True  # Включаем режим эмбеддингов
+            cache_type_v='q8_0'
         )
-        logger.info(f"Model B загружена с контекстом {a_ctx}, KV-кэш q8_0, embedding=True")
-        
-        # Передаём Model A контроллерам для эмбеддинга
-        self.model_a_params._model_a = self.model_a
-        self.model_b_params._model_a = self.model_a
-        logger.info("AdaptiveParameterController: Model A подключена как эмбеддер")
+        logger.info(f"Model B загружена с контекстом {a_ctx}, KV-кэш q8_0")
         
         if self.fractal_memory:
             self.fractal_memory.register_model_instance("model_b", self.model_b)
