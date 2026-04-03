@@ -487,14 +487,20 @@ class RecursiveModelPipeline:
             'fractal_context': None
         }
         
-        # Контекст из графа обучения (чистый — только концепты и качественные опыты)
+        # Контекст из графа обучения (только для содержательных запросов)
         enriched_query = query
         if self.fractal_memory and hasattr(self.fractal_memory, 'get_context_for_query'):
-            graph_context = self.fractal_memory.get_context_for_query(query)
-            if graph_context:
-                enriched_query = f"{query}\n\nКонтекст из опыта:\n{graph_context}"
-                results['fractal_context'] = graph_context
-                logger.info(f"Контекст из графа обучения: {len(graph_context)} символов")
+            # Не добавляем контекст для коротких приветствий и простых фраз
+            skip_context_keywords = ['привет', 'здравствуй', 'добрый', 'хай', 'hello', 'hi', 'hey', 'пока', 'до свидания', 'спасибо', 'благодар']
+            query_lower = query.lower().strip()
+            is_greeting = any(kw in query_lower for kw in skip_context_keywords) and len(query) < 60
+            
+            if not is_greeting:
+                graph_context = self.fractal_memory.get_context_for_query(query)
+                if graph_context:
+                    enriched_query = f"{query}\n\nКонтекст из опыта:\n{graph_context}"
+                    results['fractal_context'] = graph_context
+                    logger.info(f"Контекст из графа обучения: {len(graph_context)} символов")
         
         # Шаг 1: Model A - логический ответ
         logger.info("=== Шаг 1: Генерация ответа на Model A (логическое ядро) ===")
