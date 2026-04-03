@@ -144,30 +144,30 @@ class AdaptiveParameterController:
             for reason in failure_reasons:
                 reason_lower = reason.lower()
                 
-                if 'зациклин' in reason_lower or 'повторен' in reason_lower:
+                if 'зацикл' in reason_lower or 'повтор' in reason_lower or 'loop' in reason_lower:
                     params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.25)
                     params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.4)
                     params['top_k'] = max(20, params.get('top_k', 40) - 10)
                     params['top_p'] = max(0.7, params.get('top_p', 0.9) - 0.1)
                 
-                elif 'китайск' in reason_lower:
+                elif 'китайск' in reason_lower or 'chinese' in reason_lower:
                     params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
                     params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.2)
                     params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
                 
-                elif 'английск' in reason_lower or 'english' in reason_lower:
+                elif 'английск' in reason_lower or 'english' in reason_lower or 'latin' in reason_lower:
                     params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.1)
                     params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.15)
                 
-                elif 'фраз' in reason_lower or 'паразит' in reason_lower:
+                elif 'фраз' in reason_lower or 'паразит' in reason_lower or 'filler' in reason_lower:
                     params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
                     params['top_k'] = min(60, params.get('top_k', 40) + 10)
                 
-                elif 'пуст' in reason_lower or 'коротк' in reason_lower:
+                elif 'пуст' in reason_lower or 'коротк' in reason_lower or 'empty' in reason_lower:
                     params['max_tokens'] = min(2048, params.get('max_tokens', 1024) + 256)
                     params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.15)
                 
-                elif 'гласн' in reason_lower:
+                elif 'гласн' in reason_lower or 'vowel' in reason_lower:
                     params['temperature'] = min(1.2, params.get('temperature', 0.3) + 0.35)
                     params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
         
