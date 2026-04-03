@@ -88,5 +88,23 @@
       "type": "learned_content"
     },
     "user_id": null
+  },
+  {
+    "id": "mem_1775236094_d5bb11bd",
+    "content": {
+      "concept": "нейронные сети",
+      "type": "expansion",
+      "domain": "self_dialog_learning",
+      "learned": true,
+      "timestamp": 1775236094.4761505,
+      "content": "Расширение знаний: нейронные сети. Действия: [; \"",
+      "stored_at": 1775236094.4796627,
+      "source": "self_dialog_learning"
+    },
+    "timestamp": 1775236094.4804347,
+    "metadata": {
+      "type": "learned_content"
+    },
+    "user_id": null
   }
 ]
