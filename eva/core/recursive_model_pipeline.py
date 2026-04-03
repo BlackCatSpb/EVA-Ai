@@ -306,9 +306,11 @@ class RecursiveModelPipeline:
             chat_format="qwen",
             n_ctx=a_ctx,
             n_threads=self.n_threads,
-            verbose=False
+            verbose=False,
+            cache_type_k='q8_0',
+            cache_type_v='q8_0'
         )
-        logger.info(f"Model A загружена с контекстом {a_ctx}")
+        logger.info(f"Model A загружена с контекстом {a_ctx}, KV-кэш q8_0")
         
         if self.fractal_memory:
             self.fractal_memory.register_model_instance("model_a", self.model_a)
@@ -320,9 +322,11 @@ class RecursiveModelPipeline:
             chat_format="qwen",
             n_ctx=a_ctx,
             n_threads=self.n_threads,
-            verbose=False
+            verbose=False,
+            cache_type_k='q8_0',
+            cache_type_v='q8_0'
         )
-        logger.info(f"Model B загружена с контекстом {a_ctx}")
+        logger.info(f"Model B загружена с контекстом {a_ctx}, KV-кэш q8_0")
         
         if self.fractal_memory:
             self.fractal_memory.register_model_instance("model_b", self.model_b)
@@ -624,7 +628,9 @@ class RecursiveModelPipeline:
                 chat_format="qwen",
                 n_ctx=model_c_ctx,
                 n_threads=self.n_threads,
-                verbose=False
+                verbose=False,
+                cache_type_k='q8_0',
+                cache_type_v='q8_0'
             )
             logger.info(f"Model C загружена с контекстом {model_c_ctx}")
             return True
