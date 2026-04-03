@@ -29,7 +29,7 @@ def _detect_device() -> str:
     return "cpu"
 
 
-def get_sentence_transformer(model_name: str = "intfloat/multilingual-e5-small", device: str = "auto") -> Optional[object]:
+def get_sentence_transformer(model_name: str = "intfloat/multilingual-e5-base", device: str = "auto") -> Optional[object]:
     """
     Возвращает кэшированную модель sentence-transformers.
     Если модель уже загружена - возвращает кэш, иначе загружает и кэширует.

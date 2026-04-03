@@ -13,10 +13,124 @@ Pipeline:
 import os
 import re
 import logging
+import json
 from typing import Dict, Any, List, Optional
 from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
+
+
+class AdaptiveParameterController:
+    """
+    Адаптивный контроллер параметров генерации.
+    Анализирует причины провалов и корректирует параметры для следующей попытки.
+    """
+    
+    DEFAULT_PARAMS = {
+        'temperature': 0.3,
+        'top_p': 0.9,
+        'top_k': 40,
+        'repeat_penalty': 1.5,
+        'max_tokens': 1024,
+    }
+    
+    def __init__(self, base_params: Dict[str, float] = None):
+        self.base_params = base_params or dict(self.DEFAULT_PARAMS)
+        self.current_params = dict(self.base_params)
+        self.failure_history: List[Dict] = []
+        self.success_count = 0
+        self.failure_count = 0
+    
+    def get_params_for_attempt(self, attempt: int, failure_reasons: List[str] = None) -> Dict[str, float]:
+        """
+        Возвращает адаптированные параметры для попытки.
+        
+        Стратегии адаптации:
+        - Зацикливание → ↑temperature, ↑repeat_penalty, ↓top_k
+        - Китайские символы → ↓temperature, ↓top_p, ↑repeat_penalty
+        - Много повторений слов → ↑temperature, ↑repeat_penalty
+        - Фразы-паразиты → ↓temperature, ↑top_k
+        - Пустой ответ → ↑max_tokens, ↑temperature
+        """
+        if not failure_reasons:
+            # Первая попытка — базовые параметры с лёгким шумом
+            params = dict(self.base_params)
+            if attempt > 0:
+                params['temperature'] = min(0.8, self.base_params['temperature'] + attempt * 0.1)
+                params['repeat_penalty'] = min(2.5, self.base_params['repeat_penalty'] + attempt * 0.2)
+            return params
+        
+        params = dict(self.base_params)
+        
+        for reason in failure_reasons:
+            reason_lower = reason.lower()
+            
+            if 'зациклин' in reason_lower or 'повторен' in reason_lower:
+                # Модель зацикливается — нужно больше разнообразия и жёстче штраф
+                params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.25)
+                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.4)
+                params['top_k'] = max(20, params.get('top_k', 40) - 10)
+                params['top_p'] = max(0.7, params.get('top_p', 0.9) - 0.1)
+            
+            elif 'китайск' in reason_lower:
+                # Китайские символы — снизить температуру, повысить штраф
+                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
+                params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.2)
+                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
+            
+            elif 'английск' in reason_lower or 'english' in reason_lower:
+                # Слишком много английского
+                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.1)
+                params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.15)
+            
+            elif 'фраз' in reason_lower or 'паразит' in reason_lower:
+                # Фразы-паразиты — снизить температуру
+                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
+                params['top_k'] = min(60, params.get('top_k', 40) + 10)
+            
+            elif 'пуст' in reason_lower or 'коротк' in reason_lower:
+                # Пустой ответ — больше токенов и температуры
+                params['max_tokens'] = min(2048, params.get('max_tokens', 1024) + 256)
+                params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.15)
+            
+            elif 'гласн' in reason_lower:
+                # Нет гласных — сильный рост температуры
+                params['temperature'] = min(1.2, params.get('temperature', 0.3) + 0.35)
+                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
+        
+        # Ограничиваем диапазоны
+        params['temperature'] = max(0.05, min(1.5, params['temperature']))
+        params['top_p'] = max(0.1, min(1.0, params['top_p']))
+        params['top_k'] = max(10, min(100, params['top_k']))
+        params['repeat_penalty'] = max(0.5, min(3.0, params['repeat_penalty']))
+        params['max_tokens'] = max(64, min(4096, params['max_tokens']))
+        
+        return params
+    
+    def record_failure(self, attempt: int, reasons: List[str], params_used: Dict):
+        """Записывает провал для статистики."""
+        self.failure_history.append({
+            'attempt': attempt,
+            'reasons': reasons,
+            'params': params_used,
+        })
+        self.failure_count += 1
+    
+    def record_success(self):
+        """Записывает успех."""
+        self.success_count += 1
+    
+    def reset(self):
+        """Сбрасывает состояние для нового запроса."""
+        self.current_params = dict(self.base_params)
+    
+    def get_stats(self) -> Dict:
+        return {
+            'success_count': self.success_count,
+            'failure_count': self.failure_count,
+            'total_attempts': self.success_count + self.failure_count,
+            'recent_failures': self.failure_history[-5:],
+        }
 
 
 class RecursiveModelPipeline:
@@ -70,7 +184,22 @@ class RecursiveModelPipeline:
         self.fractal_memory = fractal_memory
         self.quality_checker = None
         
-        logger.info(f"RecursiveModelPipeline инициализирован (3-модельный)")
+        self.model_a_params = AdaptiveParameterController({
+            'temperature': self.MODEL_A_TEMPERATURE,
+            'top_p': self.MODEL_A_TOP_P,
+            'top_k': self.MODEL_A_TOP_K,
+            'repeat_penalty': self.MODEL_A_REPEAT_PENALTY,
+            'max_tokens': self.MODEL_A_MAX_TOKENS,
+        })
+        self.model_b_params = AdaptiveParameterController({
+            'temperature': self.MODEL_B_TEMPERATURE,
+            'top_p': self.MODEL_B_TOP_P,
+            'top_k': self.MODEL_B_TOP_K,
+            'repeat_penalty': self.MODEL_B_REPEAT_PENALTY,
+            'max_tokens': self.MODEL_B_MAX_TOKENS,
+        })
+        
+        logger.info(f"RecursiveModelPipeline инициализирован (3-модельный, адаптивные параметры)")
     
     def load_models(self):
         """Загрузка GGUF моделей - Model A и B как отдельные экземпляры"""
@@ -236,18 +365,31 @@ class RecursiveModelPipeline:
         return text.strip()
 
     def generate_with_model_a(self, query: str, max_retries: int = 2) -> Dict[str, Any]:
-        """Генерация ответа на Model A (логика)"""
+        """Генерация ответа на Model A (логика) с адаптивными параметрами"""
         if not self.model_a:
             raise RuntimeError("Model A не загружена")
         
         logger.info(f"Model A query: {query[:100]}...")
         
-        # Для коротких запросов добавляем контекст чтобы модель не генерировала китайский
         user_content = query
         if len(query.strip()) < 20:
             user_content = 'Пользователь написал: "' + query + '". Ответь вежливо на русском языке.'
         
+        self.model_a_params.reset()
+        
         for attempt in range(max_retries + 1):
+            # Получаем адаптированные параметры для этой попытки
+            failure_reasons = None
+            if attempt > 0 and self.model_a_params.failure_history:
+                last_failure = self.model_a_params.failure_history[-1]
+                failure_reasons = last_failure.get('reasons', [])
+            
+            params = self.model_a_params.get_params_for_attempt(attempt, failure_reasons)
+            
+            if attempt > 0:
+                logger.info(f"Model A attempt {attempt+1} — adapted params: temp={params['temperature']:.2f}, "
+                           f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
+            
             messages = [
                 {"role": "system", "content": "Ты — ЕВА, русскоязычный ИИ. Отвечай строго на русском языке. Не используй английские, китайские или другие иностранные слова и аббревиатуры."},
                 {"role": "user", "content": user_content}
@@ -255,11 +397,11 @@ class RecursiveModelPipeline:
             
             output = self.model_a.create_chat_completion(
                 messages=messages,
-                max_tokens=self.MODEL_A_MAX_TOKENS,
-                temperature=self.MODEL_A_TEMPERATURE + (attempt * 0.1),
-                top_p=self.MODEL_A_TOP_P,
-                top_k=self.MODEL_A_TOP_K,
-                repeat_penalty=self.MODEL_A_REPEAT_PENALTY + (attempt * 0.15),
+                max_tokens=params['max_tokens'],
+                temperature=params['temperature'],
+                top_p=params['top_p'],
+                top_k=params['top_k'],
+                repeat_penalty=params['repeat_penalty'],
                 stop=["</s>"]
             )
             
@@ -267,15 +409,17 @@ class RecursiveModelPipeline:
             raw_response = self._sanitize_response(raw_response)
             quality = self.check_quality(raw_response)
             
-            # Никогда не возвращаем ответ с китайскими символами
             has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
             if has_chinese:
+                quality['reasons'].append('Содержит китайские символы')
+                self.model_a_params.record_failure(attempt + 1, quality['reasons'], params)
                 logger.warning(f"Model A: попытка {attempt+1} содержит китайские символы, retry")
                 continue
             
             if not quality['is_gibberish']:
                 logger.info(f"Model A response (attempt {attempt+1}): '{raw_response[:200]}...'")
                 logger.info(f"Model A tokens: {output['usage']['completion_tokens']}")
+                self.model_a_params.record_success()
                 
                 return {
                     'raw_response': raw_response,
@@ -285,6 +429,7 @@ class RecursiveModelPipeline:
                     'tokens': output['usage']['completion_tokens']
                 }
             
+            self.model_a_params.record_failure(attempt + 1, quality['reasons'], params)
             logger.warning(f"Model A: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
         
         # Fallback
@@ -297,13 +442,24 @@ class RecursiveModelPipeline:
         }
     
     def generate_with_model_b(self, query: str, previous_response: str, max_retries: int = 2) -> Dict[str, Any]:
-        """Генерация ответа на Model B - независимый ответ на тот же вопрос"""
+        """Генерация ответа на Model B с адаптивными параметрами"""
         if not self.model_b:
             raise RuntimeError("Model B не загружена")
         
-        # Model B получает ТОЛЬКО оригинальный запрос, без контекста Model A
-        # Это предотвращает каскадное загрязнение
+        self.model_b_params.reset()
+        
         for attempt in range(max_retries + 1):
+            failure_reasons = None
+            if attempt > 0 and self.model_b_params.failure_history:
+                last_failure = self.model_b_params.failure_history[-1]
+                failure_reasons = last_failure.get('reasons', [])
+            
+            params = self.model_b_params.get_params_for_attempt(attempt, failure_reasons)
+            
+            if attempt > 0:
+                logger.info(f"Model B attempt {attempt+1} — adapted params: temp={params['temperature']:.2f}, "
+                           f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
+            
             messages = [
                 {"role": "system", "content": "Ты — ЕВА, русскоязычный ИИ. Отвечай строго на русском языке. Не используй английские, китайские или другие иностранные слова. Давай развёрнутый ответ с примерами."},
                 {"role": "user", "content": query}
@@ -311,11 +467,11 @@ class RecursiveModelPipeline:
             
             output = self.model_b.create_chat_completion(
                 messages=messages,
-                max_tokens=self.MODEL_B_MAX_TOKENS,
-                temperature=self.MODEL_B_TEMPERATURE + (attempt * 0.1),
-                top_p=self.MODEL_B_TOP_P,
-                top_k=self.MODEL_B_TOP_K,
-                repeat_penalty=self.MODEL_B_REPEAT_PENALTY + (attempt * 0.15),
+                max_tokens=params['max_tokens'],
+                temperature=params['temperature'],
+                top_p=params['top_p'],
+                top_k=params['top_k'],
+                repeat_penalty=params['repeat_penalty'],
                 stop=["</s>"]
             )
             
@@ -328,12 +484,15 @@ class RecursiveModelPipeline:
             # Никогда не возвращаем ответ с китайскими символами
             has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
             if has_chinese:
+                quality['reasons'].append('Содержит китайские символы')
+                self.model_b_params.record_failure(attempt + 1, quality['reasons'], params)
                 logger.warning(f"Model B: попытка {attempt+1} содержит китайские символы, retry")
                 continue
             
             if not quality['is_gibberish']:
                 logger.info(f"Model B response (attempt {attempt+1}): '{raw_response[:200]}...'")
                 logger.info(f"Model B tokens: {output['usage']['completion_tokens']}")
+                self.model_b_params.record_success()
                 
                 return {
                     'raw_response': raw_response,
@@ -343,6 +502,7 @@ class RecursiveModelPipeline:
                     'tokens': output['usage']['completion_tokens']
                 }
             
+            self.model_b_params.record_failure(attempt + 1, quality['reasons'], params)
             logger.warning(f"Model B: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
         
         # Fallback на Model A

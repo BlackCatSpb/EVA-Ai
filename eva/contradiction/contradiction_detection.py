@@ -80,7 +80,7 @@ class ContradictionDetector:
             
             # Используем singleton для загрузки sentence-transformers модели
             if get_sentence_transformer is not None:
-                model = get_sentence_transformer('intfloat/multilingual-e5-small')
+                model = get_sentence_transformer('intfloat/multilingual-e5-base')
                 if model is not None:
                     logger.info("NLP-модель загружена через singleton")
                     return model

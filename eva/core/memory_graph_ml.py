@@ -122,7 +122,7 @@ class MemoryGraphML:
         
         # Sentence-transformer для CPU embeddings
         self._st_model = None
-        self._st_model_name = self.config.get('st_model', 'intfloat/multilingual-e5-small')
+        self._st_model_name = self.config.get('st_model', 'intfloat/multilingual-e5-base')
         self._init_st_model()
         
         # Graph property for external access compatibility
