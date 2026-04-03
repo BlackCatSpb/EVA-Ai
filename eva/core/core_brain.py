@@ -522,8 +522,10 @@ class CoreBrain:
                             pipeline_kwargs['fractal_memory'] = self.fractal_memory
                         
                         self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                        logger.info("DEBUG: RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline.load_models()
                     self.two_model_pipeline_ready = True
+                    logger.info("DEBUG: load_models() completed, pipeline_ready = " + str(self.two_model_pipeline_ready))
                     self.query_logger.info("Two-Model Pipeline готов к работе!")
                     
                     # Log pipeline status

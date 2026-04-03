@@ -61,6 +61,7 @@ class ReasoningIntegration:
                 logger.info(f"ReasoningIntegration: pipeline.model_a = {two_model_pipeline.model_a is not None}")
                 logger.info(f"ReasoningIntegration: pipeline.model_b = {two_model_pipeline.model_b is not None}")
             
+            logger.info(f"DEBUG Integration: Creating SRE with two_model_pipeline = {two_model_pipeline}")
             self.reasoning_engine = SelfReasoningEngine(
                 brain=self.brain,
                 two_model_pipeline=two_model_pipeline,
@@ -69,6 +70,7 @@ class ReasoningIntegration:
                     'confidence_threshold': self.config.get('confidence_threshold', 0.75)
                 }
             )
+            logger.info(f"DEBUG Integration: SRE created, SRE.two_model_pipeline = {self.reasoning_engine.two_model_pipeline}")
             
             # Добавляем в brain как компонент
             self.brain.self_reasoning_engine = self.reasoning_engine
