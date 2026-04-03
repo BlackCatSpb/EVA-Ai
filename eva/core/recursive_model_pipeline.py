@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class AdaptiveParameterController:
     """
     Адаптивный контроллер параметров генерации.
-    Анализирует причины провалов и корректирует параметры для следующей попытки.
+    Анализирует причины провалов + семантическую схожесть ответов через эмбеддер.
     """
     
     DEFAULT_PARAMS = {
@@ -34,87 +34,178 @@ class AdaptiveParameterController:
         'max_tokens': 1024,
     }
     
+    # Диапазоны параметров
+    PARAM_RANGES = {
+        'temperature': (0.05, 1.5),
+        'top_p': (0.1, 1.0),
+        'top_k': (10, 100),
+        'repeat_penalty': (0.5, 3.0),
+        'max_tokens': (64, 4096),
+    }
+    
+    SEMANTIC_STUCK_THRESHOLD = 0.85
+    
     def __init__(self, base_params: Dict[str, float] = None):
         self.base_params = base_params or dict(self.DEFAULT_PARAMS)
         self.current_params = dict(self.base_params)
         self.failure_history: List[Dict] = []
+        self.failed_response_texts: List[str] = []
+        self.failed_response_embeddings: list = []
         self.success_count = 0
         self.failure_count = 0
+        self._embedder = None
+    
+    def _get_embedder(self):
+        """Ленивая загрузка эмбеддера для семантического анализа."""
+        if self._embedder is None:
+            try:
+                from eva.mlearning.sentence_transformers_cache import get_sentence_transformer
+                self._embedder = get_sentence_transformer('intfloat/multilingual-e5-base', device='cpu')
+                if self._embedder is not None:
+                    logger.info("AdaptiveController: эмбеддер загружен для семантического анализа")
+            except Exception as e:
+                logger.debug(f"AdaptiveController: эмбеддер недоступен: {e}")
+        return self._embedder
+    
+    def _compute_embedding(self, text: str) -> Optional[list]:
+        """Вычисляет эмбеддинг текста."""
+        embedder = self._get_embedder()
+        if embedder is None or not text.strip():
+            return None
+        try:
+            embedding = embedder.encode([text.strip()])[0]
+            return embedding.tolist() if hasattr(embedding, 'tolist') else list(embedding)
+        except Exception as e:
+            logger.debug(f"AdaptiveController: ошибка вычисления эмбеддинга: {e}")
+            return None
+    
+    def _cosine_similarity(self, a: list, b: list) -> float:
+        """Вычисляет косинусную схожесть двух векторов."""
+        if not a or not b or len(a) != len(b):
+            return 0.0
+        import math
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+    
+    def _are_embeddings_stuck(self) -> Dict[str, Any]:
+        """Проверяет, застряли ли мы в семантически одинаковых ответах."""
+        embeddings = self.failed_response_embeddings
+        if len(embeddings) < 2:
+            return {'is_stuck': False, 'max_similarity': 0.0, 'stuck_count': 0}
+        
+        # Сравниваем последние эмбеддинги друг с другом
+        max_sim = 0.0
+        for i in range(len(embeddings) - 1):
+            sim = self._cosine_similarity(embeddings[i], embeddings[-1])
+            max_sim = max(max_sim, sim)
+        
+        stuck_count = sum(1 for i in range(len(embeddings) - 1) 
+                         if self._cosine_similarity(embeddings[i], embeddings[-1]) > self.SEMANTIC_STUCK_THRESHOLD)
+        
+        return {
+            'is_stuck': max_sim > self.SEMANTIC_STUCK_THRESHOLD,
+            'max_similarity': max_sim,
+            'stuck_count': stuck_count,
+        }
     
     def get_params_for_attempt(self, attempt: int, failure_reasons: List[str] = None) -> Dict[str, float]:
         """
         Возвращает адаптированные параметры для попытки.
         
-        Стратегии адаптации:
-        - Зацикливание → ↑temperature, ↑repeat_penalty, ↓top_k
-        - Китайские символы → ↓temperature, ↓top_p, ↑repeat_penalty
-        - Много повторений слов → ↑temperature, ↑repeat_penalty
-        - Фразы-паразиты → ↓temperature, ↑top_k
-        - Пустой ответ → ↑max_tokens, ↑temperature
+        Стратегии:
+        1. Rule-based: анализ причин провала из check_quality()
+        2. Semantic: если прошлые ответы семантически одинаковы → радикальный сдвиг
         """
-        if not failure_reasons:
-            # Первая попытка — базовые параметры с лёгким шумом
-            params = dict(self.base_params)
-            if attempt > 0:
-                params['temperature'] = min(0.8, self.base_params['temperature'] + attempt * 0.1)
-                params['repeat_penalty'] = min(2.5, self.base_params['repeat_penalty'] + attempt * 0.2)
-            return params
+        # Проверяем семантическую застрялость по прошлым ответам
+        semantic_info = self._are_embeddings_stuck()
+        if semantic_info['is_stuck']:
+            logger.warning(f"Model ЗАСТРЯЛА: семантическая схожесть={semantic_info['max_similarity']:.2f} "
+                         f"(порог={self.SEMANTIC_STUCK_THRESHOLD}), застряло попыток: {semantic_info['stuck_count']}")
+        
+        if not failure_reasons and not semantic_info['is_stuck']:
+            # Первая попытка — базовые параметры
+            return dict(self.base_params)
         
         params = dict(self.base_params)
         
-        for reason in failure_reasons:
-            reason_lower = reason.lower()
-            
-            if 'зациклин' in reason_lower or 'повторен' in reason_lower:
-                # Модель зацикливается — нужно больше разнообразия и жёстче штраф
-                params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.25)
-                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.4)
-                params['top_k'] = max(20, params.get('top_k', 40) - 10)
-                params['top_p'] = max(0.7, params.get('top_p', 0.9) - 0.1)
-            
-            elif 'китайск' in reason_lower:
-                # Китайские символы — снизить температуру, повысить штраф
-                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
-                params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.2)
-                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
-            
-            elif 'английск' in reason_lower or 'english' in reason_lower:
-                # Слишком много английского
-                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.1)
-                params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.15)
-            
-            elif 'фраз' in reason_lower or 'паразит' in reason_lower:
-                # Фразы-паразиты — снизить температуру
-                params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
-                params['top_k'] = min(60, params.get('top_k', 40) + 10)
-            
-            elif 'пуст' in reason_lower or 'коротк' in reason_lower:
-                # Пустой ответ — больше токенов и температуры
-                params['max_tokens'] = min(2048, params.get('max_tokens', 1024) + 256)
-                params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.15)
-            
-            elif 'гласн' in reason_lower:
-                # Нет гласных — сильный рост температуры
-                params['temperature'] = min(1.2, params.get('temperature', 0.3) + 0.35)
-                params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
+        # 1. Rule-based адаптация по причинам провала
+        if failure_reasons:
+            for reason in failure_reasons:
+                reason_lower = reason.lower()
+                
+                if 'зациклин' in reason_lower or 'повторен' in reason_lower:
+                    params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.25)
+                    params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.4)
+                    params['top_k'] = max(20, params.get('top_k', 40) - 10)
+                    params['top_p'] = max(0.7, params.get('top_p', 0.9) - 0.1)
+                
+                elif 'китайск' in reason_lower:
+                    params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
+                    params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.2)
+                    params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
+                
+                elif 'английск' in reason_lower or 'english' in reason_lower:
+                    params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.1)
+                    params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.15)
+                
+                elif 'фраз' in reason_lower or 'паразит' in reason_lower:
+                    params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
+                    params['top_k'] = min(60, params.get('top_k', 40) + 10)
+                
+                elif 'пуст' in reason_lower or 'коротк' in reason_lower:
+                    params['max_tokens'] = min(2048, params.get('max_tokens', 1024) + 256)
+                    params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.15)
+                
+                elif 'гласн' in reason_lower:
+                    params['temperature'] = min(1.2, params.get('temperature', 0.3) + 0.35)
+                    params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.3)
         
-        # Ограничиваем диапазоны
-        params['temperature'] = max(0.05, min(1.5, params['temperature']))
-        params['top_p'] = max(0.1, min(1.0, params['top_p']))
-        params['top_k'] = max(10, min(100, params['top_k']))
-        params['repeat_penalty'] = max(0.5, min(3.0, params['repeat_penalty']))
-        params['max_tokens'] = max(64, min(4096, params['max_tokens']))
+        # 2. Semantic-based адаптация: если застряли — радикальный сдвиг
+        if semantic_info['is_stuck']:
+            stuck_factor = min(1.0, semantic_info['stuck_count'] / 2.0)
+            
+            logger.info(f"Semantic adaptation: stuck_factor={stuck_factor:.2f}, "
+                       f"drastically changing parameters")
+            
+            # Радикально меняем все параметры
+            params['temperature'] = min(1.5, params.get('temperature', 0.3) + 0.3 + stuck_factor * 0.3)
+            params['top_p'] = max(0.3, min(1.0, params.get('top_p', 0.9) + 0.1 * (1 - stuck_factor)))
+            params['top_k'] = max(15, min(80, params.get('top_k', 40) + int(20 * stuck_factor)))
+            params['repeat_penalty'] = min(3.0, params.get('repeat_penalty', 1.5) + 0.3 + stuck_factor * 0.3)
+        
+        # 3. Кумулятивная адаптация при множественных провалах
+        if len(self.failure_history) >= 2:
+            cumulative_factor = min(0.5, len(self.failure_history) * 0.1)
+            params['temperature'] = min(1.5, params['temperature'] + cumulative_factor)
+            params['repeat_penalty'] = min(3.0, params['repeat_penalty'] + cumulative_factor * 0.5)
+        
+        # Ограничиваем диапазонами
+        for param_name, (min_val, max_val) in self.PARAM_RANGES.items():
+            if param_name in params:
+                params[param_name] = max(min_val, min(max_val, params[param_name]))
+            else:
+                params[param_name] = self.base_params.get(param_name, self.DEFAULT_PARAMS.get(param_name, 1.0))
         
         return params
     
-    def record_failure(self, attempt: int, reasons: List[str], params_used: Dict):
-        """Записывает провал для статистики."""
+    def record_failure(self, attempt: int, reasons: List[str], params_used: Dict, response_text: str = None):
+        """Записывает провал + эмбеддинг ответа."""
         self.failure_history.append({
             'attempt': attempt,
             'reasons': reasons,
             'params': params_used,
         })
         self.failure_count += 1
+        
+        if response_text:
+            self.failed_response_texts.append(response_text)
+            embedding = self._compute_embedding(response_text)
+            if embedding:
+                self.failed_response_embeddings.append(embedding)
     
     def record_success(self):
         """Записывает успех."""
@@ -123,6 +214,9 @@ class AdaptiveParameterController:
     def reset(self):
         """Сбрасывает состояние для нового запроса."""
         self.current_params = dict(self.base_params)
+        self.failed_response_texts = []
+        self.failed_response_embeddings = []
+        self.failure_history = []
     
     def get_stats(self) -> Dict:
         return {
@@ -130,6 +224,7 @@ class AdaptiveParameterController:
             'failure_count': self.failure_count,
             'total_attempts': self.success_count + self.failure_count,
             'recent_failures': self.failure_history[-5:],
+            'semantic_analysis_enabled': self._get_embedder() is not None,
         }
 
 
@@ -412,7 +507,7 @@ class RecursiveModelPipeline:
             has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
             if has_chinese:
                 quality['reasons'].append('Содержит китайские символы')
-                self.model_a_params.record_failure(attempt + 1, quality['reasons'], params)
+                self.model_a_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
                 logger.warning(f"Model A: попытка {attempt+1} содержит китайские символы, retry")
                 continue
             
@@ -429,7 +524,7 @@ class RecursiveModelPipeline:
                     'tokens': output['usage']['completion_tokens']
                 }
             
-            self.model_a_params.record_failure(attempt + 1, quality['reasons'], params)
+            self.model_a_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
             logger.warning(f"Model A: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
         
         # Fallback
@@ -485,7 +580,7 @@ class RecursiveModelPipeline:
             has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
             if has_chinese:
                 quality['reasons'].append('Содержит китайские символы')
-                self.model_b_params.record_failure(attempt + 1, quality['reasons'], params)
+                self.model_b_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
                 logger.warning(f"Model B: попытка {attempt+1} содержит китайские символы, retry")
                 continue
             
@@ -502,7 +597,7 @@ class RecursiveModelPipeline:
                     'tokens': output['usage']['completion_tokens']
                 }
             
-            self.model_b_params.record_failure(attempt + 1, quality['reasons'], params)
+            self.model_b_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
             logger.warning(f"Model B: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
         
         # Fallback на Model A
