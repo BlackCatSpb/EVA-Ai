@@ -1,14 +1,12 @@
-﻿"""
+"""
 Единое ядро системы ЕВА - координирует работу всех компонентов
 """
 import sys
 import os
 import logging
-from typing import TYPE_CHECKING
 import time
 import threading
 import queue
-import datetime
 import random
 import psutil
 import torch
@@ -21,29 +19,9 @@ except ImportError:
     Policies = None
 
 try:
-    from .opportunities.learning_detector import LearningOpportunityDetector
-except ImportError:
-    LearningOpportunityDetector = None
-
-try:
     from .background_jobs.training_job import TrainingJob
 except ImportError:
     TrainingJob = None
-
-try:
-    from .autopilot_cache import AutopilotCache
-except ImportError:
-    AutopilotCache = None
-
-try:
-    from .opportunities.web_discovery_detector import WebDiscoveryDetector
-except ImportError:
-    WebDiscoveryDetector = None
-
-try:
-    from .opportunities.recovery_detector import ModuleRecoveryDetector
-except ImportError:
-    ModuleRecoveryDetector = None
 
 try:
     from .background_jobs.web_index_job import WebIndexJob
@@ -56,10 +34,9 @@ except ImportError:
     ModuleRecoveryJob = None
 
 try:
-    from .generation_coordinator import initialize_generation_coordinator, get_generation_coordinator
+    from .generation_coordinator import initialize_generation_coordinator
 except ImportError:
     initialize_generation_coordinator = None
-    get_generation_coordinator = None
 
 logger = logging.getLogger("eva.core_brain")
 query_logger = logging.getLogger("eva.core_brain.query_processing")
@@ -217,9 +194,13 @@ class CoreBrain:
         
         # Инициализация системы отложенных команд
         try:
-            from .deferred_command_system import DeferredCommandSystem
+            from .deferred_command_system import DeferredCommandSystem, CommandPriority
             self.deferred_system = DeferredCommandSystem(self, max_workers=6)
             self.query_logger.debug("Система отложенных команд инициализирована")
+            
+            # Регистрация health checks и recovery strategies для ключевых модулей
+            self._register_deferred_system_handlers()
+            
         except ImportError as e:
             self.deferred_system = None
             self.query_logger.warning(f"Система отложенных команд недоступна: {e}")
@@ -299,18 +280,8 @@ class CoreBrain:
             self.metrics_manager = SystemMetricsManager()
             self.query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
         
-        # Инициализация расширенной системы самообучения с эпохами
-        try:
-            from .enhanced_self_learning import EnhancedSelfLearningSystem
-            self.enhanced_learning = EnhancedSelfLearningSystem(self, config=self.config.get('learning', {}))
-            if self.enhanced_learning.start():
-                self.query_logger.debug("EnhancedSelfLearningSystem инициализирована и запущена")
-            else:
-                self.query_logger.warning("Не удалось запустить EnhancedSelfLearningSystem")
-                self.enhanced_learning = None
-        except ImportError as e:
-            self.query_logger.warning(f"EnhancedSelfLearningSystem недоступна: {e}")
-            self.enhanced_learning = None
+        # EnhancedSelfLearningSystem отключена - обучение через SelfDialogLearning
+        self.enhanced_learning = None
         
         # Инициализация MemoryGraphML для обучения на графе памяти
         try:
@@ -465,6 +436,131 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.debug(f"LlamaCpp не инициализирован: {e}")
             self.llama_cpp_deployment = None
+        
+        # Инициализация Two-Model Pipeline (Recursive GGUF)
+        self.two_model_pipeline = None
+        self.two_model_pipeline_ready = False
+        self.fractal_memory = None
+        try:
+            model_config = self.config.get('model', {})
+            use_two_model = model_config.get('use_two_model_pipeline', False)
+            
+            if use_two_model:
+                model_a_path = model_config.get('model_a_gguf_path', '')
+                model_b_path = model_config.get('model_b_gguf_path', '')
+                model_c_path = model_config.get('model_c_gguf_path', '')
+                n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
+                n_threads = model_config.get('llama_cpp_threads', 8)
+                
+                # Инициализация UnifiedFractalMemory (единый граф на SSD)
+                try:
+                    from eva.memory.unified_fractal_memory import UnifiedFractalMemory
+                    fractal_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "fractal_torch_storage", "unified_memory")
+                    self.query_logger.info(f"Инициализация UnifiedFractalMemory: {fractal_dir}")
+                    self.fractal_memory = UnifiedFractalMemory(storage_dir=fractal_dir, config=self.config.get('fractal_memory', {}))
+                    self.query_logger.info(f"UnifiedFractalMemory: {self.fractal_memory.get_stats()}")
+                except Exception as e:
+                    self.query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
+                    self.fractal_memory = None
+                
+                if model_a_path and model_b_path:
+                    from eva.core.recursive_model_pipeline import RecursiveModelPipeline
+                    
+                    # Use global os (already imported at top)
+                    if not os.path.isabs(model_a_path):
+                        model_a_path = os.path.join(os.getcwd(), model_a_path)
+                    if not os.path.isabs(model_b_path):
+                        model_b_path = os.path.join(os.getcwd(), model_b_path)
+                    if model_c_path and not os.path.isabs(model_c_path):
+                        model_c_path = os.path.join(os.getcwd(), model_c_path)
+                    
+                    # Check model files exist
+                    if not os.path.exists(model_a_path):
+                        self.query_logger.error(f"Model A file not found: {model_a_path}")
+                        self.two_model_pipeline = None
+                    elif not os.path.exists(model_b_path):
+                        self.query_logger.error(f"Model B file not found: {model_b_path}")
+                        self.query_logger.warning("Model B fallback: using Model A path")
+                        model_b_path = model_a_path
+                        self.query_logger.info(f"Инициализация Two-Model Pipeline...")
+                        self.query_logger.info(f"  Model A: {model_a_path}")
+                        self.query_logger.info(f"  Model B: {model_b_path} (cloned from A)")
+                        if model_c_path:
+                            self.query_logger.info(f"  Model C (Coder): {model_c_path}")
+                        
+                        pipeline_kwargs = {
+                            'model_a_path': model_a_path,
+                            'model_b_path': model_b_path,
+                            'n_ctx': n_ctx,
+                            'n_threads': n_threads
+                        }
+                        if model_c_path:
+                            pipeline_kwargs['model_c_path'] = model_c_path
+                        if self.fractal_memory:
+                            pipeline_kwargs['fractal_memory'] = self.fractal_memory
+                        
+                        self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                    else:
+                        self.query_logger.info(f"Инициализация Two-Model Pipeline...")
+                        self.query_logger.info(f"  Model A: {model_a_path}")
+                        self.query_logger.info(f"  Model B: {model_b_path}")
+                        if model_c_path:
+                            self.query_logger.info(f"  Model C (Coder): {model_c_path}")
+                        
+                        pipeline_kwargs = {
+                            'model_a_path': model_a_path,
+                            'model_b_path': model_b_path,
+                            'n_ctx': n_ctx,
+                            'n_threads': n_threads
+                        }
+                        if model_c_path:
+                            pipeline_kwargs['model_c_path'] = model_c_path
+                        if self.fractal_memory:
+                            pipeline_kwargs['fractal_memory'] = self.fractal_memory
+                        
+                        self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                    self.two_model_pipeline.load_models()
+                    self.two_model_pipeline_ready = True
+                    self.query_logger.info("Two-Model Pipeline готов к работе!")
+                    
+                    # Log pipeline status
+                    self.query_logger.info(f"  -> two_model_pipeline attribute exists: {hasattr(self, 'two_model_pipeline')}")
+                    self.query_logger.info(f"  -> two_model_pipeline is not None: {self.two_model_pipeline is not None}")
+                    
+                    # Регистрация в EventBus
+                    try:
+                        from eva.core.event_bus import Event, EventTypes
+                        if hasattr(self, 'events') and self.events:
+                            event = Event(
+                                event_type=EventTypes.COMPONENT_INITIALIZED,
+                                source="TwoModelPipeline",
+                                data={
+                                    "component": "TwoModelPipeline",
+                                    "model_a": model_a_path,
+                                    "model_b": model_b_path,
+                                    "n_ctx": n_ctx,
+                                    "n_threads": n_threads,
+                                    "ready": True
+                                },
+                                priority=5
+                            )
+                            self.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
+                                    "component": "TwoModelPipeline",
+                                    "model_a": model_a_path,
+                                    "model_b": model_b_path,
+                                    "n_ctx": n_ctx,
+                                    "n_threads": n_threads,
+                                    "ready": True
+                                })
+                            self.query_logger.info("Two-Model Pipeline зарегистрирован в EventBus")
+                    except Exception as e:
+                        self.query_logger.warning(f"Не удалось зарегистрировать Two-Model Pipeline в EventBus: {e}")
+                else:
+                    self.query_logger.warning("Two-Model Pipeline: не указаны пути к моделям")
+                    
+        except Exception as e:
+            self.query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
+            self.two_model_pipeline = None
         
         # Инициализация PreprocessingPipeline для извлечения сущностей
         self.preprocessing_pipeline = None
@@ -649,13 +745,10 @@ class CoreBrain:
                 self.query_logger.warning(f"Не удалось инициализировать FractalAttentionSystem: {e}")
             
             if self.component_initializer:
-                if not self.component_initializer.initialize_components():
-                    self.query_logger.error("Не удалось инициализировать все компоненты системы")
-                    if self.state_manager and hasattr(self.state_manager, 'set_state'):
-                        self.state_manager.set_state(SystemState.ERROR, "Ошибка инициализации компонентов")
-                    if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
-                        self.metrics_manager.record_error("component_initialization_failed")
-                    return False
+                init_result = self.component_initializer.initialize_components()
+                if not init_result:
+                    self.query_logger.warning("Не все компоненты инициализированы, продолжаем...")
+                    self.query_logger.warning("Failed: %s" % self.component_initializer.failed_components)
             else:
                 self.query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
             
@@ -897,6 +990,51 @@ class CoreBrain:
             f"brain_config.json не найден. Проверены пути: {possible_paths}"
         )
     
+    def _register_deferred_system_handlers(self):
+        """Регистрирует health checks и recovery strategies для deferred_command_system."""
+        if not self.deferred_system:
+            return
+        
+        # Health check для Two-Model Pipeline
+        if hasattr(self, 'two_model_pipeline') and self.two_model_pipeline:
+            def check_pipeline():
+                return hasattr(self, 'two_model_pipeline_ready') and self.two_model_pipeline_ready
+            
+            self.deferred_system.add_module_health_check('two_model_pipeline', check_pipeline)
+            
+            def recover_pipeline():
+                try:
+                    self.two_model_pipeline.load_models()
+                    self.two_model_pipeline_ready = True
+                    logger.info("Two-Model Pipeline восстановлен")
+                except Exception as e:
+                    logger.error(f"Не удалось восстановить Two-Model Pipeline: {e}")
+            
+            self.deferred_system.add_module_recovery_strategy('two_model_pipeline', recover_pipeline)
+        
+        # Health check для SelfReasoningEngine
+        if hasattr(self, 'self_reasoning_engine') and self.self_reasoning_engine:
+            def check_sre():
+                return hasattr(self.self_reasoning_engine, 'brain') and self.self_reasoning_engine.brain is not None
+            
+            self.deferred_system.add_module_health_check('self_reasoning_engine', check_sre)
+        
+        # Health check для LlamaCpp deployment
+        if hasattr(self, 'llama_cpp_deployment') and self.llama_cpp_deployment:
+            def check_llama():
+                return hasattr(self, 'llama_cpp_ready') and self.llama_cpp_ready
+            
+            self.deferred_system.add_module_health_check('llama_cpp_deployment', check_llama)
+        
+        # Health check для Web Search
+        if hasattr(self, 'web_search_engine') and self.web_search_engine:
+            def check_web_search():
+                return True  # Простая проверка - модуль существует
+            
+            self.deferred_system.add_module_health_check('web_search_engine', check_web_search)
+        
+        logger.info("Зарегистрированы health checks и recovery strategies для deferred system")
+    
     def _get_system_info(self) -> Dict[str, Any]:
         """Возвращает информацию о системе для логгирования."""
         system_info = {
@@ -974,7 +1112,7 @@ class CoreBrain:
         dependencies = {
             'model_manager': ['ml_unit'],
             'response_generator': ['model_manager', 'text_processor'],
-            'training_orchestrator': ['ml_unit', 'learning_manager'],
+            # 'training_orchestrator': удален - используем SelfDialogLearning,
             'integrated_learning_manager': ['model_manager', 'knowledge_graph'],
             'analytics_manager': ['learning_manager', 'memory_manager'],
             'learning_processor': ['model_manager', 'hybrid_cache']
@@ -1215,6 +1353,25 @@ class CoreBrain:
             if isinstance(user_context, dict) and isinstance(context, dict):
                 user_context = {**user_context, **context}
         
+        # === Two-Model Pipeline управляется через SelfReasoningEngine ===
+        # Убрано из прямого вызова - теперь SelfReasoningEngine управляет Two-Model Pipeline
+        # (См. SelfReasoningEngine.process_query)
+        
+        # === GGUF MODE: Используем Two-Model Pipeline через SelfReasoningEngine ===
+        # Проверяем, включён ли PyTorch
+        disable_pytorch = False
+        try:
+            model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
+            disable_pytorch = model_cfg.get('disable_pytorch', False)
+        except Exception as e:
+            logger.debug(f"Error checking disable_pytorch: {e}")
+        
+        # Если PyTorch отключён - используем GGUF Two-Model Pipeline
+        if disable_pytorch:
+            # Two-Model Pipeline управляется через SelfReasoningEngine (см. ниже в error_chain)
+            # Здесь просто логируем режим
+            self.query_logger.info("Режим GGUF: используем Two-Model Pipeline")
+        
         # === QWEN-ONLY MODE: Load Qwen FIRST before any processing ===
         # Check if Qwen-only mode is enabled
         qwen_only_mode = False
@@ -1226,46 +1383,40 @@ class CoreBrain:
         
         # Load Qwen if not loaded yet (before greeting check!)
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
-            self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
-            try:
-                from eva.mlearning.qwen_model_manager import get_qwen_model_manager
-                qwen_device = self._qwen_config.get('device', 'cuda')
-                
-                self.qwen_model_manager = get_qwen_model_manager(
-                    model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                    device='cpu',
-                    load_in_8bit=False,
-                    load_in_4bit=False
-                )
-                
-                if self.qwen_model_manager and self.qwen_model_manager.initialized:
-                    self.qwen_ready = True
-                    self.query_logger.info("QwenModelManager загружен для обработки запроса")
-                else:
-                    self.query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
-            except Exception as e:
-                self.query_logger.error(f"Ошибка загрузки Qwen: {e}")
+            # Skip if disable_pytorch: true
+            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
+            if disable_pytorch:
+                self.query_logger.info("PyTorch отключён - пропускаем загрузку Qwen в qwen_only_mode")
+            else:
+                self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
+                try:
+                    from eva.mlearning.qwen_model_manager import get_qwen_model_manager
+                    qwen_device = self._qwen_config.get('device', 'cuda')
+                    
+                    self.qwen_model_manager = get_qwen_model_manager(
+                        model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
+                        device='cpu',
+                        load_in_8bit=False,
+                        load_in_4bit=False
+                    )
+                    
+                    if self.qwen_model_manager and self.qwen_model_manager.initialized:
+                        self.qwen_ready = True
+                        self.query_logger.info("QwenModelManager загружен для обработки запроса")
+                    else:
+                        self.query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
+                except Exception as e:
+                    self.query_logger.error(f"Ошибка загрузки Qwen: {e}")
         
         # === В Qwen-only режиме НЕ используем greeting handler ===
-        # Все запросы (включая приветствия) идут через Qwen
+        # Все запросы (включая приветствия) идут через Two-Model Pipeline или GGUF
         if not qwen_only_mode:
             # Skip greeting handler if file is attached
             if 'прикрепил файл' in query.lower():
                 self.query_logger.info("Пропуск greeting handler - прикреплён файл")
             else:
-                # БЫСТРЫЙ ОТВЕТ НА ПРИВЕТСТВИЯ - только если НЕ Qwen-only режим
-                query_lower = query.lower().strip()
-                greeting_keywords = ['привет', 'здравствуй', 'добрый', 'hello', 'hi', 'хай', 'здорово', 'прив']
-                if any(g in query_lower for g in greeting_keywords):
-                    return {
-                        "response": "Привет! Я ЕВА, рада общению. Чем могу помочь?",
-                        "text": "Привет! Я ЕВА, рада общению. Чем могу помочь?",
-                        "status": "ok",
-                        "confidence": 1.0,
-                        "source": "greeting_handler",
-                        "fallback_level": 0,
-                        "processing_time": time.time() - start_time
-                    }
+                # Greeting handler ОТКЛЮЧЁН - все запросы идут через Two-Model Pipeline
+                pass
         
         # === Qwen-only mode WITH module integration ===
         if qwen_only_mode:
@@ -1335,8 +1486,15 @@ class CoreBrain:
             if knowledge_context:
                 full_prompt = query + knowledge_context
             
-            # Приоритет: LlamaCpp (GGUF) если доступен
-            if self.llama_cpp_ready and self.llama_cpp_deployment:
+            # Check if Two-Model Pipeline was already tried and failed
+            # Skip regular llama_cpp if Two-Model Pipeline was enabled but failed
+            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
+            use_two_model = self.config.get('model', {}).get('use_two_model_pipeline', False)
+            
+            # Если Two-Model Pipeline включён и работает - не используем обычный GGUF
+            if use_two_model and self.two_model_pipeline_ready:
+                self.query_logger.info("Two-Model Pipeline активен - пропускаем стандартный GGUF fallback")
+            elif self.llama_cpp_ready and self.llama_cpp_deployment:
                 try:
                     self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
                     
@@ -1663,10 +1821,22 @@ class CoreBrain:
                             "self_dialog_triggered": is_unknown
                         }
                     else:
-                        self.query_logger.warning("LlamaCpp вернул пустой ответ, пробуем PyTorch Qwen")
+                        self.query_logger.warning("LlamaCpp вернул пустой ответ")
                         
                 except Exception as e:
-                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}, пробуем PyTorch Qwen")
+                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+            
+            # ПРОПУСКАЕМ PyTorch QwenModelManager если disable_pytorch: true
+            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
+            if disable_pytorch:
+                return {
+                    "response": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
+                    "text": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
+                    "status": "error",
+                    "confidence": 0.0,
+                    "source": "gguf_error",
+                    "processing_time": time.time() - start_time
+                }
             
             # Используем PyTorch QwenModelManager
             response_text = self.qwen_model_manager.generate(
@@ -1712,9 +1882,9 @@ class CoreBrain:
                 
                 formatted_reasoning = self._format_reasoning_for_gui(reasoning_result)
                 
-                # Check confidence - only use if high enough
+                # Check confidence - используем все ответы от SelfReasoningEngine
                 sre_confidence = reasoning_result.get('confidence', 0.0)
-                if sre_confidence >= 0.8 and (reasoning_result.get('response') or reasoning_result.get('text')):
+                if reasoning_result.get('response') or reasoning_result.get('text'):
                     response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
                     response_dict = {
                         "response": response_text,
@@ -1723,6 +1893,9 @@ class CoreBrain:
                         "confidence": sre_confidence,
                         "reasoning": formatted_reasoning,
                         "reasoning_raw": reasoning_result,
+                        "reasoning_steps": reasoning_result.get('reasoning_steps', []),  # Добавляем шаги для GUI
+                        "model_a_response": reasoning_result.get('model_a_response', ''),
+                        "model_b_response": reasoning_result.get('model_b_response', ''),
                         "source": "self_reasoning_engine",
                         "fallback_level": 0,
                         "processing_time": time.time() - start_time
@@ -1730,7 +1903,7 @@ class CoreBrain:
                     self.query_logger.info(f"Успешно использован self_reasoning_engine (confidence: {sre_confidence:.2f})")
                     return response_dict
                 else:
-                    self.query_logger.info(f"SelfReasoningEngine низкая уверенность ({sre_confidence:.2f}), fallback на Qwen")
+                    self.query_logger.info(f"SelfReasoningEngine пустой ответ, fallback на GGUF")
             except Exception as e:
                 self.query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "self_reasoning_engine", "error": str(e), "type": type(e).__name__})
@@ -1842,6 +2015,40 @@ class CoreBrain:
                             self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
                             self.qwen_model_manager = None
             
+            # ПРОПУСКАЕМ QwenModelManager если disable_pytorch: true
+            if disable_pytorch:
+                self.query_logger.info("PyTorch отключён - пропускаем QwenModelManager в конце fallback chain")
+                if self.llama_cpp_ready and self.llama_cpp_deployment:
+                    try:
+                        response_text = self.llama_cpp_deployment.generate(
+                            prompt=query,
+                            max_new_tokens=max_new_tokens or 2048,
+                            temperature=temperature or 0.7,
+                            top_p=top_p or 0.9,
+                            repeat_penalty=repetition_penalty or 1.1
+                        )
+                        if response_text and len(response_text) > 0:
+                            return {
+                                "response": response_text,
+                                "text": response_text,
+                                "status": "ok",
+                                "confidence": 0.8,
+                                "source": "llama_cpp_final",
+                                "fallback_level": 0,
+                                "processing_time": time.time() - start_time
+                            }
+                    except Exception as e:
+                        self.query_logger.warning(f"Ошибка LlamaCpp final: {e}")
+                
+                return {
+                    "response": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
+                    "text": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
+                    "status": "error",
+                    "confidence": 0.0,
+                    "source": "gguf_error",
+                    "processing_time": time.time() - start_time
+                }
+            
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
                 
@@ -1926,8 +2133,12 @@ class CoreBrain:
             self.query_logger.warning(f"Generation coordinator недоступен: {e}")
             error_chain.append({"source": "generation_coordinator", "error": str(e), "type": type(e).__name__})
         
-        # Уровень 4: Fractal Model Manager
+        # Уровень 4: Fractal Model Manager (пропускаем если PyTorch отключён)
         try:
+            if disable_pytorch:
+                self.query_logger.info("PyTorch отключён - пропускаем fractal_model_manager")
+                raise RuntimeError("PyTorch disabled")
+            
             if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager and getattr(self.fractal_model_manager, 'initialized', True):
                 response = self.fractal_model_manager.generate(query)
                 if response:
@@ -2293,51 +2504,7 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.warning(f"Ошибка при запуске GUI: {e}")
     
-    def _check_system_ready_for_training(self) -> bool:
-        """Проверяет готовность системы к запуску обучения."""
-        try:
-            # Система должна быть полностью инициализирована и запущена
-            if not (self.initialized and self.running):
-                return False
-            
-            # Ключевые компоненты должны быть здоровы
-            required_components = ['model_manager', 'ml_unit', 'memory_manager', 'text_processor']
-            for comp_name in required_components:
-                if comp_name in self.components:
-                    comp = self.components[comp_name]
-                    if hasattr(comp, 'health_check'):
-                        health = comp.health_check()
-                        if isinstance(health, dict):
-                            if not health.get('healthy', False):
-                                self.query_logger.warning(f"Компонент {comp_name} не здоров: {health}")
-                                return False
-                        else:
-                            if not health:
-                                self.query_logger.warning(f"Компонент {comp_name} не здоров")
-                                return False
-                    else:
-                        self.query_logger.debug(f"Компонент {comp_name} не имеет метода health_check")
-                else:
-                    self.query_logger.warning(f"Обязательный компонент {comp_name} не найден, но продолжаем проверку...")
-            
-            # Проверяем доступность ресурсов для обучения
-            if hasattr(self, 'resource_manager'):
-                try:
-                    cpu_usage = float(self.resource_manager.get_cpu_usage())
-                    mem_usage = float(self.resource_manager.get_memory_usage())
-                    
-                    # Обучение запускается только если загрузка CPU < 90% и RAM < 95%
-                    if cpu_usage > 0.9 or mem_usage > 0.95:
-                        self.query_logger.info(f"Система не готова к обучению: CPU={cpu_usage:.1%}, RAM={mem_usage:.1%}")
-                        return False
-                except Exception as e:
-                    logger.debug(f"Error: {e}")
-            
-            return True
-        except Exception as e:
-            self.query_logger.error(f"Ошибка проверки готовности к обучению: {e}")
-            return False
-    
+
     def stop(self):
         """Останавливает все компоненты системы."""
         with self._shutdown_lock:
@@ -2363,6 +2530,14 @@ class CoreBrain:
             
             if self.state_manager:
                 self.state_manager.set_state(SystemState.SHUTTING_DOWN, "Начало остановки системы")
+            
+            # Остановка системы отложенных команд
+            if hasattr(self, 'deferred_system') and self.deferred_system:
+                try:
+                    self.deferred_system.shutdown()
+                    self.query_logger.info("DeferredCommandSystem остановлен")
+                except Exception as e:
+                    self.query_logger.warning(f"Ошибка остановки DeferredCommandSystem: {e}")
             
             if self.resource_manager:
                 self.resource_manager.stop_monitoring()
@@ -2446,26 +2621,7 @@ class CoreBrain:
             self.query_logger.error(f"Ошибка перезагрузки ядра: {e}", exc_info=True)
             return False
     
-    def setup_smart_cache_eviction(self):
-        """Настраивает умное вытеснение кэша токенов"""
-        try:
-            if not hasattr(self, 'token_cache') or not self.token_cache:
-                self.query_logger.warning("Token кэш недоступен для умного вытеснения")
-                return
-            
-            # Подписываемся на события памяти
-            if self.events:
-                self.events.subscribe('memory_pressure', self._handle_memory_pressure)
-                self.events.subscribe('cache_eviction_needed', self._handle_cache_eviction)
-                self.query_logger.info("Подписались на события управления кэшем")
-            
-            # Настраиваем мониторинг кэша
-            self._setup_cache_monitoring()
-            self.query_logger.info("Умное вытеснение кэша настроено")
-            
-        except Exception as e:
-            self.query_logger.error(f"Ошибка настройки умного вытеснения: {e}")
-    
+
     def _setup_cache_monitoring(self):
         """Настраивает мониторинг состояния кэша"""
         try:
@@ -2892,7 +3048,15 @@ class CoreBrain:
             "initialized": self.initialized,
             "running": self.running,
             "components": len(self.components),
-            "metrics": self.metrics_manager.get_metrics() if hasattr(self.metrics_manager, 'get_metrics') else {}
+            "metrics": self.metrics_manager.get_metrics() if hasattr(self.metrics_manager, 'get_metrics') else {},
+            "two_model_pipeline": {
+                "ready": self.two_model_pipeline_ready if hasattr(self, 'two_model_pipeline_ready') else False,
+                "active": self.two_model_pipeline is not None if hasattr(self, 'two_model_pipeline') else False
+            },
+            "llama_cpp": {
+                "ready": self.llama_cpp_ready if hasattr(self, 'llama_cpp_ready') else False,
+                "active": self.llama_cpp_deployment is not None if hasattr(self, 'llama_cpp_deployment') else False
+            }
         }
         
         if self.state_manager:

@@ -53,8 +53,17 @@ class ReasoningIntegration:
         try:
             from eva.reasoning.self_reasoning_engine import SelfReasoningEngine
             
+            # Get two_model_pipeline directly from brain
+            two_model_pipeline = getattr(self.brain, 'two_model_pipeline', None)
+            logger.info(f"ReasoningIntegration: brain.two_model_pipeline = {two_model_pipeline is not None}")
+            logger.info(f"ReasoningIntegration: brain.two_model_pipeline type = {type(two_model_pipeline)}")
+            if two_model_pipeline:
+                logger.info(f"ReasoningIntegration: pipeline.model_a = {two_model_pipeline.model_a is not None}")
+                logger.info(f"ReasoningIntegration: pipeline.model_b = {two_model_pipeline.model_b is not None}")
+            
             self.reasoning_engine = SelfReasoningEngine(
                 brain=self.brain,
+                two_model_pipeline=two_model_pipeline,
                 config={
                     'max_iterations': self.config.get('max_iterations', 5),
                     'confidence_threshold': self.config.get('confidence_threshold', 0.75)

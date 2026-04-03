@@ -7,7 +7,6 @@ import os
 import sys
 import logging
 import time
-import threading
 from typing import Dict, Any, List, Set, Optional, Callable, Tuple
 
 logger = logging.getLogger("eva.component_initializer")
@@ -27,12 +26,8 @@ def _ensure_eva_path():
     if eva_parent not in sys.path:
         sys.path.insert(0, eva_parent)
     
-    try:
-        os.chdir(eva_root)
-    except OSError:
-        pass
-    except Exception:
-        pass
+    # REMOVED: os.chdir(eva_root) - side effect that breaks other code
+    # All paths should be absolute
     
     return eva_root
 
@@ -75,23 +70,19 @@ class ComponentInitializer:
         'response_generator',
         'reasoning_engine',
         
-        # Обучение (3)
-        'training_orchestrator',
-        'learning_manager',
-        'learning_scheduler',
+        # Обучение через SelfDialogLearning - training_orchestrator удален
         
         # Аналитика (3)
         'system_monitor',
         'metrics_collector',
         'analytics_manager',
         
-        # Специализированные (6)
+        # Специализированные (5) - gui убран, используется webgui
         'contradiction_manager',
         'ethics_framework',
         'qwen_api_enhancer',
         'adaptation_manager',
         'web_search_engine',
-        'gui',
         
         # Fractal Reasoning (2) - добавлены позже
         'fractal_storage',
@@ -188,9 +179,7 @@ class ComponentInitializer:
             'reasoning_engine': ['knowledge_graph'],
             
             # Обучение зависит от ML
-            'training_orchestrator': ['ml_unit'],  # Убрали model_manager как обязательную зависимость
-            'learning_manager': ['training_orchestrator', 'knowledge_graph'],
-            'learning_scheduler': ['learning_manager'],
+            # TrainingOrchestrator удален - обучение через SelfDialogLearning
             
             # Аналитика зависит от мониторинга
             'analytics_manager': ['system_monitor'],
@@ -501,58 +490,9 @@ class ComponentInitializer:
         
         # ===== ОБУЧЕНИЕ =====
         
-        def create_training_orchestrator():
-            try:
-                from eva.mlearning.training_orchestrator import TrainingOrchestrator
-                training_orchestrator = TrainingOrchestrator(brain=self.core_brain)
-                if hasattr(training_orchestrator, 'initialize'):
-                    training_orchestrator.initialize()
-                self.core_brain.training_orchestrator = training_orchestrator
-                self.logger.info("[OK] TrainingOrchestrator создан")
-                return training_orchestrator
-            except Exception as e:
-                self.logger.error(f"[FAIL] Ошибка создания training_orchestrator: {e}", exc_info=True)
-                self.failed_components.add('training_orchestrator')
-                return None
 
-        def create_learning_manager():
-            try:
-                from eva.learning.learning_manager import LearningManager
-                learning_manager = LearningManager(brain=self.core_brain)
-                if hasattr(learning_manager, 'initialize'):
-                    learning_manager.initialize()
-                self.core_brain.learning_manager = learning_manager
-                self.logger.info("[OK] LearningManager создан")
-                return learning_manager
-            except Exception as e:
-                self.logger.error(f"[FAIL] Ошибка создания learning_manager: {e}", exc_info=True)
-                self.failed_components.add('learning_manager')
-                return None
-        
-        def create_learning_scheduler():
-            try:
-                from eva.core.learning_scheduler import LearningScheduler
-                attention_system = getattr(self.core_brain, 'attention_system', None)
-                if attention_system is None:
-                    self.logger.warning("[WARN] attention_system не найден - используется DummyAttentionSystem")
-                    class DummyAttentionSystem:
-                        def __init__(self):
-                            self.pending_opportunities = []
-                            self.core_brain = None
-                    attention_system = DummyAttentionSystem()
-                learning_scheduler = LearningScheduler(attention_system)
-                if hasattr(learning_scheduler, 'initialize'):
-                    init_result = learning_scheduler.initialize()
-                    if init_result is False:
-                        self.logger.warning("[WARN] LearningScheduler.initialize() вернул False")
-                self.core_brain.learning_scheduler = learning_scheduler
-                self.logger.info("[OK] LearningScheduler создан")
-                return learning_scheduler
-            except Exception as e:
-                self.logger.error(f"[FAIL] Ошибка создания learning_scheduler: {e}", exc_info=True)
-                self.failed_components.add('learning_scheduler')
-                return None
-        
+
+
         # ===== АНАЛИТИКА =====
         
         def create_analytics_manager():
@@ -644,20 +584,7 @@ class ComponentInitializer:
                 self.failed_components.add('ethics_framework')
                 return None
         
-        def create_gui():
-            try:
-                from eva.gui.core_gui import ЕВАGUI
-                
-                # Создаем основной GUI с brain
-                gui = ЕВАGUI(brain=self.core_brain)
-                self.core_brain.gui = gui
-                self.logger.info("[OK] ЕВАGUI создан")
-                return gui
-            except Exception as e:
-                self.logger.error(f"[FAIL] Ошибка создания gui: {e}", exc_info=True)
-                self.failed_components.add('gui')
-                return None
-        
+
         def create_web_search_engine():
             try:
                 from eva.websearch.web_search_engine import WebSearchEngine
@@ -726,9 +653,13 @@ class ComponentInitializer:
                 # Получаем fractal_storage
                 fractal_storage = getattr(self.core_brain, 'fractal_storage', None)
                 
+                # Получаем two_model_pipeline если доступен
+                two_model_pipeline = getattr(self.core_brain, 'two_model_pipeline', None)
+                
                 # Создаем движок рассуждений с рекурсивной поддержкой
                 self_reasoning_engine = SelfReasoningEngine(
                     brain=self.core_brain,
+                    two_model_pipeline=two_model_pipeline,
                     config={
                         'max_iterations': reasoning_config.get('max_iterations', 5),
                         'confidence_threshold': reasoning_config.get('confidence_threshold', 0.75),
@@ -827,9 +758,7 @@ class ComponentInitializer:
             'response_generator': create_response_generator,
             'reasoning_engine': create_reasoning_engine,
             # Обучение
-            'training_orchestrator': create_training_orchestrator,
-            'learning_manager': create_learning_manager,
-            'learning_scheduler': create_learning_scheduler,
+            # training_orchestrator, learning_manager, learning_scheduler удалены - используем SelfDialogLearning
             # Аналитика
             'analytics_manager': create_analytics_manager,
             'system_monitor': create_system_monitor,
@@ -839,8 +768,6 @@ class ComponentInitializer:
             'adaptation_manager': create_adaptation_manager,
             'ethics_framework': create_ethics_framework,
             'web_search_engine': create_web_search_engine,
-            'gui': create_gui,
-            
             # Fractal Reasoning
             'fractal_storage': create_fractal_storage,
             'self_reasoning_engine': create_self_reasoning_engine,

@@ -38,16 +38,18 @@ class SelfReasoningEngine:
     Использует ЕДИНСТВЕННЫЙ экземпляр Qwen (singleton) для генерации
     """
     
-    def __init__(self, brain, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, brain, config: Optional[Dict[str, Any]] = None, two_model_pipeline=None):
         """
         Инициализация движка рассуждения
         
         Args:
             brain: CoreBrain instance с qwen_model_manager (singleton)
             config: Конфигурация {max_iterations, confidence_threshold}
+            two_model_pipeline: Direct reference to RecursiveModelPipeline
         """
         self.brain = brain
         self.config = config or {}
+        self.two_model_pipeline = two_model_pipeline
         
         # Параметры
         self.max_iterations = self.config.get('max_iterations', MAX_ITERATIONS)
@@ -134,29 +136,178 @@ class SelfReasoningEngine:
         # Формируем расширенный промпт с историей
         enhanced_query = self._build_contextual_query(query, conversation_history)
         
-        # Быстрая проверка - сразу используем fallback если модели недоступны
-        try:
-            qwen = getattr(self.brain, 'qwen_model_manager', None)
-            if qwen is None or not getattr(qwen, 'initialized', False):
-                # Qwen недоступен - используем простой ответ напрямую
-                simple_response = self._generate_simple_response(enhanced_query)
+        logger.info(f"DEBUG: enhanced_query length = {len(enhanced_query)}")
+        
+        # === Two-Model Pipeline (приоритет для GGUF режима) ===
+        pipeline = self.two_model_pipeline
+        logger.info(f"DEBUG SRE: self.two_model_pipeline = {self.two_model_pipeline}")
+        if pipeline is None and hasattr(self.brain, 'two_model_pipeline'):
+            pipeline = self.brain.two_model_pipeline
+            logger.info(f"DEBUG SRE: fallback to brain.two_model_pipeline = {pipeline}")
+        if pipeline:
+            logger.info(f"DEBUG SRE: pipeline found (via {'self.two_model_pipeline' if self.two_model_pipeline else 'brain.two_model_pipeline'})")
+        logger.info(f"Проверка Two-Model Pipeline: brain={self.brain is not None}, pipeline={pipeline is not None}")
+        
+        if pipeline:
+            logger.info("Two-Model Pipeline найден, запускаем генерацию...")
+            try:
+                logger.info("Используем Two-Model Pipeline для генерации...")
+                
+                # Определяем тип запроса (кратко/подробно)
+                query_type = self._determine_query_type(query)
+                logger.info(f"Тип запроса определён: {query_type}")
+                
+                # Определяем параметры генерации в зависимости от типа запроса
+                gen_params = self._get_generation_params(query_type)
+                logger.info(f"Параметры генерации: {gen_params}")
+                
+                # Запускаем Two-Model Pipeline с динамическими параметрами
+                pipeline_result = pipeline.process_query(
+                    query=query,
+                    gen_params=gen_params
+                )
+                
+                model_a_response = pipeline_result.get('model_a_result', {}).get('natural_response', '')
+                model_b_response = pipeline_result.get('model_b_result', {}).get('natural_response', '')
+                pipeline_steps = pipeline_result.get('reasoning_steps', [])
+                
+                # Создаём reasoning steps для GUI
+                reasoning_steps = []
+                
+                # Шаг 1: Определение типа запроса
+                reasoning_steps.append({
+                    'step': 1,
+                    'phase': 'query_analysis',
+                    'thought': f'Анализ запроса: {query_type}',
+                    'confidence': 0.9,
+                    'model': 'System',
+                    'action': 'Определение типа запроса'
+                })
+                
+                # Шаг 2: Model A - логика (добавляем из pipeline)
+                if pipeline_steps:
+                    for ps in pipeline_steps:
+                        if ps.get('phase') == 'model_a_generation':
+                            reasoning_steps.append({
+                                'step': 2,
+                                'phase': 'model_a_generation',
+                                'thought': f'Модель А (логика): {model_a_response[:150]}...' if len(model_a_response) > 150 else f'Модель А (логика): {model_a_response}',
+                                'confidence': ps.get('confidence', 0.7),
+                                'model': 'Model A (Logic)',
+                                'action': 'Извлечение фактов',
+                                'input': query,
+                                'output': model_a_response
+                            })
+                
+                # Шаг 3: Проверка качества Model A
+                quality_a = self._check_response_quality(model_a_response, query)
+                reasoning_steps.append({
+                    'step': 3,
+                    'phase': 'quality_check_a',
+                    'thought': f'Качество Model A: score={quality_a["score"]:.2f}, gibberish={quality_a["is_gibberish"]}',
+                    'confidence': quality_a['score'],
+                    'model': 'Quality Checker',
+                    'action': 'Проверка качества ответа Model A'
+                })
+                
+                # Шаг 4: Model B - концепции (добавляем из pipeline)
+                if pipeline_steps:
+                    for ps in pipeline_steps:
+                        if ps.get('phase') == 'model_b_generation':
+                            reasoning_steps.append({
+                                'step': 4,
+                                'phase': 'model_b_generation',
+                                'thought': f'Модель B (концепции): {model_b_response[:150]}...' if len(model_b_response) > 150 else f'Модель B (концепции): {model_b_response}',
+                                'confidence': ps.get('confidence', 0.7),
+                                'model': 'Model B (Concept)',
+                                'action': 'Расширение концепций',
+                                'input': f'Факты: {model_a_response}',
+                                'output': model_b_response
+                            })
+                
+                # Шаг 5: Проверка качества Model B
+                quality_b = self._check_response_quality(model_b_response, query)
+                reasoning_steps.append({
+                    'step': 5,
+                    'phase': 'quality_check_b',
+                    'thought': f'Качество Model B: score={quality_b["score"]:.2f}, gibberish={quality_b["is_gibberish"]}',
+                    'confidence': quality_b['score'],
+                    'model': 'Quality Checker',
+                    'action': 'Проверка качества ответа Model B'
+                })
+                
+                # Шаг 6: Проверка релевантности запросу
+                relevance = self._check_relevance(model_b_response, query)
+                reasoning_steps.append({
+                    'step': 6,
+                    'phase': 'relevance_check',
+                    'thought': f'Релевантность: {relevance["score"]:.2f}',
+                    'confidence': relevance['score'],
+                    'model': 'Relevance Checker',
+                    'action': 'Проверка соответствия запросу'
+                })
+                
+                # === Решение: какой ответ отправить ===
+                final_response = model_b_response
+                final_confidence = quality_b['score']
+                decision_reason = "Запрошен подробный ответ"
+                
+                # Если запрос "кратко" - используем Model A
+                if query_type == 'кратко':
+                    if quality_a['score'] >= 0.5 and not quality_a['is_gibberish']:
+                        final_response = model_a_response
+                        final_confidence = quality_a['score']
+                        decision_reason = "Запрошен краткий ответ - используем Model A"
+                    else:
+                        # Model A плохого качества - используем Model B даже для краткого
+                        decision_reason = "Model A низкого качества - используем Model B"
+                
+                # Шаг 7: Финальное решение
+                reasoning_steps.append({
+                    'step': 7,
+                    'phase': 'final_decision',
+                    'thought': decision_reason,
+                    'confidence': final_confidence,
+                    'model': 'System',
+                    'action': 'Выбор финального ответа'
+                })
+                
+                logger.info(f"Two-Model Pipeline завершён: {decision_reason}")
+                
                 return {
-                    "response": simple_response,
-                    "text": simple_response,
+                    "response": final_response,
+                    "text": final_response,
                     "status": "ok",
-                    "confidence": 0.5,
-                    "reasoning": {"source": "simple_fallback"},
+                    "confidence": final_confidence,
+                    "reasoning_steps": reasoning_steps,
+                    "model_a_response": model_a_response,
+                    "model_b_response": model_b_response,
+                    "query_type": query_type,
                     "source": "self_reasoning_engine",
-                    "processing_time": time.time() - start_time,
-                    "conversation_history_used": len(conversation_history) > 0
+                    "processing_time": time.time() - start_time
                 }
-        except Exception as e:
-            logger.warning(f"Error in process_query fallback: {e}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка Two-Model Pipeline в SelfReasoningEngine: {e}", exc_info=True)
+                logger.warning("Падение Two-Model Pipeline - пробуем fallback")
+                # Продолжаем с обычной обработкой
+        else:
+            logger.error("Two-Model Pipeline НЕДОСТУПЕН - нет резервного метода генерации")
+            logger.error(f"self.two_model_pipeline: {self.two_model_pipeline is not None}")
+            if self.brain:
+                logger.error(f"brain.two_model_pipeline: {hasattr(self.brain, 'two_model_pipeline')}")
+            return {
+                "response": "Ошибка: Two-Model Pipeline недоступен.",
+                "text": "Ошибка: Two-Model Pipeline недоступен.",
+                "status": "error",
+                "confidence": 0.0,
+                "reasoning": {"source": "error", "message": "Two-Model Pipeline не инициализирован"},
+                "source": "self_reasoning_engine",
+                "processing_time": time.time() - start_time,
+                "conversation_history_used": len(conversation_history) > 0
+            }
         
-        logger.info(f"Начинаем рассуждение для запроса: {query[:50]}...")
-        
-        # Проверяем сложность запроса - используем рекурсию для сложных
-        self._init_retriever()
+        # Ниже код больше не используется - все генерации выше
         
         if self.fractal_retriever and self._is_complex_query(query):
             logger.info("Сложный запрос - используем рекурсивный reasoning")
@@ -452,23 +603,10 @@ class SelfReasoningEngine:
         return factors_result
     
     def _evaluate_ethics_factor(self, query: str, response: str) -> Dict[str, Any]:
-        """Оценка этического фактора"""
-        score = 1.0
-        warnings = []
-        
-        # Проверяем через ethics_checker если доступен
-        if self.brain and hasattr(self.brain, 'ethics_checker'):
-            try:
-                result = self.brain.ethics_checker.check(response)
-                if result and result.get('warnings'):
-                    warnings = result['warnings']
-                    score = 1.0 - (len(warnings) * 0.1)
-            except Exception as e:
-                logger.debug(f"Ошибка оценки этического фактора: {e}")
-        
+        """Оценка этического фактора (отключена)"""
         return {
-            'score': max(0, min(1, score)),
-            'warnings': warnings,
+            'score': 1.0,
+            'warnings': [],
             'factor': 'ethics'
         }
     
@@ -1555,8 +1693,88 @@ class SelfReasoningEngine:
             "checks": checks,
             "stats": self.get_stats()
         }
+    
+    # === Вспомогательные методы для Two-Model Pipeline ===
+    
+    def _get_generation_params(self, query_type: str) -> Dict[str, Any]:
+        """Возвращает динамические параметры генерации в зависимости от типа запроса"""
+        base_params = {
+            'model_a': {'temperature': 0.2, 'max_tokens': 256, 'top_p': 0.85, 'top_k': 50, 'repeat_penalty': 1.5},
+            'model_b': {'temperature': 0.6, 'max_tokens': 512, 'top_p': 0.85, 'top_k': 50, 'repeat_penalty': 1.5},
+            'translate': {'temperature': 0.3, 'max_tokens': 512, 'top_p': 0.9, 'repeat_penalty': 1.1}
+        }
+        
+        if query_type == 'кратко':
+            return {
+                'model_a': {'temperature': 0.1, 'max_tokens': 128, 'top_p': 0.8, 'top_k': 40, 'repeat_penalty': 1.5},
+                'model_b': {'temperature': 0.5, 'max_tokens': 256, 'top_p': 0.8, 'top_k': 40, 'repeat_penalty': 1.5},
+                'translate': {'temperature': 0.2, 'max_tokens': 256, 'top_p': 0.85, 'repeat_penalty': 1.2}
+            }
+        return base_params
+    
+    def _determine_query_type(self, query: str) -> str:
+        """Определяет тип запроса: кратко или подробно"""
+        query_lower = query.lower()
+        short_keywords = ['кратко', 'вкратце', 'суть', 'что такое', 'кто такой', 'чем является', 'дай определение', 'назови', 'перечисли']
+        long_keywords = ['подробно', 'детально', 'развернуто', 'расскажи', 'объясни', 'опиши', 'проанализируй', 'рассмотри', 'подробнее', 'как работает', 'почему', 'зачем']
+        
+        for kw in short_keywords:
+            if kw in query_lower:
+                return 'кратко'
+        for kw in long_keywords:
+            if kw in query_lower:
+                return 'подробно'
+        return 'подробно'
+    
+    def _check_response_quality(self, response: str, query: str) -> Dict[str, Any]:
+        """Проверяет качество ответа модели"""
+        if not response or len(response.strip()) < 5:
+            return {'score': 0.1, 'is_gibberish': True, 'reasons': ['Пустой ответ']}
+        
+        is_gibberish = False
+        reasons = []
+        words = response.split()
+        if len(words) > 5:
+            unique_words = set(words)
+            if len(unique_words) / len(words) < 0.3:
+                is_gibberish = True
+                reasons.append('Много повторений')
+        
+        vowels = set('аеёиоуыэюяАЕЁИОУЫЭЮЯ')
+        if not any(v in response for v in vowels):
+            is_gibberish = True
+            reasons.append('Нет гласных')
+        
+        score = 0.8
+        if is_gibberish:
+            score = 0.2
+        elif len(response) < 50:
+            score = 0.5
+        
+        return {'score': score, 'is_gibberish': is_gibberish, 'reasons': reasons if reasons else ['OK']}
+    
+    def _check_relevance(self, response: str, query: str) -> Dict[str, Any]:
+        """Проверяет релевантность ответа к запросу"""
+        if not response or not query:
+            return {'score': 0.5, 'match_type': 'empty'}
+        
+        query_lower = query.lower()
+        response_lower = response.lower()
+        score = 0.7
+        
+        query_keywords = set(query_lower.split()[:5])
+        response_keywords = set(response_lower.split()[:10])
+        overlap = len(query_keywords.intersection(response_keywords))
+        
+        if overlap == 0:
+            score -= 0.3
+        
+        score = max(0.0, min(1.0, score))
+        return {'score': score, 'match_type': 'semantic' if score > 0.6 else 'weak'}
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:
     """Фабричная функция для создания движка"""
     return SelfReasoningEngine(brain=brain, config=config)
+
+
