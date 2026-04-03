@@ -160,8 +160,10 @@ class AdaptiveParameterController:
                     params['top_p'] = max(0.5, params.get('top_p', 0.9) - 0.15)
                 
                 elif 'фраз' in reason_lower or 'паразит' in reason_lower or 'filler' in reason_lower:
-                    params['temperature'] = max(0.1, params.get('temperature', 0.3) - 0.15)
-                    params['top_k'] = min(60, params.get('top_k', 40) + 10)
+                    # Фразы-паразиты — ПОВЫШАЕМ температуру (шаблонность от низкой temp)
+                    params['temperature'] = min(1.0, params.get('temperature', 0.3) + 0.2)
+                    params['top_k'] = min(80, params.get('top_k', 40) + 20)
+                    params['repeat_penalty'] = min(2.5, params.get('repeat_penalty', 1.5) + 0.2)
                 
                 elif 'пуст' in reason_lower or 'коротк' in reason_lower or 'empty' in reason_lower:
                     params['max_tokens'] = min(2048, params.get('max_tokens', 1024) + 256)
@@ -496,8 +498,20 @@ class RecursiveModelPipeline:
                 logger.info(f"Model A attempt {attempt+1} — adapted params: temp={params['temperature']:.2f}, "
                            f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
             
+            # Модифицируем системный промпт при повторных попытках
+            system_prompt = "Ты — ЕВА, русскоязычный ИИ. Отвечай строго на русском языке. Не используй английские, китайские или другие иностранные слова и аббревиатуры."
+            
+            if failure_reasons:
+                has_filler = any('фраз' in r.lower() or 'паразит' in r.lower() for r in failure_reasons)
+                has_loop = any('зацикл' in r.lower() or 'повтор' in r.lower() for r in failure_reasons)
+                
+                if has_filler:
+                    system_prompt += " ЗАПРЕЩЕНО начинать с фраз: 'Конечно', 'Давайте', 'Вот', 'Это', 'Привет'. Начни сразу с ответа по существу."
+                if has_loop:
+                    system_prompt += " Избегай повторений. Каждое предложение должно нести новую информацию."
+            
             messages = [
-                {"role": "system", "content": "Ты — ЕВА, русскоязычный ИИ. Отвечай строго на русском языке. Не используй английские, китайские или другие иностранные слова и аббревиатуры."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ]
             
