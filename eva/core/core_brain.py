@@ -469,8 +469,8 @@ class CoreBrain:
                 if model_a_path and model_b_path:
                     from eva.core.recursive_model_pipeline import RecursiveModelPipeline
                     
-                    # Use project root (not cwd) for relative paths
-                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    # Use project root (CogniFlex dir, not eva dir) for relative paths
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                     if not os.path.isabs(model_a_path):
                         model_a_path = os.path.join(project_root, model_a_path)
                     if not os.path.isabs(model_b_path):
