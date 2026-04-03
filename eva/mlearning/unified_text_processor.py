@@ -105,7 +105,7 @@ class UnifiedTextProcessor(BaseComponent):
         # Устанавливаем конфигурацию по умолчанию
         self.config = config or {}
         self.use_gpu = self.config.get('use_gpu', True)
-        self.model_name = self.config.get('model_name', 'sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
+        self.model_name = self.config.get('model_name', 'intfloat/multilingual-e5-small')
         self.use_async = self.config.get('use_async', True)
         self.max_workers = self.config.get('max_workers', 4)
         
@@ -188,7 +188,7 @@ class UnifiedTextProcessor(BaseComponent):
             return
             
         try:
-            device = "cuda" if self.use_gpu else "cpu"
+            device = "auto" if self.use_gpu else "cpu"
             
             # Используем singleton для загрузки sentence-transformers модели
             if get_sentence_transformer is not None:

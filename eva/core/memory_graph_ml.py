@@ -122,7 +122,7 @@ class MemoryGraphML:
         
         # Sentence-transformer для CPU embeddings
         self._st_model = None
-        self._st_model_name = self.config.get('st_model', 'paraphrase-multilingual-MiniLM-L12-v2')
+        self._st_model_name = self.config.get('st_model', 'intfloat/multilingual-e5-small')
         self._init_st_model()
         
         # Graph property for external access compatibility
@@ -136,13 +136,17 @@ class MemoryGraphML:
         return self._graph
     
     def _init_st_model(self):
-        """Инициализирует sentence-transformer для CPU embeddings."""
+        """Инициализирует sentence-transformer для GPU/CPU embeddings."""
         if not ST_AVAILABLE:
             return
         try:
-            self._st_model = SentenceTransformer(self._st_model_name, device='cpu')
+            from eva.mlearning.sentence_transformers_cache import get_sentence_transformer
+            self._st_model = get_sentence_transformer(self._st_model_name, device='auto')
+            if self._st_model is None:
+                self._st_model = SentenceTransformer(self._st_model_name, device='cpu')
             self.embedding_dim = self._st_model.get_sentence_embedding_dimension()
-            logger.info(f"Sentence-transformer загружен: {self._st_model_name}, dim={self.embedding_dim}")
+            device = next(self._st_model.parameters()).device if hasattr(self._st_model, 'parameters') else 'cpu'
+            logger.info(f"Sentence-transformer загружен: {self._st_model_name}, dim={self.embedding_dim}, device={device}")
         except Exception as e:
             logger.warning(f"Не удалось загрузить sentence-transformer: {e}")
             self._st_model = None
