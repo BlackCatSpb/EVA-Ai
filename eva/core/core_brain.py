@@ -478,6 +478,8 @@ class CoreBrain:
                         model_c_path = os.path.join(os.getcwd(), model_c_path)
                     
                     # Check model files exist
+                    logger.info(f"DEBUG: Checking model files - A: {model_a_path}, exists: {os.path.exists(model_a_path)}")
+                    logger.info(f"DEBUG: Checking model files - B: {model_b_path}, exists: {os.path.exists(model_b_path)}")
                     if not os.path.exists(model_a_path):
                         self.query_logger.error(f"Model A file not found: {model_a_path}")
                         self.two_model_pipeline = None
@@ -502,6 +504,7 @@ class CoreBrain:
                         if self.fractal_memory:
                             pipeline_kwargs['fractal_memory'] = self.fractal_memory
                         
+                        logger.info("DEBUG: Creating pipeline with fallback (B missing)")
                         self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
                     else:
                         self.query_logger.info(f"Инициализация Two-Model Pipeline...")
@@ -521,6 +524,7 @@ class CoreBrain:
                         if self.fractal_memory:
                             pipeline_kwargs['fractal_memory'] = self.fractal_memory
                         
+                        logger.info("DEBUG: Creating pipeline - both models exist")
                         self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
                         logger.info("DEBUG: RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline.load_models()
