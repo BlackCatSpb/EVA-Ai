@@ -145,5 +145,13 @@
     "articles_per_category": 15,
     "interval_hours": 12,
     "random_per_cycle": 10
+  },
+  "web_gui": {
+    "host": "127.0.0.1",
+    "port": 5555,
+    "admin_user": "admin",
+    "admin_password": null,
+    "session_timeout_hours": 24,
+    "max_sessions": 200
   }
 }
