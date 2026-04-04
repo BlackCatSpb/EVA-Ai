@@ -110,7 +110,6 @@ def launch_gui(brain):
     try:
         logger.info("Запуск веб-интерфейса...")
         
-        # Import web GUI server
         import sys
         import os
         web_gui_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gui', 'web_gui')
@@ -118,16 +117,9 @@ def launch_gui(brain):
         
         import server
         gui = server.create_app(brain=brain)
-        logger.info(f"Веб-интерфейс запущен на http://{gui.host}:{gui.port}")
         
-        # Запускаем Flask в отдельном потоке
-        import threading
-        flask_thread = threading.Thread(target=lambda: gui.app.run(
-            host=gui.host, port=gui.port, debug=False, use_reloader=False
-        ), daemon=True)
-        flask_thread.start()
-        
-        # Главный цикл — ждём сигнал завершения
+        # Flask уже запущен в daemon-потоке через WebGUI.start()
+        # Ждём сигнал завершения в главном цикле
         logger.info("Система работает. Нажмите Ctrl+C для остановки.")
         try:
             while not _shutdown_event.is_set():
@@ -136,6 +128,7 @@ def launch_gui(brain):
             pass
         
         logger.info("Завершение работы...")
+        gui.stop()
         _cleanup_brain()
         
     except Exception as e:
