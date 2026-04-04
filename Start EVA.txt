@@ -1,0 +1,25 @@
+python -m eva
+
+python -m eva.run
+
+cd C:/Users/black/OneDrive/Desktop/CogniFlex
+python -m eva
+
+python start_webgui.py 
+
+OneDrive/Desktop/CogniFlex && python start_webgui.py
+
+# Поиск файла opencode.cmd в типичных местах установки
+$opencodePath = Get-ChildItem -Path "$env:APPDATA\npm", "$env:USERPROFILE\AppData\Local\npm" -Filter "opencode.cmd" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
+# Если файл найден, запустите его с аргументом сессии
+if ($opencodePath) {
+    Write-Host "Найден: $opencodePath"
+    & $opencodePath -s ses_308213c3dffeG6AknJixidZoSd
+} else {
+    Write-Host "Файл opencode.cmd не найден в стандартных путях."
+}
+
+OpenCogniFlex
+
+sk-KZLuZdbIxq7KAN81GGqADQc7POV_2D1ePEllC5mZFas
