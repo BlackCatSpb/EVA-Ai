@@ -289,6 +289,8 @@ class RecursiveModelPipeline:
     MODEL_C_TOP_K = 50
     MODEL_C_REPEAT_PENALTY = 1.3
     
+    STOP_TOKENS = ["</s>"]
+    
     def __init__(
         self,
         model_a_path: str,
@@ -510,7 +512,7 @@ class RecursiveModelPipeline:
                 top_p=params['top_p'],
                 top_k=params['top_k'],
                 repeat_penalty=params['repeat_penalty'],
-                stop=["</s>"]
+                stop=self.STOP_TOKENS
             )
         
         future = _generation_executor.submit(_generate)
@@ -826,7 +828,7 @@ class RecursiveModelPipeline:
                 'top_p': self.MODEL_C_TOP_P,
                 'top_k': self.MODEL_C_TOP_K,
                 'repeat_penalty': self.MODEL_C_REPEAT_PENALTY + (attempt * 0.1),
-                'stop': ["</s>"]
+                'stop': self.STOP_TOKENS
             }
             output = self._generate_with_timeout(self.model_c, messages, params, timeout=60)
             if output is None:
