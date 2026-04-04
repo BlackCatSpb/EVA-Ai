@@ -465,8 +465,6 @@ class RecursiveModelPipeline:
             'software': 'программа',
             'rek': 'рек',
             'omend': 'оменд',
-            'рек': 'рек',
-            'омend': 'оменд',
         }
         for eng, rus in replacements.items():
             text = text.replace(eng, rus)

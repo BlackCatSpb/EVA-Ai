@@ -135,9 +135,8 @@ class CoreBrain:
         """Инициализирует ядро ЕВА."""
         logger.debug("Инициализация ЕВАCore...")
         
-        # Инициализируем query_logger ПЕРЕД загрузкой конфигурации
-        self.query_logger = logging.getLogger("eva.core_brain.query_processing")
-        self.query_logger.info("Инициализирован логгер обработки запросов")
+        # Используем module-level query_logger
+        query_logger.info("Инициализирован логгер обработки запросов")
         
         # Если конфигурация не передана, загружаем из brain_config.json
         if config is None:
@@ -147,24 +146,24 @@ class CoreBrain:
         try:
             from .event_system import EventSystem
             self.events = EventSystem()
-            self.query_logger.debug("Событийная система инициализирована")
+            query_logger.debug("Событийная система инициализирована")
             
             # Централизованный транспорт метрик через событийную шину
-            self.query_logger.debug("Событийная шина метрик готова")
+            query_logger.debug("Событийная шина метрик готова")
         except ImportError:
             self.events = None
-            self.query_logger.warning("Событийная система недоступна")
+            query_logger.warning("Событийная система недоступна")
         
         # Логируем получение конфигурации
         if config:
-            self.query_logger.debug(f"Получена конфигурация с {len(config)} параметрами")
+            query_logger.debug(f"Получена конфигурация с {len(config)} параметрами")
             if 'secret' in config or 'password' in config:
                 masked_config = {k: '***' if k in ['secret', 'password'] else v for k, v in config.items()}
-                self.query_logger.debug(f"Конфигурация (с маскировкой): {masked_config}")
+                query_logger.debug(f"Конфигурация (с маскировкой): {masked_config}")
             else:
-                self.query_logger.debug(f"Конфигурация: {config}")
+                query_logger.debug(f"Конфигурация: {config}")
         else:
-            self.query_logger.debug("Конфигурация не предоставлена, используется конфигурация по умолчанию")
+            query_logger.debug("Конфигурация не предоставлена, используется конфигурация по умолчанию")
         
         self.config = config or {}
         self.components: Dict[str, Any] = {}
@@ -197,19 +196,19 @@ class CoreBrain:
         try:
             from .deferred_command_system import DeferredCommandSystem, CommandPriority
             self.deferred_system = DeferredCommandSystem(self, max_workers=6)
-            self.query_logger.debug("Система отложенных команд инициализирована")
+            query_logger.debug("Система отложенных команд инициализирована")
             
             # Регистрация health checks и recovery strategies для ключевых модулей
             self._register_deferred_system_handlers()
             
         except ImportError as e:
             self.deferred_system = None
-            self.query_logger.warning(f"Система отложенных команд недоступна: {e}")
+            query_logger.warning(f"Система отложенных команд недоступна: {e}")
         
         # Настройка директории кэша
         self.cache_dir = os.path.join(os.path.dirname(__file__), "eva_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
-        self.query_logger.debug(f"Путь к кэшу: {self.cache_dir}")
+        query_logger.debug(f"Путь к кэшу: {self.cache_dir}")
         
         # Применяем контекст-ориентированную политику при необходимости
         try:
@@ -218,9 +217,9 @@ class CoreBrain:
                 try:
                     from .context_first_policy import ContextFirstPolicy
                     ContextFirstPolicy(self).apply()
-                    self.query_logger.debug("ContextFirstPolicy применена (mode=context_first)")
+                    query_logger.debug("ContextFirstPolicy применена (mode=context_first)")
                 except Exception as e:
-                    self.query_logger.warning(f"Не удалось применить ContextFirstPolicy: {e}")
+                    query_logger.warning(f"Не удалось применить ContextFirstPolicy: {e}")
         except Exception as e:
             logger.debug(f"Error: {e}")
         
@@ -228,43 +227,43 @@ class CoreBrain:
         try:
             from .config_manager import ConfigManager
             self.config_manager = ConfigManager()
-            self.query_logger.debug("Менеджер конфигурации инициализирован")
+            query_logger.debug("Менеджер конфигурации инициализирован")
         except ImportError:
             self.config_manager = None
-            self.query_logger.warning("Менеджер конфигурации недоступен")
+            query_logger.warning("Менеджер конфигурации недоступен")
         
         try:
             from .system_state import SystemStateManager, SystemState
             self.state_manager = SystemStateManager()
-            self.query_logger.debug("Менеджер состояния системы инициализирован")
+            query_logger.debug("Менеджер состояния системы инициализирован")
             if self.state_manager and hasattr(self.state_manager, 'set_state'):
                 self.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
         except ImportError:
             self.state_manager = None
-            self.query_logger.warning("Менеджер состояния системы недоступен")
+            query_logger.warning("Менеджер состояния системы недоступен")
         
         try:
             from .resource_manager import ResourceManager
             self.resource_manager = ResourceManager(self.config_manager) if self.config_manager else ResourceManager(None)
-            self.query_logger.debug("Менеджер ресурсов инициализирован")
+            query_logger.debug("Менеджер ресурсов инициализирован")
         except ImportError:
             self.resource_manager = None
-            self.query_logger.warning("Менеджер ресурсов недоступен")
+            query_logger.warning("Менеджер ресурсов недоступен")
         
         # Инициализация модуля самоанализа
         try:
             from eva.learning.self_analyzer import SelfAnalyzer
             self.self_analyzer = SelfAnalyzer(brain=self, cache_dir=self.cache_dir)
-            self.query_logger.debug("Модуль самоанализа инициализирован")
+            query_logger.debug("Модуль самоанализа инициализирован")
         except ImportError as e:
             self.self_analyzer = None
-            self.query_logger.warning(f"Модуль самоанализа недоступен: {e}")
+            query_logger.warning(f"Модуль самоанализа недоступен: {e}")
         
         # Инициализация менеджера системных метрик
         try:
             from .system_metrics import SystemMetricsManager
             self.metrics_manager = SystemMetricsManager()
-            self.query_logger.debug("Менеджер системных метрик инициализирован")
+            query_logger.debug("Менеджер системных метрик инициализирован")
         except ImportError:
             class SystemMetricsManager:
                 def __init__(self): self.metrics = {"error_rate": 0.0}
@@ -279,21 +278,18 @@ class CoreBrain:
                 def emit_many(self, metrics): return 0
                 def flush(self): return []
             self.metrics_manager = SystemMetricsManager()
-            self.query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
-        
-        # EnhancedSelfLearningSystem отключена - обучение через SelfDialogLearning
-        self.enhanced_learning = None
+            query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
         
         # Инициализация MemoryGraphML для обучения на графе памяти
         try:
             from .memory_graph_ml import MemoryGraphML
             self.memory_graph_ml = MemoryGraphML(self, config=self.config.get('memory_graph_ml', {}))
             if self.memory_graph_ml.initialize():
-                self.query_logger.debug("MemoryGraphML инициализирован")
+                query_logger.debug("MemoryGraphML инициализирован")
             else:
-                self.query_logger.warning("Не удалось инициализировать MemoryGraphML")
+                query_logger.warning("Не удалось инициализировать MemoryGraphML")
         except ImportError as e:
-            self.query_logger.warning(f"MemoryGraphML недоступен: {e}")
+            query_logger.warning(f"MemoryGraphML недоступен: {e}")
             self.memory_graph_ml = None
         
         # Self-Dialog Learning System
@@ -303,24 +299,24 @@ class CoreBrain:
                     brain=self,
                     config=self.config.get('self_dialog_learning', {})
                 )
-                self.query_logger.info("SelfDialogLearningSystem initialized")
+                query_logger.info("SelfDialogLearningSystem initialized")
             else:
                 self.self_dialog_learning = None
-                self.query_logger.debug("SelfDialogLearningSystem not available")
+                query_logger.debug("SelfDialogLearningSystem not available")
         except Exception as e:
             self.self_dialog_learning = None
-            self.query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
+            query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
         
         # Performance Analyzer
         try:
             if PerformanceAnalyzer:
                 self.performance_analyzer = PerformanceAnalyzer(brain=self)
-                self.query_logger.info("PerformanceAnalyzer initialized")
+                query_logger.info("PerformanceAnalyzer initialized")
             else:
                 self.performance_analyzer = None
         except Exception as e:
             self.performance_analyzer = None
-            self.query_logger.debug(f"PerformanceAnalyzer not available: {e}")
+            query_logger.debug(f"PerformanceAnalyzer not available: {e}")
         
         # Online Knowledge Access
         try:
@@ -329,63 +325,57 @@ class CoreBrain:
                     brain=self,
                     config=self.config.get('online_knowledge', {})
                 )
-                self.query_logger.debug("OnlineKnowledgeAccess initialized")
+                query_logger.debug("OnlineKnowledgeAccess initialized")
             else:
                 self.online_knowledge = None
         except Exception as e:
             self.online_knowledge = None
-            self.query_logger.debug(f"OnlineKnowledgeAccess initialization failed: {e}")
+            query_logger.debug(f"OnlineKnowledgeAccess initialization failed: {e}")
         
         # Инициализация системы самообучения (устаревшая, для совместимости)
         try:
             from .self_learning_system import initialize_self_learning
             if initialize_self_learning(self):
-                self.query_logger.debug("Система самообучения инициализирована (legacy)")
+                query_logger.debug("Система самообучения инициализирована (legacy)")
             else:
-                self.query_logger.warning("Не удалось инициализировать систему самообучения (legacy)")
+                query_logger.warning("Не удалось инициализировать систему самообучения (legacy)")
         except ImportError as e:
-            self.query_logger.warning(f"Система самообучения (legacy) недоступна: {e}")
-        
-        self.system_metrics_manager = self.metrics_manager if self.metrics_manager else None
+            query_logger.warning(f"Система самообучения (legacy) недоступна: {e}")
         
         # Устаревшие менеджеры для совместимости
-        self.distributed_system = None
         
         # Инициализация процессора запросов
         self.query_processor = QueryProcessor(self) if QueryProcessor else None
         if self.query_processor:
             self.components['query_processor'] = self.query_processor
-            self.query_logger.debug("Процессор запросов инициализирован и зарегистрирован в components")
+            query_logger.debug("Процессор запросов инициализирован и зарегистрирован в components")
         
         # Инициализация инициализатора компонентов
         try:
             from .component_initializer import ComponentInitializer
             self.component_initializer = ComponentInitializer(self)
-            self.query_logger.debug("Инициализатор компонентов инициализирован")
+            query_logger.debug("Инициализатор компонентов инициализирован")
         except ImportError as e:
             self.component_initializer = None
-            self.query_logger.warning(f"Ошибка импорта инициализатора компонентов: {e}")
+            query_logger.warning(f"Ошибка импорта инициализатора компонентов: {e}")
         except Exception as e:
             self.component_initializer = None
-            self.query_logger.warning(f"Ошибка при инициализации компонента: {e}")
-            self.query_logger.error(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)
+            query_logger.warning(f"Ошибка при инициализации компонента: {e}")
+            query_logger.error(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)
         
         # Инициализация кэша токенов - используем синглтон
         try:
             from ..memory.hybrid_token_cache import get_shared_cache
             self.token_cache = get_shared_cache(self, "default")
-            self.hybrid_cache = self.token_cache
-            self.query_logger.debug("Гибридный кэш токенов инициализирован (синглтон)")
+            query_logger.debug("Гибридный кэш токенов инициализирован (синглтон)")
             if self.token_cache and hasattr(self.token_cache, 'get_cache_stats'):
                 cache_stats = self.token_cache.get_cache_stats()
         except ImportError as e:
-            self.query_logger.warning(f"Ошибка импорта гибридного кэша: {e}")
+            query_logger.warning(f"Ошибка импорта гибридного кэша: {e}")
             self.token_cache = None
-            self.hybrid_cache = None
         except Exception as e:
-            self.query_logger.warning(f"Ошибка инициализации гибридного кэша: {e}")
+            query_logger.warning(f"Ошибка инициализации гибридного кэша: {e}")
             self.token_cache = None
-            self.hybrid_cache = None
         
         self.fractal_ready = False  # Флаг готовности фрактальной модели
         self.qwen_ready = False  # Флаг готовности Qwen модели
@@ -398,9 +388,9 @@ class CoreBrain:
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             model_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
             self.fractal_model_manager = FractalModelManager(model_path=model_path)
-            self.query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
+            query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
         except (ImportError, Exception) as e:
-            self.query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
+            query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
             self.fractal_model_manager = None
         
         # Инициализация LlamaCpp горячего развертывания (GGUF модель)
@@ -417,7 +407,7 @@ class CoreBrain:
                 n_threads = model_config.get('llama_cpp_threads', 8)
                 n_ctx = model_config.get('llama_cpp_n_ctx', 4096)
                 
-                self.query_logger.info(f"LlamaCpp горячее развертывание: {gguf_path}")
+                query_logger.info(f"LlamaCpp горячее развертывание: {gguf_path}")
                 
                 # Создаём и инициализируем
                 from eva.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
@@ -430,12 +420,12 @@ class CoreBrain:
                 
                 if self.llama_cpp_deployment.initialize(preload_root=True):
                     self.llama_cpp_ready = True
-                    self.query_logger.info("LlamaCpp (GGUF) готов к работе!")
+                    query_logger.info("LlamaCpp (GGUF) готов к работе!")
                 else:
-                    self.query_logger.warning("Ошибка инициализации LlamaCpp")
+                    query_logger.warning("Ошибка инициализации LlamaCpp")
                     
         except Exception as e:
-            self.query_logger.debug(f"LlamaCpp не инициализирован: {e}")
+            query_logger.debug(f"LlamaCpp не инициализирован: {e}")
             self.llama_cpp_deployment = None
         
         # Инициализация Two-Model Pipeline (Recursive GGUF)
@@ -460,11 +450,11 @@ class CoreBrain:
                 try:
                     from eva.memory.unified_fractal_memory import UnifiedFractalMemory
                     fractal_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "fractal_torch_storage", "unified_memory")
-                    self.query_logger.info(f"Инициализация UnifiedFractalMemory: {fractal_dir}")
+                    query_logger.info(f"Инициализация UnifiedFractalMemory: {fractal_dir}")
                     self.fractal_memory = UnifiedFractalMemory(storage_dir=fractal_dir, config=self.config.get('fractal_memory', {}))
-                    self.query_logger.info(f"UnifiedFractalMemory: {self.fractal_memory.get_stats()}")
+                    query_logger.info(f"UnifiedFractalMemory: {self.fractal_memory.get_stats()}")
                 except Exception as e:
-                    self.query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
+                    query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
                     self.fractal_memory = None
                 
                 if model_a_path and model_b_path:
@@ -483,37 +473,37 @@ class CoreBrain:
                     logger.debug(f"DEBUG: Checking model files - A: {model_a_path}, exists: {os.path.exists(model_a_path)}")
                     logger.debug(f"DEBUG: Checking model files - B: {model_b_path}, exists: {os.path.exists(model_b_path)}")
                     if not os.path.exists(model_a_path):
-                        self.query_logger.error(f"Model A file not found: {model_a_path}")
+                        query_logger.error(f"Model A file not found: {model_a_path}")
                         self.two_model_pipeline = None
                     elif not os.path.exists(model_b_path):
-                        self.query_logger.error(f"Model B file not found: {model_b_path}")
-                        self.query_logger.warning("Model B fallback: using Model A path")
+                        query_logger.error(f"Model B file not found: {model_b_path}")
+                        query_logger.warning("Model B fallback: using Model A path")
                         model_b_path = model_a_path
-                        self.query_logger.info(f"Инициализация Two-Model Pipeline...")
-                        self.query_logger.info(f"  Model A: {model_a_path}")
-                        self.query_logger.info(f"  Model B: {model_b_path} (cloned from A)")
+                        query_logger.info(f"Инициализация Two-Model Pipeline...")
+                        query_logger.info(f"  Model A: {model_a_path}")
+                        query_logger.info(f"  Model B: {model_b_path} (cloned from A)")
                         if model_c_path:
-                            self.query_logger.info(f"  Model C (Coder): {model_c_path}")
+                            query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
                         self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
                         self.two_model_pipeline.load_models()
                     else:
-                        self.query_logger.info(f"Инициализация Two-Model Pipeline...")
-                        self.query_logger.info(f"  Model A: {model_a_path}")
-                        self.query_logger.info(f"  Model B: {model_b_path}")
+                        query_logger.info(f"Инициализация Two-Model Pipeline...")
+                        query_logger.info(f"  Model A: {model_a_path}")
+                        query_logger.info(f"  Model B: {model_b_path}")
                         if model_c_path:
-                            self.query_logger.info(f"  Model C (Coder): {model_c_path}")
+                            query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
                         self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
                         self.two_model_pipeline.load_models()
                         logger.debug("RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline_ready = True
                     logger.debug("load_models() completed, pipeline_ready = %s", self.two_model_pipeline_ready)
-                    self.query_logger.info("Two-Model Pipeline готов к работе!")
+                    query_logger.info("Two-Model Pipeline готов к работе!")
                     
                     # Log pipeline status
-                    self.query_logger.info(f"  -> two_model_pipeline attribute exists: {hasattr(self, 'two_model_pipeline')}")
-                    self.query_logger.info(f"  -> two_model_pipeline is not None: {self.two_model_pipeline is not None}")
+                    query_logger.info(f"  -> two_model_pipeline attribute exists: {hasattr(self, 'two_model_pipeline')}")
+                    query_logger.info(f"  -> two_model_pipeline is not None: {self.two_model_pipeline is not None}")
                     
                     # Регистрация в EventBus
                     try:
@@ -540,14 +530,14 @@ class CoreBrain:
                                     "n_threads": n_threads,
                                     "ready": True
                                 })
-                            self.query_logger.info("Two-Model Pipeline зарегистрирован в EventBus")
+                            query_logger.info("Two-Model Pipeline зарегистрирован в EventBus")
                     except Exception as e:
-                        self.query_logger.warning(f"Не удалось зарегистрировать Two-Model Pipeline в EventBus: {e}")
+                        query_logger.warning(f"Не удалось зарегистрировать Two-Model Pipeline в EventBus: {e}")
                 else:
-                    self.query_logger.warning("Two-Model Pipeline: не указаны пути к моделям")
+                    query_logger.warning("Two-Model Pipeline: не указаны пути к моделям")
                     
         except Exception as e:
-            self.query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
+            query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
             self.two_model_pipeline = None
         
         # Инициализация PreprocessingPipeline для извлечения сущностей
@@ -563,11 +553,11 @@ class CoreBrain:
                 llama_instance=llama_instance,
                 hybrid_cache=self.hybrid_cache
             )
-            self.query_logger.info("PreprocessingPipeline инициализирован")
+            query_logger.info("PreprocessingPipeline инициализирован")
         except ImportError as e:
-            self.query_logger.debug(f"PreprocessingPipeline не найден: {e}")
+            query_logger.debug(f"PreprocessingPipeline не найден: {e}")
         except Exception as e:
-            self.query_logger.debug(f"Ошибка инициализации PreprocessingPipeline: {e}")
+            query_logger.debug(f"Ошибка инициализации PreprocessingPipeline: {e}")
         
         # Инициализация QwenModelManager как предпочтительной модели (LAZY LOADING)
         # Модель загружается только при первом запросе, не блокирует запуск
@@ -582,19 +572,19 @@ class CoreBrain:
             if model_type == 'qwen' or model_name.startswith('qwen'):
                 if model_config:
                     self._qwen_config = model_config
-                self.query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
+                query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
             else:
-                self.query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'. Ожидается type='qwen' или name начинающееся с 'qwen'")
+                query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'. Ожидается type='qwen' или name начинающееся с 'qwen'")
         except Exception as e:
-            self.query_logger.warning(f"Qwen config не найден: {e}")
+            query_logger.warning(f"Qwen config не найден: {e}")
         
         # Устанавливаем глобальную ссылку на текущий экземпляр
         global _global_brain_instance
         _global_brain_instance = self
-        self.query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
+        query_logger.debug(f"CoreBrain зарегистрирован как глобальный экземпляр: {id(self)}")
         
         # Логируем завершение инициализации
-        self.query_logger.debug("ЕВАCore инициализирован")
+        query_logger.debug("ЕВАCore инициализирован")
         logger.debug("ЕВАCore инициализирован")
         
         # Подготовка автопилота (фоновый координатор)
@@ -615,7 +605,7 @@ class CoreBrain:
             # Регистрируем BackgroundCoordinator как компонент
             if hasattr(self, 'components'):
                 self.components['background_coordinator'] = self.background
-                self.query_logger.debug("BackgroundCoordinator зарегистрирован как компонент")
+                query_logger.debug("BackgroundCoordinator зарегистрирован как компонент")
             
             # Регистрируем фоновые задачи
             try:
@@ -625,9 +615,9 @@ class CoreBrain:
                 self.background.register_job_type(TrainingJob)
                 self.background.register_job_type(WebIndexJob)
                 self.background.register_job_type(ModuleRecoveryJob)
-                self.query_logger.debug("Фоновые задачи зарегистрированы")
+                query_logger.debug("Фоновые задачи зарегистрированы")
             except Exception as e:
-                self.query_logger.warning(f"Не удалось зарегистрировать фоновые задачи: {e}")
+                query_logger.warning(f"Не удалось зарегистрировать фоновые задачи: {e}")
                 
         except Exception as e:
             logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
@@ -657,7 +647,7 @@ class CoreBrain:
         """
         try:
             if not self.component_initializer:
-                self.query_logger.warning("ComponentInitializer недоступен")
+                query_logger.warning("ComponentInitializer недоступен")
                 return False
             
             if hasattr(self, 'memory_manager') and self.memory_manager is not None:
@@ -672,41 +662,41 @@ class CoreBrain:
                 
                 return True
             else:
-                self.query_logger.warning("memory_manager не найден в component_initializer")
+                query_logger.warning("memory_manager не найден в component_initializer")
                 return False
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка инициализации MemoryManager: {e}")
+            query_logger.error(f"Ошибка инициализации MemoryManager: {e}")
             return False
     
     def _initialize_detailed_logging(self):
         """Включает детальное логгирование для всех компонентов."""
-        self.query_logger.debug("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
+        query_logger.debug("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
         
         # Логируем информацию о системе (debug level)
-        self.query_logger.debug(f"Python version: {sys.version}")
-        self.query_logger.debug(f"Platform: {sys.platform}")
-        self.query_logger.debug(f"CPU count: {os.cpu_count()}")
+        query_logger.debug(f"Python version: {sys.version}")
+        query_logger.debug(f"Platform: {sys.platform}")
+        query_logger.debug(f"CPU count: {os.cpu_count()}")
         
         # Информация о памяти
         mem = psutil.virtual_memory()
-        self.query_logger.debug(f"Total RAM: {mem.total / (1024**3):.2f} GB")
-        self.query_logger.debug(f"Available RAM: {mem.available / (1024**3):.2f} GB")
-        self.query_logger.debug(f"RAM usage: {mem.percent}%")
+        query_logger.debug(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+        query_logger.debug(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+        query_logger.debug(f"RAM usage: {mem.percent}%")
         
         # Информация о диске
         disk = psutil.disk_usage('.')
-        self.query_logger.debug(f"Total disk: {disk.total / (1024**3):.2f} GB")
-        self.query_logger.debug(f"Free disk: {disk.free / (1024**3):.2f} GB")
-        self.query_logger.debug(f"Disk usage: {disk.percent}%")
+        query_logger.debug(f"Total disk: {disk.total / (1024**3):.2f} GB")
+        query_logger.debug(f"Free disk: {disk.free / (1024**3):.2f} GB")
+        query_logger.debug(f"Disk usage: {disk.percent}%")
         
         # CUDA информация
         if torch.cuda.is_available():
-            self.query_logger.debug(f"CUDA available: Yes")
-            self.query_logger.debug(f"CUDA device count: {torch.cuda.device_count()}")
-            self.query_logger.debug(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+            query_logger.debug(f"CUDA available: Yes")
+            query_logger.debug(f"CUDA device count: {torch.cuda.device_count()}")
+            query_logger.debug(f"CUDA device name: {torch.cuda.get_device_name(0)}")
         else:
-            self.query_logger.debug("CUDA available: No")
+            query_logger.debug("CUDA available: No")
         
         return True
     
@@ -717,7 +707,7 @@ class CoreBrain:
         self._initialize_detailed_logging()
         
         start_time = time.time()
-        self.query_logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ ЯДРА COGNIFLEX")
+        query_logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ ЯДРА COGNIFLEX")
         
         try:
             # Обновляем состояние системы
@@ -727,50 +717,50 @@ class CoreBrain:
             # Запускаем мониторинг ресурсов
             if self.resource_manager:
                 self.resource_manager.start_monitoring()
-                self.query_logger.debug("Мониторинг ресурсов запущен")
+                query_logger.debug("Мониторинг ресурсов запущен")
             
             # Начало отслеживания метрик
             if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                 self.metrics_manager.start_tracking()
-                self.query_logger.debug("Отслеживание системных метрик запущено")
+                query_logger.debug("Отслеживание системных метрик запущено")
             
             # Инициализация компонентов
-            self.query_logger.debug("Запуск инициализации компонентов системы...")
+            query_logger.debug("Запуск инициализации компонентов системы...")
             init_start = time.time()
             
             # Инициализация FractalAttentionSystem ПЕРЕД компонентами
             try:
                 from eva.core.fractal_attention_system import FractalAttentionSystem
                 self.attention_system = FractalAttentionSystem(self)
-                self.query_logger.info("FractalAttentionSystem инициализирован")
+                query_logger.info("FractalAttentionSystem инициализирован")
             except Exception as e:
-                self.query_logger.warning(f"Не удалось инициализировать FractalAttentionSystem: {e}")
+                query_logger.warning(f"Не удалось инициализировать FractalAttentionSystem: {e}")
             
             if self.component_initializer:
                 init_result = self.component_initializer.initialize_components()
                 if not init_result:
-                    self.query_logger.warning("Не все компоненты инициализированы, продолжаем...")
-                    self.query_logger.warning("Failed: %s" % self.component_initializer.failed_components)
+                    query_logger.warning("Не все компоненты инициализированы, продолжаем...")
+                    query_logger.warning("Failed: %s" % self.component_initializer.failed_components)
             else:
-                self.query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
+                query_logger.warning("Инициализатор компонентов недоступен, пропускаем инициализацию")
             
             # Явная инициализация MemoryManager
-            self.query_logger.debug("Вызов _initialize_memory_manager()...")
+            query_logger.debug("Вызов _initialize_memory_manager()...")
             if not self._initialize_memory_manager():
-                self.query_logger.warning("Не удалось инициализировать MemoryManager, продолжаем без него")
+                query_logger.warning("Не удалось инициализировать MemoryManager, продолжаем без него")
             
             # Устанавливаем ссылки на компоненты после инициализации
             if 'model_manager' in self.components:
                 self.model_manager = self.components['model_manager']
                 if self.model_manager is not None:
-                    self.query_logger.debug("model_manager подключен к brain")
+                    query_logger.debug("model_manager подключен к brain")
                     if self.events:
                         self.events.trigger('model_manager_ready', self.model_manager)
             
             if 'text_processor' in self.components:
                 self.text_processor = self.components['text_processor']
                 if self.text_processor is not None:
-                    self.query_logger.debug("text_processor подключен к brain")
+                    query_logger.debug("text_processor подключен к brain")
             
             # Обновляем ResponseGenerator с новыми компонентами
             if hasattr(self, 'response_generator') and self.response_generator:
@@ -781,7 +771,7 @@ class CoreBrain:
                     self.response_generator.token_streamer = self.text_processor
                     if hasattr(self.text_processor, 'hybrid_cache'):
                         self.response_generator.hybrid_cache = self.text_processor.hybrid_cache
-                self.query_logger.debug("ResponseGenerator обновлен с компонентами")
+                query_logger.debug("ResponseGenerator обновлен с компонентами")
             
             # Уведомляем о готовности других компонентов
             if self.events:
@@ -791,7 +781,7 @@ class CoreBrain:
             
             # Инициализация фрактальной модели из хранилища
             if self.fractal_model_manager:
-                self.query_logger.debug("Загрузка фрактальной модели...")
+                query_logger.debug("Загрузка фрактальной модели...")
                 
                 # Check if model_path attribute exists
                 if hasattr(self.fractal_model_manager, 'model_path'):
@@ -806,11 +796,11 @@ class CoreBrain:
                             model_files = ['pytorch_model.bin', 'config.json', 'vocab.json']
                             files_found = [f for f in model_files if os.path.exists(os.path.join(model_dir, f))]
                             if len(files_found) >= 2:
-                                self.query_logger.debug("  Структура модели корректна")
+                                query_logger.debug("  Структура модели корректна")
                             else:
-                                self.query_logger.warning(f"  Неполная структура модели, найдены только: {files_found}")
+                                query_logger.warning(f"  Неполная структура модели, найдены только: {files_found}")
                         else:
-                            self.query_logger.warning(f"  Директория модели не существует: {model_dir}")
+                            query_logger.warning(f"  Директория модели не существует: {model_dir}")
 
             try:
                 if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager is not None:
@@ -827,11 +817,11 @@ class CoreBrain:
 
                     if fractal_init_result and not self.fractal_ready:
                         self.fractal_ready = True
-                        self.query_logger.debug("Фрактальная модель успешно загружена и активирована")
+                        query_logger.debug("Фрактальная модель успешно загружена и активирована")
                         if self.events:
                             self.events.trigger('fractal_model_ready', self.fractal_model_manager)
                     elif not fractal_init_result:
-                        self.query_logger.debug("Не удалось загрузить фрактальную модель")
+                        query_logger.debug("Не удалось загрузить фрактальную модель")
                         self.fractal_ready = False
                 
                 # Устанавливаем models_ready если фрактальная модель готова или ml_unit готов
@@ -848,25 +838,25 @@ class CoreBrain:
                 if self.fractal_ready or ml_unit_ready:
                     self.models_ready = True
             except Exception as e:
-                self.query_logger.debug(f"Исключение при инициализации фрактальной модели: {e}")
+                query_logger.debug(f"Исключение при инициализации фрактальной модели: {e}")
                 self.fractal_ready = False
             
             # Инициализация координатора генерации - единая точка входа
             try:
                 self.generation_coordinator = initialize_generation_coordinator(self)
-                self.query_logger.debug("Координатор генерации инициализирован как единая точка входа")
+                query_logger.debug("Координатор генерации инициализирован как единая точка входа")
                 self.components['generation_coordinator'] = self.generation_coordinator
                 
                 if hasattr(self.generation_coordinator, 'get_status'):
                     coordinator_status = self.generation_coordinator.get_status()
-                    self.query_logger.info(f"Статус координатора: {coordinator_status}")
+                    query_logger.info(f"Статус координатора: {coordinator_status}")
             except Exception as e:
-                self.query_logger.error(f"Ошибка инициализации координатора генерации: {e}", exc_info=True)
+                query_logger.error(f"Ошибка инициализации координатора генерации: {e}", exc_info=True)
                 self.generation_coordinator = None
             
             # Получение информации о системе
             system_info = self._get_system_info()
-            self.query_logger.info(f"Информация о системе: {system_info}")
+            query_logger.info(f"Информация о системе: {system_info}")
             
             # Инициализация Wikipedia Knowledge Base (опционально)
             self.wikipedia_kb = None
@@ -880,13 +870,13 @@ class CoreBrain:
                     self.wikipedia_kb = get_wikipedia_kb()
                     self.wikipedia_loader = get_wikipedia_loader(self.wikipedia_kb)
                     stats = self.wikipedia_kb.get_stats()
-                    self.query_logger.info(f"Wikipedia KB инициализирована: {stats['articles']} статей, {stats['chunks']} чанков")
+                    query_logger.info(f"Wikipedia KB инициализирована: {stats['articles']} статей, {stats['chunks']} чанков")
                     
                     # Сохраняем конфиг автообучения для запуска после инициализации
                     if wiki_config.get('auto_learn', False):
                         self._wikipedia_auto_learn_config = wiki_config
-                except Exception as e:
-                    self.query_logger.warning(f"Wikipedia KB не инициализирована: {e}")
+                except (ImportError, RuntimeError, OSError) as e:
+                    query_logger.warning(f"Wikipedia KB не инициализирована: {e}")
             
             # Установка флага инициализации
             self.initialized = True
@@ -896,15 +886,15 @@ class CoreBrain:
                 from eva.reasoning.integration import ReasoningIntegration
                 reasoning_integration = ReasoningIntegration(self)
                 if reasoning_integration.integrate_with_brain():
-                    self.query_logger.info("SelfReasoningEngine интегрирован с CoreBrain")
+                    query_logger.info("SelfReasoningEngine интегрирован с CoreBrain")
                     self.reasoning_integration = reasoning_integration
                     self.components['reasoning_integration'] = reasoning_integration
                 else:
-                    self.query_logger.debug("SelfReasoningEngine не интегрирован (отключен в конфигурации)")
+                    query_logger.debug("SelfReasoningEngine не интегрирован (отключен в конфигурации)")
             except ImportError as e:
-                self.query_logger.debug(f"ReasoningIntegration недоступен: {e}")
+                query_logger.debug(f"ReasoningIntegration недоступен: {e}")
             except Exception as e:
-                self.query_logger.warning(f"Ошибка интеграции SelfReasoningEngine: {e}")
+                query_logger.warning(f"Ошибка интеграции SelfReasoningEngine: {e}")
             
             # Обновляем состояние системы на готовность
             if self.state_manager and hasattr(self.state_manager, 'set_state'):
@@ -914,20 +904,20 @@ class CoreBrain:
             total_time = time.time() - start_time
             if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                 self.metrics_manager.record_system_startup(total_time)
-            self.query_logger.info(f"Ядро ЕВА успешно инициализировано за {total_time:.4f} сек")
+            query_logger.info(f"Ядро ЕВА успешно инициализировано за {total_time:.4f} сек")
             
             # Выполнение отложенных команд
             with self._deferred_commands_lock:
                 commands_to_execute = list(self.deferred_commands)
                 self.deferred_commands.clear()
-            self.query_logger.info(f"Выполнение {len(commands_to_execute)} отложенных команд...")
+            query_logger.info(f"Выполнение {len(commands_to_execute)} отложенных команд...")
             for command, args, kwargs in commands_to_execute:
                 try:
                     command(*args, **kwargs)
-                    self.query_logger.info(f"Отложенная команда {getattr(command, '__name__', 'lambda')} выполнена успешно.")
+                    query_logger.info(f"Отложенная команда {getattr(command, '__name__', 'lambda')} выполнена успешно.")
                 except Exception as e:
-                    self.query_logger.error(f"Ошибка выполнения отложенной команды {getattr(command, '__name__', 'lambda')}: {e}", exc_info=True)
-            self.query_logger.info("Все отложенные команды выполнены.")
+                    query_logger.error(f"Ошибка выполнения отложенной команды {getattr(command, '__name__', 'lambda')}: {e}", exc_info=True)
+            query_logger.info("Все отложенные команды выполнены.")
             
             # Настраиваем стратегии восстановления модулей
             # _setup_module_recovery_strategies method defined but never called - removed
@@ -937,9 +927,9 @@ class CoreBrain:
                 try:
                     if hasattr(self.self_dialog_learning, 'start'):
                         self.self_dialog_learning.start()
-                        self.query_logger.info("SelfDialogLearningSystem started")
+                        query_logger.info("SelfDialogLearningSystem started")
                 except Exception as e:
-                    self.query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
+                    query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
             
             # Запуск автообучения Википедии ПОСЛЕ полной инициализации системы
             if hasattr(self, '_wikipedia_auto_learn_config') and self._wikipedia_auto_learn_config:
@@ -952,21 +942,32 @@ class CoreBrain:
                             interval_hours=wiki_cfg.get('interval_hours', 24),
                             include_random=wiki_cfg.get('random_per_cycle', 5),
                         )
-                        self.query_logger.info("Автообучение Википедии запущено (post-init)")
+                        query_logger.info("Автообучение Википедии запущено (post-init)")
                 except Exception as e:
-                    self.query_logger.warning(f"Не удалось запустить автообучение Википедии: {e}")
+                    query_logger.warning(f"Не удалось запустить автообучение Википедии: {e}")
             
             # Initialize GraphCurator
             try:
                 from eva.knowledge.graph_curator import GraphCurator
-                self.graph_curator = GraphCurator(
-                    brain=self,
-                    config=self.config.get('graph_curator', {})
-                )
-                self.graph_curator.start()
-                self.query_logger.info("GraphCurator started")
+                if hasattr(self, 'graph_curator') and self.graph_curator:
+                    if hasattr(self.graph_curator, 'is_running') and self.graph_curator.is_running():
+                        query_logger.info("GraphCurator already running, skipping re-initialization")
+                    else:
+                        self.graph_curator = GraphCurator(
+                            brain=self,
+                            config=self.config.get('graph_curator', {})
+                        )
+                        self.graph_curator.start()
+                        query_logger.info("GraphCurator restarted")
+                else:
+                    self.graph_curator = GraphCurator(
+                        brain=self,
+                        config=self.config.get('graph_curator', {})
+                    )
+                    self.graph_curator.start()
+                    query_logger.info("GraphCurator started")
             except Exception as e:
-                self.query_logger.warning(f"Failed to start GraphCurator: {e}")
+                query_logger.warning(f"Failed to start GraphCurator: {e}")
                 self.graph_curator = None
             
             # Initialize GGUFTrainingSystem (separate training instance)
@@ -979,25 +980,25 @@ class CoreBrain:
                 
                 # Развертываем и проверяем модель для обучения
                 if self.gguf_training.initialize_training_model():
-                    self.query_logger.info("GGUFTrainingSystem: модель для обучения готова")
+                    query_logger.info("GGUFTrainingSystem: модель для обучения готова")
                     
                     # Автозапуск если достаточно знаний
                     try:
                         self.gguf_training.auto_start_if_ready()
                     except Exception as e:
-                        self.query_logger.debug(f"Auto-training check skipped: {e}")
+                        query_logger.debug(f"Auto-training check skipped: {e}")
                 else:
-                    self.query_logger.warning("GGUFTrainingSystem: модель не готова")
+                    query_logger.warning("GGUFTrainingSystem: модель не готова")
                     
             except Exception as e:
-                self.query_logger.warning(f"Failed to initialize GGUFTrainingSystem: {e}")
+                query_logger.warning(f"Failed to initialize GGUFTrainingSystem: {e}")
                 self.gguf_training = None
             
             return True
             
         except Exception as e:
             error_time = time.time() - start_time
-            self.query_logger.error(f"Ошибка инициализации ядра за {error_time:.4f} сек: {e}", exc_info=True)
+            query_logger.error(f"Ошибка инициализации ядра за {error_time:.4f} сек: {e}", exc_info=True)
             if hasattr(self, 'metrics_manager') and self.metrics_manager is not None:
                 self.metrics_manager.record_error("core_initialization_failed")
             return False
@@ -1019,7 +1020,7 @@ class CoreBrain:
             with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             logger.info(f"Конфигурация загружена из {config_path}")
-            self.query_logger.info(f"Загружена конфигурация из {config_path}")
+            query_logger.info(f"Загружена конфигурация из {config_path}")
             return config
         except Exception as e:
             logger.error(f"Ошибка загрузки {config_path}: {e}")
@@ -1123,10 +1124,10 @@ class CoreBrain:
                 if len(self.module_access_log) > 1000:
                     self.module_access_log = self.module_access_log[-500:]
                 
-                self.query_logger.debug(f"Активность модуля {module_name}: {activity}")
+                query_logger.debug(f"Активность модуля {module_name}: {activity}")
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка логирования активности модуля {module_name}: {e}")
+            query_logger.error(f"Ошибка логирования активности модуля {module_name}: {e}")
     
     def get_module_activity(self, module_name: str = None) -> Dict[str, Any]:
         """Возвращает информацию об активности модулей"""
@@ -1185,14 +1186,14 @@ class CoreBrain:
         """Возвращает knowledge_graph компонент."""
         kg = self.components.get('knowledge_graph')
         if kg is None:
-            self.query_logger.debug("knowledge_graph не инициализирован или недоступен")
+            query_logger.debug("knowledge_graph не инициализирован или недоступен")
         return kg
     
     @knowledge_graph.setter
     def knowledge_graph(self, value):
         """Устанавливает knowledge_graph компонент."""
         if value is not None:
-            self.query_logger.debug(f"Установка компонента knowledge_graph: {type(value).__name__}")
+            query_logger.debug(f"Установка компонента knowledge_graph: {type(value).__name__}")
         self.components['knowledge_graph'] = value
     
     @property
@@ -1203,17 +1204,17 @@ class CoreBrain:
     @qwen_api_enhancer.setter
     def qwen_api_enhancer(self, value):
         """Устанавливает QwenAPIEnhancer компонент."""
-        self.query_logger.debug(f"Установка компонента qwen_api_enhancer: {value}")
+        query_logger.debug(f"Установка компонента qwen_api_enhancer: {value}")
         self.components['qwen_api_enhancer'] = value
     
     def register_component(self, name: str, component: Any) -> bool:
         """Регистрирует компонент в CoreBrain."""
         try:
             self.components[name] = component
-            self.query_logger.debug(f"Компонент '{name}' зарегистрирован в CoreBrain")
+            query_logger.debug(f"Компонент '{name}' зарегистрирован в CoreBrain")
             return True
         except Exception as e:
-            self.query_logger.error(f"Ошибка регистрации компонента '{name}': {e}")
+            query_logger.error(f"Ошибка регистрации компонента '{name}': {e}")
             return False
     
     def get_component(self, name: str) -> Any:
@@ -1232,7 +1233,7 @@ class CoreBrain:
             
             return []
         except Exception as e:
-            self.query_logger.warning(f"get_available_models: ошибка получения списка моделей: {e}")
+            query_logger.warning(f"get_available_models: ошибка получения списка моделей: {e}")
             return []
     
     def get_system_health(self) -> Dict[str, Any]:
@@ -1280,7 +1281,7 @@ class CoreBrain:
             
             return health_status
         except Exception as e:
-            self.query_logger.error(f"Ошибка получения состояния здоровья системы: {e}", exc_info=True)
+            query_logger.error(f"Ошибка получения состояния здоровья системы: {e}", exc_info=True)
             return {
                 "status": "error",
                 "timestamp": time.time(),
@@ -1348,7 +1349,7 @@ class CoreBrain:
         rating: 1 = полезно (like), -1 = неверно (dislike)
         """
         try:
-            self.query_logger.info(f"Субъективная корректность: rating={rating}")
+            query_logger.info(f"Субъективная корректность: rating={rating}")
             
             # Send to self_dialog_learning if available
             if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
@@ -1374,19 +1375,19 @@ class CoreBrain:
                         domain="feedback"
                     )
                 except Exception as e:
-                    self.query_logger.debug(f"Error storing feedback: {e}")
+                    query_logger.debug(f"Error storing feedback: {e}")
             
             return True
             
         except Exception as e:
-            self.query_logger.error(f"Error triggering subjective correctness: {e}")
+            query_logger.error(f"Error triggering subjective correctness: {e}")
             return False
 
 
     def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
         """Обрабатывает пользовательский запрос через унифицированный координатор генерации с многоуровневым fallback."""
         start_time = time.time()
-        self.query_logger.info(f"Обработка запроса: {query[:50]}...")
+        query_logger.info(f"Обработка запроса: {query[:50]}...")
 
         if context is not None and user_context is None:
             user_context = context if isinstance(context, dict) else {}
@@ -1395,27 +1396,26 @@ class CoreBrain:
                 user_context = {**user_context, **context}
 
         disable_pytorch = False
+        model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
         try:
-            model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
             disable_pytorch = model_cfg.get('disable_pytorch', False)
         except Exception as e:
             logger.debug(f"Error checking disable_pytorch: {e}")
 
         if disable_pytorch:
-            self.query_logger.info("Режим GGUF: используем Two-Model Pipeline")
+            query_logger.info("Режим GGUF: используем Two-Model Pipeline")
 
         qwen_only_mode = False
         try:
-            model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
             qwen_only_mode = model_cfg.get('qwen_only_mode', False)
         except Exception as e:
             logger.debug(f"Error checking qwen_only_mode: {e}")
 
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
             if disable_pytorch:
-                self.query_logger.info("PyTorch отключён - пропускаем загрузку Qwen в qwen_only_mode")
+                query_logger.info("PyTorch отключён - пропускаем загрузку Qwen в qwen_only_mode")
             else:
-                self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
+                query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
                 try:
                     from eva.mlearning.qwen_model_manager import get_qwen_model_manager
                     self.qwen_model_manager = get_qwen_model_manager(
@@ -1423,15 +1423,15 @@ class CoreBrain:
                         device='cpu', load_in_8bit=False, load_in_4bit=False)
                     if self.qwen_model_manager and self.qwen_model_manager.initialized:
                         self.qwen_ready = True
-                        self.query_logger.info("QwenModelManager загружен для обработки запроса")
+                        query_logger.info("QwenModelManager загружен для обработки запроса")
                     else:
-                        self.query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
+                        query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
                 except Exception as e:
-                    self.query_logger.error(f"Ошибка загрузки Qwen: {e}")
+                    query_logger.error(f"Ошибка загрузки Qwen: {e}")
 
         if not qwen_only_mode:
             if 'прикрепил файл' in query.lower():
-                self.query_logger.info("Пропуск greeting handler - прикреплён файл")
+                query_logger.info("Пропуск greeting handler - прикреплён файл")
 
         result = self._execute_query_strategy(
             query, user_context, start_time, max_new_tokens,
@@ -1475,7 +1475,7 @@ class CoreBrain:
                 result["source"] = "gguf_pipeline"
                 return result
         except Exception as e:
-            self.query_logger.warning(f"GGUF pipeline error: {e}")
+            query_logger.warning(f"GGUF pipeline error: {e}")
         return None
 
     def _handle_qwen_mode(self, query: str, user_context: Optional[Dict], start_time: float,
@@ -1495,7 +1495,7 @@ class CoreBrain:
                 preprocessed_result = self.preprocessing_pipeline.process(
                     query=query, session_context=session_context, session_id=session_id)
                 if preprocessed_result and preprocessed_result.clarification_needed:
-                    self.query_logger.info(f"Требуется уточнение: {preprocessed_result.clarification_question}")
+                    query_logger.info(f"Требуется уточнение: {preprocessed_result.clarification_question}")
                     return {
                         "response": preprocessed_result.clarification_question,
                         "text": preprocessed_result.clarification_question,
@@ -1507,9 +1507,9 @@ class CoreBrain:
                         "processing_time": time.time() - start_time
                     }
                 if preprocessed_result and preprocessed_result.entities:
-                    self.query_logger.debug(f"Извлечено сущностей: {len(preprocessed_result.entities)}")
+                    query_logger.debug(f"Извлечено сущностей: {len(preprocessed_result.entities)}")
             except Exception as e:
-                self.query_logger.debug(f"Ошибка preprocessing: {e}")
+                query_logger.debug(f"Ошибка preprocessing: {e}")
 
         knowledge_context = ""
         knowledge_graph = getattr(self, 'knowledge_graph', None)
@@ -1523,13 +1523,13 @@ class CoreBrain:
                         content = getattr(node, 'content', '') or ''
                         knowledge_context += f"- {content}\n" if content else f"- {name}\n"
             except Exception as e:
-                self.query_logger.debug(f"Ошибка получения контекста из графа: {e}")
+                query_logger.debug(f"Ошибка получения контекста из графа: {e}")
 
         full_prompt = query + knowledge_context if knowledge_context else query
 
         use_two_model = self.config.get('model', {}).get('use_two_model_pipeline', False)
         if use_two_model and self.two_model_pipeline_ready:
-            self.query_logger.info("Two-Model Pipeline активен - пропускаем стандартный GGUF fallback")
+            query_logger.info("Two-Model Pipeline активен - пропускаем стандартный GGUF fallback")
         elif self.llama_cpp_ready and self.llama_cpp_deployment:
             result = self._handle_llama_cpp(query, full_prompt, user_context, start_time,
                                             max_new_tokens, temperature, top_p, repetition_penalty,
@@ -1546,7 +1546,7 @@ class CoreBrain:
                 "processing_time": time.time() - start_time
             }
 
-        self.query_logger.info("Используем QwenModelManager (qwen_only_mode)")
+        query_logger.info("Используем QwenModelManager (qwen_only_mode)")
         gen_config = self.config.get('generation', {})
         temperature = gen_config.get('temperature', 0.7)
         top_p = gen_config.get('top_p', 0.9)
@@ -1564,12 +1564,12 @@ class CoreBrain:
                         if 'assistant_message' in node:
                             messages.append({"role": "assistant", "content": node['assistant_message']})
             except Exception as e:
-                self.query_logger.debug(f"Не удалось загрузить историю: {e}")
+                query_logger.debug(f"Не удалось загрузить историю: {e}")
         messages.append({"role": "user", "content": query})
 
         if self.llama_cpp_ready and self.llama_cpp_deployment:
             try:
-                self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+                query_logger.info("Используем LlamaCpp (GGUF) для генерации")
                 system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
 Отвечай на русском языке кратко и по существу. Избегай встречных вопросов — отвечай напрямую.
 
@@ -1588,7 +1588,7 @@ class CoreBrain:
                         temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty),
                     timeout=60)
                 if gen_err:
-                    self.query_logger.warning(f"Generation timeout/error: {gen_err}")
+                    query_logger.warning(f"Generation timeout/error: {gen_err}")
                     return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",
                             "status": "error", "confidence": 0.0, "source": "generation_timeout",
                             "processing_time": time.time() - start_time}
@@ -1613,8 +1613,8 @@ class CoreBrain:
                                     topic=f"Неизвестная тема: {query[:100]}",
                                     context={"source": "low_confidence", "query": query, "response": response_text})
                         except Exception as e:
-                            self.query_logger.debug(f"Ошибка запуска самодиалога: {e}")
-                    self.query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
+                            query_logger.debug(f"Ошибка запуска самодиалога: {e}")
+                    query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
                     return {
                         "response": response_text, "text": response_text, "status": "ok",
                         "confidence": 0.9 if not is_unknown else 0.4, "source": "llama_cpp",
@@ -1622,9 +1622,9 @@ class CoreBrain:
                         "self_dialog_triggered": is_unknown
                     }
                 else:
-                    self.query_logger.warning("LlamaCpp вернул пустой ответ")
+                    query_logger.warning("LlamaCpp вернул пустой ответ")
             except Exception as e:
-                self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+                query_logger.warning(f"Ошибка LlamaCpp: {e}")
 
         disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
         if disable_pytorch:
@@ -1663,7 +1663,7 @@ class CoreBrain:
                            knowledge_graph) -> Optional[Dict[str, Any]]:
         """Handles LlamaCpp (GGUF) generation with module integration."""
         try:
-            self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+            query_logger.info("Используем LlamaCpp (GGUF) для генерации")
             response_text, gen_err = self._generate_with_timeout(
                 lambda: self.llama_cpp_deployment.generate(
                     prompt=full_prompt, max_new_tokens=max_new_tokens or 2048,
@@ -1671,7 +1671,7 @@ class CoreBrain:
                     repeat_penalty=repetition_penalty or 1.1),
                 timeout=60)
             if gen_err:
-                self.query_logger.warning(f"LlamaCpp generation timeout/error: {gen_err}")
+                query_logger.warning(f"LlamaCpp generation timeout/error: {gen_err}")
                 return None
             if not response_text or len(response_text) == 0:
                 return None
@@ -1686,14 +1686,14 @@ class CoreBrain:
                 try:
                     contr_result = contr_manager.check_with_context(query, response_text)
                 except Exception as e:
-                    self.query_logger.debug(f"Ошибка проверки противоречий: {e}")
+                    query_logger.debug(f"Ошибка проверки противоречий: {e}")
 
             ethics_result = None
             if ethics_fw and hasattr(ethics_fw, 'check_with_context'):
                 try:
                     ethics_result = ethics_fw.check_with_context(query, response_text)
                 except Exception as e:
-                    self.query_logger.debug(f"Ошибка проверки этики: {e}")
+                    query_logger.debug(f"Ошибка проверки этики: {e}")
 
             simple_greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello',
                                 'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания']
@@ -1715,7 +1715,7 @@ class CoreBrain:
                     if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
                         cached_results = self.hybrid_cache.get_search_results(query_hash)
                     if cached_results:
-                        self.query_logger.info("Использованы закэшированные результаты поиска")
+                        query_logger.info("Использованы закэшированные результаты поиска")
                         raw_results = cached_results.get('results', [])
                     else:
                         web_result = web_search.search(search_query, max_results=5)
@@ -1730,7 +1730,7 @@ class CoreBrain:
                                               'source': getattr(r, 'source', '') if hasattr(r, 'source') else ''}
                                              for r in raw_results])
                             except Exception as e:
-                                self.query_logger.debug(f"Не удалось закэшировать: {e}")
+                                query_logger.debug(f"Не удалось закэшировать: {e}")
                     search_results = []
                     for sr in raw_results:
                         try:
@@ -1746,9 +1746,9 @@ class CoreBrain:
                         except Exception:
                             search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
                     if search_results:
-                        self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
+                        query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
                 except Exception as e:
-                    self.query_logger.debug(f"Ошибка веб-поиска: {e}")
+                    query_logger.debug(f"Ошибка веб-поиска: {e}")
 
             needs_refinement = False
             if contr_result and contr_result.get('significant_count', 0) > 0:
@@ -1790,9 +1790,9 @@ class CoreBrain:
                                 properties={'linked_to': query[:50]})
                         except Exception:
                             pass
-                    self.query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
+                    query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
                 except Exception as e:
-                    self.query_logger.debug(f"Ошибка сохранения в граф: {e}")
+                    query_logger.debug(f"Ошибка сохранения в граф: {e}")
 
             unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
             is_unknown = any(p in response_text.lower() for p in unknown_patterns)
@@ -1813,7 +1813,7 @@ class CoreBrain:
                 "ethics_result": ethics_result, "self_dialog_triggered": is_unknown
             }
         except Exception as e:
-            self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+            query_logger.warning(f"Ошибка LlamaCpp: {e}")
         return None
 
     def _handle_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
@@ -1827,7 +1827,7 @@ class CoreBrain:
             reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
         if reasoning_engine:
             try:
-                self.query_logger.info("Используем SelfReasoningEngine для генерации с рассуждением")
+                query_logger.info("Используем SelfReasoningEngine для генерации с рассуждением")
                 reasoning_result = reasoning_engine.process_query(query, user_context)
                 formatted_reasoning = self._format_reasoning_for_gui(reasoning_result)
                 sre_confidence = reasoning_result.get('confidence', 0.0)
@@ -1844,15 +1844,15 @@ class CoreBrain:
                         "processing_time": time.time() - start_time
                     }
                 else:
-                    self.query_logger.info(f"SelfReasoningEngine пустой ответ, fallback на GGUF")
+                    query_logger.info(f"SelfReasoningEngine пустой ответ, fallback на GGUF")
             except Exception as e:
-                self.query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
+                query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "self_reasoning_engine", "error": str(e), "type": type(e).__name__})
 
         enhanced_engine = getattr(self, 'enhanced_reasoning_engine', None)
         if enhanced_engine:
             try:
-                self.query_logger.info("Используем EnhancedReasoningEngine для генерации с регенерацией")
+                query_logger.info("Используем EnhancedReasoningEngine для генерации с регенерацией")
                 conversation_history = None
                 if user_context and 'conversation_history' in user_context:
                     conversation_history = user_context['conversation_history']
@@ -1870,7 +1870,7 @@ class CoreBrain:
                                     elif hasattr(node, 'name') and node.name:
                                         knowledge_context.append(str(node.name))
                     except Exception as e:
-                        self.query_logger.debug(f"Не удалось получить контекст знаний: {e}")
+                        query_logger.debug(f"Не удалось получить контекст знаний: {e}")
                 enhanced_result = enhanced_engine.process_query(
                     query=query, conversation_history=conversation_history,
                     knowledge_context=knowledge_context)
@@ -1881,7 +1881,7 @@ class CoreBrain:
                     if enhanced_engine and hasattr(enhanced_engine, 'min_confidence'):
                         min_conf = enhanced_engine.min_confidence
                     if conf < min_conf:
-                        self.query_logger.info(f"EnhancedReasoningEngine низкая уверенность ({conf:.2f}), fallback")
+                        query_logger.info(f"EnhancedReasoningEngine низкая уверенность ({conf:.2f}), fallback")
                         error_chain.append({"source": "enhanced_reasoning_engine",
                                             "error": "low_confidence", "confidence": conf})
                     else:
@@ -1896,14 +1896,14 @@ class CoreBrain:
                             "processing_time": time.time() - start_time
                         }
             except Exception as e:
-                self.query_logger.warning(f"EnhancedReasoningEngine недоступен: {e}")
+                query_logger.warning(f"EnhancedReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "enhanced_reasoning_engine", "error": str(e), "type": type(e).__name__})
 
         try:
             if self.qwen_model_manager is None and self._qwen_config is not None:
                 with self._model_load_lock:
                     if self.qwen_model_manager is None and self._qwen_config is not None:
-                        self.query_logger.info("Загрузка QwenModelManager (lazy)...")
+                        query_logger.info("Загрузка QwenModelManager (lazy)...")
                         try:
                             try:
                                 from eva.mlearning.qwen_model_manager import get_qwen_model_manager
@@ -1916,16 +1916,16 @@ class CoreBrain:
                                 self.qwen_ready = True
                                 if self.events:
                                     self.events.trigger('qwen_model_ready', self.qwen_model_manager)
-                                self.query_logger.info("QwenModelManager успешно загружен!")
+                                query_logger.info("QwenModelManager успешно загружен!")
                             else:
                                 self.qwen_model_manager = None
-                                self.query_logger.warning("QwenModelManager не инициализирован")
+                                query_logger.warning("QwenModelManager не инициализирован")
                         except Exception as e:
-                            self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
+                            query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
                             self.qwen_model_manager = None
 
             if disable_pytorch:
-                self.query_logger.info("PyTorch отключён - пропускаем QwenModelManager в конце fallback chain")
+                query_logger.info("PyTorch отключён - пропускаем QwenModelManager в конце fallback chain")
                 if self.llama_cpp_ready and self.llama_cpp_deployment:
                     try:
                         response_text, gen_err = self._generate_with_timeout(
@@ -1935,20 +1935,20 @@ class CoreBrain:
                                 repeat_penalty=repetition_penalty or 1.1),
                             timeout=60)
                         if gen_err:
-                            self.query_logger.warning(f"Final LlamaCpp generation timeout/error: {gen_err}")
+                            query_logger.warning(f"Final LlamaCpp generation timeout/error: {gen_err}")
                         elif response_text and len(response_text) > 0:
                             return {"response": response_text, "text": response_text, "status": "ok",
                                     "confidence": 0.8, "source": "llama_cpp_final", "fallback_level": 0,
                                     "processing_time": time.time() - start_time}
                     except Exception as e:
-                        self.query_logger.warning(f"Ошибка LlamaCpp final: {e}")
+                        query_logger.warning(f"Ошибка LlamaCpp final: {e}")
                 return {"response": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
                         "text": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
                         "status": "error", "confidence": 0.0, "source": "gguf_error",
                         "processing_time": time.time() - start_time}
 
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
-                self.query_logger.info("Используем QwenModelManager для генерации")
+                query_logger.info("Используем QwenModelManager для генерации")
                 gen_config = self.config.get('generation', {})
                 temperature = gen_config.get('temperature', 0.7)
                 top_p = gen_config.get('top_p', 0.9)
@@ -1957,7 +1957,7 @@ class CoreBrain:
                 session_id = user_context.get('session_id') if user_context else None
                 if user_context and 'conversation_history' in user_context:
                     messages = user_context['conversation_history'].copy()
-                    self.query_logger.info(f"Загружена история из web GUI: {len(messages)} сообщений")
+                    query_logger.info(f"Загружена история из web GUI: {len(messages)} сообщений")
                 elif session_id and hasattr(self, 'memory_manager'):
                     try:
                         if hasattr(self.memory_manager, 'get_conversation_history'):
@@ -1969,7 +1969,7 @@ class CoreBrain:
                                     if 'response' in conv:
                                         messages.append({"role": "assistant", "content": conv['response']})
                     except Exception as e:
-                        self.query_logger.debug(f"Не удалось загрузить историю: {e}")
+                        query_logger.debug(f"Не удалось загрузить историю: {e}")
                 messages.append({"role": "user", "content": query})
                 response_text, gen_err = self._generate_with_timeout(
                     lambda: self.qwen_model_manager.generate(
@@ -1977,7 +1977,7 @@ class CoreBrain:
                         top_p=top_p, repetition_penalty=repetition_penalty),
                     timeout=60)
                 if gen_err:
-                    self.query_logger.warning(f"Qwen generation timeout/error: {gen_err}")
+                    query_logger.warning(f"Qwen generation timeout/error: {gen_err}")
                     raise RuntimeError(f"Generation timeout: {gen_err}")
                 if response_text and not response_text.startswith("Ошибка"):
                     clarification = self._generate_clarification_if_needed(query, response_text, 0.9)
@@ -1989,7 +1989,7 @@ class CoreBrain:
                         result["confidence"] = 0.7
                     return result
         except Exception as e:
-            self.query_logger.warning(f"QwenModelManager недоступен: {e}")
+            query_logger.warning(f"QwenModelManager недоступен: {e}")
             error_chain.append({"source": "qwen_model", "error": str(e), "type": type(e).__name__})
 
         try:
@@ -2003,15 +2003,15 @@ class CoreBrain:
                     response_dict = {"generated_text": str(response), "status": "success"}
                 response_dict["fallback_level"] = 1
                 response_dict["source"] = "generation_coordinator"
-                self.query_logger.info("Успешно использован generation_coordinator")
+                query_logger.info("Успешно использован generation_coordinator")
                 return response_dict
         except Exception as e:
-            self.query_logger.warning(f"Generation coordinator недоступен: {e}")
+            query_logger.warning(f"Generation coordinator недоступен: {e}")
             error_chain.append({"source": "generation_coordinator", "error": str(e), "type": type(e).__name__})
 
         try:
             if disable_pytorch:
-                self.query_logger.info("PyTorch отключён - пропускаем fractal_model_manager")
+                query_logger.info("PyTorch отключён - пропускаем fractal_model_manager")
                 raise RuntimeError("PyTorch disabled")
             if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager and getattr(self.fractal_model_manager, 'initialized', True):
                 response = self.fractal_model_manager.generate(query)
@@ -2024,15 +2024,15 @@ class CoreBrain:
                         response_dict = {"generated_text": str(response), "status": "success"}
                     response_dict["fallback_level"] = 2
                     response_dict["source"] = "fractal_model_manager"
-                    self.query_logger.info("Успешно использован fractal_model_manager")
+                    query_logger.info("Успешно использован fractal_model_manager")
                     return response_dict
         except Exception as e:
-            self.query_logger.warning(f"Fractal model manager недоступен: {e}")
+            query_logger.warning(f"Fractal model manager недоступен: {e}")
             error_chain.append({"source": "fractal_model_manager", "error": str(e), "type": type(e).__name__})
 
         try:
             if not hasattr(self, 'query_processor') or self.query_processor is None:
-                self.query_logger.debug("query_processor не инициализирован")
+                query_logger.debug("query_processor не инициализирован")
             else:
                 query_proc = self.query_processor
                 if hasattr(query_proc, 'process_query') and getattr(query_proc, 'initialized', True) and getattr(query_proc, 'running', True):
@@ -2045,10 +2045,10 @@ class CoreBrain:
                             resp = {"response": str(resp), "status": status_val}
                     resp["fallback_level"] = 3
                     resp["source"] = "query_processor"
-                    self.query_logger.info("Успешно использован query_processor")
+                    query_logger.info("Успешно использован query_processor")
                     return resp
         except Exception as e:
-            self.query_logger.warning(f"Query processor недоступен: {e}")
+            query_logger.warning(f"Query processor недоступен: {e}")
             error_chain.append({"source": "query_processor", "error": str(e), "type": type(e).__name__})
 
         try:
@@ -2057,10 +2057,10 @@ class CoreBrain:
                 if response:
                     response["fallback_level"] = 4
                     response["source"] = "ml_unit_direct"
-                    self.query_logger.info("Успешно использован MLUnit напрямую")
+                    query_logger.info("Успешно использован MLUnit напрямую")
                     return response
         except Exception as e:
-            self.query_logger.warning(f"MLUnit недоступен: {e}")
+            query_logger.warning(f"MLUnit недоступен: {e}")
             error_chain.append({"source": "ml_unit_direct", "error": str(e), "type": type(e).__name__})
 
         try:
@@ -2075,24 +2075,24 @@ class CoreBrain:
                                         "fallback_level": 5, "source": "memory_manager",
                                         "similarity_score": getattr(similar_item, 'similarity', 0.0),
                                         "timestamp": time.time()}
-                            self.query_logger.info("Успешно использован memory_manager")
+                            query_logger.info("Успешно использован memory_manager")
                             return response
         except Exception as e:
-            self.query_logger.warning(f"Memory manager недоступен: {e}")
+            query_logger.warning(f"Memory manager недоступен: {e}")
             error_chain.append({"source": "memory_manager", "error": str(e), "type": type(e).__name__})
 
         try:
             response = self._generate_basic_fallback_response(query)
             response["fallback_level"] = 6
             response["source"] = "basic_fallback"
-            self.query_logger.warning("Использован базовый fallback-ответ")
+            query_logger.warning("Использован базовый fallback-ответ")
             return response
         except Exception as e:
-            self.query_logger.error(f"Ошибка в базовом fallback: {e}")
+            query_logger.error(f"Ошибка в базовом fallback: {e}")
             error_chain.append({"source": "basic_fallback", "error": str(e), "type": type(e).__name__})
 
         processing_time = time.time() - start_time
-        self.query_logger.error(f"Все уровни fallback провалились для запроса: {query[:50]}...")
+        query_logger.error(f"Все уровни fallback провалились для запроса: {query[:50]}...")
         return {
             "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
             "status": "error", "fallback_level": 7, "source": "final_fallback",
@@ -2276,11 +2276,11 @@ class CoreBrain:
     def start(self) -> bool:
         """Запускает все компоненты системы."""
         if not self.initialized:
-            self.query_logger.error("Невозможно запустить неинициализированное ядро")
+            query_logger.error("Невозможно запустить неинициализированное ядро")
             return False
         
         start_time = time.time()
-        self.query_logger.info("Запуск ядра ЕВА...")
+        query_logger.info("Запуск ядра ЕВА...")
         
         try:
             components_started = 0
@@ -2292,7 +2292,7 @@ class CoreBrain:
                     try:
                         component_start = time.time()
                         if name == 'neuromorphic_simulator' and hasattr(component, 'use_nest') and getattr(component, 'use_nest', False):
-                            self.query_logger.info("Пропуск автозапуска нейроморфного симулятора (NEST-режим)")
+                            query_logger.info("Пропуск автозапуска нейроморфного симулятора (NEST-режим)")
                             components_skipped += 1
                             continue
                         
@@ -2300,44 +2300,44 @@ class CoreBrain:
                         if hasattr(component, 'get_state'):
                             state = component.get_state()
                             if state == ComponentState.RUNNING:
-                                self.query_logger.debug(f"Компонент {name} уже запущен")
+                                query_logger.debug(f"Компонент {name} уже запущен")
                                 components_started += 1
                                 continue
                             elif state == ComponentState.STARTING:
-                                self.query_logger.debug(f"Компонент {name} уже запускается")
+                                query_logger.debug(f"Компонент {name} уже запускается")
                                 components_started += 1
                                 continue
                             elif state not in [ComponentState.READY, ComponentState.UNINITIALIZED, ComponentState.STOPPED]:
-                                self.query_logger.warning(f"Компонент {name} не готов к запуску (состояние: {state})")
+                                query_logger.warning(f"Компонент {name} не готов к запуску (состояние: {state})")
                                 components_failed += 1
                                 continue
                         
                         result = component.start()
                         component_time = time.time() - component_start
                         if result is not False:
-                            self.query_logger.info(f"Компонент {name} запущен за {component_time:.4f} сек")
+                            query_logger.info(f"Компонент {name} запущен за {component_time:.4f} сек")
                             components_started += 1
                         else:
-                            self.query_logger.warning(f"Компонент {name} отклонил запуск")
+                            query_logger.warning(f"Компонент {name} отклонил запуск")
                             components_failed += 1
                     except Exception as e:
-                        self.query_logger.warning(f"Ошибка при запуске компонента {name}: {e}", exc_info=True)
+                        query_logger.warning(f"Ошибка при запуске компонента {name}: {e}", exc_info=True)
                         if hasattr(self, 'metrics_manager') and self.metrics_manager:
                             self.metrics_manager.record_error(f"component_{name}_start_failed")
                         components_failed += 1
                 else:
                     # Components without start() method are considered "started"
                     components_skipped += 1
-                    self.query_logger.debug(f"Компонент {name} не имеет метода start()")
+                    query_logger.debug(f"Компонент {name} не имеет метода start()")
             
             total_components = len(self.components)
-            self.query_logger.info(f"Итоги запуска: {components_started}/{total_components} запущено, {components_skipped} пропущено, {components_failed} неудачно")
+            query_logger.info(f"Итоги запуска: {components_started}/{total_components} запущено, {components_skipped} пропущено, {components_failed} неудачно")
             
             # Components without start() are passive and don't need to be "started"
             # Only warn if less than 30% of active components failed
             active_components = components_started + components_failed
             if active_components > 0 and components_failed > active_components * 0.5:
-                self.query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{active_components} активных компонентов")
+                query_logger.warning(f"ВНИМАНИЕ: Запущено только {components_started}/{active_components} активных компонентов")
                 if hasattr(self, 'metrics_manager') and self.metrics_manager:
                     self.metrics_manager.record_warning("insufficient_components_started")
             
@@ -2349,15 +2349,15 @@ class CoreBrain:
             try:
                 if getattr(self, 'background', None):
                     self.background.start()
-                    self.query_logger.info("BackgroundCoordinator запущен")
+                    query_logger.info("BackgroundCoordinator запущен")
             except Exception as e:
-                self.query_logger.warning(f"Не удалось запустить BackgroundCoordinator: {e}")
+                query_logger.warning(f"Не удалось запустить BackgroundCoordinator: {e}")
             
             total_time = time.time() - start_time
-            self.query_logger.info(f"Ядро ЕВА успешно запущено за {total_time:.4f} сек")
+            query_logger.info(f"Ядро ЕВА успешно запущено за {total_time:.4f} сек")
             return True
         except Exception as e:
-            self.query_logger.error(f"Ошибка запуска ядра: {e}", exc_info=True)
+            query_logger.error(f"Ошибка запуска ядра: {e}", exc_info=True)
             if hasattr(self, 'metrics_manager') and self.metrics_manager:
                 self.metrics_manager.record_error("core_start_failed")
             if self.state_manager:
@@ -2371,38 +2371,38 @@ class CoreBrain:
             if hasattr(self, 'components') and 'gui' in self.components:
                 gui_component = self.components['gui']
                 if hasattr(gui_component, 'start_gui'):
-                    self.query_logger.info("Запуск GUI после полной инициализации системы...")
+                    query_logger.info("Запуск GUI после полной инициализации системы...")
                     gui_component.start_gui()
                 else:
-                    self.query_logger.debug("GUI компонент найден, но не имеет метода start_gui")
+                    query_logger.debug("GUI компонент найден, но не имеет метода start_gui")
             else:
-                self.query_logger.debug("GUI компонент не найден в системе")
+                query_logger.debug("GUI компонент не найден в системе")
         except Exception as e:
-            self.query_logger.warning(f"Ошибка при запуске GUI: {e}")
+            query_logger.warning(f"Ошибка при запуске GUI: {e}")
     
 
     def stop(self):
         """Останавливает все компоненты системы."""
         with self._shutdown_lock:
             if self._shutting_down:
-                self.query_logger.debug("Система уже завершает работу")
+                query_logger.debug("Система уже завершает работу")
                 return
             if not self.running:
-                self.query_logger.debug("Попытка остановки уже остановленной системы")
+                query_logger.debug("Попытка остановки уже остановленной системы")
                 return
             
             self._shutting_down = True
         
         stop_time = time.time()
-        self.query_logger.info("Остановка ядра ЕВА...")
+        query_logger.info("Остановка ядра ЕВА...")
         
         try:
             try:
                 if getattr(self, 'background', None):
                     self.background.stop()
-                    self.query_logger.info("BackgroundCoordinator остановлен")
+                    query_logger.info("BackgroundCoordinator остановлен")
             except Exception as e:
-                self.query_logger.warning(f"Ошибка остановки BackgroundCoordinator: {e}")
+                query_logger.warning(f"Ошибка остановки BackgroundCoordinator: {e}")
             
             if self.state_manager:
                 self.state_manager.set_state(SystemState.SHUTTING_DOWN, "Начало остановки системы")
@@ -2411,9 +2411,9 @@ class CoreBrain:
             if hasattr(self, 'deferred_system') and self.deferred_system:
                 try:
                     self.deferred_system.shutdown()
-                    self.query_logger.info("DeferredCommandSystem остановлен")
+                    query_logger.info("DeferredCommandSystem остановлен")
                 except Exception as e:
-                    self.query_logger.warning(f"Ошибка остановки DeferredCommandSystem: {e}")
+                    query_logger.warning(f"Ошибка остановки DeferredCommandSystem: {e}")
             
             if self.resource_manager:
                 self.resource_manager.stop_monitoring()
@@ -2422,9 +2422,9 @@ class CoreBrain:
                 try:
                     if hasattr(component, 'stop'):
                         component.stop()
-                        self.query_logger.debug(f"Компонент {name} остановлен")
+                        query_logger.debug(f"Компонент {name} остановлен")
                 except Exception as e:
-                    self.query_logger.error(f"Ошибка остановки компонента {name}: {e}")
+                    query_logger.error(f"Ошибка остановки компонента {name}: {e}")
             
             self.running = False
             
@@ -2434,9 +2434,9 @@ class CoreBrain:
             total_time = time.time() - stop_time
             if hasattr(self, 'metrics_manager') and self.metrics_manager:
                 self.metrics_manager.record_system_shutdown(total_time)
-            self.query_logger.info(f"Ядро ЕВА остановлено за {total_time:.4f} сек")
+            query_logger.info(f"Ядро ЕВА остановлено за {total_time:.4f} сек")
         except Exception as e:
-            self.query_logger.error(f"Ошибка остановки ядра: {e}", exc_info=True)
+            query_logger.error(f"Ошибка остановки ядра: {e}", exc_info=True)
             if hasattr(self, 'metrics_manager') and self.metrics_manager:
                 self.metrics_manager.record_error("core_stop_failed")
             if self.state_manager:
@@ -2448,7 +2448,7 @@ class CoreBrain:
             if getattr(self, 'background', None):
                 self.background.start()
         except Exception as e:
-            self.query_logger.warning(f"start_background_services: {e}")
+            query_logger.warning(f"start_background_services: {e}")
     
     def stop_background_services(self) -> None:
         """Явная остановка автопилота (если требуется вне stop())."""
@@ -2456,7 +2456,7 @@ class CoreBrain:
             if getattr(self, 'background', None):
                 self.background.stop()
         except Exception as e:
-            self.query_logger.warning(f"stop_background_services: {e}")
+            query_logger.warning(f"stop_background_services: {e}")
     
     def signal_user_activity(self) -> None:
         """Сигнал активности пользователя для троттлинга фоновых задач."""
@@ -2468,87 +2468,36 @@ class CoreBrain:
     
     def reboot(self) -> bool:
         """Перезагружает ядро: безопасно останавливает, заново инициализирует и запускает систему."""
-        self._log_throttled(self.query_logger, logging.INFO, "core_reboot_request", "Запрос перезагрузки ядра")
+        self._log_throttled(query_logger, logging.INFO, "core_reboot_request", "Запрос перезагрузки ядра")
         
         try:
             if getattr(self, 'running', False):
-                self.query_logger.info("Остановка системы перед перезагрузкой...")
+                query_logger.info("Остановка системы перед перезагрузкой...")
                 try:
                     self.stop()
                 except Exception as e:
-                    self.query_logger.error(f"Ошибка при остановке перед перезагрузкой: {e}", exc_info=True)
+                    query_logger.error(f"Ошибка при остановке перед перезагрузкой: {e}", exc_info=True)
             
             self.initialized = False
-            self.query_logger.info("Повторная инициализация ядра...")
+            query_logger.info("Повторная инициализация ядра...")
             
             if not self.initialize():
-                self.query_logger.error("Перезагрузка прервана: ошибка повторной инициализации")
+                query_logger.error("Перезагрузка прервана: ошибка повторной инициализации")
                 return False
             
-            self.query_logger.info("Запуск ядра после перезагрузки...")
+            query_logger.info("Запуск ядра после перезагрузки...")
             
             if not self.start():
-                self.query_logger.error("Перезагрузка прервана: ошибка запуска после инициализации")
+                query_logger.error("Перезагрузка прервана: ошибка запуска после инициализации")
                 return False
             
-            self._log_throttled(self.query_logger, logging.INFO, "core_reboot_success", "Перезагрузка ядра успешно завершена")
+            self._log_throttled(query_logger, logging.INFO, "core_reboot_success", "Перезагрузка ядра успешно завершена")
             return True
         except Exception as e:
-            self.query_logger.error(f"Ошибка перезагрузки ядра: {e}", exc_info=True)
+            query_logger.error(f"Ошибка перезагрузки ядра: {e}", exc_info=True)
             return False
     
 
-    def _setup_cache_monitoring(self):
-        """Настраивает мониторинг состояния кэша"""
-        try:
-            if self.background:
-                # Создаем простой детектор давления памяти
-                class MemoryPressureDetector:
-                    def __init__(self, callback, logger_ref=None):
-                        self.callback = callback
-                        self.logger = logger_ref
-                    
-                    def probe(self, context):
-                        """Пробует состояние памяти и возвращает задачи при необходимости"""
-                        try:
-                            import psutil
-                            memory = psutil.virtual_memory()
-                            memory_percent = memory.percent / 100.0
-                            
-                            # Проверяем VRAM если доступно
-                            vram_pressure = 0.0
-                            try:
-                                import torch
-                                if torch.cuda.is_available():
-                                    vram_used = torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory
-                                    vram_pressure = vram_used
-                            except ImportError:
-                                pass
-                            
-                            # Если давление памяти высокое, возвращаем задачу вытеснения
-                            if memory_percent > 0.85 or vram_pressure > 0.9:
-                                return [{
-                                    'type': 'cache_eviction',
-                                    'priority': 'high',
-                                    'data': {
-                                        'source': 'ram' if memory_percent > 0.85 else 'vram',
-                                        'memory_percent': memory_percent,
-                                        'vram_pressure': vram_pressure
-                                    }
-                                }]
-                            return []
-                        except Exception as e:
-                            if self.logger:
-                                self.logger.warning(f"MemoryPressureDetector probe error: {e}")
-                            return []
-                
-                # Создаем и регистрируем детектор
-                memory_detector = MemoryPressureDetector(self._check_memory_pressure, self.query_logger)
-                self.background.register_detector(memory_detector)
-                self.query_logger.info("Детектор давления памяти зарегистрирован")
-        except Exception as e:
-            self.query_logger.warning(f"Ошибка настройки мониторинга кэша: {e}")
-    
     def _check_memory_pressure(self):
         """Проверяет давление памяти и инициирует вытеснение"""
         try:
@@ -2580,7 +2529,7 @@ class CoreBrain:
                 eviction_source = 'vram'
             
             if needs_eviction:
-                self.query_logger.info(f"Обнаружено давление памяти: {eviction_source}={memory_percent:.2f}, VRAM={vram_pressure:.2f}")
+                query_logger.info(f"Обнаружено давление памяти: {eviction_source}={memory_percent:.2f}, VRAM={vram_pressure:.2f}")
                 
                 # Публикуем событие
                 if self.events:
@@ -2595,7 +2544,7 @@ class CoreBrain:
                 self._perform_smart_eviction(eviction_source, memory_percent, vram_pressure)
         
         except Exception as e:
-            self.query_logger.error(f"Ошибка проверки давления памяти: {e}")
+            query_logger.error(f"Ошибка проверки давления памяти: {e}")
     
     def _handle_memory_pressure(self, event_data):
         """Обрабатывает событие давления памяти"""
@@ -2604,13 +2553,13 @@ class CoreBrain:
             memory_percent = event_data.get('memory_percent', 0.0)
             vram_pressure = event_data.get('vram_pressure', 0.0)
             
-            self.query_logger.info(f"Обработка давления памяти из {source}: RAM={memory_percent:.2f}, VRAM={vram_pressure:.2f}")
+            query_logger.info(f"Обработка давления памяти из {source}: RAM={memory_percent:.2f}, VRAM={vram_pressure:.2f}")
             
             # Выполняем вытеснение с учетом источника
             self._perform_smart_eviction(source, memory_percent, vram_pressure)
             
         except Exception as e:
-            self.query_logger.error(f"Ошибка обработки давления памяти: {e}")
+            query_logger.error(f"Ошибка обработки давления памяти: {e}")
     
     def _handle_cache_eviction(self, event_data):
         """Обрабатывает событие необходимости вытеснения кэша"""
@@ -2618,7 +2567,7 @@ class CoreBrain:
             eviction_type = event_data.get('type', 'lru')
             target_tokens = event_data.get('target_tokens', 100)
             
-            self.query_logger.info(f"Выполнение вытеснения кэша: {eviction_type}, токенов: {target_tokens}")
+            query_logger.info(f"Выполнение вытеснения кэша: {eviction_type}, токенов: {target_tokens}")
             
             if eviction_type == 'smart':
                 self._perform_smart_eviction('system', 0.9, 0.9)
@@ -2626,7 +2575,7 @@ class CoreBrain:
                 self._perform_basic_eviction(target_tokens)
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка обработки вытеснения кэша: {e}")
+            query_logger.error(f"Ошибка обработки вытеснения кэша: {e}")
     
     def _perform_smart_eviction(self, source, memory_percent, vram_pressure):
         """Выполняет умное вытеснение с учетом приоритетов и метаданных"""
@@ -2652,7 +2601,7 @@ class CoreBrain:
             self._update_cache_metrics()
             
         except Exception as e:
-            self.query_logger.error(f"Ошибка умного вытеснения: {e}")
+            query_logger.error(f"Ошибка умного вытеснения: {e}")
     
     def _evict_vram_to_ram(self):
         """Вытесняет токены из VRAM в RAM"""
@@ -2708,7 +2657,7 @@ class CoreBrain:
                 
                 evicted += 1
             
-            self.query_logger.info(f"Вытеснено {evicted} токенов из VRAM в RAM")
+            query_logger.info(f"Вытеснено {evicted} токенов из VRAM в RAM")
             
             # Публикуем событие
             if self.events:
@@ -2718,7 +2667,7 @@ class CoreBrain:
                 })
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка вытеснения VRAM->RAM: {e}")
+            query_logger.error(f"Ошибка вытеснения VRAM->RAM: {e}")
     
     def _evict_ram_to_ssd(self):
         """Вытесняет токены из RAM в SSD"""
@@ -2771,7 +2720,7 @@ class CoreBrain:
                     
                     evicted += 1
             
-            self.query_logger.info(f"Вытеснено {evicted} токенов из RAM в SSD")
+            query_logger.info(f"Вытеснено {evicted} токенов из RAM в SSD")
             
             # Публикуем событие
             if self.events:
@@ -2781,7 +2730,7 @@ class CoreBrain:
                 })
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка вытеснения RAM->SSD: {e}")
+            query_logger.error(f"Ошибка вытеснения RAM->SSD: {e}")
     
     def _perform_basic_eviction(self, target_tokens):
         """Выполняет базовое вытеснение LRU"""
@@ -2792,10 +2741,10 @@ class CoreBrain:
                     self.token_cache._evict_one_lru()
                     evicted += 1
                 
-                self.query_logger.info(f"Выполнено базовое вытеснение: {evicted} токенов")
+                query_logger.info(f"Выполнено базовое вытеснение: {evicted} токенов")
                 
         except Exception as e:
-            self.query_logger.error(f"Ошибка базового вытеснения: {e}")
+            query_logger.error(f"Ошибка базового вытеснения: {e}")
     
     def _update_cache_metrics(self):
         """Обновляет метрики кэша"""
@@ -2814,7 +2763,7 @@ class CoreBrain:
                     )
                     
         except Exception as e:
-            self.query_logger.debug(f"Ошибка обновления метрик кэша: {e}")
+            query_logger.debug(f"Ошибка обновления метрик кэша: {e}")
     
     def get_cache_health_status(self) -> Dict[str, Any]:
         """Возвращает детальный статус здоровья кэша"""
@@ -2886,9 +2835,9 @@ class CoreBrain:
     
     def get_metrics(self) -> Dict[str, Any]:
         """Возвращает системные метрики."""
-        self.query_logger.debug("Запрос системных метрик")
+        query_logger.debug("Запрос системных метрик")
         metrics = self.metrics_manager.get_metrics()
-        self.query_logger.debug(f"Получены системные метрики: {metrics}")
+        query_logger.debug(f"Получены системные метрики: {metrics}")
         return metrics
     
     def emit_metric(self, metric: Dict[str, Any]) -> bool:
@@ -3017,7 +2966,7 @@ class CoreBrain:
         entry = self._ensure_module_entry(name)
         entry["enabled"] = True
         entry["last_change"] = time.time()
-        self.query_logger.info(f"Модуль '{name}' включен")
+        query_logger.info(f"Модуль '{name}' включен")
         return True
     
     def disable_module(self, name: str, stop_if_running: bool = True) -> bool:
@@ -3031,25 +2980,25 @@ class CoreBrain:
             if stop_if_running and component and hasattr(component, 'stop'):
                 component.stop()
                 entry["status"] = "stopped"
-                self.query_logger.info(f"Модуль '{name}' остановлен при отключении")
+                query_logger.info(f"Модуль '{name}' остановлен при отключении")
             else:
-                self.query_logger.info(f"Модуль '{name}' отключен")
+                query_logger.info(f"Модуль '{name}' отключен")
             return True
         except Exception as e:
             entry["last_error"] = str(e)
-            self.query_logger.error(f"Ошибка при отключении модуля '{name}': {e}", exc_info=True)
+            query_logger.error(f"Ошибка при отключении модуля '{name}': {e}", exc_info=True)
             return False
     
     def start_module(self, name: str) -> bool:
         """Запускает модуль, если он включен."""
         entry = self._ensure_module_entry(name)
         if not entry.get("enabled", True):
-            self.query_logger.warning(f"Попытка запуска отключенного модуля '{name}'")
+            query_logger.warning(f"Попытка запуска отключенного модуля '{name}'")
             return False
         
         component = self.components.get(name)
         if not component or not hasattr(component, 'start'):
-            self.query_logger.warning(f"Компонент '{name}' не найден или не поддерживает start()")
+            query_logger.warning(f"Компонент '{name}' не найден или не поддерживает start()")
             return False
         
         try:
@@ -3057,14 +3006,14 @@ class CoreBrain:
             entry["status"] = "running"
             entry["last_error"] = None
             entry["last_change"] = time.time()
-            self.query_logger.info(f"Модуль '{name}' запущен")
+            query_logger.info(f"Модуль '{name}' запущен")
             return True
         except Exception as e:
             entry["last_error"] = str(e)
             entry["status"] = "error"
             if hasattr(self.metrics_manager, 'record_error'):
                 self.metrics_manager.record_error(f"module_{name}_start_failed")
-            self.query_logger.error(f"Ошибка запуска модуля '{name}': {e}", exc_info=True)
+            query_logger.error(f"Ошибка запуска модуля '{name}': {e}", exc_info=True)
             return False
     
     def stop_module(self, name: str) -> bool:
@@ -3073,7 +3022,7 @@ class CoreBrain:
         component = self.components.get(name)
         
         if not component or not hasattr(component, 'stop'):
-            self.query_logger.warning(f"Компонент '{name}' не найден или не поддерживает stop()")
+            query_logger.warning(f"Компонент '{name}' не найден или не поддерживает stop()")
             return False
         
         try:
@@ -3081,12 +3030,12 @@ class CoreBrain:
             entry["status"] = "stopped"
             entry["last_error"] = None
             entry["last_change"] = time.time()
-            self.query_logger.info(f"Модуль '{name}' остановлен")
+            query_logger.info(f"Модуль '{name}' остановлен")
             return True
         except Exception as e:
             entry["last_error"] = str(e)
             entry["status"] = "error"
-            self.query_logger.error(f"Ошибка остановки модуля '{name}': {e}", exc_info=True)
+            query_logger.error(f"Ошибка остановки модуля '{name}': {e}", exc_info=True)
             return False
     
     def get_module_status(self, name: str) -> Dict[str, Any]:
@@ -3166,7 +3115,7 @@ class CoreBrain:
     
     def get_contradiction_statistics(self) -> Dict[str, Any]:
         """Возвращает статистику по противоречиям."""
-        self._log_throttled(self.query_logger, logging.INFO, "contradiction_stats_request", "Запрос статистики противоречий")
+        self._log_throttled(query_logger, logging.INFO, "contradiction_stats_request", "Запрос статистики противоречий")
         
         contradiction_manager = None
         
@@ -3189,14 +3138,14 @@ class CoreBrain:
                 stats_start = time.time()
                 stats = contradiction_manager.get_contradiction_stats()
                 stats_time = time.time() - stats_start
-                self._log_throttled(self.query_logger, logging.INFO, "contradiction_stats_received", 
+                self._log_throttled(query_logger, logging.INFO, "contradiction_stats_received", 
                                    f"Статистика противоречий получена за {stats_time:.4f} сек")
                 return stats
             except Exception as e:
-                self.query_logger.error(f"Ошибка получения статистики противоречий: {e}", exc_info=True)
+                query_logger.error(f"Ошибка получения статистики противоречий: {e}", exc_info=True)
                 return {"error": str(e), "timestamp": time.time()}
         
-        self.query_logger.warning("Менеджер противоречий недоступен")
+        query_logger.warning("Менеджер противоречий недоступен")
         return {}
     
     def get_system_metrics(self) -> Dict[str, Any]:
@@ -3238,7 +3187,7 @@ class CoreBrain:
     
     def get_system_dashboard_data(self) -> Dict[str, Any]:
         """Возвращает данные для системного дашборда."""
-        self._log_throttled(self.query_logger, logging.INFO, "dashboard_request", "Запрос данных для системного дашборда")
+        self._log_throttled(query_logger, logging.INFO, "dashboard_request", "Запрос данных для системного дашборда")
         
         dashboard_start = time.time()
         
@@ -3253,13 +3202,13 @@ class CoreBrain:
             }
             
             dashboard_time = time.time() - dashboard_start
-            self._log_throttled(self.query_logger, logging.INFO, "dashboard_ready", 
+            self._log_throttled(query_logger, logging.INFO, "dashboard_ready", 
                                f"Данные дашборда сформированы за {dashboard_time:.4f} сек")
-            self.query_logger.debug(f"Данные дашборда: {data}")
+            query_logger.debug(f"Данные дашборда: {data}")
             return data
         except Exception as e:
             dashboard_time = time.time() - dashboard_start
-            self.query_logger.error(f"Ошибка формирования данных дашборда за {dashboard_time:.4f} сек: {e}", exc_info=True)
+            query_logger.error(f"Ошибка формирования данных дашборда за {dashboard_time:.4f} сек: {e}", exc_info=True)
             return {
                 "error": str(e),
                 "timestamp": time.time(),
@@ -3297,18 +3246,18 @@ class CoreBrain:
             
             return opportunities
         except Exception as e:
-            self.query_logger.error(f"Ошибка получения возможностей обучения: {e}", exc_info=True)
+            query_logger.error(f"Ошибка получения возможностей обучения: {e}", exc_info=True)
             return []
     
     def add_deferred_command(self, command: callable, *args, **kwargs):
         """Добавляет отложенную команду для выполнения после полной инициализации."""
-        self.query_logger.info(f"Добавлена отложенная команда: {getattr(command, '__name__', 'lambda')}")
+        query_logger.info(f"Добавлена отложенная команда: {getattr(command, '__name__', 'lambda')}")
         with self._deferred_commands_lock:
             self.deferred_commands.append((command, args, kwargs))
     
     def get_response_metadata(self, query: str) -> Dict[str, Any]:
         """Возвращает метаданные ответа на запрос."""
-        self.query_logger.debug(f"Запрос метаданных для ответа на запрос: '{query[:50]}{'...' if len(query) > 50 else ''}'")
+        query_logger.debug(f"Запрос метаданных для ответа на запрос: '{query[:50]}{'...' if len(query) > 50 else ''}'")
         
         metadata = {
             "timestamp": time.time(),
@@ -3336,9 +3285,9 @@ class CoreBrain:
             if relevant:
                 metadata["contradictions_detected"] = True
                 metadata["contradictions"] = relevant
-                self.query_logger.info(f"Обнаружено {len(relevant)} релевантных противоречий за {contradictions_time:.4f} сек")
+                query_logger.info(f"Обнаружено {len(relevant)} релевантных противоречий за {contradictions_time:.4f} сек")
             else:
-                self.query_logger.debug(f"Противоречия не обнаружены за {contradictions_time:.4f} сек")
+                query_logger.debug(f"Противоречия не обнаружены за {contradictions_time:.4f} сек")
         
         if hasattr(self, 'adaptation_manager') and self.adaptation_manager:
             metadata["personalized"] = True
@@ -3350,7 +3299,7 @@ class CoreBrain:
         if 'knowledge_graph' in self.components and self.components['knowledge_graph']:
             metadata["components_used"].append("knowledge_graph")
         
-        self.query_logger.debug(f"Сформированы метаданные ответа: {metadata}")
+        query_logger.debug(f"Сформированы метаданные ответа: {metadata}")
         return metadata
     
     def get_resource_snapshot(self) -> Dict[str, Any]:
@@ -3365,7 +3314,7 @@ class CoreBrain:
                     'io_tokens': getattr(self.resource_manager, 'io_tokens', 0)
                 }
         except Exception as e:
-            self.query_logger.warning(f"Ошибка получения снимка ресурсов: {e}")
+            query_logger.warning(f"Ошибка получения снимка ресурсов: {e}")
         return {}
     
     def get_cache_stats(self) -> Dict[str, Any]:
@@ -3381,7 +3330,7 @@ class CoreBrain:
                 cache_stats['disk_stats'] = {'entries': hc_stats.get('disk_entries', 0) if isinstance(hc_stats, dict) else 0}
             return cache_stats
         except Exception as e:
-            self.query_logger.warning(f"Ошибка получения статистики кэша: {e}")
+            query_logger.warning(f"Ошибка получения статистики кэша: {e}")
         return {}
     
     def tokenize_query(self, query: str) -> Dict[str, Any]:
@@ -3403,7 +3352,7 @@ class CoreBrain:
                         'processing_time': 0.1
                     }
         except Exception as e:
-            self.query_logger.warning(f"Ошибка токенизации запроса: {e}")
+            query_logger.warning(f"Ошибка токенизации запроса: {e}")
         return {}
 
 
@@ -3446,7 +3395,9 @@ def main():
                     while core.running:
                         try:
                             user_input = input()
-                        except EOFError:
+                        except (EOFError, OSError, KeyboardInterrupt):
+                            break
+                        except Exception:
                             break
                         if isinstance(user_input, str) and user_input.strip().lower() in ("exit", "quit", "q"):
                             logger.info("Получена команда 'exit' из терминала — инициируем остановку...")

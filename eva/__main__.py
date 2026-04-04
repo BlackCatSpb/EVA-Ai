@@ -18,6 +18,7 @@ if current_dir not in sys.path:
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # Настраиваем логирование СРАЗУ, перед любыми импортами
+os.makedirs('logs', exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -26,7 +27,6 @@ logging.basicConfig(
         logging.FileHandler('logs/eva.log', encoding='utf-8')
     ]
 )
-os.makedirs('logs', exist_ok=True)
 
 def main():
     """Основная функция запуска системы."""
