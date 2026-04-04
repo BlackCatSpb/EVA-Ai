@@ -128,18 +128,22 @@
     }
   },
   "wikipedia": {
-    "enabled": false,
-    "auto_learn": false,
+    "enabled": true,
+    "auto_learn": true,
     "categories": [
       "Наука",
       "Математика",
       "Физика",
       "Биология",
       "Информатика",
-      "История"
+      "История",
+      "География",
+      "Литература",
+      "Философия",
+      "Химия"
     ],
-    "articles_per_category": 10,
-    "interval_hours": 24,
-    "random_per_cycle": 5
+    "articles_per_category": 15,
+    "interval_hours": 12,
+    "random_per_cycle": 10
   }
 }
