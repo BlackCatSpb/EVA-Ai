@@ -888,15 +888,6 @@ class LearningModule:
                 except Exception:
                     pass
 
-                        pass  # Training disabled
-                self.gui.brain,
-                batch_size=32,
-                overlap_tokens=16,
-                max_retries=3,
-                backoff_sec=0.5,
-                progress_cb=progress_cb,
-            )
-
             imported = self._import_pipeline.import_path(file_path)
             self._current_doc_id = getattr(imported, 'id', None)
 
