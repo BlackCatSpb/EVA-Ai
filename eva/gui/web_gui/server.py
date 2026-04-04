@@ -7,6 +7,7 @@ import threading
 import json
 import uuid
 import hashlib
+import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
@@ -166,12 +167,17 @@ class AuthManager:
         self.users = {}
         self._lock = threading.Lock()
         
+    def _hash_password(self, password: str, salt: str) -> str:
+        return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+    
     def set_default_credentials(self, username: str, password: str):
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        salt = secrets.token_hex(16)
+        password_hash = self._hash_password(password, salt)
         with self._lock:
             self.users[username] = {
                 'username': username,
                 'password_hash': password_hash,
+                'salt': salt,
                 'created_at': datetime.now().isoformat()
             }
     
@@ -179,7 +185,11 @@ class AuthManager:
         with self._lock:
             user = self.users.get(username)
             if user:
-                password_hash = hashlib.sha256(password.encode()).hexdigest()
+                salt = user.get('salt', '')
+                if salt:
+                    password_hash = self._hash_password(password, salt)
+                else:
+                    password_hash = hashlib.sha256(password.encode()).hexdigest()
                 if password_hash == user['password_hash']:
                     if 'user_id' not in user:
                         user['user_id'] = str(uuid.uuid4())
@@ -268,6 +278,7 @@ class WebGUI:
         
         admin_user = os.environ.get('COGNIFLEX_ADMIN_USER', 'admin')
         admin_pass = os.environ.get('COGNIFLEX_ADMIN_PASS')
+        config_needs_password = False
         if not admin_pass:
             config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
             if os.path.exists(config_path):
@@ -278,8 +289,26 @@ class WebGUI:
                 except Exception:
                     pass
         if not admin_pass:
-            admin_pass = 'admin'
+            admin_pass = secrets.token_urlsafe(16)
+            config_needs_password = True
+            logger.warning(f"GENERATED DEFAULT ADMIN PASSWORD: {admin_pass}")
+            logger.warning("CHANGE THIS PASSWORD IMMEDIATELY via COGNIFLEX_ADMIN_PASS env var or config!")
         self.auth_manager.set_default_credentials(admin_user, admin_pass)
+        if config_needs_password:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
+            try:
+                config = {}
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                if 'web_gui' not in config:
+                    config['web_gui'] = {}
+                config['web_gui']['admin_password'] = admin_pass
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+                logger.info(f"Admin password saved to {config_path}")
+            except Exception as e:
+                logger.error(f"Failed to save admin password to config: {e}")
         
         logger.info(f"WebGUI инициализирован на {host}:{port}")
     

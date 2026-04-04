@@ -5,7 +5,8 @@ import warnings
 import atexit
 import signal
 import threading
-warnings.filterwarnings('ignore')
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=PendingDeprecationWarning)
 
 # Обход проверки CVE-2025-32434 для torch.load
 import torch

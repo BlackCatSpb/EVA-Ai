@@ -253,7 +253,7 @@ class GraphCurator:
                 edges = kg.get_edges(source)
                 return any(getattr(e, 'target', '') == target for e in edges)
             return False
-        except:
+        except Exception:
             return False
     
     def _create_link(self, kg, source: str, target: str, relation: str = 'related'):

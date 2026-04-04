@@ -1609,7 +1609,7 @@ class CoreBrain:
                                             search_results.append(sr)
                                         else:
                                             search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
-                                    except:
+                                    except Exception:
                                         search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
                                 if search_results:
                                     self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
@@ -1682,7 +1682,7 @@ class CoreBrain:
                                             node_type=concept['type'],
                                             properties={'linked_to': query[:50]}
                                         )
-                                    except:
+                                    except Exception:
                                         pass
                                         
                                 self.query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
@@ -1700,7 +1700,7 @@ class CoreBrain:
                                     topic=f"Неизвестная тема: {query[:100]}",
                                     context={"source": "low_confidence", "query": query}
                                 )
-                            except:
+                            except Exception:
                                 pass
                         
                         return {

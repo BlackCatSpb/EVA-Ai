@@ -122,7 +122,7 @@ class ModelSelector:
                     if config.get('model', {}).get('disable_pytorch', False):
                         logger.info("PyTorch отключён - пропускаем загрузку Qwen")
                         return False
-        except:
+        except Exception:
             pass
         
         try:

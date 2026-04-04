@@ -393,7 +393,7 @@ class GGUFTrainingSystem:
         try:
             confidence = getattr(node, 'confidence', 0.0)
             return confidence >= self.min_confidence
-        except:
+        except Exception:
             return False
     
     def _create_verified_knowledge(self, node) -> Optional[VerifiedKnowledge]:
@@ -603,5 +603,5 @@ class GGUFTrainingSystem:
                     if item.startswith('adapter_'):
                         adapters.append(item)
             return sorted(adapters, reverse=True)
-        except:
+        except Exception:
             return []

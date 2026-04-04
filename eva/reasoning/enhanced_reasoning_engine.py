@@ -117,7 +117,7 @@ class EnhancedReasoningEngine:
         try:
             if self.brain and hasattr(self.brain, 'config'):
                 disable_pytorch = self.brain.config.get('model', {}).get('disable_pytorch', False)
-        except:
+        except Exception:
             pass
         
         # Если PyTorch отключён, пробуем GGUF
