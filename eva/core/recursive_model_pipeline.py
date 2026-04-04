@@ -230,6 +230,8 @@ class AdaptiveParameterController:
     def record_success(self):
         """Записывает успех."""
         self.success_count += 1
+        self.failed_response_embeddings = self.failed_response_embeddings[-100:]
+        self.failed_response_texts = self.failed_response_texts[-100:]
         self.failure_history = self.failure_history[-100:]
     
     def reset(self):
@@ -1026,6 +1028,11 @@ class RecursiveModelPipeline:
         self.model_c = None
         self.model_a_params.cleanup()
         self.model_b_params.cleanup()
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
         logger.info("Модели выгружены, ресурсы освобождены")
     
     def __del__(self):

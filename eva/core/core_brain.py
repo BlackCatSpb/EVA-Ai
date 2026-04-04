@@ -8,6 +8,7 @@ import time
 import threading
 import queue
 import random
+import collections
 import psutil
 import torch
 from typing import Dict, Any, Optional, List, Tuple
@@ -63,6 +64,8 @@ except ImportError:
 try:
     from eva.knowledge.online_knowledge import OnlineKnowledgeAccess
 except ImportError:
+    OnlineKnowledgeAccess = None
+except Exception:
     OnlineKnowledgeAccess = None
 
 try:
@@ -121,7 +124,7 @@ except Exception:
         @classmethod
         def is_error_state(cls, state: str) -> bool:
             """Проверяет, является ли состояние ошибочным."""
-            error_states = [cls.ERROR, cls.DEGRADED, cls.SHUTTING_DOWN]
+            error_states = [cls.ERROR, cls.DEGRADED]
             return state in error_states
 
 
@@ -168,7 +171,7 @@ class CoreBrain:
         
         # Мониторинг активности модулей
         self.module_activity: Dict[str, Dict[str, Any]] = {}
-        self.module_access_log: List[Dict[str, Any]] = []
+        self.module_access_log = collections.deque(maxlen=1000)
         self.activity_lock = threading.Lock()
         
         # Контроллер модулей: хранит флаги включения и состояние
@@ -242,7 +245,7 @@ class CoreBrain:
         
         try:
             from .resource_manager import ResourceManager
-            self.resource_manager = ResourceManager(self.config_manager)
+            self.resource_manager = ResourceManager(self.config_manager) if self.config_manager else ResourceManager(None)
             self.query_logger.debug("Менеджер ресурсов инициализирован")
         except ImportError:
             self.resource_manager = None
@@ -1113,6 +1116,7 @@ class CoreBrain:
                     'details': details or {}
                 }
                 self.module_activity[module_name]['activities'].append(activity_record)
+                self.module_activity[module_name]['activities'] = self.module_activity[module_name]['activities'][-100:]
                 self.module_access_log.append(activity_record)
                 
                 # Ограничиваем размер лога
@@ -1163,6 +1167,8 @@ class CoreBrain:
         try:
             now = time.time()
             with self._log_throttle_lock:
+                if len(self._log_throttle) > 500:
+                    self._log_throttle = {k: v for k, v in list(self._log_throttle.items())[-250:]}
                 last = self._log_throttle.get(key, 0.0)
                 if (now - last) >= float(self.log_throttle_seconds):
                     self._log_throttle[key] = now
@@ -1576,9 +1582,16 @@ class CoreBrain:
 6. Защищай конфиденциальность данных
 7. Будь честной — проверяй информацию и признавай ошибки"""
                 prompt = system_prompt + "\n\n" + "\n".join([f"{m['role']}: {m['content']}" for m in messages])
-                response_text = self.llama_cpp_deployment.generate(
-                    prompt=prompt, max_new_tokens=max_new_tokens or 2048,
-                    temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty)
+                response_text, gen_err = self._generate_with_timeout(
+                    lambda: self.llama_cpp_deployment.generate(
+                        prompt=prompt, max_new_tokens=max_new_tokens or 2048,
+                        temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty),
+                    timeout=60)
+                if gen_err:
+                    self.query_logger.warning(f"Generation timeout/error: {gen_err}")
+                    return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",
+                            "status": "error", "confidence": 0.0, "source": "generation_timeout",
+                            "processing_time": time.time() - start_time}
                 if response_text and len(response_text) > 0:
                     unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации',
                                         'не известно', 'не могу определить', 'затрудняюсь', 'недостаточно информации',
@@ -1622,9 +1635,15 @@ class CoreBrain:
                 "processing_time": time.time() - start_time
             }
 
-        response_text = self.qwen_model_manager.generate(
-            messages, max_new_tokens=2048, temperature=temperature,
-            top_p=top_p, repetition_penalty=repetition_penalty)
+        response_text, gen_err = self._generate_with_timeout(
+            lambda: self.qwen_model_manager.generate(
+                messages, max_new_tokens=2048, temperature=temperature,
+                top_p=top_p, repetition_penalty=repetition_penalty),
+            timeout=60)
+        if gen_err:
+            return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",
+                    "status": "error", "confidence": 0.0, "source": "qwen_timeout",
+                    "processing_time": time.time() - start_time}
         if response_text and not response_text.startswith("Ошибка"):
             return {
                 "response": response_text, "text": response_text, "status": "ok",
@@ -1645,10 +1664,15 @@ class CoreBrain:
         """Handles LlamaCpp (GGUF) generation with module integration."""
         try:
             self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
-            response_text = self.llama_cpp_deployment.generate(
-                prompt=full_prompt, max_new_tokens=max_new_tokens or 2048,
-                temperature=temperature or 0.7, top_p=top_p or 0.9,
-                repeat_penalty=repetition_penalty or 1.1)
+            response_text, gen_err = self._generate_with_timeout(
+                lambda: self.llama_cpp_deployment.generate(
+                    prompt=full_prompt, max_new_tokens=max_new_tokens or 2048,
+                    temperature=temperature or 0.7, top_p=top_p or 0.9,
+                    repeat_penalty=repetition_penalty or 1.1),
+                timeout=60)
+            if gen_err:
+                self.query_logger.warning(f"LlamaCpp generation timeout/error: {gen_err}")
+                return None
             if not response_text or len(response_text) == 0:
                 return None
 
@@ -1904,11 +1928,15 @@ class CoreBrain:
                 self.query_logger.info("PyTorch отключён - пропускаем QwenModelManager в конце fallback chain")
                 if self.llama_cpp_ready and self.llama_cpp_deployment:
                     try:
-                        response_text = self.llama_cpp_deployment.generate(
-                            prompt=query, max_new_tokens=max_new_tokens or 2048,
-                            temperature=temperature or 0.7, top_p=top_p or 0.9,
-                            repeat_penalty=repetition_penalty or 1.1)
-                        if response_text and len(response_text) > 0:
+                        response_text, gen_err = self._generate_with_timeout(
+                            lambda: self.llama_cpp_deployment.generate(
+                                prompt=query, max_new_tokens=max_new_tokens or 2048,
+                                temperature=temperature or 0.7, top_p=top_p or 0.9,
+                                repeat_penalty=repetition_penalty or 1.1),
+                            timeout=60)
+                        if gen_err:
+                            self.query_logger.warning(f"Final LlamaCpp generation timeout/error: {gen_err}")
+                        elif response_text and len(response_text) > 0:
                             return {"response": response_text, "text": response_text, "status": "ok",
                                     "confidence": 0.8, "source": "llama_cpp_final", "fallback_level": 0,
                                     "processing_time": time.time() - start_time}
@@ -1943,9 +1971,14 @@ class CoreBrain:
                     except Exception as e:
                         self.query_logger.debug(f"Не удалось загрузить историю: {e}")
                 messages.append({"role": "user", "content": query})
-                response_text = self.qwen_model_manager.generate(
-                    messages, max_new_tokens=2048, temperature=temperature,
-                    top_p=top_p, repetition_penalty=repetition_penalty)
+                response_text, gen_err = self._generate_with_timeout(
+                    lambda: self.qwen_model_manager.generate(
+                        messages, max_new_tokens=2048, temperature=temperature,
+                        top_p=top_p, repetition_penalty=repetition_penalty),
+                    timeout=60)
+                if gen_err:
+                    self.query_logger.warning(f"Qwen generation timeout/error: {gen_err}")
+                    raise RuntimeError(f"Generation timeout: {gen_err}")
                 if response_text and not response_text.startswith("Ошибка"):
                     clarification = self._generate_clarification_if_needed(query, response_text, 0.9)
                     result = {"response": response_text, "text": response_text, "status": "ok",
@@ -2185,6 +2218,24 @@ class CoreBrain:
             return random.choice(templates)
         
         return None
+    
+    def _generate_with_timeout(self, generate_fn, timeout=60):
+        """Wraps a generate call with a timeout using threading."""
+        result = [None]
+        error = [None]
+        def _gen():
+            try:
+                result[0] = generate_fn()
+            except Exception as e:
+                error[0] = e
+        t = threading.Thread(target=_gen, daemon=True)
+        t.start()
+        t.join(timeout=timeout)
+        if t.is_alive():
+            return None, 'timeout'
+        if error[0]:
+            return None, str(error[0])
+        return result[0], None
     
     def _format_reasoning_for_gui(self, reasoning_result: Dict[str, Any]) -> str:
         """Форматирует результат рассуждения для отображения в GUI."""
