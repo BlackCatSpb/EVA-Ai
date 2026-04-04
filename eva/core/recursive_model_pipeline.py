@@ -16,10 +16,13 @@ import logging
 import json
 import time
 import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, List, Optional
 from llama_cpp import Llama
 
 logger = logging.getLogger(__name__)
+
+_generation_executor = ThreadPoolExecutor(max_workers=4)
 
 
 class AdaptiveParameterController:
@@ -108,12 +111,12 @@ class AdaptiveParameterController:
         
         # Сравниваем последние эмбеддинги друг с другом
         max_sim = 0.0
+        stuck_count = 0
         for i in range(len(embeddings) - 1):
             sim = self._cosine_similarity(embeddings[i], embeddings[-1])
             max_sim = max(max_sim, sim)
-        
-        stuck_count = sum(1 for i in range(len(embeddings) - 1) 
-                         if self._cosine_similarity(embeddings[i], embeddings[-1]) > self.SEMANTIC_STUCK_THRESHOLD)
+            if sim > self.SEMANTIC_STUCK_THRESHOLD:
+                stuck_count += 1
         
         return {
             'is_stuck': max_sim > self.SEMANTIC_STUCK_THRESHOLD,
@@ -417,7 +420,6 @@ class RecursiveModelPipeline:
             return {'is_gibberish': True, 'score': 0.1, 'reasons': ['Содержит китайские символы']}
         
         # Проверка на английские блоки (более 30% английских слов)
-        words = text.split()
         english_words = sum(1 for w in words if w.isascii() and len(w) > 3)
         if len(words) > 10 and english_words / len(words) > 0.3:
             return {'is_gibberish': True, 'score': 0.3, 'reasons': ['Слишком много английских слов']}
@@ -497,37 +499,27 @@ class RecursiveModelPipeline:
         return text.strip()
 
     def _generate_with_timeout(self, model, messages: list, params: dict, timeout: int = 45) -> Optional[Dict]:
-        """Генерация с таймаутом. Если модель не отвечает — возвращает None."""
-        result = [None]
-        error = [None]
-        
+        """Генерация с таймаутом через ThreadPoolExecutor."""
         def _generate():
-            try:
-                result[0] = model.create_chat_completion(
-                    messages=messages,
-                    max_tokens=params['max_tokens'],
-                    temperature=params['temperature'],
-                    top_p=params['top_p'],
-                    top_k=params['top_k'],
-                    repeat_penalty=params['repeat_penalty'],
-                    stop=["</s>"]
-                )
-            except Exception as e:
-                error[0] = e
+            return model.create_chat_completion(
+                messages=messages,
+                max_tokens=params['max_tokens'],
+                temperature=params['temperature'],
+                top_p=params['top_p'],
+                top_k=params['top_k'],
+                repeat_penalty=params['repeat_penalty'],
+                stop=["</s>"]
+            )
         
-        thread = threading.Thread(target=_generate, daemon=True)
-        thread.start()
-        thread.join(timeout=timeout)
-        
-        if thread.is_alive():
+        future = _generation_executor.submit(_generate)
+        try:
+            return future.result(timeout=timeout)
+        except FuturesTimeoutError:
             logger.warning(f"Генерация прервана по таймауту ({timeout}с)")
             return None
-        
-        if error[0]:
-            logger.warning(f"Ошибка генерации: {error[0]}")
+        except Exception as e:
+            logger.warning(f"Ошибка генерации: {e}")
             return None
-        
-        return result[0]
 
     def generate_with_model_a(self, query: str, max_retries: int = 2) -> Dict[str, Any]:
         """Генерация ответа на Model A (логика) с адаптивными параметрами"""

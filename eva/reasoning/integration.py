@@ -7,6 +7,23 @@ from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+STANDARD_ERROR_RESPONSE = {
+    "response": "",
+    "status": "error",
+    "confidence": 0.0,
+    "error_type": "unknown",
+    "error_detail": "",
+}
+
+
+def _error_response(message: str, error_type: str = "unknown") -> Dict[str, Any]:
+    """Возвращает стандартный формат ошибки."""
+    resp = dict(STANDARD_ERROR_RESPONSE)
+    resp["response"] = message
+    resp["error_type"] = error_type
+    resp["error_detail"] = message
+    return resp
+
 
 class ReasoningIntegration:
     """
@@ -88,19 +105,13 @@ class ReasoningIntegration:
         Обработка запроса через Self-Reasoning Engine
         """
         if not self.enabled or self.reasoning_engine is None:
-            return {
-                "response": "Reasoning Engine не инициализирован",
-                "status": "error"
-            }
+            return _error_response("Reasoning Engine не инициализирован", "not_initialized")
         
         try:
             return self.reasoning_engine.process_query(query, context)
         except Exception as e:
             logger.error(f"Ошибка обработки запроса: {e}")
-            return {
-                "response": f"Ошибка: {e}",
-                "status": "error"
-            }
+            return _error_response(f"Ошибка: {e}", "processing_error")
     
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику"""

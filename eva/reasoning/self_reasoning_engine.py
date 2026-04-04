@@ -138,16 +138,16 @@ class SelfReasoningEngine:
         # Формируем расширенный промпт с историей
         enhanced_query = self._build_contextual_query(query, conversation_history)
         
-        logger.info(f"DEBUG: enhanced_query length = {len(enhanced_query)}")
+        logger.debug("Enhanced query built, length = %d", len(enhanced_query))
         
         # === Two-Model Pipeline (приоритет для GGUF режима) ===
         pipeline = self.two_model_pipeline
-        logger.info(f"DEBUG SRE: self.two_model_pipeline = {self.two_model_pipeline}")
+        logger.debug("SRE: checking two_model_pipeline, self=%s", self.two_model_pipeline is not None)
         if pipeline is None and hasattr(self.brain, 'two_model_pipeline'):
             pipeline = self.brain.two_model_pipeline
-            logger.info(f"DEBUG SRE: fallback to brain.two_model_pipeline = {pipeline}")
+            logger.debug("SRE: fallback to brain.two_model_pipeline, found=%s", pipeline is not None)
         if pipeline:
-            logger.info(f"DEBUG SRE: pipeline found (via {'self.two_model_pipeline' if self.two_model_pipeline else 'brain.two_model_pipeline'})")
+            logger.debug("SRE: pipeline found via %s", 'self.two_model_pipeline' if self.two_model_pipeline else 'brain.two_model_pipeline')
         logger.info(f"Проверка Two-Model Pipeline: brain={self.brain is not None}, pipeline={pipeline is not None}")
         
         if pipeline:
@@ -303,7 +303,8 @@ class SelfReasoningEngine:
                 "text": "Ошибка: Two-Model Pipeline недоступен.",
                 "status": "error",
                 "confidence": 0.0,
-                "reasoning": {"source": "error", "message": "Two-Model Pipeline не инициализирован"},
+                "error_type": "pipeline_unavailable",
+                "error_detail": "Two-Model Pipeline не инициализирован",
                 "source": "self_reasoning_engine",
                 "processing_time": time.time() - start_time,
                 "conversation_history_used": len(conversation_history) > 0
@@ -536,27 +537,39 @@ class SelfReasoningEngine:
         return query
     
     def _get_wikipedia_context(self, query: str) -> Optional[str]:
-        """Получает контекст из Wikipedia Knowledge Base."""
-        try:
-            brain = getattr(self, 'brain', None)
-            if brain is None:
-                return None
-            wiki_kb = getattr(brain, 'wikipedia_kb', None)
-            if wiki_kb is None:
-                return None
-            
-            results = wiki_kb.search(query, limit=3, min_similarity=0.25)
-            if not results:
-                return None
-            
-            context_parts = []
-            for r in results[:3]:
-                context_parts.append(f"- {r['title']}: {r['text'][:200]}")
-            
-            return "\n".join(context_parts)
-        except Exception as e:
-            logger.debug(f"Ошибка получения Wikipedia контекста: {e}")
+        """Получает контекст из Wikipedia Knowledge Base с таймаутом 5 секунд."""
+        result = [None]
+        
+        def _search():
+            try:
+                brain = getattr(self, 'brain', None)
+                if brain is None:
+                    return
+                wiki_kb = getattr(brain, 'wikipedia_kb', None)
+                if wiki_kb is None:
+                    return
+                
+                results = wiki_kb.search(query, limit=3, min_similarity=0.25)
+                if not results:
+                    return
+                
+                context_parts = []
+                for r in results[:3]:
+                    context_parts.append(f"- {r['title']}: {r['text'][:200]}")
+                
+                result[0] = "\n".join(context_parts)
+            except Exception as e:
+                logger.debug("Ошибка получения Wikipedia контекста: %s", e)
+        
+        thread = threading.Thread(target=_search, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        
+        if thread.is_alive():
+            logger.debug("Wikipedia search timed out after 5s")
             return None
+        
+        return result[0]
     
     # === Логическое рассуждение с факторами ===
     

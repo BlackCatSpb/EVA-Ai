@@ -448,7 +448,7 @@ class CoreBrain:
             model_config = self.config.get('model', {})
             use_two_model = model_config.get('use_two_model_pipeline', False)
             
-            logger.debug("DEBUG brain: use_two_model = " + str(use_two_model))
+            logger.debug("Two-model pipeline config: use_two_model = %s", use_two_model)
             
             if use_two_model:
                 model_a_path = model_config.get('model_a_gguf_path', '')
@@ -505,10 +505,10 @@ class CoreBrain:
                             self.query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
                         self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
-                        logger.debug("DEBUG: RecursiveModelPipeline created, about to load_models()")
+                        logger.debug("RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline.load_models()
                     self.two_model_pipeline_ready = True
-                    logger.debug("DEBUG: load_models() completed, pipeline_ready = " + str(self.two_model_pipeline_ready))
+                    logger.debug("load_models() completed, pipeline_ready = %s", self.two_model_pipeline_ready)
                     self.query_logger.info("Two-Model Pipeline готов к работе!")
                     
                     # Log pipeline status
@@ -871,6 +871,7 @@ class CoreBrain:
             # Инициализация Wikipedia Knowledge Base (опционально)
             self.wikipedia_kb = None
             self.wikipedia_loader = None
+            self._wikipedia_auto_learn_config = None
             wiki_config = self.config.get('wikipedia', {})
             if wiki_config.get('enabled', False):
                 try:
@@ -881,15 +882,9 @@ class CoreBrain:
                     stats = self.wikipedia_kb.get_stats()
                     self.query_logger.info(f"Wikipedia KB инициализирована: {stats['articles']} статей, {stats['chunks']} чанков")
                     
-                    # Запуск автообучения если включено
+                    # Сохраняем конфиг автообучения для запуска после инициализации
                     if wiki_config.get('auto_learn', False):
-                        self.wikipedia_loader.start_auto_learning(
-                            categories=wiki_config.get('categories', ['Наука', 'Математика', 'Физика']),
-                            articles_per_category=wiki_config.get('articles_per_category', 10),
-                            interval_hours=wiki_config.get('interval_hours', 24),
-                            include_random=wiki_config.get('random_per_cycle', 5),
-                        )
-                        self.query_logger.info("Автообучение Википедии запущено")
+                        self._wikipedia_auto_learn_config = wiki_config
                 except Exception as e:
                     self.query_logger.warning(f"Wikipedia KB не инициализирована: {e}")
             
@@ -945,6 +940,21 @@ class CoreBrain:
                         self.query_logger.info("SelfDialogLearningSystem started")
                 except Exception as e:
                     self.query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
+            
+            # Запуск автообучения Википедии ПОСЛЕ полной инициализации системы
+            if hasattr(self, '_wikipedia_auto_learn_config') and self._wikipedia_auto_learn_config:
+                try:
+                    wiki_cfg = self._wikipedia_auto_learn_config
+                    if self.wikipedia_loader:
+                        self.wikipedia_loader.start_auto_learning(
+                            categories=wiki_cfg.get('categories', ['Наука', 'Математика', 'Физика']),
+                            articles_per_category=wiki_cfg.get('articles_per_category', 10),
+                            interval_hours=wiki_cfg.get('interval_hours', 24),
+                            include_random=wiki_cfg.get('random_per_cycle', 5),
+                        )
+                        self.query_logger.info("Автообучение Википедии запущено (post-init)")
+                except Exception as e:
+                    self.query_logger.warning(f"Не удалось запустить автообучение Википедии: {e}")
             
             # Initialize GraphCurator
             try:
