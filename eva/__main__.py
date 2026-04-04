@@ -5,9 +5,6 @@
 import os
 import sys
 import logging
-import warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-warnings.filterwarnings('ignore', category=PendingDeprecationWarning)
 
 # Добавляем текущую директорию в путь для импорта
 current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

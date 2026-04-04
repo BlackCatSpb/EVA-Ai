@@ -910,7 +910,7 @@ class RecursiveModelPipeline:
             a_temperature = params_a.get('temperature', self.MODEL_A_TEMPERATURE)
             b_max_tokens = params_b.get('max_tokens', self.MODEL_B_MAX_TOKENS)
             b_temperature = params_b.get('temperature', self.MODEL_B_TEMPERATURE)
-            logger.info(f"Применены динамические параметры: A(temp={self.MODEL_A_TEMPERATURE}), B(temp={self.MODEL_B_TEMPERATURE})")
+            logger.info(f"Применены динамические параметры: A(temp={a_temperature}), B(temp={b_temperature})")
         
         results = {
             'query': query,
@@ -1052,16 +1052,15 @@ def create_recursive_pipeline(
     fractal_memory = None
 ) -> 'RecursiveModelPipeline':
     """Фабричная функция для создания пайплайна"""
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    
     if model_a_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         model_a_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-3b-instruct", "qwen2.5-3b-instruct-q4_k_m.gguf")
     
     if model_b_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         model_b_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-3b-instruct", "qwen2.5-3b-instruct-q4_k_m.gguf")
     
     if model_c_path is None:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         model_c_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-coder-1.5b-instruct", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
     
     pipeline = RecursiveModelPipeline(

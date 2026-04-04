@@ -1,17 +1,14 @@
 """
 Единое ядро системы ЕВА - координирует работу всех компонентов
 """
-import sys
 import os
 import logging
 import time
 import threading
 import queue
-import random
 import collections
 import weakref
 import psutil
-import torch
 from typing import Dict, Any, Optional, List, Tuple
 
 try:
@@ -42,6 +39,8 @@ except ImportError:
 
 logger = logging.getLogger("eva.core_brain")
 query_logger = logging.getLogger("eva.core_brain.query_processing")
+
+_SENSITIVE_PATTERNS = {'secret', 'password', 'api_key', 'token', 'credentials', 'auth', 'key', 'private'}
 
 FALLBACK_RESPONSES = {
     'greeting': "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей.",
@@ -176,9 +175,8 @@ class CoreBrain:
         # Логируем получение конфигурации
         if config:
             query_logger.debug(f"Получена конфигурация с {len(config)} параметрами")
-            sensitive_keys = {'secret', 'password', 'api_key', 'token', 'credentials', 'auth', 'key', 'private'}
-            if any(k.lower() in sensitive_keys for k in config.keys()):
-                masked_config = {k: '***' if k.lower() in sensitive_keys else v for k, v in config.items()}
+            if any(k.lower() in _SENSITIVE_PATTERNS for k in config.keys()):
+                masked_config = {k: '***' if k.lower() in _SENSITIVE_PATTERNS else v for k, v in config.items()}
                 query_logger.debug(f"Конфигурация (с маскировкой): {masked_config}")
             else:
                 query_logger.debug(f"Конфигурация: {config}")
@@ -690,6 +688,8 @@ class CoreBrain:
     
     def _initialize_detailed_logging(self):
         """Включает детальное логгирование для всех компонентов."""
+        import sys
+        import torch
         query_logger.debug("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
         
         # Логируем информацию о системе (debug level)
@@ -937,9 +937,6 @@ class CoreBrain:
                 except Exception as e:
                     query_logger.error(f"Ошибка выполнения отложенной команды {getattr(command, '__name__', 'lambda')}: {e}", exc_info=True)
             query_logger.info("Все отложенные команды выполнены.")
-            
-            # Настраиваем стратегии восстановления модулей
-            # _setup_module_recovery_strategies method defined but never called - removed
             
             # Start SelfDialogLearningSystem if enabled
             if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
@@ -1959,7 +1956,7 @@ class CoreBrain:
                 elif session_id and hasattr(self, 'memory_manager'):
                     try:
                         if hasattr(self.memory_manager, 'get_conversation_history'):
-                            history = self.memory_manager.get_conversation_history(user_id="default_user", limit=10)
+                            history = self.memory_manager.get_conversation_history(user_id=user_context.get('user_id', 'default_user'), limit=10)
                             if history:
                                 for conv in history:
                                     if 'query' in conv:

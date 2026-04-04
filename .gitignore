@@ -169,6 +169,7 @@ eva/mlearning/eva_models/
 
 # EVA specific caches and runtime data
 eva/core/eva_cache/
+eva/gui/eva_config.json
 eva/gui/eva_gui_cache/
 eva/websearch/eva_web_search_cache/
 eva/memory/fractal_torch_storage/unified_memory/
