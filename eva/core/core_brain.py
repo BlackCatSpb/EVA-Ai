@@ -147,11 +147,7 @@ class CoreBrain:
             self.query_logger.debug("Событийная система инициализирована")
             
             # Централизованный транспорт метрик через событийную шину
-            try:
-                # self._on_metrics_event method defined but never called - removed
-                self.query_logger.debug("Событийная шина метрик готова")
-            except Exception as e:
-                logger.debug(f"Error: {e}")
+            self.query_logger.debug("Событийная шина метрик готова")
         except ImportError:
             self.events = None
             self.query_logger.warning("Событийная система недоступна")
@@ -497,6 +493,7 @@ class CoreBrain:
                             self.query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
                         self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
+                        self.two_model_pipeline.load_models()
                     else:
                         self.query_logger.info(f"Инициализация Two-Model Pipeline...")
                         self.query_logger.info(f"  Model A: {model_a_path}")
@@ -505,8 +502,8 @@ class CoreBrain:
                             self.query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
                         self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
+                        self.two_model_pipeline.load_models()
                         logger.debug("RecursiveModelPipeline created, about to load_models()")
-                    self.two_model_pipeline.load_models()
                     self.two_model_pipeline_ready = True
                     logger.debug("load_models() completed, pipeline_ready = %s", self.two_model_pipeline_ready)
                     self.query_logger.info("Two-Model Pipeline готов к работе!")
@@ -1384,61 +1381,40 @@ class CoreBrain:
         """Обрабатывает пользовательский запрос через унифицированный координатор генерации с многоуровневым fallback."""
         start_time = time.time()
         self.query_logger.info(f"Обработка запроса: {query[:50]}...")
-        
-        # Если передан context, используем его как user_context для обратной совместимости
+
         if context is not None and user_context is None:
             user_context = context if isinstance(context, dict) else {}
         elif context is not None and user_context is not None:
-            # Объединяем оба контекста, context имеет приоритет
             if isinstance(user_context, dict) and isinstance(context, dict):
                 user_context = {**user_context, **context}
-        
-        # === Two-Model Pipeline управляется через SelfReasoningEngine ===
-        # Убрано из прямого вызова - теперь SelfReasoningEngine управляет Two-Model Pipeline
-        # (См. SelfReasoningEngine.process_query)
-        
-        # === GGUF MODE: Используем Two-Model Pipeline через SelfReasoningEngine ===
-        # Проверяем, включён ли PyTorch
+
         disable_pytorch = False
         try:
             model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
             disable_pytorch = model_cfg.get('disable_pytorch', False)
         except Exception as e:
             logger.debug(f"Error checking disable_pytorch: {e}")
-        
-        # Если PyTorch отключён - используем GGUF Two-Model Pipeline
+
         if disable_pytorch:
-            # Two-Model Pipeline управляется через SelfReasoningEngine (см. ниже в error_chain)
-            # Здесь просто логируем режим
             self.query_logger.info("Режим GGUF: используем Two-Model Pipeline")
-        
-        # === QWEN-ONLY MODE: Load Qwen FIRST before any processing ===
-        # Check if Qwen-only mode is enabled
+
         qwen_only_mode = False
         try:
             model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
             qwen_only_mode = model_cfg.get('qwen_only_mode', False)
         except Exception as e:
             logger.debug(f"Error checking qwen_only_mode: {e}")
-        
-        # Load Qwen if not loaded yet (before greeting check!)
+
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
-            # Skip if disable_pytorch: true
             if disable_pytorch:
                 self.query_logger.info("PyTorch отключён - пропускаем загрузку Qwen в qwen_only_mode")
             else:
                 self.query_logger.info("Qwen-only mode: Загрузка QwenModelManager...")
                 try:
                     from eva.mlearning.qwen_model_manager import get_qwen_model_manager
-                    qwen_device = self._qwen_config.get('device', 'cuda')
-                    
                     self.qwen_model_manager = get_qwen_model_manager(
                         model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                        device='cpu',
-                        load_in_8bit=False,
-                        load_in_4bit=False
-                    )
-                    
+                        device='cpu', load_in_8bit=False, load_in_4bit=False)
                     if self.qwen_model_manager and self.qwen_model_manager.initialized:
                         self.qwen_ready = True
                         self.query_logger.info("QwenModelManager загружен для обработки запроса")
@@ -1446,356 +1422,149 @@ class CoreBrain:
                         self.query_logger.error("QwenModelManager НЕ загружен - ошибка конфигурации")
                 except Exception as e:
                     self.query_logger.error(f"Ошибка загрузки Qwen: {e}")
-        
-        # === В Qwen-only режиме НЕ используем greeting handler ===
-        # Все запросы (включая приветствия) идут через Two-Model Pipeline или GGUF
+
         if not qwen_only_mode:
-            # Skip greeting handler if file is attached
             if 'прикрепил файл' in query.lower():
                 self.query_logger.info("Пропуск greeting handler - прикреплён файл")
-            else:
-                # Greeting handler ОТКЛЮЧЁН - все запросы идут через Two-Model Pipeline
-                pass
-        
-        # === Qwen-only mode WITH module integration ===
+
+        result = self._execute_query_strategy(
+            query, user_context, start_time, max_new_tokens,
+            temperature, top_p, repetition_penalty, disable_pytorch, qwen_only_mode)
+
+        if result is not None:
+            return result
+
+        return {
+            "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
+            "status": "error", "fallback_level": 7, "source": "final_fallback",
+            "error": "All strategies returned a result", "processing_time": time.time() - start_time,
+            "timestamp": time.time(),
+            "metadata": {"original_query_length": len(query), "system_status": "critical_degradation"}
+        }
+    
+    def _execute_query_strategy(self, query: str, user_context: Optional[Dict], start_time: float,
+                                  max_new_tokens: int, temperature: float, top_p: float,
+                                  repetition_penalty: float, disable_pytorch: bool,
+                                  qwen_only_mode: bool) -> Optional[Dict[str, Any]]:
+        """Dispatches to the appropriate query handling strategy."""
         if qwen_only_mode:
-            # === PRE-PROCESSING: Извлечение сущностей и уточнений ===
-            preprocessed_result = None
-            session_id = user_context.get('session_id') if user_context else None
-            
-            if session_id and hasattr(self, 'preprocessing_pipeline') and self.preprocessing_pipeline:
-                try:
-                    # Получаем контекст сессии из hybrid cache
-                    session_context = ""
-                    if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-                        cached = self.hybrid_cache.get_context(session_id)
-                        if cached:
-                            session_context = cached.get('raw_text', '')[:500]
-                    
-                    # Запускаем preprocessing
-                    preprocessed_result = self.preprocessing_pipeline.process(
-                        query=query,
-                        session_context=session_context,
-                        session_id=session_id
-                    )
-                    
-                    # Если нужно уточнение - возвращаем его сразу
-                    if preprocessed_result and preprocessed_result.clarification_needed:
-                        self.query_logger.info(f"Требуется уточнение: {preprocessed_result.clarification_question}")
-                        return {
-                            "response": preprocessed_result.clarification_question,
-                            "text": preprocessed_result.clarification_question,
-                            "status": "clarification_needed",
-                            "confidence": 0.5,
-                            "source": "llama_cpp_with_modules",
-                            "clarification_question": preprocessed_result.clarification_question,
-                            "missing_info": preprocessed_result.missing_info,
-                            "preprocessed_entities": [e.name for e in preprocessed_result.entities],
-                            "processing_time": time.time() - start_time
-                        }
-                    
-                    # Добавляем информацию об извлеченных сущностях в лог
-                    if preprocessed_result and preprocessed_result.entities:
-                        self.query_logger.debug(f"Извлечено сущностей: {len(preprocessed_result.entities)}")
-                        
-                except Exception as e:
-                    self.query_logger.debug(f"Ошибка preprocessing: {e}")
-            
-            # Получаем контекст из графа знаний ПЕРЕД генерацией
-            knowledge_context = ""
-            knowledge_graph = getattr(self, 'knowledge_graph', None)
-            if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
-                try:
-                    relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
-                    if relevant:
-                        knowledge_context = "\n\nИз памяти системы:\n"
-                        for node in relevant:
-                            name = getattr(node, 'name', '') or ''
-                            content = getattr(node, 'content', '') or ''
-                            if content:
-                                knowledge_context += f"- {content}\n"
-                            elif name:
-                                knowledge_context += f"- {name}\n"
-                        self.query_logger.debug(f"Добавлен контекст из графа: {len(relevant)} узлов")
-                except Exception as e:
-                    self.query_logger.debug(f"Ошибка получения контекста из графа: {e}")
-            
-            # Формируем промпт с контекстом
-            full_prompt = query
-            if knowledge_context:
-                full_prompt = query + knowledge_context
-            
-            # Check if Two-Model Pipeline was already tried and failed
-            # Skip regular llama_cpp if Two-Model Pipeline was enabled but failed
-            use_two_model = self.config.get('model', {}).get('use_two_model_pipeline', False)
-            
-            # Если Two-Model Pipeline включён и работает - не используем обычный GGUF
-            if use_two_model and self.two_model_pipeline_ready:
-                self.query_logger.info("Two-Model Pipeline активен - пропускаем стандартный GGUF fallback")
-            elif self.llama_cpp_ready and self.llama_cpp_deployment:
-                try:
-                    self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
-                    
-                    # Генерация с контекстом из графа
-                    response_text = self.llama_cpp_deployment.generate(
-                        prompt=full_prompt,
-                        max_new_tokens=max_new_tokens or 2048,
-                        temperature=temperature or 0.7,
-                        top_p=top_p or 0.9,
-                        repeat_penalty=repetition_penalty or 1.1
-                    )
-                    
-                    if response_text and len(response_text) > 0:
-                        # === Интеграция модулей после генерации ===
-                        search_results = []
-                        contr_result = None
-                        ethics_result = None
-                        web_result = None
-                        
-                        # Вызываем модули если они доступны
-                        contr_manager = getattr(self, 'contradiction_manager', None)
-                        ethics_fw = getattr(self, 'ethics_framework', None)
-                        web_search = getattr(self, 'web_search_engine', None)
-                        
-                        # 1. Проверка на противоречия
-                        if contr_manager and hasattr(contr_manager, 'check_with_context'):
-                            try:
-                                contr_result = contr_manager.check_with_context(query, response_text)
-                                self.query_logger.debug(f"Проверка противоречий: {contr_result.get('significant_count', 0)} найдено")
-                            except Exception as e:
-                                self.query_logger.debug(f"Ошибка проверки противоречий: {e}")
-                        
-                        # 2. Проверка этики
-                        if ethics_fw and hasattr(ethics_fw, 'check_with_context'):
-                            try:
-                                ethics_result = ethics_fw.check_with_context(query, response_text)
-                                self.query_logger.debug(f"Проверка этики: issues={ethics_result.get('has_violations', False)}")
-                            except Exception as e:
-                                self.query_logger.debug(f"Ошибка проверки этики: {e}")
-                        
-                        # 3. Веб-поиск - ВСЕГДА для информационных запросов (кроме приветствий)
-                        simple_greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello', 'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания']
-                        is_greeting = any(query.lower().strip() == p for p in simple_greetings) or (len(query.split()) <= 2 and not any(c.isalpha() for c in query))
-                        
-                        # Извлекаем оригинальный запрос для веб-поиска (если запрос содержит контекст файла)
-                        search_query = query
-                        if "Запрос пользователя:" in query:
-                            parts = query.split("Запрос пользователя:")
-                            if len(parts) > 1:
-                                search_query = parts[-1].strip()
-                        elif "Пользователь прикрепил файл" in query:
-                            # Skip web search for file analysis queries
-                            is_greeting = True
-                        
-                        # ВСЕГДА ищем в интернете если это не приветствие и не анализ файла
-                        if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500:
-                            try:
-                                # Используем только оригинальный запрос для веб-поиска
-                                search_query = search_query[:200]
-                                
-                                # Проверяем кэш перед поиском
-                                query_hash = str(abs(hash(search_query)))
-                                cached_results = None
-                                if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-                                    cached_results = self.hybrid_cache.get_search_results(query_hash)
-                                
-                                if cached_results:
-                                    self.query_logger.info("Использованы закэшированные результаты поиска")
-                                    raw_results = cached_results.get('results', [])
-                                else:
-                                    web_result = web_search.search(search_query, max_results=5)
-                                    raw_results = web_result.get('results', []) if web_result else []
-                                    
-                                    # Кэшируем результаты
-                                    if raw_results and hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-                                        try:
-                                            self.hybrid_cache.add_search_results(
-                                                query_hash=query_hash,
-                                                query=search_query,
-                                                results=[{
-                                                    'title': getattr(r, 'title', str(r)) if hasattr(r, 'title') else str(r),
-                                                    'url': getattr(r, 'url', '') if hasattr(r, 'url') else '',
-                                                    'snippet': getattr(r, 'snippet', '') if hasattr(r, 'snippet') else '',
-                                                    'source': getattr(r, 'source', '') if hasattr(r, 'source') else ''
-                                                } for r in raw_results]
-                                            )
-                                        except Exception as e:
-                                            self.query_logger.debug(f"Не удалось закэшировать: {e}")
-                                
-                                # Конвертируем SearchResult в dict
-                                search_results = []
-                                for sr in raw_results:
-                                    try:
-                                        if hasattr(sr, 'title') and hasattr(sr, 'url'):
-                                            search_results.append({
-                                                'title': str(sr.title) if sr.title else '',
-                                                'url': str(sr.url) if sr.url else '',
-                                                'snippet': str(sr.snippet) if sr.snippet else '',
-                                                'source': str(sr.source) if sr.source else ''
-                                            })
-                                        elif isinstance(sr, dict):
-                                            search_results.append(sr)
-                                        else:
-                                            search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
-                                    except Exception:
-                                        search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
-                                if search_results:
-                                    self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
-                            except Exception as e:
-                                self.query_logger.debug(f"Ошибка веб-поиска: {e}")
-                        
-                        # Проверяем, нужно ли перегенерировать
-                        needs_refinement = False
-                        refinement_reasons = []
-                        
-                        if contr_result and contr_result.get('significant_count', 0) > 0:
-                            needs_refinement = True
-                            refinement_reasons.append('contradiction')
-                        
-                        if ethics_result and ethics_result.get('has_violations', False):
-                            needs_refinement = True
-                            refinement_reasons.append('ethics')
-                        
-                        # Если есть веб-контекст, добавляем его к ответу
-                        if search_results and len(search_results) > 0:
-                            # Формируем контекст из веб-поиска
-                            web_context = "\n\nИнформация из интернета:\n"
-                            for i, sr in enumerate(search_results[:3]):
-                                title = sr.get('title', 'No title')[:100] if isinstance(sr, dict) else str(sr)[:100]
-                                snippet = sr.get('snippet', '')[:200] if isinstance(sr, dict) else ''
-                                web_context += f"\n{i+1}. {title}: {snippet}..."
-                            
-                            # Перегенерируем с контекстом
-                            enhanced_prompt = f"{query}\n\n{web_context}\n\nДай ответ используя эту информацию"
-                            response_text = self.llama_cpp_deployment.generate(
-                                prompt=enhanced_prompt,
-                                max_new_tokens=max_new_tokens or 2048,
-                                temperature=temperature or 0.7,
-                                top_p=top_p or 0.9,
-                                repeat_penalty=repetition_penalty or 1.1
-                            )
-                        
-                        # Определяем уверенность
-                        confidence = 0.9
-                        if needs_refinement:
-                            confidence = 0.6
-                        if search_results:
-                            confidence = min(confidence + 0.1, 0.95)
-                        
-                        # Сохраняем диалог в граф знаний ПОСЛЕ генерации
-                        if knowledge_graph and hasattr(knowledge_graph, 'add_node'):
-                            try:
-                                # Извлекаем ключевые понятия и связи
-                                key_concepts = self._extract_key_concepts(query, response_text)
-                                
-                                # Сохраняем основной узел диалога
-                                knowledge_graph.add_node(
-                                    name=query[:50],
-                                    content=f"Q: {query}\nA: {response_text}",
-                                    node_type='conversation',
-                                    properties={
-                                        'query': query,
-                                        'response': response_text,
-                                        'confidence': confidence,
-                                        'timestamp': time.time()
-                                    }
-                                )
-                                
-                                # Сохраняем связи между понятиями
-                                for concept in key_concepts:
-                                    try:
-                                        knowledge_graph.add_node(
-                                            name=concept['word'],
-                                            content=concept['description'],
-                                            node_type=concept['type'],
-                                            properties={'linked_to': query[:50]}
-                                        )
-                                    except Exception:
-                                        pass
-                                        
-                                self.query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
-                            except Exception as e:
-                                self.query_logger.debug(f"Ошибка сохранения в граф: {e}")
-                        
-                        # Проверяем "я не знаю"
-                        unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
-                        response_lower = response_text.lower()
-                        is_unknown = any(p in response_lower for p in unknown_patterns)
-                        
-                        if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
-                            try:
-                                self.self_dialog_learning.create_dialog(
-                                    topic=f"Неизвестная тема: {query[:100]}",
-                                    context={"source": "low_confidence", "query": query}
-                                )
-                            except Exception:
-                                pass
-                        
-                        return {
-                            "response": response_text,
-                            "text": response_text,
-                            "status": "ok",
-                            "confidence": confidence if not is_unknown else 0.4,
-                            "source": "llama_cpp_with_modules",
-                            "fallback_level": 0,
-                            "processing_time": time.time() - start_time,
-                            "search_results": search_results,
-                            "contradiction_result": contr_result,
-                            "ethics_result": ethics_result,
-                            "self_dialog_triggered": is_unknown
-                        }
-                        
-                except Exception as e:
-                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
-            
-            # If Qwen not ready, return error
-            if not self.qwen_model_manager or not self.qwen_model_manager.initialized:
-                return {
-                    "response": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
-                    "text": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
-                    "status": "error",
-                    "confidence": 0.0,
-                    "source": "qwen_error",
-                    "error": "Qwen model not initialized in qwen_only_mode",
-                    "processing_time": time.time() - start_time
-                }
-            
-            # Use Qwen for ALL queries in qwen_only_mode
-            self.query_logger.info("Используем QwenModelManager (qwen_only_mode)")
-            
-            # Get generation params from config
-            gen_config = self.config.get('generation', {})
-            temperature = gen_config.get('temperature', 0.7)
-            top_p = gen_config.get('top_p', 0.9)
-            repetition_penalty = gen_config.get('repetition_penalty', 1.1)
-            
-            # Build conversation history from session context
-            messages = []
-            session_id = user_context.get('session_id') if user_context else None
-            
-            if session_id and hasattr(self, 'memory_manager'):
-                try:
-                    # Get conversation history from memory
-                    session_context = self.memory_manager.get_session_context(session_id)
-                    if session_context and 'context' in session_context:
-                        for node in session_context['context']:
-                            if 'user_message' in node:
-                                messages.append({"role": "user", "content": node['user_message']})
-                            if 'assistant_message' in node:
-                                messages.append({"role": "assistant", "content": node['assistant_message']})
-                except Exception as e:
-                    self.query_logger.debug(f"Не удалось загрузить историю: {e}")
-            
-            # Add current query
-            messages.append({"role": "user", "content": query})
-            
-            # Приоритет: используем LlamaCpp если доступен
-            if self.llama_cpp_ready and self.llama_cpp_deployment:
-                try:
-                    self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
-                    
-                    # Формируем prompt из messages с системным промптом
-                    system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
+            return self._handle_qwen_mode(query, user_context, start_time, max_new_tokens,
+                                          temperature, top_p, repetition_penalty, disable_pytorch)
+        if disable_pytorch:
+            return self._handle_gguf_pipeline(query, user_context, start_time, max_new_tokens,
+                                              temperature, top_p, repetition_penalty)
+        return self._handle_fallback(query, user_context, start_time, max_new_tokens,
+                                     temperature, top_p, repetition_penalty, disable_pytorch)
+
+    def _handle_gguf_pipeline(self, query: str, user_context: Optional[Dict], start_time: float,
+                               max_new_tokens: int, temperature: float, top_p: float,
+                               repetition_penalty: float) -> Optional[Dict[str, Any]]:
+        """Handles GGUF Two-Model Pipeline queries."""
+        if not self.two_model_pipeline_ready or not self.two_model_pipeline:
+            return None
+        try:
+            result = self.two_model_pipeline.generate(query)
+            if result and result.get('response'):
+                result["processing_time"] = time.time() - start_time
+                result["source"] = "gguf_pipeline"
+                return result
+        except Exception as e:
+            self.query_logger.warning(f"GGUF pipeline error: {e}")
+        return None
+
+    def _handle_qwen_mode(self, query: str, user_context: Optional[Dict], start_time: float,
+                           max_new_tokens: int, temperature: float, top_p: float,
+                           repetition_penalty: float, disable_pytorch: bool) -> Dict[str, Any]:
+        """Handles qwen_only_mode queries with preprocessing and module integration."""
+        preprocessed_result = None
+        session_id = user_context.get('session_id') if user_context else None
+
+        if session_id and hasattr(self, 'preprocessing_pipeline') and self.preprocessing_pipeline:
+            try:
+                session_context = ""
+                if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                    cached = self.hybrid_cache.get_context(session_id)
+                    if cached:
+                        session_context = cached.get('raw_text', '')[:500]
+                preprocessed_result = self.preprocessing_pipeline.process(
+                    query=query, session_context=session_context, session_id=session_id)
+                if preprocessed_result and preprocessed_result.clarification_needed:
+                    self.query_logger.info(f"Требуется уточнение: {preprocessed_result.clarification_question}")
+                    return {
+                        "response": preprocessed_result.clarification_question,
+                        "text": preprocessed_result.clarification_question,
+                        "status": "clarification_needed", "confidence": 0.5,
+                        "source": "llama_cpp_with_modules",
+                        "clarification_question": preprocessed_result.clarification_question,
+                        "missing_info": preprocessed_result.missing_info,
+                        "preprocessed_entities": [e.name for e in preprocessed_result.entities],
+                        "processing_time": time.time() - start_time
+                    }
+                if preprocessed_result and preprocessed_result.entities:
+                    self.query_logger.debug(f"Извлечено сущностей: {len(preprocessed_result.entities)}")
+            except Exception as e:
+                self.query_logger.debug(f"Ошибка preprocessing: {e}")
+
+        knowledge_context = ""
+        knowledge_graph = getattr(self, 'knowledge_graph', None)
+        if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
+            try:
+                relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
+                if relevant:
+                    knowledge_context = "\n\nИз памяти системы:\n"
+                    for node in relevant:
+                        name = getattr(node, 'name', '') or ''
+                        content = getattr(node, 'content', '') or ''
+                        knowledge_context += f"- {content}\n" if content else f"- {name}\n"
+            except Exception as e:
+                self.query_logger.debug(f"Ошибка получения контекста из графа: {e}")
+
+        full_prompt = query + knowledge_context if knowledge_context else query
+
+        use_two_model = self.config.get('model', {}).get('use_two_model_pipeline', False)
+        if use_two_model and self.two_model_pipeline_ready:
+            self.query_logger.info("Two-Model Pipeline активен - пропускаем стандартный GGUF fallback")
+        elif self.llama_cpp_ready and self.llama_cpp_deployment:
+            result = self._handle_llama_cpp(query, full_prompt, user_context, start_time,
+                                            max_new_tokens, temperature, top_p, repetition_penalty,
+                                            knowledge_graph)
+            if result:
+                return result
+
+        if not self.qwen_model_manager or not self.qwen_model_manager.initialized:
+            return {
+                "response": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
+                "text": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
+                "status": "error", "confidence": 0.0, "source": "qwen_error",
+                "error": "Qwen model not initialized in qwen_only_mode",
+                "processing_time": time.time() - start_time
+            }
+
+        self.query_logger.info("Используем QwenModelManager (qwen_only_mode)")
+        gen_config = self.config.get('generation', {})
+        temperature = gen_config.get('temperature', 0.7)
+        top_p = gen_config.get('top_p', 0.9)
+        repetition_penalty = gen_config.get('repetition_penalty', 1.1)
+
+        messages = []
+        session_id = user_context.get('session_id') if user_context else None
+        if session_id and hasattr(self, 'memory_manager'):
+            try:
+                session_context = self.memory_manager.get_session_context(session_id)
+                if session_context and 'context' in session_context:
+                    for node in session_context['context']:
+                        if 'user_message' in node:
+                            messages.append({"role": "user", "content": node['user_message']})
+                        if 'assistant_message' in node:
+                            messages.append({"role": "assistant", "content": node['assistant_message']})
+            except Exception as e:
+                self.query_logger.debug(f"Не удалось загрузить историю: {e}")
+        messages.append({"role": "user", "content": query})
+
+        if self.llama_cpp_ready and self.llama_cpp_deployment:
+            try:
+                self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+                system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
 Отвечай на русском языке кратко и по существу. Избегай встречных вопросов — отвечай напрямую.
 
 Ключевые принципы:
@@ -1806,110 +1575,229 @@ class CoreBrain:
 5. Будь полезной — приоритизируй полезную информацию
 6. Защищай конфиденциальность данных
 7. Будь честной — проверяй информацию и признавай ошибки"""
-                    prompt = system_prompt + "\n\n" + "\n".join([f"{m['role']}: {m['content']}" for m in messages])
-                    
-                    response_text = self.llama_cpp_deployment.generate(
-                        prompt=prompt,
-                        max_new_tokens=max_new_tokens or 2048,
-                        temperature=temperature,
-                        top_p=top_p,
-                        repeat_penalty=repetition_penalty
-                    )
-                    
-                    if response_text and len(response_text) > 0:
-                        # Проверяем, знает ли модель ответ
-                        unknown_patterns = [
-                            'я не знаю', 'не знаю', 'не могу ответить', 'не имею информации',
-                            'не известно', 'не могу определить', 'затрудняюсь', 'недостаточно информации',
-                            'мне неизвестно', 'не располагаю'
-                        ]
-                        
-                        response_lower = response_text.lower()
-                        is_unknown = any(pattern in response_lower for pattern in unknown_patterns)
-                        
-                        # Триггерим самодиалог при "я не знаю"
-                        if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
-                            try:
-                                sdl = self.self_dialog_learning
-                                unknown_concepts = sdl.analyze_unknown_concepts(query, response_text)
-                                if unknown_concepts:
-                                    learned_results = sdl.search_and_learn_concepts(unknown_concepts)
-                                    concepts_str = ', '.join([c['concept'] for c in unknown_concepts[:5]])
-                                    self.self_dialog_learning.create_dialog(
-                                        topic=f"Изучение понятий: {concepts_str[:80]}",
-                                        context={"source": "semantic_gap", "query": query, "concepts": unknown_concepts, "learned_results": learned_results}
-                                    )
-                                else:
-                                    self.self_dialog_learning.create_dialog(
-                                        topic=f"Неизвестная тема: {query[:100]}",
-                                        context={"source": "low_confidence", "query": query, "response": response_text}
-                                    )
-                            except Exception as e:
-                                self.query_logger.debug(f"Ошибка запуска самодиалога: {e}")
-                        
-                        self.query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
-                        return {
-                            "response": response_text,
-                            "text": response_text,
-                            "status": "ok",
-                            "confidence": 0.9 if not is_unknown else 0.4,
-                            "source": "llama_cpp",
-                            "fallback_level": 0,
-                            "processing_time": time.time() - start_time,
-                            "self_dialog_triggered": is_unknown
-                        }
-                    else:
-                        self.query_logger.warning("LlamaCpp вернул пустой ответ")
-                        
+                prompt = system_prompt + "\n\n" + "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+                response_text = self.llama_cpp_deployment.generate(
+                    prompt=prompt, max_new_tokens=max_new_tokens or 2048,
+                    temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty)
+                if response_text and len(response_text) > 0:
+                    unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации',
+                                        'не известно', 'не могу определить', 'затрудняюсь', 'недостаточно информации',
+                                        'мне неизвестно', 'не располагаю']
+                    is_unknown = any(p in response_text.lower() for p in unknown_patterns)
+                    if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                        try:
+                            sdl = self.self_dialog_learning
+                            unknown_concepts = sdl.analyze_unknown_concepts(query, response_text)
+                            if unknown_concepts:
+                                learned_results = sdl.search_and_learn_concepts(unknown_concepts)
+                                concepts_str = ', '.join([c['concept'] for c in unknown_concepts[:5]])
+                                self.self_dialog_learning.create_dialog(
+                                    topic=f"Изучение понятий: {concepts_str[:80]}",
+                                    context={"source": "semantic_gap", "query": query,
+                                             "concepts": unknown_concepts, "learned_results": learned_results})
+                            else:
+                                self.self_dialog_learning.create_dialog(
+                                    topic=f"Неизвестная тема: {query[:100]}",
+                                    context={"source": "low_confidence", "query": query, "response": response_text})
+                        except Exception as e:
+                            self.query_logger.debug(f"Ошибка запуска самодиалога: {e}")
+                    self.query_logger.info(f"LlamaCpp сгенерировал {len(response_text)} символов")
+                    return {
+                        "response": response_text, "text": response_text, "status": "ok",
+                        "confidence": 0.9 if not is_unknown else 0.4, "source": "llama_cpp",
+                        "fallback_level": 0, "processing_time": time.time() - start_time,
+                        "self_dialog_triggered": is_unknown
+                    }
+                else:
+                    self.query_logger.warning("LlamaCpp вернул пустой ответ")
+            except Exception as e:
+                self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+
+        disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
+        if disable_pytorch:
+            return {
+                "response": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
+                "text": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
+                "status": "error", "confidence": 0.0, "source": "gguf_error",
+                "processing_time": time.time() - start_time
+            }
+
+        response_text = self.qwen_model_manager.generate(
+            messages, max_new_tokens=2048, temperature=temperature,
+            top_p=top_p, repetition_penalty=repetition_penalty)
+        if response_text and not response_text.startswith("Ошибка"):
+            return {
+                "response": response_text, "text": response_text, "status": "ok",
+                "confidence": 0.9, "source": "qwen_model", "fallback_level": 0,
+                "processing_time": time.time() - start_time
+            }
+        return {
+            "response": f"Ошибка генерации: {response_text or 'пустой ответ'}",
+            "text": f"Ошибка генерации: {response_text or 'пустой ответ'}",
+            "status": "error", "confidence": 0.0, "source": "qwen_error",
+            "processing_time": time.time() - start_time
+        }
+
+    def _handle_llama_cpp(self, query: str, full_prompt: str, user_context: Optional[Dict],
+                           start_time: float, max_new_tokens: int, temperature: float,
+                           top_p: float, repetition_penalty: float,
+                           knowledge_graph) -> Optional[Dict[str, Any]]:
+        """Handles LlamaCpp (GGUF) generation with module integration."""
+        try:
+            self.query_logger.info("Используем LlamaCpp (GGUF) для генерации")
+            response_text = self.llama_cpp_deployment.generate(
+                prompt=full_prompt, max_new_tokens=max_new_tokens or 2048,
+                temperature=temperature or 0.7, top_p=top_p or 0.9,
+                repeat_penalty=repetition_penalty or 1.1)
+            if not response_text or len(response_text) == 0:
+                return None
+
+            search_results = []
+            contr_manager = getattr(self, 'contradiction_manager', None)
+            ethics_fw = getattr(self, 'ethics_framework', None)
+            web_search = getattr(self, 'web_search_engine', None)
+
+            contr_result = None
+            if contr_manager and hasattr(contr_manager, 'check_with_context'):
+                try:
+                    contr_result = contr_manager.check_with_context(query, response_text)
                 except Exception as e:
-                    self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
-            
-            # ПРОПУСКАЕМ PyTorch QwenModelManager если disable_pytorch: true
-            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
-            if disable_pytorch:
-                return {
-                    "response": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
-                    "text": "Ошибка: GGUF вернул пустой ответ. Проверьте конфигурацию.",
-                    "status": "error",
-                    "confidence": 0.0,
-                    "source": "gguf_error",
-                    "processing_time": time.time() - start_time
-                }
-            
-            # Используем PyTorch QwenModelManager
-            response_text = self.qwen_model_manager.generate(
-                messages,
-                max_new_tokens=2048,
-                temperature=temperature,
-                top_p=top_p,
-                repetition_penalty=repetition_penalty
-            )
-            
-            if response_text and not response_text.startswith("Ошибка"):
-                return {
-                    "response": response_text,
-                    "text": response_text,
-                    "status": "ok",
-                    "confidence": 0.9,
-                    "source": "qwen_model",
-                    "fallback_level": 0,
-                    "processing_time": time.time() - start_time
-                }
-            else:
-                return {
-                    "response": f"Ошибка генерации: {response_text or 'пустой ответ'}",
-                    "text": f"Ошибка генерации: {response_text or 'пустой ответ'}",
-                    "status": "error",
-                    "confidence": 0.0,
-                    "source": "qwen_error",
-                    "processing_time": time.time() - start_time
-                }
-        
-        # === NON-QWEN ONLY MODE: Legacy fallback chain ===
-        # Only executed if qwen_only_mode is False
+                    self.query_logger.debug(f"Ошибка проверки противоречий: {e}")
+
+            ethics_result = None
+            if ethics_fw and hasattr(ethics_fw, 'check_with_context'):
+                try:
+                    ethics_result = ethics_fw.check_with_context(query, response_text)
+                except Exception as e:
+                    self.query_logger.debug(f"Ошибка проверки этики: {e}")
+
+            simple_greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello',
+                                'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания']
+            is_greeting = any(query.lower().strip() == p for p in simple_greetings) or \
+                          (len(query.split()) <= 2 and not any(c.isalpha() for c in query))
+            search_query = query
+            if "Запрос пользователя:" in query:
+                parts = query.split("Запрос пользователя:")
+                if len(parts) > 1:
+                    search_query = parts[-1].strip()
+            elif "Пользователь прикрепил файл" in query:
+                is_greeting = True
+
+            if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500:
+                try:
+                    search_query = search_query[:200]
+                    query_hash = str(abs(hash(search_query)))
+                    cached_results = None
+                    if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                        cached_results = self.hybrid_cache.get_search_results(query_hash)
+                    if cached_results:
+                        self.query_logger.info("Использованы закэшированные результаты поиска")
+                        raw_results = cached_results.get('results', [])
+                    else:
+                        web_result = web_search.search(search_query, max_results=5)
+                        raw_results = web_result.get('results', []) if web_result else []
+                        if raw_results and hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                            try:
+                                self.hybrid_cache.add_search_results(
+                                    query_hash=query_hash, query=search_query,
+                                    results=[{'title': getattr(r, 'title', str(r)) if hasattr(r, 'title') else str(r),
+                                              'url': getattr(r, 'url', '') if hasattr(r, 'url') else '',
+                                              'snippet': getattr(r, 'snippet', '') if hasattr(r, 'snippet') else '',
+                                              'source': getattr(r, 'source', '') if hasattr(r, 'source') else ''}
+                                             for r in raw_results])
+                            except Exception as e:
+                                self.query_logger.debug(f"Не удалось закэшировать: {e}")
+                    search_results = []
+                    for sr in raw_results:
+                        try:
+                            if hasattr(sr, 'title') and hasattr(sr, 'url'):
+                                search_results.append({'title': str(sr.title) if sr.title else '',
+                                                       'url': str(sr.url) if sr.url else '',
+                                                       'snippet': str(sr.snippet) if sr.snippet else '',
+                                                       'source': str(sr.source) if sr.source else ''})
+                            elif isinstance(sr, dict):
+                                search_results.append(sr)
+                            else:
+                                search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
+                        except Exception:
+                            search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
+                    if search_results:
+                        self.query_logger.info(f"Веб-поиск нашел {len(search_results)} результатов")
+                except Exception as e:
+                    self.query_logger.debug(f"Ошибка веб-поиска: {e}")
+
+            needs_refinement = False
+            if contr_result and contr_result.get('significant_count', 0) > 0:
+                needs_refinement = True
+            if ethics_result and ethics_result.get('has_violations', False):
+                needs_refinement = True
+
+            if search_results and len(search_results) > 0:
+                web_context = "\n\nИнформация из интернета:\n"
+                for i, sr in enumerate(search_results[:3]):
+                    title = sr.get('title', 'No title')[:100] if isinstance(sr, dict) else str(sr)[:100]
+                    snippet = sr.get('snippet', '')[:200] if isinstance(sr, dict) else ''
+                    web_context += f"\n{i+1}. {title}: {snippet}..."
+                enhanced_prompt = f"{query}\n\n{web_context}\n\nДай ответ используя эту информацию"
+                response_text = self.llama_cpp_deployment.generate(
+                    prompt=enhanced_prompt, max_new_tokens=max_new_tokens or 2048,
+                    temperature=temperature or 0.7, top_p=top_p or 0.9,
+                    repeat_penalty=repetition_penalty or 1.1)
+
+            confidence = 0.9
+            if needs_refinement:
+                confidence = 0.6
+            if search_results:
+                confidence = min(confidence + 0.1, 0.95)
+
+            if knowledge_graph and hasattr(knowledge_graph, 'add_node'):
+                try:
+                    key_concepts = self._extract_key_concepts(query, response_text)
+                    knowledge_graph.add_node(
+                        name=query[:50], content=f"Q: {query}\nA: {response_text}",
+                        node_type='conversation',
+                        properties={'query': query, 'response': response_text,
+                                    'confidence': confidence, 'timestamp': time.time()})
+                    for concept in key_concepts:
+                        try:
+                            knowledge_graph.add_node(
+                                name=concept['word'], content=concept['description'],
+                                node_type=concept['type'],
+                                properties={'linked_to': query[:50]})
+                        except Exception:
+                            pass
+                    self.query_logger.debug(f"Сохранено в граф: {len(key_concepts)+1} узлов")
+                except Exception as e:
+                    self.query_logger.debug(f"Ошибка сохранения в граф: {e}")
+
+            unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
+            is_unknown = any(p in response_text.lower() for p in unknown_patterns)
+            if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                try:
+                    self.self_dialog_learning.create_dialog(
+                        topic=f"Неизвестная тема: {query[:100]}",
+                        context={"source": "low_confidence", "query": query})
+                except Exception:
+                    pass
+
+            return {
+                "response": response_text, "text": response_text, "status": "ok",
+                "confidence": confidence if not is_unknown else 0.4,
+                "source": "llama_cpp_with_modules", "fallback_level": 0,
+                "processing_time": time.time() - start_time,
+                "search_results": search_results, "contradiction_result": contr_result,
+                "ethics_result": ethics_result, "self_dialog_triggered": is_unknown
+            }
+        except Exception as e:
+            self.query_logger.warning(f"Ошибка LlamaCpp: {e}")
+        return None
+
+    def _handle_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
+                          max_new_tokens: int, temperature: float, top_p: float,
+                          repetition_penalty: float, disable_pytorch: bool) -> Dict[str, Any]:
+        """Handles the legacy fallback chain for non-qwen-only mode."""
         error_chain: List[Dict[str, Any]] = []
-        
-        # Уровень 0: SelfReasoningEngine (с рассуждениями) - ПРИОРИТЕТ
+
         reasoning_engine = getattr(self, 'self_reasoning_engine', None)
         if reasoning_engine is None and hasattr(self, 'reasoning_integration') and self.reasoning_integration:
             reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
@@ -1917,53 +1805,38 @@ class CoreBrain:
             try:
                 self.query_logger.info("Используем SelfReasoningEngine для генерации с рассуждением")
                 reasoning_result = reasoning_engine.process_query(query, user_context)
-                
                 formatted_reasoning = self._format_reasoning_for_gui(reasoning_result)
-                
-                # Check confidence - используем все ответы от SelfReasoningEngine
                 sre_confidence = reasoning_result.get('confidence', 0.0)
                 if reasoning_result.get('response') or reasoning_result.get('text'):
                     response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
-                    response_dict = {
-                        "response": response_text,
-                        "text": response_text,
-                        "status": "ok",
-                        "confidence": sre_confidence,
-                        "reasoning": formatted_reasoning,
+                    return {
+                        "response": response_text, "text": response_text, "status": "ok",
+                        "confidence": sre_confidence, "reasoning": formatted_reasoning,
                         "reasoning_raw": reasoning_result,
-                        "reasoning_steps": reasoning_result.get('reasoning_steps', []),  # Добавляем шаги для GUI
+                        "reasoning_steps": reasoning_result.get('reasoning_steps', []),
                         "model_a_response": reasoning_result.get('model_a_response', ''),
                         "model_b_response": reasoning_result.get('model_b_response', ''),
-                        "source": "self_reasoning_engine",
-                        "fallback_level": 0,
+                        "source": "self_reasoning_engine", "fallback_level": 0,
                         "processing_time": time.time() - start_time
                     }
-                    self.query_logger.info(f"Успешно использован self_reasoning_engine (confidence: {sre_confidence:.2f})")
-                    return response_dict
                 else:
                     self.query_logger.info(f"SelfReasoningEngine пустой ответ, fallback на GGUF")
             except Exception as e:
                 self.query_logger.warning(f"SelfReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "self_reasoning_engine", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 0.5: EnhancedReasoningEngine (новый движок с модульной регенерацией)
+
         enhanced_engine = getattr(self, 'enhanced_reasoning_engine', None)
         if enhanced_engine:
             try:
                 self.query_logger.info("Используем EnhancedReasoningEngine для генерации с регенерацией")
-                
-                # Get conversation history
                 conversation_history = None
                 if user_context and 'conversation_history' in user_context:
                     conversation_history = user_context['conversation_history']
-                
-                # Get knowledge context
                 knowledge_context = None
                 if hasattr(self, 'knowledge_graph'):
                     try:
                         from eva.knowledge.knowledge_graph import KnowledgeGraph
                         if isinstance(self.knowledge_graph, KnowledgeGraph):
-                            # Get relevant knowledge
                             relevant = self.knowledge_graph.get_relevant_nodes(query, limit=5)
                             if relevant:
                                 knowledge_context = []
@@ -1974,56 +1847,37 @@ class CoreBrain:
                                         knowledge_context.append(str(node.name))
                     except Exception as e:
                         self.query_logger.debug(f"Не удалось получить контекст знаний: {e}")
-                
-                # Process with enhanced engine
                 enhanced_result = enhanced_engine.process_query(
-                    query=query,
-                    conversation_history=conversation_history,
-                    knowledge_context=knowledge_context
-                )
-                
+                    query=query, conversation_history=conversation_history,
+                    knowledge_context=knowledge_context)
                 if enhanced_result.get('response'):
                     response_text = enhanced_result.get('response', '')
                     conf = enhanced_result.get('confidence', 0.0)
-                    
-                    # Get min_confidence from engine config or use default
                     min_conf = 0.7
                     if enhanced_engine and hasattr(enhanced_engine, 'min_confidence'):
                         min_conf = enhanced_engine.min_confidence
-                    
-                    # Require minimum confidence
                     if conf < min_conf:
                         self.query_logger.info(f"EnhancedReasoningEngine низкая уверенность ({conf:.2f}), fallback")
-                        error_chain.append({"source": "enhanced_reasoning_engine", "error": "low_confidence", "confidence": conf})
+                        error_chain.append({"source": "enhanced_reasoning_engine",
+                                            "error": "low_confidence", "confidence": conf})
                     else:
-                        response_dict = {
-                        "response": response_text,
-                        "text": response_text,
-                        "status": enhanced_result.get('status', 'ok'),
-                        "confidence": conf,
-                        "reasoning": {
-                            "iterations": enhanced_result.get('iterations', 0),
-                            "processing_time": enhanced_result.get('processing_time', 0),
-                            "chain": enhanced_result.get('reasoning_chain', [])
-                        },
-                        "reasoning_raw": enhanced_result,
-                        "source": "enhanced_reasoning_engine",
-                        "fallback_level": 0.5,
-                        "processing_time": time.time() - start_time
-                    }
-                    self.query_logger.info(f"Успешно использован enhanced_reasoning_engine (confidence: {conf:.2f})")
-                    return response_dict
+                        return {
+                            "response": response_text, "text": response_text,
+                            "status": enhanced_result.get('status', 'ok'), "confidence": conf,
+                            "reasoning": {"iterations": enhanced_result.get('iterations', 0),
+                                          "processing_time": enhanced_result.get('processing_time', 0),
+                                          "chain": enhanced_result.get('reasoning_chain', [])},
+                            "reasoning_raw": enhanced_result,
+                            "source": "enhanced_reasoning_engine", "fallback_level": 0.5,
+                            "processing_time": time.time() - start_time
+                        }
             except Exception as e:
                 self.query_logger.warning(f"EnhancedReasoningEngine недоступен: {e}")
                 error_chain.append({"source": "enhanced_reasoning_engine", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 2: QwenModelManager (приоритетная модель для диалогов)
+
         try:
-            # Lazy loading - загружаем модель только при первом запросе
-            # Use lock to prevent race condition during concurrent loading
             if self.qwen_model_manager is None and self._qwen_config is not None:
                 with self._model_load_lock:
-                    # Double-check after acquiring lock
                     if self.qwen_model_manager is None and self._qwen_config is not None:
                         self.query_logger.info("Загрузка QwenModelManager (lazy)...")
                         try:
@@ -2031,16 +1885,9 @@ class CoreBrain:
                                 from eva.mlearning.qwen_model_manager import get_qwen_model_manager
                             except ImportError:
                                 from ..mlearning.qwen_model_manager import get_qwen_model_manager
-                            
-                            qwen_device = self._qwen_config.get('device', 'cuda')
-                            
                             self.qwen_model_manager = get_qwen_model_manager(
                                 model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                                device='cpu',
-                                load_in_8bit=False,
-                                load_in_4bit=False
-                            )
-                            
+                                device='cpu', load_in_8bit=False, load_in_4bit=False)
                             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                                 self.qwen_ready = True
                                 if self.events:
@@ -2052,59 +1899,37 @@ class CoreBrain:
                         except Exception as e:
                             self.query_logger.warning(f"Ошибка lazy загрузки QwenModelManager: {e}")
                             self.qwen_model_manager = None
-            
-            # ПРОПУСКАЕМ QwenModelManager если disable_pytorch: true
+
             if disable_pytorch:
                 self.query_logger.info("PyTorch отключён - пропускаем QwenModelManager в конце fallback chain")
                 if self.llama_cpp_ready and self.llama_cpp_deployment:
                     try:
                         response_text = self.llama_cpp_deployment.generate(
-                            prompt=query,
-                            max_new_tokens=max_new_tokens or 2048,
-                            temperature=temperature or 0.7,
-                            top_p=top_p or 0.9,
-                            repeat_penalty=repetition_penalty or 1.1
-                        )
+                            prompt=query, max_new_tokens=max_new_tokens or 2048,
+                            temperature=temperature or 0.7, top_p=top_p or 0.9,
+                            repeat_penalty=repetition_penalty or 1.1)
                         if response_text and len(response_text) > 0:
-                            return {
-                                "response": response_text,
-                                "text": response_text,
-                                "status": "ok",
-                                "confidence": 0.8,
-                                "source": "llama_cpp_final",
-                                "fallback_level": 0,
-                                "processing_time": time.time() - start_time
-                            }
+                            return {"response": response_text, "text": response_text, "status": "ok",
+                                    "confidence": 0.8, "source": "llama_cpp_final", "fallback_level": 0,
+                                    "processing_time": time.time() - start_time}
                     except Exception as e:
                         self.query_logger.warning(f"Ошибка LlamaCpp final: {e}")
-                
-                return {
-                    "response": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
-                    "text": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
-                    "status": "error",
-                    "confidence": 0.0,
-                    "source": "gguf_error",
-                    "processing_time": time.time() - start_time
-                }
-            
+                return {"response": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
+                        "text": "Ошибка: GGUF недоступен. Проверьте конфигурацию.",
+                        "status": "error", "confidence": 0.0, "source": "gguf_error",
+                        "processing_time": time.time() - start_time}
+
             if self.qwen_model_manager and self.qwen_model_manager.initialized:
                 self.query_logger.info("Используем QwenModelManager для генерации")
-                
-                # Get generation params from config
                 gen_config = self.config.get('generation', {})
                 temperature = gen_config.get('temperature', 0.7)
                 top_p = gen_config.get('top_p', 0.9)
                 repetition_penalty = gen_config.get('repetition_penalty', 1.1)
-                
-                # Build conversation history from session context
                 messages = []
                 session_id = user_context.get('session_id') if user_context else None
-                
-                # First try to get history from user_context (from web GUI)
                 if user_context and 'conversation_history' in user_context:
                     messages = user_context['conversation_history'].copy()
                     self.query_logger.info(f"Загружена история из web GUI: {len(messages)} сообщений")
-                # Fallback to memory_manager
                 elif session_id and hasattr(self, 'memory_manager'):
                     try:
                         if hasattr(self.memory_manager, 'get_conversation_history'):
@@ -2117,46 +1942,26 @@ class CoreBrain:
                                         messages.append({"role": "assistant", "content": conv['response']})
                     except Exception as e:
                         self.query_logger.debug(f"Не удалось загрузить историю: {e}")
-                
                 messages.append({"role": "user", "content": query})
                 response_text = self.qwen_model_manager.generate(
-                    messages,
-                    max_new_tokens=2048,
-                    temperature=temperature,
-                    top_p=top_p,
-                    repetition_penalty=repetition_penalty
-                )
-                
+                    messages, max_new_tokens=2048, temperature=temperature,
+                    top_p=top_p, repetition_penalty=repetition_penalty)
                 if response_text and not response_text.startswith("Ошибка"):
-                    # Проверяем уверенность и генерируем уточняющий вопрос если нужно
                     clarification = self._generate_clarification_if_needed(query, response_text, 0.9)
-                    
-                    result = {
-                        "response": response_text,
-                        "text": response_text,
-                        "status": "ok",
-                        "confidence": 0.9,
-                        "source": "qwen_model",
-                        "fallback_level": 0,
-                        "processing_time": time.time() - start_time
-                    }
-                    
+                    result = {"response": response_text, "text": response_text, "status": "ok",
+                              "confidence": 0.9, "source": "qwen_model", "fallback_level": 0,
+                              "processing_time": time.time() - start_time}
                     if clarification:
                         result["clarification_question"] = clarification
-                        result["confidence"] = 0.7  # Снижаем уверенность since we need clarification
-                    
+                        result["confidence"] = 0.7
                     return result
         except Exception as e:
             self.query_logger.warning(f"QwenModelManager недоступен: {e}")
             error_chain.append({"source": "qwen_model", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 3: Generation Coordinator
+
         try:
             if self.generation_coordinator and getattr(self.generation_coordinator, 'initialized', True) and getattr(self.generation_coordinator, 'running', True):
-                response = self.generation_coordinator.generate_response(
-                    prompt=query,
-                    max_new_tokens=2048
-                )
+                response = self.generation_coordinator.generate_response(prompt=query, max_new_tokens=2048)
                 if isinstance(response, dict):
                     response_dict = response
                 elif hasattr(response, 'to_dict'):
@@ -2170,13 +1975,11 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.warning(f"Generation coordinator недоступен: {e}")
             error_chain.append({"source": "generation_coordinator", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 4: Fractal Model Manager (пропускаем если PyTorch отключён)
+
         try:
             if disable_pytorch:
                 self.query_logger.info("PyTorch отключён - пропускаем fractal_model_manager")
                 raise RuntimeError("PyTorch disabled")
-            
             if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager and getattr(self.fractal_model_manager, 'initialized', True):
                 response = self.fractal_model_manager.generate(query)
                 if response:
@@ -2193,8 +1996,7 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.warning(f"Fractal model manager недоступен: {e}")
             error_chain.append({"source": "fractal_model_manager", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 5: Query Processor
+
         try:
             if not hasattr(self, 'query_processor') or self.query_processor is None:
                 self.query_logger.debug("query_processor не инициализирован")
@@ -2208,7 +2010,6 @@ class CoreBrain:
                             resp['status'] = status_val
                         except Exception:
                             resp = {"response": str(resp), "status": status_val}
-                    
                     resp["fallback_level"] = 3
                     resp["source"] = "query_processor"
                     self.query_logger.info("Успешно использован query_processor")
@@ -2216,8 +2017,7 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.warning(f"Query processor недоступен: {e}")
             error_chain.append({"source": "query_processor", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 6: MLUnit напрямую
+
         try:
             if hasattr(self, 'ml_unit') and self.ml_unit and getattr(self.ml_unit, 'initialized', True):
                 response = self.ml_unit.generate_response(query)
@@ -2229,32 +2029,25 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.warning(f"MLUnit недоступен: {e}")
             error_chain.append({"source": "ml_unit_direct", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 7: Memory Manager для простых ответов
+
         try:
             if hasattr(self, 'memory_manager') and self.memory_manager and getattr(self.memory_manager, 'initialized', True):
-                # Пытаемся найти похожий запрос в памяти
                 memory_response = self.memory_manager.get_recent_interactions(limit=1)
                 if memory_response and len(memory_response) > 0:
                     similar_item = memory_response[0]
                     if hasattr(similar_item, 'response') or (isinstance(similar_item, dict) and 'response' in similar_item):
                         response_text = similar_item.response if hasattr(similar_item, 'response') else similar_item.get('response', '')
                         if response_text:
-                            response = {
-                                "response": response_text,
-                                "confidence": 0.6,
-                                "fallback_level": 5,
-                                "source": "memory_manager",
-                                "similarity_score": getattr(similar_item, 'similarity', 0.0),
-                                "timestamp": time.time()
-                            }
+                            response = {"response": response_text, "confidence": 0.6,
+                                        "fallback_level": 5, "source": "memory_manager",
+                                        "similarity_score": getattr(similar_item, 'similarity', 0.0),
+                                        "timestamp": time.time()}
                             self.query_logger.info("Успешно использован memory_manager")
                             return response
         except Exception as e:
             self.query_logger.warning(f"Memory manager недоступен: {e}")
             error_chain.append({"source": "memory_manager", "error": str(e), "type": type(e).__name__})
-        
-        # Уровень 8: Базовый ответ на основе ключевых слов
+
         try:
             response = self._generate_basic_fallback_response(query)
             response["fallback_level"] = 6
@@ -2264,25 +2057,19 @@ class CoreBrain:
         except Exception as e:
             self.query_logger.error(f"Ошибка в базовом fallback: {e}")
             error_chain.append({"source": "basic_fallback", "error": str(e), "type": type(e).__name__})
-        
-        # Финальный fallback если все уровни провалились
+
         processing_time = time.time() - start_time
         self.query_logger.error(f"Все уровни fallback провалились для запроса: {query[:50]}...")
         return {
             "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
-            "status": "error",
-            "fallback_level": 7,
-            "source": "final_fallback",
-            "error": "All fallback levels failed",
-            "processing_time": processing_time,
+            "status": "error", "fallback_level": 7, "source": "final_fallback",
+            "error": "All fallback levels failed", "processing_time": processing_time,
             "timestamp": time.time(),
-            "metadata": {
-                "original_query_length": len(query),
-                "system_status": "critical_degradation",
-                "error_chain": error_chain
-            }
+            "metadata": {"original_query_length": len(query),
+                         "system_status": "critical_degradation", "error_chain": error_chain}
         }
-    
+
+
     def _generate_basic_fallback_response(self, query: str) -> Dict[str, Any]:
         """Генерирует базовый ответ на основе анализа ключевых слов."""
         query_lower = query.lower()
@@ -3623,11 +3410,13 @@ def main():
             _cli_listener_thread = threading.Thread(target=_cli_exit_listener, name="CLIExitListener", daemon=True)
             _cli_listener_thread.start()
             
+            last_health_check = time.time()
             try:
                 logger.info("Ожидание команд. Введите 'exit' для завершения или Ctrl+C")
                 while core.running:
                     time.sleep(1)
-                    if time.time() % 30 < 0.1:
+                    if time.time() - last_health_check >= 30:
+                        last_health_check = time.time()
                         health = core.get_system_health()
                         logger.info(f"Текущее состояние системы: {health['status']}")
                         if health['status'] != 'healthy':

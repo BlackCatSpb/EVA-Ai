@@ -95,10 +95,6 @@ def _check_singleton():
     atexit.register(_cleanup_pid)
     logger.info(f"PID-файл создан: PID {os.getpid()}")
 
-# Регистрируем обработчики сигналов
-signal.signal(signal.SIGINT, _signal_handler)
-signal.signal(signal.SIGTERM, _signal_handler)
-
 # Настраиваем TF32 по новому API PyTorch до загрузки остальной системы
 try:
     import torch
@@ -186,4 +182,7 @@ if __name__ == "__main__":
     # Если он импортируется, предполагается, что логирование уже настроено.
     setup_logging(log_dir="logs")
     _check_singleton()
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGINT, _signal_handler)
+        signal.signal(signal.SIGTERM, _signal_handler)
     main()

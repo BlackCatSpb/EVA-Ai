@@ -16,6 +16,7 @@ import logging
 import json
 import time
 import threading
+import atexit
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any, List, Optional
 from llama_cpp import Llama
@@ -23,6 +24,7 @@ from llama_cpp import Llama
 logger = logging.getLogger(__name__)
 
 _generation_executor = ThreadPoolExecutor(max_workers=4)
+atexit.register(lambda: _generation_executor.shutdown(wait=False))
 
 
 class AdaptiveParameterController:
