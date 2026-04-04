@@ -66,7 +66,7 @@ def _check_singleton():
             import subprocess
             result = subprocess.run(
                 ["tasklist", "/FI", f"PID eq {old_pid}", "/NH", "/FO", "CSV"],
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=10
             )
             if str(old_pid) in result.stdout:
                 logger.error(f"EVA уже запущена (PID {old_pid}). Завершите старый процесс или удалите {_PID_FILE}")

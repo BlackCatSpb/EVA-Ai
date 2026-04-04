@@ -640,8 +640,6 @@ class UnifiedTextProcessor(BaseComponent):
         except Exception as e:
             logger.error(f"Ошибка при очистке ресурсов: {e}", exc_info=True)
             raise
-        except Exception:
-            pass
 
         # Сохраняем кэш
         try:

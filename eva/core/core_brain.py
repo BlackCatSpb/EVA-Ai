@@ -446,7 +446,7 @@ class CoreBrain:
             model_config = self.config.get('model', {})
             use_two_model = model_config.get('use_two_model_pipeline', False)
             
-            logger.info("DEBUG brain: use_two_model = " + str(use_two_model))
+            logger.debug("DEBUG brain: use_two_model = " + str(use_two_model))
             
             if use_two_model:
                 model_a_path = model_config.get('model_a_gguf_path', '')
@@ -479,8 +479,8 @@ class CoreBrain:
                         model_c_path = os.path.join(project_root, model_c_path)
                     
                     # Check model files exist
-                    logger.info(f"DEBUG: Checking model files - A: {model_a_path}, exists: {os.path.exists(model_a_path)}")
-                    logger.info(f"DEBUG: Checking model files - B: {model_b_path}, exists: {os.path.exists(model_b_path)}")
+                    logger.debug(f"DEBUG: Checking model files - A: {model_a_path}, exists: {os.path.exists(model_a_path)}")
+                    logger.debug(f"DEBUG: Checking model files - B: {model_b_path}, exists: {os.path.exists(model_b_path)}")
                     if not os.path.exists(model_a_path):
                         self.query_logger.error(f"Model A file not found: {model_a_path}")
                         self.two_model_pipeline = None
@@ -505,7 +505,7 @@ class CoreBrain:
                         if self.fractal_memory:
                             pipeline_kwargs['fractal_memory'] = self.fractal_memory
                         
-                        logger.info("DEBUG: Creating pipeline with fallback (B missing)")
+                        logger.debug("DEBUG: Creating pipeline with fallback (B missing)")
                         self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
                     else:
                         self.query_logger.info(f"Инициализация Two-Model Pipeline...")
@@ -525,12 +525,12 @@ class CoreBrain:
                         if self.fractal_memory:
                             pipeline_kwargs['fractal_memory'] = self.fractal_memory
                         
-                        logger.info("DEBUG: Creating pipeline - both models exist")
+                        logger.debug("DEBUG: Creating pipeline - both models exist")
                         self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
-                        logger.info("DEBUG: RecursiveModelPipeline created, about to load_models()")
+                        logger.debug("DEBUG: RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline.load_models()
                     self.two_model_pipeline_ready = True
-                    logger.info("DEBUG: load_models() completed, pipeline_ready = " + str(self.two_model_pipeline_ready))
+                    logger.debug("DEBUG: load_models() completed, pipeline_ready = " + str(self.two_model_pipeline_ready))
                     self.query_logger.info("Two-Model Pipeline готов к работе!")
                     
                     # Log pipeline status

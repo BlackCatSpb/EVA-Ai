@@ -804,15 +804,18 @@ class RecursiveModelPipeline:
         logger.info(f"Model C (Coder) query: {query[:100]}...")
         
         for attempt in range(max_retries + 1):
-            output = self.model_c.create_chat_completion(
-                messages=messages,
-                max_tokens=self.MODEL_C_MAX_TOKENS,
-                temperature=self.MODEL_C_TEMPERATURE + (attempt * 0.05),
-                top_p=self.MODEL_C_TOP_P,
-                top_k=self.MODEL_C_TOP_K,
-                repeat_penalty=self.MODEL_C_REPEAT_PENALTY + (attempt * 0.1),
-                stop=["</s>"]
-            )
+            params = {
+                'max_tokens': self.MODEL_C_MAX_TOKENS,
+                'temperature': self.MODEL_C_TEMPERATURE + (attempt * 0.05),
+                'top_p': self.MODEL_C_TOP_P,
+                'top_k': self.MODEL_C_TOP_K,
+                'repeat_penalty': self.MODEL_C_REPEAT_PENALTY + (attempt * 0.1),
+                'stop': ["</s>"]
+            }
+            output = self._generate_with_timeout(self.model_c, messages, params, timeout=60)
+            if output is None:
+                logger.warning(f"Model C: timeout on attempt {attempt+1}")
+                continue
             
             raw_response = output['choices'][0]['message']['content'].strip()
             quality = self.check_quality(raw_response)
@@ -1011,13 +1014,16 @@ def create_recursive_pipeline(
 ) -> 'RecursiveModelPipeline':
     """Фабричная функция для создания пайплайна"""
     if model_a_path is None:
-        model_a_path = r"C:/Users/black/OneDrive/Desktop/CogniFlex/eva/memory/fractal_torch_storage/gguf_models/qwen2.5-3b-instruct/qwen2.5-3b-instruct-q4_k_m.gguf"
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_a_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-3b-instruct", "qwen2.5-3b-instruct-q4_k_m.gguf")
     
     if model_b_path is None:
-        model_b_path = r"C:/Users/black/OneDrive/Desktop/CogniFlex/eva/memory/fractal_torch_storage/gguf_models/qwen2.5-3b-instruct/qwen2.5-3b-instruct-q4_k_m.gguf"
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_b_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-3b-instruct", "qwen2.5-3b-instruct-q4_k_m.gguf")
     
     if model_c_path is None:
-        model_c_path = r"C:/Users/black/OneDrive/Desktop/CogniFlex/eva/memory/fractal_torch_storage/gguf_models/qwen2.5-coder-1.5b-instruct/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_c_path = os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-coder-1.5b-instruct", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
     
     pipeline = RecursiveModelPipeline(
         model_a_path=model_a_path,

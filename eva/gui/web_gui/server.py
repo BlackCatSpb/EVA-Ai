@@ -47,6 +47,13 @@ except Exception as e:
 
 
 class SessionManager:
+    """
+    Управление сессиями пользователей.
+    
+    NOTE: sessions.json содержит конфиденциальные данные (идентификаторы сессий,
+    историю чатов, контекстные узлы). В production этот файл должен быть зашифрован.
+    На Windows файл не является world-readable, но всё равно требует защиты.
+    """
     def __init__(self):
         self.sessions = {}
         self._lock = threading.Lock()
