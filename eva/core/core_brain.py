@@ -2,6 +2,7 @@
 Единое ядро системы ЕВА - координирует работу всех компонентов
 """
 import os
+import sys
 import logging
 import time
 import threading
@@ -1023,7 +1024,7 @@ class CoreBrain:
         """Загружает конфигурацию из brain_config.json."""
         import json
         
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         config_path = os.path.join(project_root, "brain_config.json")
         
         if not os.path.exists(config_path):
