@@ -21,19 +21,22 @@ app = Flask(__name__,
             static_folder='static',
             static_url_path='/static')
 def _get_secret_key():
-    env_key = os.environ.get('COGNIFLEX_SECRET_KEY')
-    if env_key:
-        return env_key
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
-    if os.path.exists(config_path):
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = json.load(f)
-                if config.get('web_gui', {}).get('secret_key'):
-                    return config['web_gui']['secret_key']
-        except Exception:
-            pass
-    return os.urandom(32).hex()
+    try:
+        env_key = os.environ.get('COGNIFLEX_SECRET_KEY')
+        if env_key:
+            return env_key
+        config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    if config.get('web_gui', {}).get('secret_key'):
+                        return config['web_gui']['secret_key']
+            except Exception:
+                pass
+        return os.urandom(32).hex()
+    except Exception:
+        return os.urandom(32).hex()
 app.config['SECRET_KEY'] = _get_secret_key()
 app.config['JSON_AS_ASCII'] = False
 

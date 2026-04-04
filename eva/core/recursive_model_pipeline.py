@@ -394,7 +394,7 @@ class RecursiveModelPipeline:
             return {'is_gibberish': True, 'score': 0.3, 'reasons': ['Зацикливание: одинаковые предложения повторяются']}
         
         # Проверка на начальные фразы-паразиты
-        filler_starts = ['Конечно!', 'Конечно', 'Вот более', 'Вот что', 'Это всё', '---', '***']
+        filler_starts = ['Вот более', 'Вот что', '---', '***']
         for filler in filler_starts:
             if text.startswith(filler):
                 return {'is_gibberish': True, 'score': 0.4, 'reasons': ['Начинается с фразы-паразита']}
@@ -1047,35 +1047,4 @@ def create_recursive_pipeline(
     return pipeline
 
 
-if __name__ == "__main__":
-    import sys
-    import io
-    
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    logging.basicConfig(level=logging.INFO)
-    
-    print("=" * 60)
-    print("Создание Recursive Model Pipeline (Three-GGUF)")
-    print("=" * 60)
-    
-    pipeline = create_recursive_pipeline()
-    
-    test_query = "Что такое искусственный интеллект?"
-    print(f"\nЗапрос: {test_query}")
-    print("-" * 40)
-    
-    results = pipeline.process_query(test_query)
-    
-    print("\n" + "=" * 60)
-    print("РЕЗУЛЬТАТЫ")
-    print("=" * 60)
-    
-    print("\n[Model A - Логическое ядро]")
-    print(f"Ответ: {results['model_a_result']['natural_response']}")
-    
-    print("\n[Model B - Расширение концепций]")
-    print(f"Ответ: {results['model_b_result']['natural_response']}")
-    
-    if results.get('model_c_result'):
-        print("\n[Model C - Кодер]")
-        print(f"Ответ: {results['model_c_result']['natural_response']}")
+

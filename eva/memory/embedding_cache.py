@@ -34,6 +34,8 @@ class EmbeddingCache:
         self.db_path = os.path.join(cache_dir, 'embeddings.db')
         self.max_size = max_size
         self._lock = threading.RLock()
+        self._hits = 0
+        self._misses = 0
         self._init_db()
         
         stats = self.get_stats()
@@ -76,6 +78,7 @@ class EmbeddingCache:
                 )
                 row = cursor.fetchone()
                 if row:
+                    self._hits += 1
                     embedding = json.loads(row[0])
                     # Обновляем статистику доступа
                     conn.execute(
@@ -84,6 +87,7 @@ class EmbeddingCache:
                     )
                     conn.commit()
                     return embedding
+        self._misses += 1
         return None
     
     def put(self, text: str, embedding: List[float]):
@@ -170,13 +174,11 @@ class EmbeddingCache:
                 }
     
     def _compute_hit_rate(self) -> float:
-        """Вычисляет hit rate кеша."""
-        with self._lock:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("SELECT AVG(access_count) FROM embeddings")
-                row = cursor.fetchone()
-                avg = row[0] if row and row[0] else 1.0
-                return round(avg / (avg + 1) * 100, 1)
+        """Вычисляет реальный hit rate кеша."""
+        total = self._hits + self._misses
+        if total == 0:
+            return 0.0
+        return round(self._hits / total * 100, 1)
     
     def clear(self):
         """Очищает кеш."""

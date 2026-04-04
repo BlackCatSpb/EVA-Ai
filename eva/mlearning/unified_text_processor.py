@@ -640,21 +640,6 @@ class UnifiedTextProcessor(BaseComponent):
         except Exception as e:
             logger.error(f"Ошибка при очистке ресурсов: {e}", exc_info=True)
             raise
-
-        # Сохраняем кэш
-        try:
-            if self.hybrid_cache and hasattr(self.hybrid_cache, 'save'):
-                self.hybrid_cache.save()
-        except Exception:
-            pass
-
-        # Безопасное логирование (во время завершения интерпретатора globals могут быть None)
-        try:
-            _lg = logger if logger else logging.getLogger("eva.unified_text_processor")
-            if _lg:
-                _lg.info("UnifiedTextProcessor завершил работу")
-        except Exception:
-            pass
     
     def _emit_metrics(self, metrics: List[Dict[str, Any]]):
         """Безопасно отправляет метрики: предпочитает событийную систему; fallback на прямой вызов."""

@@ -1384,7 +1384,6 @@ class CoreBrain:
         # Load Qwen if not loaded yet (before greeting check!)
         if qwen_only_mode and self.qwen_model_manager is None and self._qwen_config is not None:
             # Skip if disable_pytorch: true
-            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
             if disable_pytorch:
                 self.query_logger.info("PyTorch отключён - пропускаем загрузку Qwen в qwen_only_mode")
             else:
@@ -1488,7 +1487,6 @@ class CoreBrain:
             
             # Check if Two-Model Pipeline was already tried and failed
             # Skip regular llama_cpp if Two-Model Pipeline was enabled but failed
-            disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
             use_two_model = self.config.get('model', {}).get('use_two_model_pipeline', False)
             
             # Если Two-Model Pipeline включён и работает - не используем обычный GGUF
