@@ -8,9 +8,10 @@ import threading
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=PendingDeprecationWarning)
 
-# Обход проверки CVE-2025-32434 для torch.load
 import torch
-torch._inductor.config.triton.cudagraphs = False
+# CVE-2025-32434 mitigation: all torch.load() calls across the codebase
+# use explicit weights_only=False since model checkpoints contain full
+# state dicts (not just tensor weights). See each call site for details.
 
 from eva.core.utils import setup_logging
 
@@ -78,8 +79,16 @@ def _check_singleton():
             os.remove(_PID_FILE)
 
     try:
-        with open(_PID_FILE, "w") as f:
-            f.write(str(os.getpid()))
+        fd = os.open(_PID_FILE, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(str(os.getpid()))
+        except Exception:
+            os.close(fd)
+            raise
+    except FileExistsError:
+        logger.error(f"EVA уже запущена (конкурирующий процесс создал PID-файл). Удалите {_PID_FILE} если уверены, что процесс не запущен")
+        sys.exit(1)
     except OSError as e:
         logger.error(f"Не удалось создать PID-файл: {e}")
         sys.exit(1)

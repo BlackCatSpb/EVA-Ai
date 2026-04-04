@@ -21,7 +21,7 @@ def test_model_loading():
     
     # Try loading it back
     print("\nLoading test model...")
-    loaded_state_dict = torch.load("test_model.pt")
+    loaded_state_dict = torch.load("test_model.pt", weights_only=False)
     new_model = GPT2LMHeadModel(config)
     new_model.load_state_dict(loaded_state_dict)
     print("Test model loaded successfully")

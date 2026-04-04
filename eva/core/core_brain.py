@@ -992,28 +992,24 @@ class CoreBrain:
         """Загружает конфигурацию из brain_config.json."""
         import json
         
-        # Ищем файл в нескольких местах
-        possible_paths = [
-            "brain_config.json",
-            os.path.join(os.path.dirname(os.path.dirname(__file__)), "brain_config.json"),
-            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "brain_config.json"),
-        ]
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        config_path = os.path.join(project_root, "brain_config.json")
         
-        for config_path in possible_paths:
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r', encoding='utf-8') as f:
-                        config = json.load(f)
-                    logger.info(f"Конфигурация загружена из {config_path}")
-                    self.query_logger.info(f"Загружена конфигурация из {config_path}")
-                    return config
-                except Exception as e:
-                    logger.warning(f"Ошибка загрузки {config_path}: {e}")
+        if not os.path.exists(config_path):
+            logger.error(f"brain_config.json не найден в {config_path}")
+            raise FileNotFoundError(
+                f"brain_config.json не найден. Ожидаемый путь: {config_path}"
+            )
         
-        logger.error("brain_config.json не найден ни в одном из ожидаемых расположений")
-        raise FileNotFoundError(
-            f"brain_config.json не найден. Проверены пути: {possible_paths}"
-        )
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            logger.info(f"Конфигурация загружена из {config_path}")
+            self.query_logger.info(f"Загружена конфигурация из {config_path}")
+            return config
+        except Exception as e:
+            logger.error(f"Ошибка загрузки {config_path}: {e}")
+            raise
     
     def _register_deferred_system_handlers(self):
         """Регистрирует health checks и recovery strategies для deferred_command_system."""

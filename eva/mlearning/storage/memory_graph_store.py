@@ -401,7 +401,7 @@ class MemoryGraphStore:
             if not graph_path.exists():
                 return False
                 
-            self.memory_graph = torch.load(graph_path)
+            self.memory_graph = torch.load(graph_path, weights_only=False)
             
             # Load fractal store
             self.fractal_store.load_from_disk_sharded(

@@ -465,7 +465,7 @@ class FractalKnowledgeTrainer:
         # Загружаем состояние тренера, если есть
         trainer_state_path = model_name_or_path / 'trainer_state.pt'
         if trainer_state_path.exists():
-            trainer_state = torch.load(trainer_state_path, map_location='cpu')
+            trainer_state = torch.load(trainer_state_path, map_location='cpu', weights_only=False)
             trainer.optimizer.load_state_dict(trainer_state['optimizer'])
             
             if trainer.scheduler is not None and 'scheduler' in trainer_state:
@@ -475,6 +475,6 @@ class FractalKnowledgeTrainer:
             if trainer.config.get('use_memory', False) and trainer.memory is not None:
                 memory_state_path = model_name_or_path / 'memory_state.pt'
                 if memory_state_path.exists():
-                    trainer.memory.load_state_dict(torch.load(memory_state_path))
+                    trainer.memory.load_state_dict(torch.load(memory_state_path, weights_only=False))
         
         return trainer

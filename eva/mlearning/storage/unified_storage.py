@@ -191,7 +191,7 @@ class UnifiedFractalStorage:
             raise ValueError(f"No saved state for model {model_id}")
             
         # Load weights
-        state_dict = torch.load(model_path)
+        state_dict = torch.load(model_path, weights_only=False)
         model.load_state_dict(state_dict)
         model = model.to(self.device)
         self.models[model_id] = model
@@ -202,7 +202,7 @@ class UnifiedFractalStorage:
             if opt_path.exists():
                 optimizer = torch.optim.Adam(model.parameters())
                 optimizer.load_state_dict(
-                    torch.load(opt_path)
+                    torch.load(opt_path, weights_only=False)
                 )
                 self.optimizers[model_id] = optimizer
                 
@@ -313,7 +313,7 @@ class UnifiedFractalStorage:
         # Load vectors
         for path in self.nodes_path.glob("*.pt"):
             node_id = path.stem
-            vector = torch.load(path)
+            vector = torch.load(path, weights_only=False)
             self.node_vectors[node_id] = vector.to(self.device)
             
         # Load edges

@@ -244,13 +244,13 @@ class UnifiedMemoryGraph:
         """Load graph state"""
         # Load graph structure
         if (self.base_path / "graph.pt").exists():
-            data = torch.load(self.base_path / "graph.pt")
+            data = torch.load(self.base_path / "graph.pt", weights_only=False)
             self.nodes = data['nodes']
             self.edges = data['edges']
             
         # Load vectors
         if (self.base_path / "vectors.pt").exists():
-            self.node_vectors = torch.load(self.base_path / "vectors.pt")
+            self.node_vectors = torch.load(self.base_path / "vectors.pt", weights_only=False)
             
         # Load fractal storage
         self.fractal_store.load_from_disk()
