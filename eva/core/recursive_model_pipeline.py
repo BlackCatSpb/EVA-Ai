@@ -217,10 +217,15 @@ class AdaptiveParameterController:
             embedding = self._compute_embedding(response_text)
             if embedding:
                 self.failed_response_embeddings.append(embedding)
+        
+        self.failed_response_embeddings = self.failed_response_embeddings[-100:]
+        self.failed_response_texts = self.failed_response_texts[-100:]
+        self.failure_history = self.failure_history[-100:]
     
     def record_success(self):
         """Записывает успех."""
         self.success_count += 1
+        self.failure_history = self.failure_history[-100:]
     
     def reset(self):
         """Сбрасывает состояние для нового запроса."""
@@ -237,6 +242,13 @@ class AdaptiveParameterController:
             'recent_failures': self.failure_history[-5:],
             'semantic_analysis_enabled': self._get_embedder() is not None,
         }
+    
+    def cleanup(self):
+        """Освобождает ресурсы эмбеддера."""
+        self._embedder = None
+        self.failed_response_embeddings = []
+        self.failed_response_texts = []
+        self.failure_history = []
 
 
 class RecursiveModelPipeline:
@@ -1012,6 +1024,22 @@ class RecursiveModelPipeline:
         logger.info("Three-GGUF пайплайн завершён")
         
         return results
+    
+    def unload_models(self):
+        """Выгружает модели и освобождает ресурсы."""
+        self.model_a = None
+        self.model_b = None
+        self.model_c = None
+        self.model_a_params.cleanup()
+        self.model_b_params.cleanup()
+        logger.info("Модели выгружены, ресурсы освобождены")
+    
+    def __del__(self):
+        """Деструктор - освобождает ресурсы."""
+        try:
+            self.unload_models()
+        except Exception:
+            pass
 
 
 def create_recursive_pipeline(

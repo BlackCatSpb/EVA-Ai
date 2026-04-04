@@ -183,11 +183,13 @@ class CoreBrain:
         self._shutdown_lock = threading.Lock()
         self.status_queue = queue.Queue()
         self.deferred_commands = []
+        self._deferred_commands_lock = threading.Lock()
         
         # Настройки троттлинга логов
         self.log_throttle_seconds = int(self.config.get("system", {}).get("log_throttle_seconds", 30))
         self.query_timeout = float(self.config.get("system", {}).get("query_timeout", 30))
         self._log_throttle: Dict[str, float] = {}
+        self._log_throttle_lock = threading.Lock()
         
         # Lock for thread-safe model loading
         self._model_load_lock = threading.Lock()
@@ -920,14 +922,16 @@ class CoreBrain:
             self.query_logger.info(f"Ядро ЕВА успешно инициализировано за {total_time:.4f} сек")
             
             # Выполнение отложенных команд
-            self.query_logger.info(f"Выполнение {len(self.deferred_commands)} отложенных команд...")
-            for command, args, kwargs in self.deferred_commands:
+            with self._deferred_commands_lock:
+                commands_to_execute = list(self.deferred_commands)
+                self.deferred_commands.clear()
+            self.query_logger.info(f"Выполнение {len(commands_to_execute)} отложенных команд...")
+            for command, args, kwargs in commands_to_execute:
                 try:
                     command(*args, **kwargs)
                     self.query_logger.info(f"Отложенная команда {getattr(command, '__name__', 'lambda')} выполнена успешно.")
                 except Exception as e:
                     self.query_logger.error(f"Ошибка выполнения отложенной команды {getattr(command, '__name__', 'lambda')}: {e}", exc_info=True)
-            self.deferred_commands.clear()
             self.query_logger.info("Все отложенные команды выполнены.")
             
             # Настраиваем стратегии восстановления модулей
@@ -1151,9 +1155,14 @@ class CoreBrain:
         """Логирует сообщение не чаще одного раза в self.log_throttle_seconds для указанного ключа."""
         try:
             now = time.time()
-            last = self._log_throttle.get(key, 0.0)
-            if (now - last) >= float(self.log_throttle_seconds):
-                self._log_throttle[key] = now
+            with self._log_throttle_lock:
+                last = self._log_throttle.get(key, 0.0)
+                if (now - last) >= float(self.log_throttle_seconds):
+                    self._log_throttle[key] = now
+                    should_log = True
+                else:
+                    should_log = False
+            if should_log:
                 logger_obj.log(level, message)
         except Exception:
             logger_obj.log(level, message)
@@ -3446,7 +3455,8 @@ class CoreBrain:
     def add_deferred_command(self, command: callable, *args, **kwargs):
         """Добавляет отложенную команду для выполнения после полной инициализации."""
         self.query_logger.info(f"Добавлена отложенная команда: {getattr(command, '__name__', 'lambda')}")
-        self.deferred_commands.append((command, args, kwargs))
+        with self._deferred_commands_lock:
+            self.deferred_commands.append((command, args, kwargs))
     
     def get_response_metadata(self, query: str) -> Dict[str, Any]:
         """Возвращает метаданные ответа на запрос."""
