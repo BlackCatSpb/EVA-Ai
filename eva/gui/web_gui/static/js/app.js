@@ -63,13 +63,22 @@
     }
 
     /* ── Toast ── */
+    const activeToasts = [];
     function toast(msg, type = 'info') {
         const c = $('#toastContainer');
         const t = document.createElement('div');
         t.className = `toast ${type}`;
         t.textContent = msg;
         c.appendChild(t);
-        setTimeout(() => t.remove(), 3000);
+        activeToasts.push(t);
+        setTimeout(() => {
+            t.style.animation = 'toastOut .2s ease forwards';
+            setTimeout(() => {
+                t.remove();
+                const idx = activeToasts.indexOf(t);
+                if (idx > -1) activeToasts.splice(idx, 1);
+            }, 200);
+        }, 5000);
     }
 
     /* ── Login ── */
@@ -707,6 +716,10 @@
                 loadLearning();
             } else if (view === 'knowledge') {
                 loadKnowledge();
+            } else if (view === 'wikipedia') {
+                loadWikipedia();
+            } else if (view === 'health') {
+                loadHealth();
             } else if (view === 'settings') {
                 loadSettings();
                 $('#settingsSession').textContent = activeSessionId || '—';
@@ -1415,6 +1428,185 @@
     
     $('#createSnapshot')?.addEventListener('click', createSnapshot);
     if ($('#snapshotList')) loadSnapshots();
+
+    /* ─── Wikipedia Panel ─── */
+    function loadWikipedia() {
+        api('/wikipedia', { params: { action: 'stats' } }).then(data => {
+            if (data.error) return;
+            $('#wikiArticles').textContent = data.articles || 0;
+            $('#wikiChunks').textContent = data.chunks || 0;
+            $('#wikiDbSize').textContent = data.db_size || '—';
+        }).catch(() => {});
+    }
+
+    function searchWikipedia(query) {
+        if (!query.trim()) {
+            $('#wikiResults').innerHTML = '<div class="empty-state">Введите запрос для поиска</div>';
+            return;
+        }
+        api('/wikipedia', { params: { action: 'search', query: query.trim(), limit: 5 } }).then(data => {
+            if (data.error) {
+                $('#wikiResults').innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
+                return;
+            }
+            const results = data.results || [];
+            if (results.length === 0) {
+                $('#wikiResults').innerHTML = '<div class="empty-state">Ничего не найдено</div>';
+                return;
+            }
+            $('#wikiResults').innerHTML = results.map(r => {
+                const score = r.similarity !== undefined ? (r.similarity * 100).toFixed(1) + '%' : '—';
+                const text = r.text || r.content || '';
+                const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
+                return `
+                    <div class="wiki-result-item">
+                        <div class="wiki-result-title">${esc(r.title || r.article || 'Без названия')}</div>
+                        <div class="wiki-result-score">Сходство: ${score}</div>
+                        <div class="wiki-result-text">${esc(truncated)}</div>
+                    </div>
+                `;
+            }).join('');
+        }).catch(() => {
+            $('#wikiResults').innerHTML = '<div class="empty-state">Ошибка поиска</div>';
+        });
+    }
+
+    $('#wikiSearchBtn')?.addEventListener('click', () => {
+        searchWikipedia($('#wikiSearchInput').value);
+    });
+
+    $('#wikiSearchInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            searchWikipedia($('#wikiSearchInput').value);
+        }
+    });
+
+    $('#refreshWikipedia')?.addEventListener('click', loadWikipedia);
+
+    $('#wikiLoadTopic')?.addEventListener('click', () => {
+        const topic = prompt('Введите название темы:');
+        if (!topic || !topic.trim()) return;
+        api('/wikipedia', {
+            method: 'POST',
+            body: { action: 'load_topic', topic: topic.trim(), limit: 10 }
+        }).then(data => {
+            if (data.error) {
+                toast('Ошибка загрузки темы: ' + data.error, 'error');
+                return;
+            }
+            toast(`Тема "${topic.trim()}" загружена`, 'success');
+            loadWikipedia();
+        }).catch(() => {
+            toast('Ошибка загрузки темы', 'error');
+        });
+    });
+
+    $('#wikiLoadCategory')?.addEventListener('click', () => {
+        const category = prompt('Введите категорию:');
+        if (!category || !category.trim()) return;
+        api('/wikipedia', {
+            method: 'POST',
+            body: { action: 'load_category', category: category.trim(), limit: 20 }
+        }).then(data => {
+            if (data.error) {
+                toast('Ошибка загрузки категории: ' + data.error, 'error');
+                return;
+            }
+            toast(`Категория "${category.trim()}" загружена`, 'success');
+            loadWikipedia();
+        }).catch(() => {
+            toast('Ошибка загрузки категории', 'error');
+        });
+    });
+
+    $('#wikiAutoLearnStart')?.addEventListener('click', () => {
+        api('/wikipedia/auto-learn/start', { method: 'POST' }).then(data => {
+            if (data.error) {
+                toast('Ошибка запуска авто-обучения: ' + data.error, 'error');
+                return;
+            }
+            toast('Авто-обучение запущено', 'success');
+        }).catch(() => {
+            toast('Ошибка запуска авто-обучения', 'error');
+        });
+    });
+
+    $('#wikiAutoLearnStop')?.addEventListener('click', () => {
+        api('/wikipedia/auto-learn/stop', { method: 'POST' }).then(data => {
+            if (data.error) {
+                toast('Ошибка остановки авто-обучения: ' + data.error, 'error');
+                return;
+            }
+            toast('Авто-обучение остановлено', 'success');
+        }).catch(() => {
+            toast('Ошибка остановки авто-обучения', 'error');
+        });
+    });
+
+    /* ─── Health Panel ─── */
+    function loadHealth() {
+        api('/status').then(data => {
+            if (data.error) return;
+            const cpu = data.cpu_usage || data.cpu || 0;
+            const mem = data.memory_usage || data.memory || 0;
+            $('#healthCPU').textContent = cpu.toFixed(1) + '%';
+            $('#healthMemory').textContent = mem.toFixed(1) + '%';
+            const cpuBar = $('#healthCPUBar');
+            const memBar = $('#healthMemoryBar');
+            cpuBar.style.width = Math.min(cpu, 100) + '%';
+            memBar.style.width = Math.min(mem, 100) + '%';
+            cpuBar.className = 'health-bar-fill' + (cpu > 80 ? ' danger' : cpu > 60 ? ' warn' : '');
+            memBar.className = 'health-bar-fill' + (mem > 80 ? ' danger' : mem > 60 ? ' warn' : '');
+        }).catch(() => {});
+
+        api('/model-status').then(data => {
+            if (data.error) return;
+            const gpuAvail = data.gpu_available !== undefined ? data.gpu_available : (data.gpu || false);
+            const vram = data.vram_usage || data.vram || 0;
+            $('#healthGPU').textContent = gpuAvail ? 'Да' : 'Нет';
+            $('#healthGPU').style.color = gpuAvail ? '#22c55e' : '#ef4444';
+            $('#healthVRAM').textContent = typeof vram === 'number' ? vram.toFixed(1) + '%' : '—';
+        }).catch(() => {});
+
+        api('/system').then(data => {
+            if (data.error) {
+                $('#componentList').innerHTML = '<div class="empty-state">Не удалось загрузить</div>';
+                return;
+            }
+            const components = [];
+            if (data.brain_running !== undefined) components.push({ name: 'Brain', status: data.brain_running ? 'healthy' : 'unhealthy' });
+            if (data.brain_connected !== undefined) components.push({ name: 'Brain Connection', status: data.brain_connected ? 'healthy' : 'unhealthy' });
+            if (data.llama_cpp_ready !== undefined) components.push({ name: 'Llama.cpp', status: data.llama_cpp_ready ? 'healthy' : 'unhealthy' });
+            if (data.qwen_ready !== undefined) components.push({ name: 'Qwen', status: data.qwen_ready ? 'healthy' : 'unhealthy' });
+            if (data.model) components.push({ name: 'Model: ' + data.model, status: 'healthy' });
+
+            if (components.length === 0) {
+                Object.keys(data).forEach(key => {
+                    const val = data[key];
+                    if (typeof val === 'boolean') {
+                        components.push({ name: key, status: val ? 'healthy' : 'unhealthy' });
+                    }
+                });
+            }
+
+            if (components.length === 0) {
+                $('#componentList').innerHTML = '<div class="empty-state">Нет данных</div>';
+                return;
+            }
+
+            const statusLabels = { healthy: 'OK', unhealthy: 'Ошибка', unknown: 'Неизвестно' };
+            $('#componentList').innerHTML = components.map(c => `
+                <div class="component-item">
+                    <span class="component-name">${esc(c.name)}</span>
+                    <span class="component-status ${c.status}">${statusLabels[c.status] || c.status}</span>
+                </div>
+            `).join('');
+        }).catch(() => {
+            $('#componentList').innerHTML = '<div class="empty-state">Ошибка загрузки</div>';
+        });
+    }
+
+    $('#refreshHealth')?.addEventListener('click', loadHealth);
 
     /* ── Message Actions ── */
     function copyMessage(btn, text) {
