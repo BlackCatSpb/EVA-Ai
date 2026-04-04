@@ -126,5 +126,20 @@
       "use_self_learning": true,
       "use_fractal_qwen": true
     }
+  },
+  "wikipedia": {
+    "enabled": false,
+    "auto_learn": false,
+    "categories": [
+      "Наука",
+      "Математика",
+      "Физика",
+      "Биология",
+      "Информатика",
+      "История"
+    ],
+    "articles_per_category": 10,
+    "interval_hours": 24,
+    "random_per_cycle": 5
   }
 }

@@ -866,6 +866,31 @@ class CoreBrain:
             system_info = self._get_system_info()
             self.query_logger.info(f"Информация о системе: {system_info}")
             
+            # Инициализация Wikipedia Knowledge Base (опционально)
+            self.wikipedia_kb = None
+            self.wikipedia_loader = None
+            wiki_config = self.config.get('wikipedia', {})
+            if wiki_config.get('enabled', False):
+                try:
+                    from eva.knowledge.wikipedia_kb import get_wikipedia_kb
+                    from eva.knowledge.wikipedia_loader import get_wikipedia_loader
+                    self.wikipedia_kb = get_wikipedia_kb()
+                    self.wikipedia_loader = get_wikipedia_loader(self.wikipedia_kb)
+                    stats = self.wikipedia_kb.get_stats()
+                    self.query_logger.info(f"Wikipedia KB инициализирована: {stats['articles']} статей, {stats['chunks']} чанков")
+                    
+                    # Запуск автообучения если включено
+                    if wiki_config.get('auto_learn', False):
+                        self.wikipedia_loader.start_auto_learning(
+                            categories=wiki_config.get('categories', ['Наука', 'Математика', 'Физика']),
+                            articles_per_category=wiki_config.get('articles_per_category', 10),
+                            interval_hours=wiki_config.get('interval_hours', 24),
+                            include_random=wiki_config.get('random_per_cycle', 5),
+                        )
+                        self.query_logger.info("Автообучение Википедии запущено")
+                except Exception as e:
+                    self.query_logger.warning(f"Wikipedia KB не инициализирована: {e}")
+            
             # Установка флага инициализации
             self.initialized = True
             

@@ -496,7 +496,7 @@ class SelfReasoningEngine:
     
     def _build_contextual_query(self, query: str, conversation_history: List[Dict]) -> str:
         """
-        Формирует расширенный промпт с историей диалогов.
+        Формирует расширенный промпт с историей диалогов и Wikipedia контекстом.
         
         Args:
             query: Текущий запрос пользователя
@@ -505,34 +505,56 @@ class SelfReasoningEngine:
         Returns:
             Расширенный промпт с контекстом
         """
-        if not conversation_history:
-            return query
+        parts = []
         
-        # Берем последние 10 сообщений
-        recent_history = conversation_history[-10:]
+        # 1. Wikipedia контекст (если доступен)
+        wiki_context = self._get_wikipedia_context(query)
+        if wiki_context:
+            parts.append(f"Справочная информация из Википедии:\n{wiki_context}")
         
-        context_parts = []
-        for msg in recent_history:
-            role = msg.get('role', 'user')
-            content = msg.get('content', '')
-            if content:
-                role_label = 'Пользователь' if role == 'user' else 'Ассистент'
-                context_parts.append(f"{role_label}: {content[:300]}")
+        # 2. История диалогов
+        if conversation_history:
+            recent_history = conversation_history[-10:]
+            context_parts = []
+            for msg in recent_history:
+                role = msg.get('role', 'user')
+                content = msg.get('content', '')
+                if content:
+                    role_label = 'Пользователь' if role == 'user' else 'Ассистент'
+                    context_parts.append(f"{role_label}: {content[:300]}")
+            if context_parts:
+                parts.append(f"Предыдущий контекст разговора:\n" + "\n".join(context_parts))
         
-        if not context_parts:
-            return query
+        # 3. Формируем итоговый промпт
+        if parts:
+            enhanced = f"{'\n\n'.join(parts)}\n\nТекущий вопрос: {query}\n\nДай ответ с учётом контекста."
+            logger.info(f"Сформирован расширенный промпт: {len(parts)} источников контекста")
+            return enhanced
         
-        # Формируем расширенный промпт
-        context_str = "\n".join(context_parts)
-        enhanced = f"""Предыдущий контекст разговора:
-{context_str}
-
-Текущий вопрос: {query}
-
-Дай ответ с учетом контекста предыдущего разговора."""
-        
-        logger.info(f"Сформирован расширенный промпт с {len(recent_history)} сообщениями истории")
-        return enhanced
+        return query
+    
+    def _get_wikipedia_context(self, query: str) -> Optional[str]:
+        """Получает контекст из Wikipedia Knowledge Base."""
+        try:
+            brain = getattr(self, 'brain', None)
+            if brain is None:
+                return None
+            wiki_kb = getattr(brain, 'wikipedia_kb', None)
+            if wiki_kb is None:
+                return None
+            
+            results = wiki_kb.search(query, limit=3, min_similarity=0.25)
+            if not results:
+                return None
+            
+            context_parts = []
+            for r in results[:3]:
+                context_parts.append(f"- {r['title']}: {r['text'][:200]}")
+            
+            return "\n".join(context_parts)
+        except Exception as e:
+            logger.debug(f"Ошибка получения Wikipedia контекста: {e}")
+            return None
     
     # === Логическое рассуждение с факторами ===
     
