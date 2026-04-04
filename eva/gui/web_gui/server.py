@@ -8,6 +8,7 @@ import json
 import uuid
 import hashlib
 import secrets
+import glob
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 
@@ -750,24 +751,54 @@ def api_sessions():
         if not data:
             return jsonify({'error': 'Invalid JSON'}), 400
         session_id = data.get('session_id')
+        if not session_id:
+            return jsonify({'error': 'session_id is required'}), 400
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if not session:
+            return jsonify({'error': 'Сессия не найдена'}), 404
+        if user_id and session.get('user_id') != user_id:
+            return jsonify({'error': 'Доступ запрещён'}), 403
         web_gui_instance.session_manager.delete_session(session_id)
         sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
-        return jsonify({'sessions': sessions})
+        return jsonify({'sessions': sessions, 'message': 'Сессия удалена'})
 
 
-@app.route('/api/session/<session_id>', methods=['GET'])
+@app.route('/api/session/<session_id>', methods=['GET', 'DELETE', 'PUT'])
 def api_session(session_id):
     if not web_gui_instance:
         return jsonify({'error': 'Сервер не инициализирован'}), 500
     
-    session = web_gui_instance.session_manager.get_session(session_id)
-    if session:
-        return jsonify({
-            'session': session,
-            'context': session.get('context_nodes', []),
-            'entities': session.get('entities', [])
-        })
-    return jsonify({'error': 'Сессия не найдена'}), 404
+    if request.method == 'GET':
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if session:
+            return jsonify({
+                'session': session,
+                'context': session.get('context_nodes', []),
+                'entities': session.get('entities', [])
+            })
+        return jsonify({'error': 'Сессия не найдена'}), 404
+    
+    if request.method == 'DELETE':
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if not session:
+            return jsonify({'error': 'Сессия не найдена'}), 404
+        web_gui_instance.session_manager.delete_session(session_id)
+        return jsonify({'message': 'Сессия удалена'})
+    
+    if request.method == 'PUT':
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if not session:
+            return jsonify({'error': 'Сессия не найдена'}), 404
+        allowed_fields = {'name', 'chat_history', 'context_nodes', 'entities'}
+        update_data = {k: v for k, v in data.items() if k in allowed_fields}
+        if not update_data:
+            return jsonify({'error': 'Нет допустимых полей для обновления'}), 400
+        web_gui_instance.session_manager.update_session(session_id, update_data)
+        updated = web_gui_instance.session_manager.get_session(session_id)
+        return jsonify({'session': updated, 'message': 'Сессия обновлена'})
 
 
 @app.route('/api/upload', methods=['POST'])
@@ -941,18 +972,37 @@ def api_chat():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/entities/<session_id>', methods=['GET'])
+@app.route('/api/entities/<session_id>', methods=['GET', 'DELETE'])
 def api_entities(session_id):
     if not web_gui_instance:
         return jsonify({'error': 'Сервер не инициализирован'}), 500
     
-    session = web_gui_instance.session_manager.get_session(session_id)
-    if session:
-        return jsonify({
-            'entities': session.get('entities', []),
-            'context_count': len(session.get('context_nodes', []))
-        })
-    return jsonify({'error': 'Сессия не найдена'}), 404
+    if request.method == 'GET':
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if session:
+            return jsonify({
+                'entities': session.get('entities', []),
+                'context_count': len(session.get('context_nodes', []))
+            })
+        return jsonify({'error': 'Сессия не найдена'}), 404
+    
+    if request.method == 'DELETE':
+        session = web_gui_instance.session_manager.get_session(session_id)
+        if not session:
+            return jsonify({'error': 'Сессия не найдена'}), 404
+        entity_type = request.args.get('type')
+        entity_id = request.args.get('entity_id')
+        entities = session.get('entities', [])
+        original_count = len(entities)
+        if entity_id:
+            entities = [e for e in entities if e.get('id') != entity_id]
+        elif entity_type:
+            entities = [e for e in entities if e.get('type') != entity_type]
+        else:
+            entities = []
+        web_gui_instance.session_manager.update_session(session_id, {'entities': entities})
+        removed = original_count - len(entities)
+        return jsonify({'entities': entities, 'removed': removed, 'message': f'Удалено {removed} сущностей'})
 
 
 @app.route('/api/feedback', methods=['POST'])
@@ -1319,6 +1369,17 @@ def api_settings():
                 sdl = web_gui_instance.brain.self_dialog_learning
                 if hasattr(sdl, 'auto_execute_enabled'):
                     sdl.auto_execute_enabled = data['auto_learning']
+            
+            if 'memory_enabled' in data and hasattr(web_gui_instance.brain, 'memory_manager'):
+                mm = web_gui_instance.brain.memory_manager
+                if hasattr(mm, 'enabled'):
+                    mm.enabled = data['memory_enabled']
+            
+            if 'sre_enabled' in data:
+                if hasattr(web_gui_instance.brain, 'self_reasoning_engine'):
+                    sre = web_gui_instance.brain.self_reasoning_engine
+                    if hasattr(sre, 'enabled'):
+                        sre.enabled = data['sre_enabled']
         
         return jsonify({'status': 'ok', 'updated': list(data.keys())})
     except Exception as e:
@@ -1769,6 +1830,377 @@ def api_snapshots():
             logger.error(f"Error creating snapshot: {e}")
         
         return jsonify({'error': 'Failed to create snapshot'}), 500
+
+
+# ========================================================================
+# Export API - Экспорт данных сессий и системы
+# ========================================================================
+
+@app.route('/api/export', methods=['POST'])
+def api_export():
+    """Экспорт данных сессий, сущностей и контекста."""
+    if not web_gui_instance:
+        return jsonify({'error': 'Сервер не инициализирован'}), 500
+    
+    try:
+        data = request.get_json() or {}
+        session_id = data.get('session_id')
+        export_format = data.get('format', 'json')
+        user_id = request.headers.get('X-User-ID')
+        
+        export_data = {
+            'exported_at': datetime.now().isoformat(),
+            'version': '1.0.0'
+        }
+        
+        if session_id:
+            session = web_gui_instance.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({'error': 'Сессия не найдена'}), 404
+            if user_id and session.get('user_id') != user_id:
+                return jsonify({'error': 'Доступ запрещён'}), 403
+            export_data['session'] = {
+                'id': session['id'],
+                'name': session['name'],
+                'created_at': session['created_at'],
+                'chat_history': session.get('chat_history', []),
+                'context_nodes': session.get('context_nodes', []),
+                'entities': session.get('entities', [])
+            }
+        else:
+            sessions = web_gui_instance.session_manager.get_user_sessions(user_id) if user_id else []
+            export_data['sessions'] = sessions
+            export_data['total_sessions'] = len(sessions)
+        
+        if export_format == 'json':
+            response = app.response_class(
+                response=json.dumps(export_data, ensure_ascii=False, indent=2),
+                status=200,
+                mimetype='application/json'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="eva_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json"'
+            return response
+        
+        elif export_format == 'csv':
+            import csv
+            import io
+            output = io.StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['session_id', 'name', 'created_at', 'role', 'content', 'timestamp'])
+            
+            sessions_to_export = []
+            if session_id:
+                session = web_gui_instance.session_manager.get_session(session_id)
+                if session:
+                    sessions_to_export = [session]
+            else:
+                sessions_to_export = web_gui_instance.session_manager.get_user_sessions(user_id) if user_id else []
+            
+            for sess in sessions_to_export:
+                for msg in sess.get('chat_history', []):
+                    writer.writerow([
+                        sess['id'],
+                        sess['name'],
+                        sess['created_at'],
+                        msg.get('role', ''),
+                        msg.get('content', ''),
+                        msg.get('timestamp', '')
+                    ])
+            
+            response = app.response_class(
+                response=output.getvalue(),
+                status=200,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="eva_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+            return response
+        
+        return jsonify({'error': f'Неподдерживаемый формат: {export_format}'}), 400
+    
+    except Exception as e:
+        logger.error(f"Error exporting data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ========================================================================
+# Import API - Импорт данных сессий
+# ========================================================================
+
+@app.route('/api/import', methods=['POST'])
+def api_import():
+    """Импорт данных сессий из JSON файла."""
+    if not web_gui_instance:
+        return jsonify({'error': 'Сервер не инициализирован'}), 500
+    
+    try:
+        user_id = request.headers.get('X-User-ID')
+        imported_count = 0
+        errors = []
+        
+        if 'file' in request.files:
+            file = request.files['file']
+            if file.filename and file.filename.endswith('.json'):
+                try:
+                    import_data = json.loads(file.read().decode('utf-8'))
+                except Exception as e:
+                    return jsonify({'error': f'Ошибка чтения JSON: {e}'}), 400
+            else:
+                return jsonify({'error': 'Требуется JSON файл'}), 400
+        else:
+            import_data = request.get_json()
+            if not import_data:
+                return jsonify({'error': 'Нет данных для импорта'}), 400
+        
+        if 'session' in import_data:
+            session_data = import_data['session']
+            new_session_id = web_gui_instance.session_manager.create_session(
+                user_id or session_data.get('user_id', 'imported'),
+                session_data.get('name', 'Импортированная сессия')
+            )
+            update_data = {}
+            if 'chat_history' in session_data:
+                update_data['chat_history'] = session_data['chat_history']
+            if 'context_nodes' in session_data:
+                update_data['context_nodes'] = session_data['context_nodes']
+            if 'entities' in session_data:
+                update_data['entities'] = session_data['entities']
+            if update_data:
+                web_gui_instance.session_manager.update_session(new_session_id, update_data)
+            imported_count += 1
+        
+        elif 'sessions' in import_data:
+            for sess in import_data['sessions']:
+                new_id = web_gui_instance.session_manager.create_session(
+                    user_id or sess.get('user_id', 'imported'),
+                    sess.get('name', 'Импортированная сессия')
+                )
+                update_data = {}
+                for field in ['chat_history', 'context_nodes', 'entities']:
+                    if field in sess:
+                        update_data[field] = sess[field]
+                if update_data:
+                    web_gui_instance.session_manager.update_session(new_id, update_data)
+                imported_count += 1
+        else:
+            return jsonify({'error': 'Неизвестный формат импорта. Ожидается "session" или "sessions"'}), 400
+        
+        return jsonify({
+            'status': 'ok',
+            'imported_count': imported_count,
+            'errors': errors,
+            'message': f'Импортировано {imported_count} сессий'
+        })
+    
+    except Exception as e:
+        logger.error(f"Error importing data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ========================================================================
+# Knowledge API - Управление базой знаний
+# ========================================================================
+
+@app.route('/api/knowledge', methods=['GET', 'POST', 'DELETE'])
+def api_knowledge():
+    """Управление базой знаний."""
+    if not web_gui_instance:
+        return jsonify({'error': 'Сервер не инициализирован'}), 500
+    
+    if request.method == 'GET':
+        action = request.args.get('action', 'list')
+        query = request.args.get('q', '')
+        limit = int(request.args.get('limit', 50))
+        
+        knowledge_items = []
+        
+        try:
+            brain = web_gui_instance.brain
+            
+            if action == 'list':
+                if brain and hasattr(brain, 'knowledge_graph') and brain.knowledge_graph:
+                    kg = brain.knowledge_graph
+                    if hasattr(kg, 'nodes'):
+                        for node in list(kg.nodes)[:limit]:
+                            knowledge_items.append({
+                                'id': getattr(node, 'id', str(uuid.uuid4())),
+                                'name': getattr(node, 'name', '')[:100],
+                                'content': getattr(node, 'content', '')[:500],
+                                'type': getattr(node, 'node_type', getattr(node, 'type', 'concept')),
+                                'created_at': getattr(node, 'created_at', '')
+                            })
+                
+                if brain and hasattr(brain, 'memory_manager') and brain.memory_manager:
+                    mm = brain.memory_manager
+                    if hasattr(mm, 'get_recent_interactions'):
+                        try:
+                            interactions = mm.get_recent_interactions(limit=limit)
+                            if interactions:
+                                for interaction in interactions:
+                                    knowledge_items.append({
+                                        'id': interaction.get('id', str(uuid.uuid4())),
+                                        'name': 'Interaction',
+                                        'content': str(interaction.get('content', ''))[:500],
+                                        'type': 'interaction',
+                                        'created_at': interaction.get('timestamp', '')
+                                    })
+                        except Exception:
+                            pass
+            
+            elif action == 'search' and query:
+                if brain and hasattr(brain, 'knowledge_graph') and brain.knowledge_graph:
+                    kg = brain.knowledge_graph
+                    if hasattr(kg, 'search_nodes'):
+                        results = kg.search_nodes(query, limit=limit)
+                        if isinstance(results, list):
+                            knowledge_items = results
+                        elif isinstance(results, dict):
+                            knowledge_items = results.get('results', results.get('nodes', []))
+                else:
+                    for session in web_gui_instance.session_manager.sessions.values():
+                        for node in session.get('context_nodes', []):
+                            text = node.get('user_message', '') + node.get('assistant_message', '')
+                            if query.lower() in text.lower():
+                                knowledge_items.append({
+                                    'id': node.get('id', str(uuid.uuid4())),
+                                    'name': 'Context Node',
+                                    'content': text[:500],
+                                    'type': 'context',
+                                    'created_at': node.get('timestamp', '')
+                                })
+                                if len(knowledge_items) >= limit:
+                                    break
+        
+        except Exception as e:
+            logger.error(f"Error getting knowledge: {e}")
+        
+        return jsonify({'knowledge': knowledge_items, 'total': len(knowledge_items)})
+    
+    if request.method == 'POST':
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid JSON'}), 400
+        
+        name = data.get('name', '')
+        content = data.get('content', '')
+        node_type = data.get('type', 'concept')
+        session_id = data.get('session_id')
+        
+        if not name and not content:
+            return jsonify({'error': 'name или content обязательны'}), 400
+        
+        try:
+            brain = web_gui_instance.brain
+            
+            if brain and hasattr(brain, 'knowledge_graph') and brain.knowledge_graph:
+                kg = brain.knowledge_graph
+                if hasattr(kg, 'add_node'):
+                    kg.add_node(name=name, content=content, node_type=node_type)
+                    return jsonify({'status': 'ok', 'message': 'Запись добавлена в граф знаний'})
+            
+            if session_id:
+                session = web_gui_instance.session_manager.get_session(session_id)
+                if session:
+                    knowledge_node = {
+                        'id': str(uuid.uuid4()),
+                        'name': name,
+                        'content': content,
+                        'type': node_type,
+                        'timestamp': datetime.now().isoformat()
+                    }
+                    web_gui_instance.session_manager.add_context_node(session_id, knowledge_node)
+                    return jsonify({'status': 'ok', 'message': 'Запись добавлена в сессию', 'node_id': knowledge_node['id']})
+                else:
+                    return jsonify({'error': 'Сессия не найдена'}), 404
+            
+            return jsonify({'error': 'Граф знаний недоступен и session_id не указан'}), 400
+        
+        except Exception as e:
+            logger.error(f"Error adding knowledge: {e}")
+            return jsonify({'error': str(e)}), 500
+    
+    if request.method == 'DELETE':
+        data = request.get_json() or {}
+        knowledge_id = data.get('id')
+        node_type = data.get('type')
+        session_id = data.get('session_id')
+        
+        if not knowledge_id and not node_type and not session_id:
+            return jsonify({'error': 'Укажите id, type или session_id для удаления'}), 400
+        
+        try:
+            removed = 0
+            
+            if session_id:
+                session = web_gui_instance.session_manager.get_session(session_id)
+                if session:
+                    nodes = session.get('context_nodes', [])
+                    if knowledge_id:
+                        nodes = [n for n in nodes if n.get('id') != knowledge_id]
+                        removed = 1
+                    elif node_type:
+                        original = len(nodes)
+                        nodes = [n for n in nodes if n.get('type') != node_type]
+                        removed = original - len(nodes)
+                    else:
+                        removed = len(nodes)
+                        nodes = []
+                    web_gui_instance.session_manager.update_session(session_id, {'context_nodes': nodes})
+                    return jsonify({'status': 'ok', 'removed': removed, 'message': f'Удалено {removed} записей'})
+                else:
+                    return jsonify({'error': 'Сессия не найдена'}), 404
+            
+            if knowledge_id and web_gui_instance.brain:
+                kg = getattr(web_gui_instance.brain, 'knowledge_graph', None)
+                if kg and hasattr(kg, 'remove_node'):
+                    kg.remove_node(knowledge_id)
+                    return jsonify({'status': 'ok', 'message': 'Запись удалена из графа знаний'})
+            
+            return jsonify({'error': 'Не удалось удалить запись'}), 400
+        
+        except Exception as e:
+            logger.error(f"Error deleting knowledge: {e}")
+            return jsonify({'error': str(e)}), 500
+
+
+# ========================================================================
+# Documents API - DELETE document
+# ========================================================================
+
+@app.route('/api/documents/<file_id>', methods=['DELETE'])
+def api_delete_document(file_id):
+    """Удалить документ из сессии."""
+    if not web_gui_instance:
+        return jsonify({'error': 'Сервер не инициализирован'}), 500
+    
+    session_id = request.args.get('session_id')
+    if not session_id:
+        return jsonify({'error': 'session_id required'}), 400
+    
+    session = web_gui_instance.session_manager.get_session(session_id)
+    if not session:
+        return jsonify({'error': 'Сессия не найдена'}), 404
+    
+    context_nodes = session.get('context_nodes', [])
+    original_count = len(context_nodes)
+    filtered_nodes = [n for n in context_nodes if not (n.get('file_data') and n['file_data'].get('file_id') == file_id)]
+    removed = original_count - len(filtered_nodes)
+    
+    if removed > 0:
+        web_gui_instance.session_manager.update_session(session_id, {'context_nodes': filtered_nodes})
+    
+    upload_dir = os.path.join(os.path.dirname(__file__), 'uploads')
+    for ext in ['']:
+        for filepath in glob.glob(os.path.join(upload_dir, f'{file_id}*')):
+            try:
+                os.remove(filepath)
+            except Exception as e:
+                logger.warning(f"Failed to delete file {filepath}: {e}")
+    
+    return jsonify({
+        'status': 'ok',
+        'removed': removed,
+        'message': f'Удалено {removed} документов' if removed > 0 else 'Документ не найден'
+    })
 
 
 
