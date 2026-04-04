@@ -1,64 +1,45 @@
-"""
-Типы для Self Dialog Learning
-Часть модуля self_dialog_learning.py (разделение на логические компоненты)
-"""
+"""Shared types for self-dialog learning: enums, dataclasses."""
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
-class DialogState(Enum):
-    """Состояния диалога."""
-    IDLE = "idle"
-    LEARNING = "learning"
-    WAITING = "waiting"
-    COMPLETED = "completed"
-    ERROR = "error"
+class DialogRole(Enum):
+    """Роли участников самодиалога."""
+    ASSISTANT = "assistant"
+    CRITIC = "critic"
+    LEARNER = "learner"
+    TEACHER = "teacher"
+    OBSERVER = "observer"
 
 
-class LearningMode(Enum):
-    """Режимы обучения."""
-    SUPERVISED = "supervised"
-    UNSUPERVISED = "unsupervised"
-    REINFORCEMENT = "reinforcement"
-    SELF_IMPROVEMENT = "self_improvement"
+class LearningType(Enum):
+    """Типы обучения."""
+    EXPANSION = "expansion"
+    REFINEMENT = "refinement"
+    UPDATING = "updating"
+    INTEGRATION = "integration"
 
 
 @dataclass
 class DialogTurn:
-    """Ответ в диалоге."""
-    turn_id: str
-    user_input: str
-    system_response: str
+    """Один ход в самодиалоге."""
+    role: DialogRole
+    content: str
     timestamp: float
-    feedback: Optional[float] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "turn_id": self.turn_id,
-            "user_input": self.user_input,
-            "system_response": self.system_response,
-            "timestamp": self.timestamp,
-            "feedback": self.feedback
-        }
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    quality_score: float = 0.0
 
 
 @dataclass
-class LearningSession:
-    """Сессия обучения."""
-    session_id: str
-    mode: LearningMode
-    state: DialogState
-    turns: List[DialogTurn] = field(default_factory=list)
-    start_time: float = 0.0
+class SelfDialog:
+    """Полный самодиалог системы с самим собой."""
+    id: str
+    topic: str
+    turns: List[DialogTurn]
+    start_time: float
     end_time: Optional[float] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "session_id": self.session_id,
-            "mode": self.mode.value if isinstance(self.mode, LearningMode) else self.mode,
-            "state": self.state.value if isinstance(self.state, DialogState) else self.state,
-            "turns": [t.to_dict() for t in self.turns],
-            "start_time": self.start_time,
-            "end_time": self.end_time
-        }
+    outcome: Optional[str] = None
+    learning_type: Optional[LearningType] = None
+    knowledge_gaps: List[str] = field(default_factory=list)
+    actions_taken: List[str] = field(default_factory=list)
