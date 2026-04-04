@@ -1737,9 +1737,12 @@ def api_model_status():
 @app.route('/api/wikipedia', methods=['GET', 'POST'])
 def api_wikipedia():
     """Wikipedia Knowledge Base API."""
-    if not web_gui_instance or not web_gui_instance.brain:
+    if not web_gui_instance:
         return jsonify({'error': 'Сервер не инициализирован'}), 500
-    
+
+    if not web_gui_instance.brain:
+        return jsonify({'enabled': False, 'articles': 0, 'categories': 0, 'message': 'Brain not connected'})
+
     brain = web_gui_instance.brain
     wiki_kb = getattr(brain, 'wikipedia_kb', None)
     wiki_loader = getattr(brain, 'wikipedia_loader', None)
@@ -2293,6 +2296,9 @@ def api_delete_document(file_id):
     })
 
 
+
+if web_gui_instance is None:
+    web_gui_instance = WebGUI()
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
