@@ -3,6 +3,8 @@ import sys
 import logging
 import warnings
 import atexit
+import signal
+import threading
 warnings.filterwarnings('ignore')
 
 # Обход проверки CVE-2025-32434 для torch.load
@@ -19,6 +21,30 @@ os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # ── Singleton: защита от множественных запусков ──
 _PID_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".eva_instance.pid")
+
+# ── Graceful shutdown ──
+_shutdown_event = threading.Event()
+_brain_instance = None
+
+def _signal_handler(signum, frame):
+    """Обработчик сигналов (Ctrl+C, SIGTERM)."""
+    logger.info(f"Получен сигнал {signum}, начинаю корректное завершение...")
+    _shutdown_event.set()
+    _cleanup_brain()
+    _cleanup_pid()
+    sys.exit(0)
+
+def _cleanup_brain():
+    """Останавливает CoreBrain и все фоновые потоки."""
+    global _brain_instance
+    if _brain_instance is not None:
+        try:
+            logger.info("Остановка CoreBrain...")
+            _brain_instance.stop()
+            logger.info("CoreBrain остановлен")
+        except Exception as e:
+            logger.warning(f"Ошибка при остановке CoreBrain: {e}")
+        _brain_instance = None
 
 def _cleanup_pid():
     """Удаляет PID-файл при завершении."""
@@ -55,6 +81,10 @@ def _check_singleton():
     atexit.register(_cleanup_pid)
     logger.info(f"PID-файл создан: PID {os.getpid()}")
 
+# Регистрируем обработчики сигналов
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
+
 # Настраиваем TF32 по новому API PyTorch до загрузки остальной системы
 try:
     import torch
@@ -74,6 +104,9 @@ except Exception as e:
 
 def launch_gui(brain):
     """Запускает веб-интерфейс."""
+    global _brain_instance
+    _brain_instance = brain
+    
     try:
         logger.info("Запуск веб-интерфейса...")
         
@@ -87,22 +120,37 @@ def launch_gui(brain):
         gui = server.create_app(brain=brain)
         logger.info(f"Веб-интерфейс запущен на http://{gui.host}:{gui.port}")
         
-        # Keep running
-        while True:
-            import time
-            time.sleep(1)
-            
+        # Запускаем Flask в отдельном потоке
+        import threading
+        flask_thread = threading.Thread(target=lambda: gui.app.run(
+            host=gui.host, port=gui.port, debug=False, use_reloader=False
+        ), daemon=True)
+        flask_thread.start()
+        
+        # Главный цикл — ждём сигнал завершения
+        logger.info("Система работает. Нажмите Ctrl+C для остановки.")
+        try:
+            while not _shutdown_event.is_set():
+                _shutdown_event.wait(timeout=1)
+        except KeyboardInterrupt:
+            pass
+        
+        logger.info("Завершение работы...")
+        _cleanup_brain()
+        
     except Exception as e:
         logger.error(f"Ошибка при запуске веб-интерфейса: {e}", exc_info=True)
         raise
 
 def main():
     """Основная функция запуска системы."""
+    global _brain_instance
     from eva.core.core_brain import CoreBrain
     
     try:
         logger.info("Инициализация CoreBrain...")
         brain = CoreBrain()
+        _brain_instance = brain
         
         # Инициализация системы
         logger.info("Инициализация компонентов...")
@@ -125,6 +173,7 @@ def main():
         
     except Exception as e:
         logger.critical(f"Критическая ошибка при запуске: {e}", exc_info=True)
+        _cleanup_brain()
         return False
 
 if __name__ == "__main__":
