@@ -494,19 +494,7 @@ class CoreBrain:
                         if model_c_path:
                             self.query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
-                        pipeline_kwargs = {
-                            'model_a_path': model_a_path,
-                            'model_b_path': model_b_path,
-                            'n_ctx': n_ctx,
-                            'n_threads': n_threads
-                        }
-                        if model_c_path:
-                            pipeline_kwargs['model_c_path'] = model_c_path
-                        if self.fractal_memory:
-                            pipeline_kwargs['fractal_memory'] = self.fractal_memory
-                        
-                        logger.debug("DEBUG: Creating pipeline with fallback (B missing)")
-                        self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                        self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
                     else:
                         self.query_logger.info(f"Инициализация Two-Model Pipeline...")
                         self.query_logger.info(f"  Model A: {model_a_path}")
@@ -514,19 +502,7 @@ class CoreBrain:
                         if model_c_path:
                             self.query_logger.info(f"  Model C (Coder): {model_c_path}")
                         
-                        pipeline_kwargs = {
-                            'model_a_path': model_a_path,
-                            'model_b_path': model_b_path,
-                            'n_ctx': n_ctx,
-                            'n_threads': n_threads
-                        }
-                        if model_c_path:
-                            pipeline_kwargs['model_c_path'] = model_c_path
-                        if self.fractal_memory:
-                            pipeline_kwargs['fractal_memory'] = self.fractal_memory
-                        
-                        logger.debug("DEBUG: Creating pipeline - both models exist")
-                        self.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                        self.two_model_pipeline = self._create_pipeline(model_a_path, model_b_path, model_c_path, n_ctx, n_threads)
                         logger.debug("DEBUG: RecursiveModelPipeline created, about to load_models()")
                     self.two_model_pipeline.load_models()
                     self.two_model_pipeline_ready = True
@@ -655,6 +631,20 @@ class CoreBrain:
             logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
             self.background = None
     
+    def _create_pipeline(self, model_a_path, model_b_path, model_c_path, n_ctx, n_threads):
+        from eva.core.recursive_model_pipeline import RecursiveModelPipeline
+        pipeline_kwargs = {
+            'model_a_path': model_a_path,
+            'model_b_path': model_b_path,
+            'n_ctx': n_ctx,
+            'n_threads': n_threads
+        }
+        if model_c_path:
+            pipeline_kwargs['model_c_path'] = model_c_path
+        if self.fractal_memory:
+            pipeline_kwargs['fractal_memory'] = self.fractal_memory
+        return RecursiveModelPipeline(**pipeline_kwargs)
+
     def _initialize_memory_manager(self) -> bool:
         """
         Инициализирует менеджер памяти через component_initializer.

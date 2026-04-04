@@ -416,6 +416,13 @@ class RecursiveModelPipeline:
         """Постобработка: удаление артефактов, латиницы в кириллических словах"""
         import re
         
+        code_blocks = []
+        def save_code_block(match):
+            code_blocks.append(match.group(0))
+            return f"\x00CODEBLOCK{len(code_blocks) - 1}\x00"
+        
+        text = re.sub(r'```[\s\S]*?```', save_code_block, text)
+        
         # Удаляем артефакты retry
         retry_artifacts = [
             'Прости за ошибку',
@@ -471,6 +478,9 @@ class RecursiveModelPipeline:
             return result
         
         text = mixed_pattern.sub(fix_mixed, text)
+        
+        for i, block in enumerate(code_blocks):
+            text = text.replace(f"\x00CODEBLOCK{i}\x00", block)
         
         return text.strip()
 

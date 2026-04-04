@@ -189,23 +189,29 @@ class EmbeddingCache:
     def batch_get(self, texts: List[str]) -> Dict[str, Optional[List[float]]]:
         """Batch получение эмбеддингов."""
         results = {}
+        hashes_to_texts = {}
         with self._lock:
             with sqlite3.connect(self.db_path) as conn:
                 for text in texts:
                     text_hash = self._hash_text(text)
+                    hashes_to_texts[text_hash] = text
+                    results[text] = None
+
+                if hashes_to_texts:
+                    placeholders = ",".join("?" for _ in hashes_to_texts)
                     cursor = conn.execute(
-                        "SELECT embedding FROM embeddings WHERE hash = ?",
-                        (text_hash,)
+                        f"SELECT hash, embedding FROM embeddings WHERE hash IN ({placeholders})",
+                        tuple(hashes_to_texts.keys())
                     )
-                    row = cursor.fetchone()
-                    if row:
-                        results[text] = json.loads(row[0])
+                    now = datetime.now().isoformat()
+                    for row in cursor:
+                        h, emb = row
+                        text = hashes_to_texts[h]
+                        results[text] = json.loads(emb)
                         conn.execute(
                             "UPDATE embeddings SET accessed_at = ?, access_count = access_count + 1 WHERE hash = ?",
-                            (datetime.now().isoformat(), text_hash)
+                            (now, h)
                         )
-                    else:
-                        results[text] = None
                 conn.commit()
         return results
 

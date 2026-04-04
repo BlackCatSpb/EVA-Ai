@@ -77,8 +77,12 @@ def _check_singleton():
         except (ValueError, FileNotFoundError):
             os.remove(_PID_FILE)
 
-    with open(_PID_FILE, "w") as f:
-        f.write(str(os.getpid()))
+    try:
+        with open(_PID_FILE, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError as e:
+        logger.error(f"Не удалось создать PID-файл: {e}")
+        sys.exit(1)
     atexit.register(_cleanup_pid)
     logger.info(f"PID-файл создан: PID {os.getpid()}")
 
@@ -111,8 +115,6 @@ def launch_gui(brain):
     try:
         logger.info("Запуск веб-интерфейса...")
         
-        import sys
-        import os
         web_gui_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'gui', 'web_gui')
         sys.path.insert(0, web_gui_dir)
         
