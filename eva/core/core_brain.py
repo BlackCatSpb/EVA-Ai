@@ -2145,6 +2145,7 @@ class CoreBrain:
     
     def _generate_clarification_if_needed(self, query: str, response: str, confidence: float) -> Optional[str]:
         """Генерирует уточняющий вопрос если система не уверена в ответе."""
+        import random
         if confidence >= 0.8:
             return None
         
