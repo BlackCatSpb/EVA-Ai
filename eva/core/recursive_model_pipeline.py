@@ -14,6 +14,8 @@ import os
 import re
 import logging
 import json
+import time
+import threading
 from typing import Dict, Any, List, Optional
 from llama_cpp import Llama
 
@@ -472,6 +474,39 @@ class RecursiveModelPipeline:
         
         return text.strip()
 
+    def _generate_with_timeout(self, model, messages: list, params: dict, timeout: int = 45) -> Optional[Dict]:
+        """Генерация с таймаутом. Если модель не отвечает — возвращает None."""
+        result = [None]
+        error = [None]
+        
+        def _generate():
+            try:
+                result[0] = model.create_chat_completion(
+                    messages=messages,
+                    max_tokens=params['max_tokens'],
+                    temperature=params['temperature'],
+                    top_p=params['top_p'],
+                    top_k=params['top_k'],
+                    repeat_penalty=params['repeat_penalty'],
+                    stop=["</s>"]
+                )
+            except Exception as e:
+                error[0] = e
+        
+        thread = threading.Thread(target=_generate, daemon=True)
+        thread.start()
+        thread.join(timeout=timeout)
+        
+        if thread.is_alive():
+            logger.warning(f"Генерация прервана по таймауту ({timeout}с)")
+            return None
+        
+        if error[0]:
+            logger.warning(f"Ошибка генерации: {error[0]}")
+            return None
+        
+        return result[0]
+
     def generate_with_model_a(self, query: str, max_retries: int = 2) -> Dict[str, Any]:
         """Генерация ответа на Model A (логика) с адаптивными параметрами"""
         if not self.model_a:
@@ -559,15 +594,16 @@ class RecursiveModelPipeline:
                 {"role": "user", "content": user_content}
             ]
             
-            output = self.model_a.create_chat_completion(
-                messages=messages,
-                max_tokens=params['max_tokens'],
-                temperature=params['temperature'],
-                top_p=params['top_p'],
-                top_k=params['top_k'],
-                repeat_penalty=params['repeat_penalty'],
-                stop=["</s>"]
-            )
+            start_time = time.time()
+            output = self._generate_with_timeout(self.model_a, messages, params, timeout=60)
+            elapsed = time.time() - start_time
+            
+            if output is None:
+                logger.warning(f"Model A: попытка {attempt+1} прервана по таймауту ({elapsed:.1f}с)")
+                self.model_a_params.record_failure(attempt + 1, ['Таймаут генерации'], params, '')
+                continue
+            
+            logger.info(f"Model A generation time: {elapsed:.1f}с")
             
             raw_response = output['choices'][0]['message']['content'].strip()
             raw_response = self._sanitize_response(raw_response)
@@ -596,11 +632,12 @@ class RecursiveModelPipeline:
             self.model_a_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
             logger.warning(f"Model A: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
         
-        # Fallback
+        # Fallback — Model B попробует
+        logger.warning("Model A: все попытки провалились, использую Model B")
         return {
-            'raw_response': 'Не удалось сформировать ответ.',
-            'natural_response': 'Не удалось сформировать ответ.',
-            'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Все попытки не прошли проверку']},
+            'raw_response': '',
+            'natural_response': '',
+            'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Model A не смогла, передаю Model B']},
             'model': 'Model A (Logic)',
             'tokens': 0
         }
@@ -679,15 +716,16 @@ class RecursiveModelPipeline:
                 {"role": "user", "content": query}
             ]
             
-            output = self.model_b.create_chat_completion(
-                messages=messages,
-                max_tokens=params['max_tokens'],
-                temperature=params['temperature'],
-                top_p=params['top_p'],
-                top_k=params['top_k'],
-                repeat_penalty=params['repeat_penalty'],
-                stop=["</s>"]
-            )
+            start_time = time.time()
+            output = self._generate_with_timeout(self.model_b, messages, params, timeout=45)
+            elapsed = time.time() - start_time
+            
+            if output is None:
+                logger.warning(f"Model B: попытка {attempt+1} прервана по таймауту ({elapsed:.1f}с)")
+                self.model_b_params.record_failure(attempt + 1, ['Таймаут генерации'], params, '')
+                continue
+            
+            logger.info(f"Model B generation time: {elapsed:.1f}с")
             
             raw_response = output['choices'][0]['message']['content'].strip()
             raw_response = self._sanitize_response(raw_response)
@@ -895,9 +933,9 @@ class RecursiveModelPipeline:
             'output': model_a_result['natural_response']
         })
         
-        # Шаг 2: Model B - развитие мысли (чистый контекст, без загрязнения)
+        # Шаг 2: Model B - развитие мысли (всегда, даже если Model A провалилась)
         logger.info("=== Шаг 2: Генерация расширенного ответа на Model B ===")
-        model_b_result = self.generate_with_model_b(query, model_a_result['natural_response'])
+        model_b_result = self.generate_with_model_b(query, model_a_result.get('natural_response', ''))
         logger.info(f"Model B ответ: {model_b_result['natural_response'][:150]}...")
         results['model_b_result'] = model_b_result
         
