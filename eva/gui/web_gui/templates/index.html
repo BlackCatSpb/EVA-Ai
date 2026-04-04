@@ -52,6 +52,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     <span>Обучение</span>
                 </button>
+                <button class="nav-item" data-view="knowledge">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                    <span>Знания</span>
+                </button>
                 <button class="nav-item" data-view="settings">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                     <span>Настройки</span>
@@ -186,6 +190,28 @@
                 </div>
             </div>
 
+            <!-- Knowledge View -->
+            <div class="view" id="knowledgeView" style="display:none">
+                <div class="view-header">
+                    <h2>База знаний</h2>
+                    <button class="refresh-btn" id="refreshKnowledge">Обновить</button>
+                </div>
+                <div class="knowledge-stats">
+                    <div class="stat"><span class="stat-val" id="kgEntities">0</span><span class="stat-lbl">Сущностей</span></div>
+                    <div class="stat"><span class="stat-val" id="kgRelations">0</span><span class="stat-lbl">Связей</span></div>
+                    <div class="stat"><span class="stat-val" id="kgSessionEntities">0</span><span class="stat-lbl">В сессии</span></div>
+                </div>
+                <div class="knowledge-search">
+                    <input type="text" id="knowledgeSearchInput" placeholder="Поиск по базе знаний...">
+                    <button class="search-btn" id="knowledgeSearchBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </button>
+                </div>
+                <div class="knowledge-results" id="knowledgeResults">
+                    <div class="empty-state">Введите запрос для поиска</div>
+                </div>
+            </div>
+
             <!-- Settings View -->
             <div class="view" id="settingsView" style="display:none">
                 <div class="view-header">
@@ -210,12 +236,26 @@
                             <div class="toggle-switch active" id="toggleAutoLearn"></div>
                         </div>
                         <div class="setting-row">
+                            <label>Память</label>
+                            <div class="toggle-switch active" id="toggleMemory"></div>
+                        </div>
+                        <div class="setting-row">
                             <label>SRE (Reasoning)</label>
                             <div class="toggle-switch active" id="toggleSRE"></div>
                         </div>
-                        <div class="setting-row">
-                            <label>Контекстная память</label>
-                            <div class="toggle-switch active" id="toggleMemory"></div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Данные</h3>
+                        <div class="setting-row data-actions">
+                            <button class="data-btn" id="exportSessionBtn" title="Экспорт сессии">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Экспорт сессии
+                            </button>
+                            <button class="data-btn" id="importSessionBtn" title="Импорт сессии">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                Импорт сессии
+                            </button>
+                            <input type="file" id="importFileInput" accept=".json" style="display:none">
                         </div>
                     </div>
                     <div class="setting-group">
@@ -230,14 +270,25 @@
                         </div>
                     </div>
                     <div class="setting-group">
+                        <h3>Модели</h3>
+                        <div class="collapsible-panel" id="modelStatusPanel">
+                            <button class="panel-toggle" id="modelStatusToggle">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                Статус моделей
+                            </button>
+                            <div class="panel-body" id="modelStatusBody">
+                                <div id="modelStatusList">
+                                    <div class="empty-state">Загрузка...</div>
+                                </div>
+                                <div class="gpu-info" id="gpuInfo"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
                         <h3>О системе</h3>
                         <div class="setting-row">
                             <label>Версия</label>
                             <span>1.0.0</span>
-                        </div>
-                        <div class="setting-row">
-                            <label>Модель</label>
-                            <span>Qwen3.5-0.8B</span>
                         </div>
                     </div>
                 </div>

@@ -8,6 +8,11 @@
     let sessions = [];
     let activeSessionId = null;
     let sidebarOpen = false;
+    let settingsState = {
+        auto_learn: true,
+        memory_enabled: true,
+        sre_enabled: true
+    };
 
     const $ = (s, p) => (p || document).querySelector(s);
     const $$ = (s, p) => [...(p || document).querySelectorAll(s)];
@@ -17,7 +22,6 @@
         const headers = { 'Content-Type': 'application/json' };
         if (userId) headers['X-User-ID'] = userId;
         
-        // Build URL with query params if provided
         let url = `/api${path}`;
         if (opts.params) {
             const params = new URLSearchParams(opts.params);
@@ -25,11 +29,36 @@
             delete opts.params;
         }
         
-        const r = await fetch(url, {
-            ...opts,
-            headers: { ...headers, ...opts.headers },
-            body: opts.body ? JSON.stringify(opts.body) : undefined
-        });
+        let r;
+        try {
+            r = await fetch(url, {
+                ...opts,
+                headers: { ...headers, ...opts.headers },
+                body: opts.body ? JSON.stringify(opts.body) : undefined
+            });
+        } catch (e) {
+            toast('Ошибка сети. Проверьте подключение.', 'error');
+            throw e;
+        }
+
+        if (!r.ok) {
+            if (r.status === 403) {
+                toast('Доступ запрещён. Сессия истекла.', 'error');
+            } else if (r.status === 404) {
+                toast('Ресурс не найден.', 'error');
+            } else if (r.status >= 500) {
+                toast('Ошибка сервера. Попробуйте позже.', 'error');
+            } else {
+                toast(`Ошибка ${r.status}`, 'error');
+            }
+            try {
+                const errData = await r.json();
+                if (errData.error) throw new Error(errData.error);
+            } catch {
+                throw new Error(`HTTP ${r.status}`);
+            }
+        }
+
         return r.json();
     }
 
@@ -64,8 +93,10 @@
             $('#appContainer').style.display = 'flex';
             $('#userName').textContent = d.user;
             $('#settingsUser').textContent = d.user;
+            $('#settingsSession').textContent = d.session_id || '—';
             renderSessions();
             showWelcome();
+            loadSettings();
             toast('Добро пожаловать', 'success');
         } catch {
             $('#loginError').textContent = 'Ошибка подключения';
@@ -92,16 +123,87 @@
         sessions.forEach(s => {
             const el = document.createElement('div');
             el.className = `session-item${s.id === activeSessionId ? ' active' : ''}`;
+            el.dataset.id = s.id;
+
+            const createdDate = s.created_at ? formatDate(s.created_at) : '';
+            const msgCount = s.message_count !== undefined ? s.message_count : (s.context ? s.context.length : 0);
+
             el.innerHTML = `
-                <span class="session-name">${esc(s.name || 'Без названия')}</span>
-                <button class="session-del" data-id="${s.id}" title="Удалить">×</button>
+                <div class="session-top">
+                    <span class="session-name">${esc(s.name || 'Без названия')}</span>
+                    <button class="session-del" data-id="${s.id}" title="Удалить">×</button>
+                </div>
+                ${createdDate ? `<div class="session-meta">${createdDate}${msgCount ? ' · ' + msgCount + ' сообщ.' : ''}</div>` : ''}
             `;
+
             el.addEventListener('click', (e) => {
                 if (e.target.classList.contains('session-del')) return;
                 selectSession(s.id);
             });
-            el.querySelector('.session-del').addEventListener('click', () => deleteSession(s.id));
+
+            el.addEventListener('dblclick', (e) => {
+                if (e.target.classList.contains('session-del')) return;
+                startRenameSession(s.id, el);
+            });
+
+            el.querySelector('.session-del').addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteSession(s.id);
+            });
+
             c.appendChild(el);
+        });
+    }
+
+    function formatDate(dateStr) {
+        try {
+            const d = new Date(dateStr);
+            const now = new Date();
+            const diff = now - d;
+            if (diff < 60000) return 'Только что';
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' мин. назад';
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' ч. назад';
+            return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        } catch {
+            return '';
+        }
+    }
+
+    function startRenameSession(id, el) {
+        const nameSpan = el.querySelector('.session-name');
+        const currentName = nameSpan.textContent;
+        const input = document.createElement('input');
+        input.className = 'session-rename-input';
+        input.value = currentName;
+        nameSpan.replaceWith(input);
+        input.focus();
+        input.select();
+
+        const finishRename = async () => {
+            const newName = input.value.trim();
+            if (newName && newName !== currentName) {
+                try {
+                    await api(`/session/${id}`, {
+                        method: 'PUT',
+                        body: { name: newName }
+                    });
+                    const s = sessions.find(s => s.id === id);
+                    if (s) s.name = newName;
+                    toast('Сессия переименована', 'success');
+                } catch {
+                    toast('Ошибка переименования', 'error');
+                }
+            }
+            renderSessions();
+        };
+
+        input.addEventListener('blur', finishRename);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') input.blur();
+            if (e.key === 'Escape') {
+                input.value = currentName;
+                input.blur();
+            }
         });
     }
 
@@ -112,17 +214,22 @@
     }
 
     async function deleteSession(id) {
-        sessions = sessions.filter(s => s.id !== id);
-        if (activeSessionId === id) {
-            activeSessionId = sessions[0]?.id || null;
-        }
-        await api('/sessions', { method: 'DELETE', body: { session_id: id } });
-        renderSessions();
-        if (activeSessionId) {
-            await loadSessionMessages(activeSessionId);
-        } else {
-            $('#chatMessages').innerHTML = '';
-            showWelcome();
+        try {
+            await api(`/session/${id}`, { method: 'DELETE' });
+            sessions = sessions.filter(s => s.id !== id);
+            if (activeSessionId === id) {
+                activeSessionId = sessions[0]?.id || null;
+            }
+            renderSessions();
+            if (activeSessionId) {
+                await loadSessionMessages(activeSessionId);
+            } else {
+                $('#chatMessages').innerHTML = '';
+                showWelcome();
+            }
+            toast('Сессия удалена', 'success');
+        } catch {
+            toast('Ошибка удаления сессии', 'error');
         }
     }
 
@@ -592,13 +699,17 @@
             $$('.view').forEach(v => v.style.display = 'none');
             $(`#${view}View`).style.display = 'flex';
             
-            // Load data for specific views
             if (view === 'memory') {
                 loadMemory();
             } else if (view === 'analytics') {
                 loadAnalytics();
             } else if (view === 'learning') {
                 loadLearning();
+            } else if (view === 'knowledge') {
+                loadKnowledge();
+            } else if (view === 'settings') {
+                loadSettings();
+                $('#settingsSession').textContent = activeSessionId || '—';
             }
         });
     });
@@ -976,18 +1087,55 @@
     }
     
     /* ── Settings toggles ── */
+    async function loadSettings() {
+        try {
+            const d = await api('/settings');
+            if (d.auto_learn !== undefined) settingsState.auto_learn = d.auto_learn;
+            if (d.memory_enabled !== undefined) settingsState.memory_enabled = d.memory_enabled;
+            if (d.sre_enabled !== undefined) settingsState.sre_enabled = d.sre_enabled;
+            applySettingsToUI();
+        } catch {
+            const saved = localStorage.getItem('cogniflex_settings');
+            if (saved) {
+                try {
+                    settingsState = JSON.parse(saved);
+                    applySettingsToUI();
+                } catch {}
+            }
+        }
+    }
+
+    function applySettingsToUI() {
+        const al = $('#toggleAutoLearn');
+        const me = $('#toggleMemory');
+        const sre = $('#toggleSRE');
+        if (al) al.classList.toggle('active', settingsState.auto_learn);
+        if (me) me.classList.toggle('active', settingsState.memory_enabled);
+        if (sre) sre.classList.toggle('active', settingsState.sre_enabled);
+    }
+
+    async function saveSettings() {
+        try {
+            await api('/settings', {
+                method: 'POST',
+                body: settingsState
+            });
+            localStorage.setItem('cogniflex_settings', JSON.stringify(settingsState));
+        } catch {
+            localStorage.setItem('cogniflex_settings', JSON.stringify(settingsState));
+        }
+    }
+
     function setupToggle(id, key) {
         const toggle = $(id);
         if (!toggle) return;
         toggle.addEventListener('click', () => {
-            toggle.classList.toggle('active');
-            const isActive = toggle.classList.contains('active');
-            localStorage.setItem('cogniflex_' + key, isActive ? '1' : '0');
+            const isActive = !toggle.classList.contains('active');
+            toggle.classList.toggle('active', isActive);
+            settingsState[key] = isActive;
+            saveSettings();
             toast(isActive ? 'Включено' : 'Выключено', 'info');
         });
-        // Load saved state
-        const saved = localStorage.getItem('cogniflex_' + key);
-        if (saved === '0') toggle.classList.remove('active');
     }
     
     setupToggle('#toggleAutoLearn', 'auto_learn');
@@ -996,34 +1144,169 @@
     setupToggle('#toggleTheme', 'dark_theme');
     setupToggle('#toggleSound', 'sound_enabled');
 
-    /* ── Model Status ── */
+    /* ── Export/Import ── */
+    $('#exportSessionBtn')?.addEventListener('click', async () => {
+        if (!activeSessionId) {
+            toast('Нет активной сессии', 'error');
+            return;
+        }
+        try {
+            const d = await api('/export', { params: { session_id: activeSessionId, format: 'json' } });
+            if (d.error) {
+                toast('Ошибка экспорта: ' + d.error, 'error');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `session_${activeSessionId}_${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast('Сессия экспортирована', 'success');
+        } catch {
+            toast('Ошибка экспорта сессии', 'error');
+        }
+    });
+
+    $('#importSessionBtn')?.addEventListener('click', () => {
+        $('#importFileInput').click();
+    });
+
+    $('#importFileInput')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            const d = await api('/import', {
+                method: 'POST',
+                body: data
+            });
+            if (d.error) {
+                toast('Ошибка импорта: ' + d.error, 'error');
+                return;
+            }
+            if (d.sessions) sessions = d.sessions;
+            if (d.session_id) activeSessionId = d.session_id;
+            renderSessions();
+            if (activeSessionId) await loadSessionMessages(activeSessionId);
+            toast('Сессия импортирована', 'success');
+        } catch {
+            toast('Ошибка импорта. Проверьте формат файла.', 'error');
+        }
+        e.target.value = '';
+    });
+
+    /* ── Knowledge Panel ── */
+    function loadKnowledge() {
+        api('/knowledge').then(data => {
+            if (data.error) return;
+            
+            $('#kgEntities').textContent = data.total_entities || data.entities?.length || 0;
+            $('#kgRelations').textContent = data.total_relations || data.relations?.length || 0;
+            
+            if (activeSessionId && data.session_entities !== undefined) {
+                $('#kgSessionEntities').textContent = data.session_entities;
+            } else {
+                $('#kgSessionEntities').textContent = '—';
+            }
+        }).catch(() => {});
+    }
+
+    function searchKnowledge(query) {
+        if (!query.trim()) {
+            $('#knowledgeResults').innerHTML = '<div class="empty-state">Введите запрос для поиска</div>';
+            return;
+        }
+        
+        api('/knowledge', {
+            method: 'POST',
+            body: { query: query.trim(), action: 'search' }
+        }).then(data => {
+            if (data.error) {
+                $('#knowledgeResults').innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
+                return;
+            }
+            
+            const results = data.results || data.matches || [];
+            if (results.length === 0) {
+                $('#knowledgeResults').innerHTML = '<div class="empty-state">Ничего не найдено</div>';
+                return;
+            }
+            
+            $('#knowledgeResults').innerHTML = results.map(r => `
+                <div class="kg-result-item">
+                    <div class="kg-result-name">${esc(r.name || r.entity || r.keyword || 'Unknown')}</div>
+                    <div class="kg-result-type">${esc(r.type || r.relation_type || '')}</div>
+                    ${r.content || r.description ? `<div class="kg-result-content">${esc(r.content || r.description || '')}</div>` : ''}
+                </div>
+            `).join('');
+        }).catch(() => {
+            $('#knowledgeResults').innerHTML = '<div class="empty-state">Ошибка поиска</div>';
+        });
+    }
+
+    $('#knowledgeSearchBtn')?.addEventListener('click', () => {
+        searchKnowledge($('#knowledgeSearchInput').value);
+    });
+
+    $('#knowledgeSearchInput')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            searchKnowledge($('#knowledgeSearchInput').value);
+        }
+    });
+
+    $('#refreshKnowledge')?.addEventListener('click', () => {
+        loadKnowledge();
+    });
+
+    /* ── Enhanced Model Status ── */
     function loadModelStatus() {
         api('/model-status').then(data => {
             if (data.error) return;
             
-            // Update model indicators
             const models = data.models || {};
-            Object.keys(models).forEach(key => {
-                const model = models[key];
-                const el = $(`#model-${key}`);
-                if (el) {
-                    el.className = `model-indicator ${model.loaded ? 'loaded' : 'unloaded'}`;
-                    el.innerHTML = `
-                        <span class="model-name">${model.name}</span>
-                        <span class="model-role">${model.role}</span>
-                        <span class="model-status">${model.loaded ? 'Загружена' : 'Не загружена'}</span>
-                    `;
-                }
-            });
+            const listEl = $('#modelStatusList');
             
-            // Update pipeline status
+            if (Object.keys(models).length > 0) {
+                listEl.innerHTML = Object.entries(models).map(([key, model]) => `
+                    <div class="model-item">
+                        <div>
+                            <div class="model-name">${esc(model.name || key)}</div>
+                            <div class="model-role">${esc(model.role || '')}</div>
+                        </div>
+                        <span class="model-status-badge ${model.loaded ? 'loaded' : 'unloaded'}">
+                            ${model.loaded ? 'Загружена' : 'Не загружена'}
+                        </span>
+                    </div>
+                `).join('');
+            } else {
+                listEl.innerHTML = '<div class="empty-state">Нет данных о моделях</div>';
+            }
+            
+            const gpuEl = $('#gpuInfo');
+            if (data.gpu !== undefined || data.vram_usage !== undefined || data.gpu_available !== undefined) {
+                const gpuAvail = data.gpu_available !== undefined ? data.gpu_available : (data.gpu !== undefined ? data.gpu : false);
+                const vram = data.vram_usage || data.vram || 0;
+                gpuEl.innerHTML = `
+                    <div class="gpu-stat">
+                        <span class="gpu-stat-val">${gpuAvail ? 'Да' : 'Нет'}</span>
+                        <span class="gpu-stat-lbl">GPU</span>
+                    </div>
+                    <div class="gpu-stat">
+                        <span class="gpu-stat-val">${typeof vram === 'number' ? vram.toFixed(1) + '%' : esc(String(vram))}</span>
+                        <span class="gpu-stat-lbl">VRAM</span>
+                    </div>
+                `;
+            }
+            
             const pipelineEl = $('#pipelineStatus');
             if (pipelineEl) {
                 pipelineEl.className = `pipeline-status ${data.pipeline_ready ? 'ready' : 'not-ready'}`;
                 pipelineEl.textContent = data.pipeline_ready ? 'Пайплайн готов' : 'Пайплайн не готов';
             }
             
-            // Update fractal memory info
             const fm = data.fractal_memory || {};
             const fmEl = $('#fractalMemoryInfo');
             if (fmEl && fm.enabled) {
@@ -1036,9 +1319,16 @@
             }
         }).catch(() => {});
     }
+
+    $('#modelStatusToggle')?.addEventListener('click', () => {
+        const toggle = $('#modelStatusToggle');
+        const body = $('#modelStatusBody');
+        const isOpen = toggle.classList.toggle('open');
+        body.classList.toggle('open', isOpen);
+        if (isOpen) loadModelStatus();
+    });
     
-    // Load model status on startup
-    if ($('#modelStatus')) loadModelStatus();
+    loadModelStatus();
     setInterval(loadModelStatus, 60000);
 
     /* ── Self-Dialog ── */
