@@ -135,6 +135,11 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         if self.events is not None:
             return self.events.event_bus
         return None
+    
+    @event_bus.setter
+    def event_bus(self, value):
+        """Устанавливает шину событий."""
+        self._new_event_bus = value
 
     def initialize(self) -> bool:
         self._initialize_detailed_logging()
