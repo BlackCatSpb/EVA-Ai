@@ -17,6 +17,7 @@ from .brain_query import QueryMixin, FALLBACK_RESPONSES, FALLBACK_RESPONSE_DEFAU
 from .brain_monitoring import MonitoringMixin
 from .brain_memory import MemoryMixin
 from .brain_state import SystemState, SystemStateManager, StateMixin
+from .brain_coordination import EventSubscriptionMixin, CommandIssuerMixin, ProcessTrackerMixin
 
 logger = logging.getLogger("eva.core_brain")
 query_logger = logging.getLogger("eva.core_brain.query_processing")
@@ -46,7 +47,7 @@ except ImportError:
         STOPPED = "stopped"; ERROR = "error"
 
 
-class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, MemoryMixin, StateMixin):
+class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, MemoryMixin, StateMixin, EventSubscriptionMixin, CommandIssuerMixin, ProcessTrackerMixin):
     """Центральный координатор системы ЕВА."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -104,6 +105,8 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         except ImportError:
             self.deferred_system = None
 
+        ProcessTrackerMixin.__init__(self)
+
         self.cache_dir = os.path.join(os.path.dirname(__file__), "eva_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
         try:
@@ -138,6 +141,7 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         start_time = time.time()
         query_logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ ЯДРА COGNIFLEX")
         try:
+            self._subscribe_to_system_events()
             self._update_state(SystemState.INITIALIZING, "Инициализация компонентов")
             if self.resource_manager:
                 self.resource_manager.start_monitoring()
