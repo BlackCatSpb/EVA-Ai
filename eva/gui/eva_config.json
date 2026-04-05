@@ -1,5 +1,6 @@
 {
   "web_gui": {
-    "admin_password": "3fzrxEEKWWdsPejjqfX88g"
+    "admin_password": "cogniflex",
+    "admin_salt": "default_salt_2024"
   }
 }

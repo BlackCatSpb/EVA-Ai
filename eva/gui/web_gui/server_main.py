@@ -6,6 +6,8 @@ import logging
 import threading
 import json
 import uuid
+import hashlib
+import secrets
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -66,24 +68,54 @@ class WebGUI:
         admin_user = os.environ.get('COGNIFLEX_ADMIN_USER', 'admin')
         admin_pass = os.environ.get('COGNIFLEX_ADMIN_PASS')
         config_needs_password = False
-        if not admin_pass:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
+        
+        # Try to load config from multiple possible locations
+        possible_config_paths = [
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json'),
+            os.path.join(os.path.dirname(__file__), '..', '..', 'eva_config.json'),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), 'gui', 'eva_config.json'),
+            os.path.join(os.path.dirname(os.path.dirname(__file__)), '..', '..', 'gui', 'eva_config.json'),
+            'eva_config.json',
+            'gui/eva_config.json',
+        ]
+        config_path = None
+        for path in possible_config_paths:
+            if os.path.exists(path):
+                config_path = os.path.abspath(path)
+                break
+        
+        admin_salt = None
+        if not admin_pass and config_path:
             if os.path.exists(config_path):
                 try:
                     with open(config_path, 'r', encoding='utf-8') as f:
                         config = json.load(f)
                         admin_pass = config.get('web_gui', {}).get('admin_password')
+                        admin_salt = config.get('web_gui', {}).get('admin_salt')
                 except Exception:
                     pass
+        
         if not admin_pass:
-            import secrets
             admin_pass = secrets.token_urlsafe(16)
             config_needs_password = True
-            logger.warning(f"GENERATED DEFAULT ADMIN PASSWORD: {admin_pass}")
-            logger.warning("CHANGE THIS PASSWORD IMMEDIATELY via COGNIFLEX_ADMIN_PASS env var or config!")
-        self.auth_manager.set_default_credentials(admin_user, admin_pass)
-        if config_needs_password:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'eva_config.json')
+            logger.warning("GENERATED DEFAULT ADMIN PASSWORD: {}".format(admin_pass))
+        else:
+            logger.info("Admin password loaded from config")
+        
+        # Set credentials with stored salt or generate new
+        if admin_salt:
+            password_hash = hashlib.pbkdf2_hmac('sha256', admin_pass.encode(), admin_salt.encode(), 100000).hex()
+            with self.auth_manager._lock:
+                self.auth_manager.users[admin_user] = {
+                    'username': admin_user,
+                    'password_hash': password_hash,
+                    'salt': admin_salt,
+                    'created_at': datetime.now().isoformat()
+                }
+        else:
+            self.auth_manager.set_default_credentials(admin_user, admin_pass)
+        
+        if config_needs_password and config_path:
             try:
                 config = {}
                 if os.path.exists(config_path):
@@ -92,13 +124,23 @@ class WebGUI:
                 if 'web_gui' not in config:
                     config['web_gui'] = {}
                 config['web_gui']['admin_password'] = admin_pass
+                new_salt = secrets.token_hex(16)
+                config['web_gui']['admin_salt'] = new_salt
+                password_hash = hashlib.pbkdf2_hmac('sha256', admin_pass.encode(), new_salt.encode(), 100000).hex()
+                with self.auth_manager._lock:
+                    self.auth_manager.users[admin_user] = {
+                        'username': admin_user,
+                        'password_hash': password_hash,
+                        'salt': new_salt,
+                        'created_at': datetime.now().isoformat()
+                    }
                 with open(config_path, 'w', encoding='utf-8') as f:
                     json.dump(config, f, indent=2, ensure_ascii=False)
-                logger.info(f"Admin password saved to {config_path}")
+                logger.info("Admin password saved to config")
             except Exception as e:
-                logger.error(f"Failed to save admin password to config: {e}")
+                logger.error("Failed to save admin password: {}".format(e))
 
-        logger.info(f"WebGUI инициализирован на {host}:{port}")
+        logger.info("WebGUI initialized on {}:{}".format(host, port))
 
     def process_message(self, query: str, session_id: str, user_id: str, file_data: Dict = None) -> Dict[str, Any]:
 
@@ -424,12 +466,16 @@ class WebGUI:
         logger.info("WebGUI сервер остановлен")
 
 
+# Don't create default instance at import time - let create_app handle it
 web_gui_instance: Optional[WebGUI] = None
 
 
 def create_app(brain=None, integrator=None, host='127.0.0.1', port=5555):
     global web_gui_instance
+    logger.info("=== CREATE_APP CALLED ===")
     web_gui_instance = WebGUI(brain=brain, integrator=integrator, host=host, port=port)
+    logger.info("=== WEBGUI INSTANCE CREATED ===")
+    logger.info("web_gui_instance.auth_manager.users: {}".format(web_gui_instance.auth_manager.users))
 
     register_basic_routes(app, web_gui_instance)
     register_wikipedia_routes(app, web_gui_instance)
@@ -445,9 +491,8 @@ def get_app() -> WebGUI:
     return web_gui_instance
 
 
-if web_gui_instance is None:
-    web_gui_instance = WebGUI()
-
+# Direct execution - create app and run
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
+    create_app()
     app.run(host='127.0.0.1', port=5555, debug=False, use_reloader=False)

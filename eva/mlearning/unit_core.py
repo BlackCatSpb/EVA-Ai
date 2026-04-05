@@ -206,3 +206,4 @@ MLUnit.get_response_generator = get_response_generator
 MLUnit.get_model_manager = get_model_manager
 MLUnit.get_ml_core = get_ml_core
 MLUnit.process_text = process_text
+MLUnit._get_project_root = staticmethod(_get_project_root)

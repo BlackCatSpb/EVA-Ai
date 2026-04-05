@@ -135,7 +135,7 @@ class EventBus:
     
     def subscribe(self, event_type: str, handler: Callable[[Event], None]) -> str:
         """
-        Подписка на события
+        Подписка на события с логированием
         
         Args:
             event_type: Тип события
@@ -144,26 +144,36 @@ class EventBus:
         Returns:
             str: ID подписки
         """
+        handler_name = getattr(handler, '__name__', str(handler))
+        logger.info("=== EVENT BUS: Subscribe ===")
+        logger.info("  Event type: {}".format(event_type))
+        logger.info("  Handler: {}".format(handler_name))
+        
         with self._lock:
             # Используем weakref для автоматической очистки
             if hasattr(handler, '__self__'):
                 # Для методов используем WeakMethod
                 weak_handler = weakref.WeakMethod(handler)
+                handler_type = "method"
             else:
                 # Для функций используем weakref
                 weak_handler = weakref.ref(handler)
+                handler_type = "function"
             
-            subscription_id = f"{event_type}_{id(handler)}"
+            subscription_id = "{}::{}::{}".format(event_type, handler_type, id(handler))
             self._subscribers[event_type].append((subscription_id, weak_handler))
             
             self._stats['subscribers_count'] = sum(len(handlers) for handlers in self._subscribers.values())
             
-            logger.debug(f"Подписка на {event_type}: {subscription_id}")
+            logger.info("SUBSCRIBED: {} -> {} (id: {})".format(event_type, handler_name, subscription_id))
+            logger.debug("  Total subscribers for {}: {}".format(
+                event_type, len(self._subscribers[event_type])))
+            
             return subscription_id
     
     def unsubscribe(self, event_type: str, handler_or_id: Callable | str) -> bool:
         """
-        Отписка от событий
+        Отписка от событий с логированием
         
         Args:
             event_type: Тип события
@@ -172,8 +182,12 @@ class EventBus:
         Returns:
             bool: Успешность отписки
         """
+        logger.info("=== EVENT BUS: Unsubscribe ===")
+        logger.info("  Event type: {}".format(event_type))
+        
         with self._lock:
             if event_type not in self._subscribers:
+                logger.warning("  No subscribers for event type {}".format(event_type))
                 return False
             
             original_count = len(self._subscribers[event_type])
@@ -215,7 +229,7 @@ class EventBus:
     
     def publish(self, event: Event) -> bool:
         """
-        Публикация события
+        Публикация события с подробным логированием
         
         Args:
             event: Событие для публикации
@@ -223,6 +237,10 @@ class EventBus:
         Returns:
             bool: Успешность публикации
         """
+        logger.debug("=== EVENT BUS: Publishing event ===")
+        logger.debug("  Event type: {}".format(event.event_type))
+        logger.debug("  Source: {}".format(event.source))
+        
         try:
             with self._lock:
                 self._event_history.append(event)
@@ -230,18 +248,21 @@ class EventBus:
             
             self._event_queue.put(event)
             
-            logger.debug(f"Событие опубликовано: {event.event_type} от {event.source}")
+            logger.info("EVENT published: {} from {}".format(event.event_type, event.source))
+            logger.debug("  Queue size: {}".format(self._event_queue.qsize()))
             return True
             
         except Exception as e:
             with self._lock:
                 self._stats['events_failed'] += 1
-            logger.error(f"Ошибка публикации события {event.event_type}: {e}")
+            logger.error("Ошибка публикации события {}: {}".format(event.event_type, e))
+            import traceback
+            logger.error("  Traceback: {}".format(traceback.format_exc()))
             return False
     
     def publish_sync(self, event: Event) -> int:
         """
-        Синхронная публикация события с немедленной обработкой
+        Синхронная публикация события с немедленной обработкой и логированием
         
         Args:
             event: Событие для публикации
@@ -249,25 +270,36 @@ class EventBus:
         Returns:
             int: Количество обработанных подписчиков
         """
+        logger.debug("=== EVENT BUS: Publishing SYNC event ===")
+        logger.debug("  Event type: {}".format(event.event_type))
+        logger.debug("  Source: {}".format(event.source))
+        logger.debug("  Data: {}".format(event.data))
+        
         try:
             with self._lock:
                 self._event_history.append(event)
                 self._stats['events_published'] += 1
             
+            logger.info("EVENT sync: {} from {}".format(event.event_type, event.source))
+            
             processed = self._process_event(event)
             
-            logger.debug(f"Синхронное событие обработано: {event.event_type}, обработчиков: {processed}")
+            logger.info("SYNC event {} processed, {} handlers".format(event.event_type, processed))
             return processed
             
         except Exception as e:
             with self._lock:
                 self._stats['events_failed'] += 1
-            logger.error(f"Ошибка синхронной публикации события {event.event_type}: {e}")
+            logger.error("Ошибка синхронной публикации события {}: {}".format(event.event_type, e))
+            import traceback
+            logger.error("  Traceback: {}".format(traceback.format_exc()))
+            return 0
+            logger.error("Ошибка синхронной публикации события {}: {}".format(event.event_type, e))
             return 0
     
     def _process_event(self, event: Event) -> int:
         """
-        Обработка события
+        Обработка события с подробным логированием
         
         Args:
             event: Событие для обработки
@@ -277,29 +309,54 @@ class EventBus:
         """
         processed = 0
         
+        logger.debug("=== EVENT BUS: Processing event ===")
+        logger.debug("  Event type: {}".format(event.event_type))
+        logger.debug("  Source: {}".format(event.source))
+        logger.debug("  Data: {}".format(event.data))
+        logger.debug("  Priority: {}".format(event.priority))
+        
         with self._lock:
             subscribers = self._subscribers.get(event.event_type, [])
             
+            logger.debug("  Raw subscribers count: {}".format(len(subscribers)))
+            
             # Очищаем мертвые ссылки
             active_subscribers = []
+            dead_subscribers = 0
             for subscription_id, weak_handler in subscribers:
                 handler = weak_handler()
                 if handler is not None:
                     active_subscribers.append((subscription_id, handler))
+                else:
+                    dead_subscribers += 1
+            
+            if dead_subscribers > 0:
+                logger.debug("  Cleaned {} dead subscribers".format(dead_subscribers))
             
             # Обновляем список активных подписчиков
             self._subscribers[event.event_type] = active_subscribers
             
+            logger.debug("  Active subscribers: {}".format(len(active_subscribers)))
+            
             # Вызываем обработчики
             for subscription_id, handler in active_subscribers:
                 try:
+                    handler_name = getattr(handler, '__name__', str(handler))
+                    logger.debug("  Calling handler: {} for event {}".format(handler_name, event.event_type))
                     handler(event)
                     processed += 1
+                    logger.debug("  Handler {} processed successfully".format(handler_name))
                 except Exception as e:
                     self._stats['events_failed'] += 1
-                    logger.error(f"Ошибка в обработчике {subscription_id} для события {event.event_type}: {e}")
+                    logger.error("Ошибка в обработчике {} для события {}: {}".format(
+                        subscription_id, event.event_type, e))
+                    import traceback
+                    logger.error("  Traceback: {}".format(traceback.format_exc()))
             
             self._stats['events_processed'] += 1
+        
+        logger.debug("=== EVENT BUS: Processed {} handlers for event {} ===".format(
+            processed, event.event_type))
         
         return processed
     

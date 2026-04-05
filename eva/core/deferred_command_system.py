@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("eva.deferred_commands")
 
 class CommandPriority(Enum):
     """Приоритеты команд."""
@@ -119,13 +119,23 @@ class DeferredCommandSystem:
                    retry_delay: float = 1.0,
                    timeout: Optional[float] = None,
                    command_id: Optional[str] = None) -> str:
-        """Добавляет команду в очередь выполнения."""
+        """Добавляет команду в очередь выполнения с подробным логированием."""
         
         if kwargs is None:
             kwargs = {}
             
         if command_id is None:
-            command_id = f"cmd_{int(time.time() * 1000)}_{id(command)}"
+            command_id = "cmd_{}_{}".format(int(time.time() * 1000), id(command))
+        
+        command_name = getattr(command, '__name__', str(command))
+        
+        logger.info("=== DEFERRED COMMAND: Adding command ===")
+        logger.info("  Command ID: {}".format(command_id))
+        logger.info("  Command name: {}".format(command_name))
+        logger.info("  Priority: {} ({})".format(priority.name, priority.value))
+        logger.info("  Args: {}".format(args))
+        logger.info("  Kwargs: {}".format(kwargs))
+        logger.info("  Max retries: {}".format(max_retries))
         
         deferred_cmd = DeferredCommand(
             id=command_id,
@@ -147,8 +157,10 @@ class DeferredCommandSystem:
         
         with self.stats_lock:
             self.stats["total_commands"] += 1
-            
-        logger.debug(f"Добавлена команда {command_id} с приоритетом {priority.name}")
+        
+        logger.info("DEFERRED COMMAND added: {} (priority: {})".format(command_id, priority.name))
+        logger.debug("  Total commands in queue: {}".format(self.command_queues[priority].qsize()))
+        
         return command_id
     
     def add_module_recovery_strategy(self, module_name: str, recovery_func: Callable):
@@ -210,15 +222,24 @@ class DeferredCommandSystem:
                 time.sleep(1.0)
     
     def _execute_command(self, cmd: DeferredCommand):
-        """Выполняет отложенную команду."""
+        """Выполняет отложенную команду с подробным логированием."""
         start_time = time.time()
+        
+        command_name = getattr(cmd.command, '__name__', str(cmd.command))
+        
+        logger.info("=== DEFERRED COMMAND: Executing ===")
+        logger.info("  Command ID: {}".format(cmd.id))
+        logger.info("  Command: {}".format(command_name))
+        logger.info("  Attempt: {} of {}".format(cmd.attempts + 1, cmd.max_retries))
+        logger.info("  Args: {}".format(cmd.args))
+        logger.info("  Kwargs: {}".format(cmd.kwargs))
         
         with self.commands_lock:
             cmd.status = CommandStatus.RUNNING
             cmd.attempts += 1
         
         try:
-            logger.debug(f"Выполняется команда {cmd.id} (попытка {cmd.attempts})")
+            logger.info("Executing command {} (attempt {})".format(cmd.id, cmd.attempts))
             
             # Выполняем команду с таймаутом если указан
             if cmd.timeout:

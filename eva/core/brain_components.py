@@ -322,6 +322,20 @@ class ComponentMixin:
             def check_web_search():
                 return True
             self.deferred_system.add_module_health_check('web_search_engine', check_web_search)
+        
+        if hasattr(self, 'web_gui') and self.web_gui:
+            def check_web_gui():
+                return hasattr(self, 'web_gui') and self.web_gui is not None and getattr(self.web_gui, 'running', False)
+            self.deferred_system.add_module_health_check('web_gui', check_web_gui)
+            def recover_web_gui():
+                try:
+                    if hasattr(self, 'web_gui') and self.web_gui:
+                        if not getattr(self.web_gui, 'running', False):
+                            self.web_gui.start()
+                            logger.info("WebGUI recovered")
+                except Exception as e:
+                    logger.error("Failed to recover WebGUI: {}".format(e))
+            self.deferred_system.add_module_recovery_strategy('web_gui', recover_web_gui)
 
         logger.info("Health checks and recovery strategies registered for deferred system")
 

@@ -620,7 +620,7 @@ class BackgroundCoordinator:
 
     def _setup_event_integration(self) -> None:
         try:
-            # Интеграция с системой событий
+            # Интеграция с системой событий (старый EventSystem)
             if hasattr(self.brain, 'events') and self.brain.events:
                 events = self.brain.events
                 
@@ -631,7 +631,20 @@ class BackgroundCoordinator:
                 events.subscribe('component_health_change', self._handle_component_health_change, priority=7)
                 events.subscribe('training_completed', self._handle_training_completed, priority=6)
                 
-                logger.info("BackgroundCoordinator подписан на события системы")
+                logger.info("BackgroundCoordinator подписан на события системы (EventSystem)")
+            
+            # Интеграция с новой EventBus
+            event_bus = getattr(self.brain, 'event_bus', None) or getattr(self.brain, '_new_event_bus', None)
+            if event_bus:
+                from eva.core.event_bus import EventTypes
+                
+                event_bus.subscribe(EventTypes.SYSTEM_READY, self._handle_system_ready_new, priority=5)
+                event_bus.subscribe(EventTypes.SYSTEM_STOP, self._handle_system_shutdown_new, priority=5)
+                event_bus.subscribe(EventTypes.COMPONENT_STOPPED, self._handle_component_stopped_new, priority=5)
+                event_bus.subscribe(EventTypes.LEARNING_COMPLETED, self._handle_learning_completed_new, priority=6)
+                event_bus.subscribe(EventTypes.LEARNING_PROGRESS, self._handle_learning_progress_new, priority=7)
+                
+                logger.info("BackgroundCoordinator подписан на события EventBus")
             
             # Интеграция с отложенными командами
             if self.deferred:
@@ -645,7 +658,6 @@ class BackgroundCoordinator:
                 logger.info("BackgroundCoordinator зарегистрировал команды в DeferredCommandSystem")
                 
         except Exception as e:
-            # Логируем как предупреждение, а не ошибку - это не критично
             logger.warning(f"Неполная интеграция с системой событий: {e}")
 
     def _handle_system_ready(self, data: Dict[str, Any]) -> None:
@@ -761,6 +773,56 @@ class BackgroundCoordinator:
             }
         except Exception as e:
              return {"status": "error", "message": str(e)}
+
+    # ---- Обработчики новой EventBus ----
+    def _handle_system_ready_new(self, event) -> None:
+        """Обработчик события system.ready из EventBus."""
+        try:
+            data = event.data if hasattr(event, 'data') else {}
+            logger.info("EventBus: Система готова - BackgroundCoordinator может начинать планирование")
+            if hasattr(self, '_running') and not self._running:
+                self.start()
+        except Exception as e:
+            logger.error(f"Ошибка обработки system.ready: {e}")
+
+    def _handle_system_shutdown_new(self, event) -> None:
+        """Обработчик события system.stop из EventBus."""
+        try:
+            logger.info("EventBus: Система останавливается")
+            self.stop()
+        except Exception as e:
+            logger.error(f"Ошибка обработки system.stop: {e}")
+
+    def _handle_component_stopped_new(self, event) -> None:
+        """Обработчик события component.stopped из EventBus."""
+        try:
+            data = event.data if hasattr(event, 'data') else {}
+            component_name = data.get('component', 'unknown') if data else 'unknown'
+            logger.debug(f"EventBus: Компонент остановлен: {component_name}")
+        except Exception as e:
+            logger.error(f"Ошибка обработки component.stopped: {e}")
+
+    def _handle_learning_completed_new(self, event) -> None:
+        """Обработчик события learning.completed из EventBus."""
+        try:
+            data = event.data if hasattr(event, 'data') else {}
+            training_type = data.get('type', 'unknown') if data else 'unknown'
+            success = data.get('success', False) if data else False
+            logger.info(f"EventBus: Обучение {training_type} завершено: {'успешно' if success else 'с ошибкой'}")
+            if success and training_type in self.job_cooldowns_s:
+                with self._lock:
+                    self._job_next_allowed_ts[training_type] = time.time()
+        except Exception as e:
+            logger.error(f"Ошибка обработки learning.completed: {e}")
+
+    def _handle_learning_progress_new(self, event) -> None:
+        """Обработчик события learning.progress из EventBus."""
+        try:
+            data = event.data if hasattr(event, 'data') else {}
+            progress = data.get('progress', 0) if data else 0
+            logger.debug(f"EventBus: Прогресс обучения: {progress}%")
+        except Exception as e:
+            logger.error(f"Ошибка обработки learning.progress: {e}")
 
     # ---- Публичный доступ к таймлайну ----
     def get_timeline(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:

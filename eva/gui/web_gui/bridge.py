@@ -51,6 +51,10 @@ class GUIBridge:
             if hasattr(self.brain, 'event_bus') and self.brain.event_bus:
                 self._subscribe_to_new_event_bus()
             
+            # Подписка на deferred_system
+            if hasattr(self.brain, 'deferred_system') and self.brain.deferred_system:
+                self._setup_deferred_system_access()
+            
             if hasattr(self.brain, 'on_model_load'):
                 self.brain.on_model_load.append(self._on_model_load)
             
@@ -67,15 +71,53 @@ class GUIBridge:
             
             event_bus = self.brain.event_bus
             
+            # Системные события
             event_bus.subscribe(EventTypes.SYSTEM_ERROR, self._on_new_system_error)
-            event_bus.subscribe(EventTypes.COMPONENT_INITIALIZED, self._on_new_component_initialized)
-            event_bus.subscribe(EventTypes.LEARNING_PROGRESS, self._on_new_learning_progress)
-            event_bus.subscribe(EventTypes.PIPELINE_COMPLETE, self._on_new_pipeline_complete)
-            event_bus.subscribe(EventTypes.CONTRADICTION_DETECTED, self._on_new_contradiction_detected)
+            event_bus.subscribe(EventTypes.SYSTEM_READY, self._on_system_ready)
+            event_bus.subscribe(EventTypes.SYSTEM_STOP, self._on_system_stop)
             
-            logger.info("Подписки на новую EventBus настроены")
+            # События компонентов
+            event_bus.subscribe(EventTypes.COMPONENT_INITIALIZED, self._on_new_component_initialized)
+            event_bus.subscribe(EventTypes.COMPONENT_STARTED, self._on_component_started)
+            event_bus.subscribe(EventTypes.COMPONENT_STOPPED, self._on_component_stopped)
+            event_bus.subscribe(EventTypes.COMPONENT_ERROR, self._on_component_error)
+            
+            # События обучения
+            event_bus.subscribe(EventTypes.LEARNING_PROGRESS, self._on_new_learning_progress)
+            event_bus.subscribe(EventTypes.LEARNING_COMPLETED, self._on_learning_completed)
+            event_bus.subscribe(EventTypes.LEARNING_STARTED, self._on_learning_started)
+            
+            # События пайплайна
+            event_bus.subscribe(EventTypes.PIPELINE_COMPLETE, self._on_new_pipeline_complete)
+            event_bus.subscribe(EventTypes.PIPELINE_START, self._on_pipeline_start)
+            event_bus.subscribe(EventTypes.PIPELINE_MODEL_A_COMPLETE, self._on_pipeline_model_a)
+            event_bus.subscribe(EventTypes.PIPELINE_MODEL_B_COMPLETE, self._on_pipeline_model_b)
+            
+            # Противоречия
+            event_bus.subscribe(EventTypes.CONTRADICTION_DETECTED, self._on_new_contradiction_detected)
+            event_bus.subscribe(EventTypes.CONTRADICTION_RESOLVED, self._on_contradiction_resolved)
+            
+            # Память
+            event_bus.subscribe(EventTypes.MEMORY_WARNING, self._on_memory_warning)
+            event_bus.subscribe(EventTypes.MEMORY_OPTIMIZED, self._on_memory_optimized)
+            
+            # Знания
+            event_bus.subscribe(EventTypes.KNOWLEDGE_UPDATED, self._on_knowledge_updated)
+            event_bus.subscribe(EventTypes.KNOWLEDGE_ADDED, self._on_knowledge_added)
+            
+            logger.info("Подписки на новую EventBus настроены (17 событий)")
         except Exception as e:
-            logger.warning(f"Не удалось подписаться на новую EventBus: {e}")
+            logger.warning("Не удалось подписаться на новую EventBus: {}".format(e))
+    
+    def _setup_deferred_system_access(self):
+        """Настройка доступа к системе отложенных команд"""
+        try:
+            self.deferred_system = self.brain.deferred_system
+            
+            logger.info("Доступ к DeferredCommandSystem настроен")
+            logger.info("DeferredCommandSystem: {}".format(type(self.deferred_system).__name__))
+        except Exception as e:
+            logger.warning("Не удалось настроить доступ к DeferredCommandSystem: {}".format(e))
     
     def _on_new_system_error(self, event):
         """Обработка системной ошибки из новой EventBus"""
@@ -85,7 +127,7 @@ class GUIBridge:
     def _on_new_component_initialized(self, event):
         """Обработка инициализации компонента из новой EventBus"""
         data = event.data if hasattr(event, 'data') else {}
-        logger.debug(f"Component initialized: {data}")
+        logger.debug("Component initialized: {}".format(data))
         if self.web_gui:
             getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'success',
@@ -110,7 +152,7 @@ class GUIBridge:
     def _on_new_contradiction_detected(self, event):
         """Обработка обнаружения противоречия из новой EventBus"""
         data = event.data if hasattr(event, 'data') else {}
-        logger.warning(f"Contradiction detected: {data}")
+        logger.warning("Contradiction detected: {}".format(data))
         if self.web_gui:
             getattr(self.web_gui, "emit_system_notification", lambda x: None)({
                 'type': 'warning',
@@ -119,7 +161,7 @@ class GUIBridge:
     
     def _on_query_received(self, data: Dict[str, Any]):
         """Обработка полученного запроса"""
-        logger.debug(f"Query received: {data.get('query', '')[:50]}...")
+        logger.debug("Query received: {}...".format(data.get('query', '')[:50]))
         
         if self.web_gui:
             getattr(self.web_gui, "emit_system_notification", lambda x: None)({
@@ -132,7 +174,7 @@ class GUIBridge:
         response = data.get('response', '')
         reasoning = data.get('reasoning', [])
         
-        logger.debug(f"Response generated: {len(response)} chars")
+        logger.debug("Response generated: {} chars".format(len(response)))
         
         if reasoning and self.web_gui:
             for step in reasoning:
@@ -169,7 +211,7 @@ class GUIBridge:
     def _on_system_error(self, data: Dict[str, Any]):
         """Обработка системной ошибки"""
         error_msg = data.get('error', 'Unknown error')
-        logger.warning(f"System error: {error_msg}")
+        logger.warning("System error: {}".format(error_msg))
         
         if self.web_gui:
             getattr(self.web_gui, "emit_system_notification", lambda x: None)({
@@ -204,6 +246,138 @@ class GUIBridge:
                 'message': 'Все модели готовы к работе'
             })
     
+    # ---- Новые обработчики событий EventBus ----
+    
+    def _on_system_ready(self, event):
+        """Обработка готовности системы"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.info("System ready received")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'success',
+                'message': 'Система готова к работе'
+            })
+    
+    def _on_system_stop(self, event):
+        """Обработка остановки системы"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.info("System stop received")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Система останавливается'
+            })
+    
+    def _on_component_started(self, event):
+        """Обработка запуска компонента"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Компонент запущен: {}'.format(data.get('component_name', 'unknown'))
+            })
+    
+    def _on_component_stopped(self, event):
+        """Обработка остановки компонента"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Компонент остановлен: {}'.format(data.get('component_name', 'unknown'))
+            })
+    
+    def _on_component_error(self, event):
+        """Обработка ошибки компонента"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.error("Component error: {}".format(data))
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'error',
+                'message': 'Ошибка компонента: {}'.format(data.get('component', 'unknown'))
+            })
+    
+    def _on_learning_completed(self, event):
+        """Обработка завершения обучения"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'success',
+                'message': 'Обучение завершено: {}'.format(data.get('type', 'unknown'))
+            })
+    
+    def _on_learning_started(self, event):
+        """Обработка начала обучения"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Начато обучение: {}'.format(data.get('type', 'unknown'))
+            })
+    
+    def _on_pipeline_start(self, event):
+        """Обработка начала пайплайна"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Начат пайплайн: {}'.format(data.get('query_id', 'unknown'))
+            })
+    
+    def _on_pipeline_model_a(self, event):
+        """Обработка завершения модели A"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.debug("Pipeline model A complete")
+    
+    def _on_pipeline_model_b(self, event):
+        """Обработка завершения модели B"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.debug("Pipeline model B complete")
+    
+    def _on_contradiction_resolved(self, event):
+        """Обработка разрешения противоречия"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'success',
+                'message': 'Противоречие разрешено'
+            })
+    
+    def _on_memory_warning(self, event):
+        """Обработка предупреждения о памяти"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'warning',
+                'message': 'Предупреждение о памяти: {}'.format(data.get('warning', 'unknown'))
+            })
+    
+    def _on_memory_optimized(self, event):
+        """Обработка оптимизации памяти"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Память оптимизирована'
+            })
+    
+    def _on_knowledge_updated(self, event):
+        """Обработка обновления знаний"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'База знаний обновлена'
+            })
+    
+    def _on_knowledge_added(self, event):
+        """Обработка добавления знаний"""
+        data = event.data if hasattr(event, 'data') else {}
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': 'Добавлены новые знания'
+            })
+    
     def send_message(self, query: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Отправка сообщения через Core"""
         try:
@@ -214,7 +388,7 @@ class GUIBridge:
             else:
                 return {'status': 'error', 'response': 'Система недоступна'}
         except Exception as e:
-            logger.error(f"Error sending message: {e}")
+            logger.error("Error sending message: {}".format(e))
             return {'status': 'error', 'response': str(e)}
     
     def get_system_status(self) -> Dict[str, Any]:
@@ -235,7 +409,7 @@ class GUIBridge:
                 if hasattr(self.brain, 'components'):
                     status['components'] = len(self.brain.components)
         except Exception as e:
-            logger.error(f"Error getting system status: {e}")
+            logger.error("Error getting system status: {}".format(e))
         
         return status
     
@@ -272,7 +446,7 @@ class GUIBridge:
                     ]
                     
         except Exception as e:
-            logger.error(f"Error getting memory graph: {e}")
+            logger.error("Error getting memory graph: {}".format(e))
         
         return graph_data
     
@@ -294,7 +468,7 @@ class GUIBridge:
                     cache = self.brain.get_cache_stats()
                     metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
         except Exception as e:
-            logger.error(f"Error getting metrics: {e}")
+            logger.error("Error getting metrics: {}".format(e))
         
         return metrics
     
@@ -308,7 +482,7 @@ class GUIBridge:
             else:
                 logger.warning("Training not available")
         except Exception as e:
-            logger.error(f"Error starting training: {e}")
+            logger.error("Error starting training: {}".format(e))
     
     def start_self_dialog(self):
         """Запуск самодиалога"""
@@ -320,7 +494,7 @@ class GUIBridge:
             else:
                 logger.warning("Self dialog not available")
         except Exception as e:
-            logger.error(f"Error starting self dialog: {e}")
+            logger.error("Error starting self dialog: {}".format(e))
     
     def optimize_system(self):
         """Оптимизация системы"""
@@ -332,7 +506,7 @@ class GUIBridge:
             else:
                 logger.warning("Optimization not available")
         except Exception as e:
-            logger.error(f"Error optimizing system: {e}")
+            logger.error("Error optimizing system: {}".format(e))
 
 
 class NetworkBridge:
@@ -348,7 +522,7 @@ class NetworkBridge:
         self.connected = False
         self._socket = None
         
-        logger.info(f"NetworkBridge инициализирован: {host}:{port}")
+        logger.info("NetworkBridge инициализирован: {}:{}".format(host, port))
     
     def connect(self) -> bool:
         """Подключение к серверу"""
@@ -357,10 +531,10 @@ class NetworkBridge:
             self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self._socket.connect((self.host, self.port))
             self.connected = True
-            logger.info(f"Подключено к {self.host}:{self.port}")
+            logger.info("Подключено к {}:{}".format(self.host, self.port))
             return True
         except Exception as e:
-            logger.error(f"Ошибка подключения: {e}")
+            logger.error("Ошибка подключения: {}".format(e))
             self.connected = False
             return False
     
@@ -392,7 +566,7 @@ class NetworkBridge:
             return json.loads(response.decode('utf-8'))
             
         except Exception as e:
-            logger.error(f"Ошибка отправки команды: {e}")
+            logger.error("Ошибка отправки команды: {}".format(e))
             return None
     
     def start_gui(self, brain=None, integrator=None):
@@ -423,6 +597,6 @@ def start_web_gui(brain=None, integrator=None, host: str = '127.0.0.1', port: in
     
     bridge.set_web_gui(web_gui)
     
-    logger.info(f"Web GUI запущен на http://{host}:{port}")
+    logger.info("Web GUI запущен на http://{}:{}".format(host, port))
     
     return web_gui, bridge

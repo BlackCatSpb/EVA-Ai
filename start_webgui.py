@@ -3,16 +3,44 @@ import sys
 import os
 import logging
 import time
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, script_dir)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Create logs directory
+logs_dir = os.path.join(script_dir, 'logs')
+os.makedirs(logs_dir, exist_ok=True)
+
+LOG_FILE = os.path.join(logs_dir, 'cogniflex.log')
+
+# Configure logging with file output
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# Clear existing handlers
+for handler in root_logger.handlers[:]:
+    root_logger.removeHandler(handler)
+
+# Console handler
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# File handler
+file_handler = RotatingFileHandler(LOG_FILE, maxBytes=20*1024*1024, encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+root_logger.addHandler(console_handler)
+root_logger.addHandler(file_handler)
 
 logger = logging.getLogger("eva.webgui")
+logger.info("=== COGNIFLEX STARTED ===")
+logger.info("Log file: {}".format(LOG_FILE))
 
 brain = None
 
@@ -65,10 +93,19 @@ def main():
     sys.path.insert(0, web_gui_dir)
     
     import server
-    logger.info(f"Creating app with brain: {brain}")
+    logger.info("Creating app with brain: {}".format(brain))
     gui = server.create_app(brain=brain)
-    logger.info(f"GUI brain reference: {gui.brain}")
-    print(f"Server started on http://{gui.host}:{gui.port}")
+    logger.info("GUI brain reference: {}".format(gui.brain))
+    
+    # Log all registered routes
+    from flask import Flask
+    app = server.app
+    logger.info("=== REGISTERED ROUTES ===")
+    for rule in app.url_map.iter_rules():
+        logger.info("  {} {} -> {}".format(', '.join(rule.methods - {'HEAD', 'OPTIONS'}), rule.rule, rule.endpoint))
+    logger.info("=== END ROUTES ===")
+    
+    print("Server started on http://{}:{}".format(gui.host, gui.port))
     
     try:
         while True:

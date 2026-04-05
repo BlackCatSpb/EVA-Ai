@@ -22,6 +22,8 @@ from .graph_ml_training import (
     generate_training_sample,
     _extract_patterns,
 )
+
+MemoryGraphML._extract_patterns = _extract_patterns
 from .graph_ml_inference import (
     predict_relation,
     find_similar_nodes,

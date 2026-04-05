@@ -2,6 +2,14 @@
 (function () {
     'use strict';
 
+    /* ── Simple $ helper (replaces jQuery) ── */
+    function $(selector) {
+        if (selector.startsWith('.')) {
+            return document.getElementsByClassName(selector.slice(1))[0];
+        }
+        return document.getElementById(selector.slice(1));
+    }
+
     /* ── State ── */
     let token = null;
     let userId = null;
@@ -219,6 +227,7 @@
 
     /* ── API ── */
     async function api(path, opts = {}) {
+        console.log('API call:', path, opts);
         const headers = { 'Content-Type': 'application/json' };
         if (userId) headers['X-User-ID'] = userId;
         
@@ -231,17 +240,21 @@
         
         let r;
         try {
+            console.log('Fetching:', url, 'body:', opts.body);
             r = await fetch(url, {
                 ...opts,
                 headers: { ...headers, ...opts.headers },
                 body: opts.body ? JSON.stringify(opts.body) : undefined
             });
+            console.log('Response:', r.status, r.statusText);
         } catch (e) {
+            console.error('Network error:', e);
             toast('Ошибка сети. Проверьте подключение.', 'error');
             throw e;
         }
 
         if (!r.ok) {
+            console.error('HTTP error:', r.status);
             if (r.status === 403) {
                 toast('Доступ запрещён. Сессия истекла.', 'error');
             } else if (r.status === 404) {
@@ -249,7 +262,7 @@
             } else if (r.status >= 500) {
                 toast('Ошибка сервера. Попробуйте позже.', 'error');
             } else {
-                toast(`Ошибка ${r.status}`, 'error');
+                toast("Ошибка " + r.status, 'error');
             }
             try {
                 const errData = await r.json();
@@ -288,12 +301,28 @@
         const p = $('#loginPassword').value.trim();
         if (!u || !p) return;
 
+        console.log('Login: Submitting', u);
+        $('#loginError').textContent = 'Проверка...';
+        
         try {
-            const d = await api('/login', { method: 'POST', body: { username: u, password: p } });
-            if (d.error) {
-                $('#loginError').textContent = d.error;
+            console.log('Login: Calling API');
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            });
+            console.log('Login: Response status', response.status);
+            
+            const d = await response.json();
+            console.log('Login: Response data', d);
+            
+            if (d.error || !response.ok) {
+                $('#loginError').textContent = d.error || 'Ошибка входа';
+                console.error('Login error:', d.error);
                 return;
             }
+            
+            console.log('Login: Success, switching screens');
             token = true;
             userId = d.sessions[0]?.user_id;
             sessions = d.sessions || [];
@@ -307,8 +336,9 @@
             showWelcome();
             loadSettings();
             toast('Добро пожаловать', 'success');
-        } catch {
-            $('#loginError').textContent = 'Ошибка подключения';
+        } catch(err) {
+            console.error('Login exception:', err);
+            $('#loginError').textContent = 'Ошибка подключения: ' + err.message;
         }
     });
 

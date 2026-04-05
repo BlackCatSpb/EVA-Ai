@@ -70,7 +70,7 @@ class EventSubscriptionMixin:
 
     def _on_pipeline_start(self, event):
         """Track pipeline start, log metrics."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         query_id = data.get("query_id", "unknown")
         self._active_queries[query_id] = {
             "status": "running",
@@ -81,7 +81,7 @@ class EventSubscriptionMixin:
 
     def _on_model_a_complete(self, event):
         """Check Model A quality, decide if refinement needed."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         quality = data.get("quality", {})
         score = quality.get("score", 0)
         if score < 0.5:
@@ -94,12 +94,12 @@ class EventSubscriptionMixin:
 
     def _on_model_b_complete(self, event):
         """Log Model B completion."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         logger.debug(f"Model B complete: {data}")
 
     def _on_pipeline_complete(self, event):
         """Track pipeline completion, update metrics."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         query_id = data.get("query_id", "unknown")
         elapsed = data.get("total_time", 0)
 
@@ -120,7 +120,7 @@ class EventSubscriptionMixin:
 
     def _on_pipeline_failed(self, event):
         """React to pipeline failure - trigger fallback and track metrics."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         error = data.get("error", "unknown")
         logger.warning(f"Pipeline failed: {error}, triggering fallback")
 
@@ -132,20 +132,20 @@ class EventSubscriptionMixin:
 
     def _on_component_error(self, event):
         """React to component error - attempt recovery."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         component = data.get("component", "unknown")
         logger.warning(f"Component error: {component}, attempting recovery")
         self._issue_command("recover_component", {"component": component}, priority=0)
 
     def _on_component_ready(self, event):
         """Log component readiness."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         component = data.get("component", "unknown")
         logger.debug(f"Component initialized: {component}")
 
     def _on_system_error(self, event):
         """React to system-level error."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         error = data.get("error", "unknown")
         logger.error(f"System error: {error}")
         self._issue_command("publish_alert", {
@@ -155,26 +155,26 @@ class EventSubscriptionMixin:
 
     def _on_contradiction(self, event):
         """Trigger contradiction resolution."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         logger.info(f"Contradiction detected, triggering resolution")
         self._issue_command("resolve_contradiction", data, priority=2)
 
     def _on_learning_progress(self, event):
         """Track learning progress."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         topic = data.get("topic", "unknown")
         progress = data.get("progress", 0)
         logger.debug(f"Learning progress: topic={topic}, progress={progress}%")
 
     def _on_learning_completed(self, event):
         """Log learning completion."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         topic = data.get("topic", "unknown")
         logger.info(f"Learning completed: topic={topic}")
 
     def _on_memory_warning(self, event):
         """React to memory pressure - flush caches."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         warning = data.get("warning", "unknown")
         logger.warning(f"Memory warning: {warning}, flushing caches")
         self._issue_command("flush_cache", {"type": "hot"}, priority=1)
@@ -182,7 +182,7 @@ class EventSubscriptionMixin:
 
     def _on_memory_optimized(self, event):
         """Log memory optimization."""
-        data = _extract_data(event)
+        data = event.data if hasattr(event, 'data') else {}
         logger.info(f"Memory optimized: {data}")
 
 

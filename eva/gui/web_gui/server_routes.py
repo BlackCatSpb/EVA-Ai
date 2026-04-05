@@ -17,9 +17,9 @@ TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 try:
     import pytesseract
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-    logger.info(f"Tesseract configured at: {TESSERACT_PATH}")
+    logger.info("Tesseract configured at: {}".format(TESSERACT_PATH))
 except Exception as e:
-    logger.warning(f"Failed to configure Tesseract: {e}")
+    logger.warning("Failed to configure Tesseract: {}".format(e))
 
 
 def register_routes(app, web_gui_instance):
@@ -31,106 +31,304 @@ def register_routes(app, web_gui_instance):
 
     @app.route('/')
     def index():
-        return render_template('index.html')
-
-    @app.route('/api/status')
-    def api_status():
-        if not web_gui_instance:
-            return jsonify({'status': 'not_initialized'})
-
-        status = {
-            'status': 'active',
-            'sessions_count': len(web_gui_instance.session_manager.sessions),
-            'timestamp': datetime.now().isoformat()
+        # Add cache-busting for JS/CSS
+        import time
+        return render_template('index.html', _v=time.time())
+    
+    @app.route('/api/debug/test')
+    def api_debug_test():
+        """Simple test endpoint."""
+        return jsonify({
+            'status': 'ok',
+            'time': datetime.now().isoformat(),
+            'web_gui_instance': str(web_gui_instance is not None),
+            'users': list(web_gui_instance.auth_manager.users.keys()) if web_gui_instance else []
+        })
+    
+    @app.route('/api/debug/deferred')
+    def api_debug_deferred():
+        """Debug endpoint - получить данные из системы отложенных команд."""
+        if not web_gui_instance or not web_gui_instance.brain:
+            return jsonify({'error': 'Brain не инициализирован'}), 500
+        
+        brain = web_gui_instance.brain
+        
+        result = {
+            'available': False,
+            'deferred_system': None,
+            'event_bus': None,
+            'event_system': None,
+            'brain_components': {}
         }
-
-        if web_gui_instance.brain:
-            status['brain_connected'] = True
-            if hasattr(web_gui_instance.brain, 'running'):
-                status['brain_running'] = web_gui_instance.brain.running
-            if hasattr(web_gui_instance.brain, 'components'):
-                status['components'] = len(web_gui_instance.brain.components)
-        else:
-            status['brain_connected'] = False
-
-        return jsonify(status)
-
-    @app.route('/api/system')
-    def api_system():
-        """Получить общую информацию о системе."""
-        if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован'}), 500
-
-        system_info = {
-            'version': '1.0.0',
-            'model': 'Qwen2.5-0.5B GGUF',
-            'qwen_ready': False,
-            'llama_cpp_ready': False,
-            'modules': {
-                'contradiction': False,
-                'ethics': False,
-                'web_search': False,
-                'knowledge_graph': False
-            },
-            'features': {
-                'self_learning': False,
-                'knowledge_graph': False,
-                'web_search': False
+        
+        # DeferredCommandSystem
+        if hasattr(brain, 'deferred_system') and brain.deferred_system:
+            deferred = brain.deferred_system
+            result['available'] = True
+            
+            commands_data = {}
+            try:
+                if hasattr(deferred, 'commands') and hasattr(deferred, 'commands_lock'):
+                    with deferred.commands_lock:
+                        for cmd_id, cmd in deferred.commands.items():
+                            commands_data[cmd_id] = {
+                                'id': cmd.id,
+                                'status': cmd.status.value if hasattr(cmd, 'status') else 'unknown',
+                                'priority': cmd.priority.name if hasattr(cmd, 'priority') else 'unknown',
+                                'attempts': cmd.attempts if hasattr(cmd, 'attempts') else 0,
+                                'created_at': cmd.created_at if hasattr(cmd, 'created_at') else 0
+                            }
+            except Exception as e:
+                logger.error("Error reading deferred commands: {}".format(e))
+                commands_data = {'error': str(e)}
+            
+            result['deferred_system'] = {
+                'type': type(deferred).__name__,
+                'commands': commands_data,
+                'commands_count': len(commands_data),
+                'recovery_strategies': list(getattr(deferred, 'recovery_strategies', {}).keys()),
+                'health_checks': list(getattr(deferred, 'module_health_checks', {}).keys()),
+                'stats': getattr(deferred, 'stats', {}),
+                'running': getattr(deferred, 'running', False),
+                'shutting_down': getattr(deferred, '_shutting_down', False)
             }
-        }
-
-        try:
-            logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
-
-            if web_gui_instance.brain:
-                brain = web_gui_instance.brain
-
-                system_info['qwen_ready'] = getattr(brain, 'qwen_ready', False)
-                system_info['llama_cpp_ready'] = getattr(brain, 'llama_cpp_ready', False)
-
-                if hasattr(brain, 'llama_cpp_deployment'):
-                    system_info['model'] = 'Qwen2.5-0.5B GGUF'
-                elif hasattr(brain, 'qwen_model_manager'):
-                    system_info['model'] = 'Qwen3.5-0.8B'
-
-                system_info['modules']['contradiction'] = hasattr(brain, 'contradiction_manager')
-                system_info['modules']['ethics'] = hasattr(brain, 'ethics_framework')
-                system_info['modules']['web_search'] = hasattr(brain, 'web_search_engine')
-                system_info['modules']['knowledge_graph'] = hasattr(brain, 'knowledge_graph')
-
-                system_info['features']['self_learning'] = hasattr(brain, 'self_dialog_learning')
-                system_info['features']['knowledge_graph'] = hasattr(brain, 'knowledge_graph')
-                system_info['features']['web_search'] = hasattr(brain, 'web_search_engine')
-        except Exception as e:
-            logger.debug(f"Error getting system info: {e}")
-
-        return jsonify(system_info)
-
-    @app.route('/api/login', methods=['POST'])
-    def api_login():
+        
+        # EventBus
+        if hasattr(brain, 'event_bus') and brain.event_bus:
+            eb = brain.event_bus
+            result['event_bus'] = {
+                'type': type(eb).__name__,
+                'running': getattr(eb, '_running', False),
+                'stats': getattr(eb, '_stats', {}),
+                'subscribers': {}
+            }
+            
+            try:
+                if hasattr(eb, '_subscribers') and hasattr(eb, '_lock'):
+                    with eb._lock:
+                        for event_type, subs in eb._subscribers.items():
+                            result['event_bus']['subscribers'][event_type] = len(subs)
+            except Exception as e:
+                logger.error("Error reading event bus subscribers: {}".format(e))
+        
+        # Old EventSystem
+        if hasattr(brain, 'events') and brain.events:
+            result['event_system'] = {
+                'type': type(brain.events).__name__,
+                'available': True
+            }
+        
+        # Brain components
+        component_types = [
+            'memory_manager', 'self_dialog_learning', 'hybrid_cache',
+            'knowledge_graph', 'web_search_engine', 'self_reasoning_engine',
+            'two_model_pipeline', 'llama_cpp_deployment', 'qwen_model_manager'
+        ]
+        for comp in component_types:
+            if hasattr(brain, comp):
+                result['brain_components'][comp] = {
+                    'available': True,
+                    'type': type(getattr(brain, comp)).__name__ if getattr(brain, comp) else None
+                }
+        
+        return jsonify(result)
+    
+    @app.route('/api/debug/events')
+    def api_debug_events():
+        """Debug endpoint - получить историю событий из EventBus."""
+        if not web_gui_instance or not web_gui_instance.brain:
+            return jsonify({'error': 'Brain не инициализирован'}), 500
+        
+        brain = web_gui_instance.brain
+        result = {'events': [], 'event_bus_stats': {}}
+        
+        if hasattr(brain, 'event_bus') and brain.event_bus:
+            eb = brain.event_bus
+            
+            try:
+                if hasattr(eb, '_event_history') and hasattr(eb, '_lock'):
+                    with eb._lock:
+                        history = eb._event_history[-50:]
+                        for event in history:
+                            result['events'].append({
+                                'event_type': event.event_type,
+                                'source': event.source,
+                                'timestamp': event.timestamp if hasattr(event, 'timestamp') else 0,
+                                'data': event.data
+                            })
+            except Exception as e:
+                logger.error("Error reading event history: {}".format(e))
+            
+            if hasattr(eb, '_stats'):
+                result['event_bus_stats'] = eb._stats
+        
+        return jsonify(result)
+    
+    @app.route('/api/debug/auth')
+    def api_debug_login():
+        """Debug login - shows detailed auth process."""
+        logger.info("=== DEBUG LOGIN REQUEST ===")
+        
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid JSON'}), 400
+        
         username = data.get('username', '')
         password = data.get('password', '')
+        
+        result = {
+            'success': False,
+            'step': 'start',
+            'details': {},
+            'error': None
+        }
+        
+        try:
+            result['step'] = 'check_instance'
+            if not web_gui_instance:
+                result['error'] = 'web_gui_instance is None'
+                return jsonify(result), 401
+            
+            result['step'] = 'get_auth_manager'
+            auth_manager = web_gui_instance.auth_manager
+            
+            result['step'] = 'check_user_exists'
+            result['details']['users_in_db'] = list(auth_manager.users.keys())
+            
+            if username not in auth_manager.users:
+                result['step'] = 'user_not_found'
+                result['error'] = 'User not found in database'
+                logger.error("DEBUG LOGIN: {} - {}".format(result['step'], result['error']))
+                return jsonify(result), 401
+            
+            user_data = auth_manager.users[username]
+            result['step'] = 'user_found'
+            result['details']['stored_user'] = {
+                'username': user_data.get('username'),
+                'salt': user_data.get('salt', 'EMPTY'),
+                'hash_prefix': user_data.get('password_hash', 'EMPTY')[:30] if user_data.get('password_hash') else 'EMPTY'
+            }
+            
+            # Manual password verification
+            result['step'] = 'verify_password'
+            import hashlib
+            
+            salt = user_data.get('salt', '')
+            stored_hash = user_data.get('password_hash', '')
+            
+            if not salt:
+                result['step'] = 'no_salt'
+                result['error'] = 'No salt in stored user data'
+                computed_hash = hashlib.sha256(password.encode()).hexdigest()
+            else:
+                computed_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex()
+            
+            result['details']['computed_hash_prefix'] = computed_hash[:30]
+            result['details']['stored_hash_prefix'] = stored_hash[:30]
+            result['details']['hash_match'] = computed_hash == stored_hash
+            
+            if computed_hash != stored_hash:
+                result['step'] = 'hash_mismatch'
+                result['error'] = 'Password hash does not match'
+                logger.error("DEBUG LOGIN: {} - computed: {} vs stored: {}".format(
+                    result['step'], computed_hash[:30], stored_hash[:30]))
+                return jsonify(result), 401
+            
+            # Authentication successful
+            result['step'] = 'authenticate_user'
+            user = auth_manager.authenticate(username, password)
+            
+            if not user:
+                result['step'] = 'auth_failed'
+                result['error'] = 'authenticate() returned None'
+                return jsonify(result), 401
+            
+            result['step'] = 'create_session'
+            result['success'] = True
+            result['details']['user_id'] = user.get('user_id')
+            
+            session_id = web_gui_instance.session_manager.create_session(
+                user['user_id'],
+                "Сессия {}".format(username)
+            )
+            
+            sessions = web_gui_instance.session_manager.get_user_sessions(user['user_id'])
+            
+            result['details']['session_id'] = session_id
+            result['details']['sessions_count'] = len(sessions)
+            
+            logger.info("DEBUG LOGIN: SUCCESS for user {}".format(username))
+            
+            return jsonify({
+                'user': user['username'],
+                'session_id': session_id,
+                'sessions': sessions
+            })
+            
+        except Exception as e:
+            result['step'] = 'exception'
+            result['error'] = str(e)
+            import traceback
+            result['traceback'] = traceback.format_exc()
+            logger.error("DEBUG LOGIN EXCEPTION: {}".format(e))
+            return jsonify(result), 500
+    
+    @app.route('/api/login', methods=['POST'])
+    def api_login():
+        logger.info("=== LOGIN REQUEST ===")
+        
+        data = request.get_json()
+        if not data:
+            logger.error("LOGIN: Invalid JSON received")
+            return jsonify({'error': 'Invalid JSON'}), 400
+        username = data.get('username', '')
+        password = data.get('password', '')
+        
+        logger.info("LOGIN attempt: username='{}', password_len={}".format(username, len(password)))
+        logger.info("  web_gui_instance: {}".format(web_gui_instance))
 
         if web_gui_instance:
+            logger.info("  auth_manager: {}".format(web_gui_instance.auth_manager))
+            logger.info("  auth_manager.users: {}".format(list(web_gui_instance.auth_manager.users.keys())))
+            
+            # Check if user exists
+            if username in web_gui_instance.auth_manager.users:
+                stored_user = web_gui_instance.auth_manager.users[username]
+                logger.info("  User found in DB:")
+                logger.info("    - username: {}".format(stored_user.get('username')))
+                logger.info("    - salt: {}".format(stored_user.get('salt', 'NOT SET')))
+                logger.info("    - hash (first 20): {}".format(stored_user.get('password_hash', 'NOT SET')[:20] if stored_user.get('password_hash') else 'NOT SET'))
+            else:
+                logger.warning("  User '{}' NOT found in database".format(username))
+            
+            # Perform authentication
+            logger.info("  Calling authenticate('{}', '***')...".format(username))
             user = web_gui_instance.auth_manager.authenticate(username, password)
+            logger.info("  authenticate result: {}".format(user))
+            
             if user:
-                existing_sessions = web_gui_instance.session_manager.get_user_sessions(user['user_id'])
-
+                logger.info("=== LOGIN SUCCESS ===")
+                logger.info("  user_id: {}".format(user.get('user_id')))
+                
+                # Create session
                 session_id = web_gui_instance.session_manager.create_session(
                     user['user_id'],
-                    f"Сессия {username}"
+                    "Сессия {}".format(username)
                 )
+                logger.info("  session_id created: {}".format(session_id))
 
                 sessions = web_gui_instance.session_manager.get_user_sessions(user['user_id'])
+                logger.info("  total sessions: {}".format(len(sessions)))
 
                 return jsonify({
                     'user': user['username'],
                     'session_id': session_id,
                     'sessions': sessions
                 })
+            else:
+                logger.warning("=== LOGIN FAILED: Invalid credentials ===")
+        else:
+            logger.error("=== LOGIN FAILED: web_gui_instance is None ===")
 
         return jsonify({'error': 'Неверные учетные данные'}), 401
 
