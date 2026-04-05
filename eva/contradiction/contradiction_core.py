@@ -3,6 +3,7 @@
 """
 from eva.contradiction.core_detection import Contradiction, ContradictionCore
 
-__all__ = ['Contradiction', 'ContradictionCore', 'ContradictionDetector']
+__all__ = ['Contradiction', 'ContradictionCore', 'ContradictionDetector', 'OptimizedContradictionDetector']
 
 ContradictionDetector = ContradictionCore
+OptimizedContradictionDetector = ContradictionCore

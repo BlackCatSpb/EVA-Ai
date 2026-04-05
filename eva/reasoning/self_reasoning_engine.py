@@ -854,6 +854,7 @@ class SelfReasoningEngine:
         }
 
     _check_response_quality = check_quality
+    _init_retriever = _init_retriever
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:
