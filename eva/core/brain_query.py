@@ -109,7 +109,7 @@ class QueryMixin:
         if not self.two_model_pipeline_ready or not self.two_model_pipeline:
             return None
         try:
-            result = self.two_model_pipeline.generate(query)
+            result = self.two_model_pipeline.process_query(query)
             if result and result.get('response'):
                 result["processing_time"] = time.time() - start_time
                 result["source"] = "gguf_pipeline"
