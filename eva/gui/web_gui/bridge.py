@@ -48,6 +48,9 @@ class GUIBridge:
                 
                 logger.info("Подписки на события brain настроены")
             
+            if hasattr(self.brain, 'event_bus') and self.brain.event_bus:
+                self._subscribe_to_new_event_bus()
+            
             if hasattr(self.brain, 'on_model_load'):
                 self.brain.on_model_load.append(self._on_model_load)
             
@@ -56,6 +59,63 @@ class GUIBridge:
         
         thread = threading.Thread(target=subscribe_to_brain, daemon=True)
         thread.start()
+    
+    def _subscribe_to_new_event_bus(self):
+        """Подписка на новую EventBus для получения событий"""
+        try:
+            from eva.core.event_bus import EventTypes
+            
+            event_bus = self.brain.event_bus
+            
+            event_bus.subscribe(EventTypes.SYSTEM_ERROR, self._on_new_system_error)
+            event_bus.subscribe(EventTypes.COMPONENT_INITIALIZED, self._on_new_component_initialized)
+            event_bus.subscribe(EventTypes.LEARNING_PROGRESS, self._on_new_learning_progress)
+            event_bus.subscribe(EventTypes.PIPELINE_COMPLETE, self._on_new_pipeline_complete)
+            event_bus.subscribe(EventTypes.CONTRADICTION_DETECTED, self._on_new_contradiction_detected)
+            
+            logger.info("Подписки на новую EventBus настроены")
+        except Exception as e:
+            logger.warning(f"Не удалось подписаться на новую EventBus: {e}")
+    
+    def _on_new_system_error(self, event):
+        """Обработка системной ошибки из новой EventBus"""
+        data = event.data if hasattr(event, 'data') else {}
+        self._on_system_error(data)
+    
+    def _on_new_component_initialized(self, event):
+        """Обработка инициализации компонента из новой EventBus"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.debug(f"Component initialized: {data}")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'success',
+                'message': f"Компонент инициализирован: {data.get('component_name', 'unknown')}"
+            })
+    
+    def _on_new_learning_progress(self, event):
+        """Обработка прогресса обучения из новой EventBus"""
+        data = event.data if hasattr(event, 'data') else {}
+        self._on_training_progress(data)
+    
+    def _on_new_pipeline_complete(self, event):
+        """Обработка завершения пайплайна из новой EventBus"""
+        data = event.data if hasattr(event, 'data') else {}
+        response = data.get('response', '')
+        if response and self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'info',
+                'message': f"Ответ сгенерирован: {len(response)} символов"
+            })
+    
+    def _on_new_contradiction_detected(self, event):
+        """Обработка обнаружения противоречия из новой EventBus"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.warning(f"Contradiction detected: {data}")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_system_notification", lambda x: None)({
+                'type': 'warning',
+                'message': f"Обнаружено противоречие: {data.get('description', 'unknown')}"
+            })
     
     def _on_query_received(self, data: Dict[str, Any]):
         """Обработка полученного запроса"""

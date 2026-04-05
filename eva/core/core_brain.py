@@ -58,6 +58,21 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             self.events = EventSystem()
         except ImportError:
             self.events = None
+
+        try:
+            from .event_bus import EventBus, get_event_bus
+            self._new_event_bus = get_event_bus()
+        except ImportError:
+            self._new_event_bus = None
+
+        self._event_bridge = None
+        try:
+            if self.events is not None and self._new_event_bus is not None:
+                from .event_bus_bridge import EventBusBridge
+                self._event_bridge = EventBusBridge(self.events.event_bus, self._new_event_bus)
+                self._event_bridge.link()
+        except Exception as e:
+            logger.warning(f"Не удалось связать шины событий: {e}")
         if config:
             query_logger.debug(f"Получена конфигурация с {len(config)} параметрами")
             if any(k.lower() in _SENSITIVE_PATTERNS for k in config.keys()):
@@ -108,6 +123,15 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         _init_background(self)
         _set_global_brain(self)
         query_logger.debug("ЕВАCore инициализирован")
+
+    @property
+    def event_bus(self):
+        """Возвращает унифицированную шину событий."""
+        if self._new_event_bus is not None:
+            return self._new_event_bus
+        if self.events is not None:
+            return self.events.event_bus
+        return None
 
     def initialize(self) -> bool:
         self._initialize_detailed_logging()
