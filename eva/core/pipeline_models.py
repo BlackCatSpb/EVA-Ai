@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 def generate_with_model_a(
     self,
     query: str,
-    max_retries: int = 2
+    max_retries: int = 1
 ) -> Dict[str, Any]:
     """Генерация ответа на Model A (логика) с адаптивными параметрами"""
     if not self.model_a:
@@ -153,7 +153,7 @@ def generate_with_model_b(
     self,
     query: str,
     previous_response: str,
-    max_retries: int = 2
+    max_retries: int = 1
 ) -> Dict[str, Any]:
     """Генерация ответа на Model B с адаптивными параметрами"""
     if not self.model_b:

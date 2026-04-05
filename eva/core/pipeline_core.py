@@ -162,6 +162,51 @@ class RecursiveModelPipeline:
         gen_params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Основной метод обработки запроса через 3-модельный пайплайн"""
+        return self._process_query_with_timeout(query, max_iterations, gen_params)
+
+    def _process_query_with_timeout(
+        self,
+        query: str,
+        max_iterations: int = 1,
+        gen_params: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Wrapper with 60s global timeout"""
+        result_holder = {'done': False, 'result': None}
+
+        def _run():
+            result_holder['result'] = self._process_query_impl(query, max_iterations, gen_params)
+            result_holder['done'] = True
+
+        worker = threading.Thread(target=_run)
+        worker.daemon = True
+        worker.start()
+        worker.join(timeout=60)
+
+        if not result_holder['done']:
+            logger.error("process_query: global timeout (60s)")
+            return {
+                'query': query,
+                'response': 'Ответ не успел сгенерироваться за 60 секунд.',
+                'final_response': 'Ответ не успел сгенерироваться за 60 секунд.',
+                'status': 'timeout',
+                'model_a_result': None,
+                'model_b_result': None,
+                'model_c_result': None,
+                'reasoning_steps': [],
+                'has_code': False,
+                'fractal_context': None,
+                'final_quality': {'is_gibberish': False, 'score': 0.0, 'reasons': ['Таймаут пайплайна']},
+            }
+
+        return result_holder['result']
+
+    def _process_query_impl(
+        self,
+        query: str,
+        max_iterations: int = 1,
+        gen_params: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Implementation of query processing (called within timeout wrapper)"""
         if not self.model_a or not self.model_b:
             raise RuntimeError("Модели не загружены. Вызовите load_models()")
         
@@ -235,6 +280,10 @@ class RecursiveModelPipeline:
         })
         
         results['final_response'] = model_b_result['natural_response']
+        
+        if not model_b_result.get('natural_response') or model_b_result['quality'].get('is_gibberish'):
+            logger.warning("Model B failed, falling back to Model A response")
+            results['final_response'] = model_a_result.get('natural_response', '')
         
         if self.model_c and self._is_code_request(query):
             logger.info("=== Шаг 3: Генерация кода на Model C (Coder) ===")

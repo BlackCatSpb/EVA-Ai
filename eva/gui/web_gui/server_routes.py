@@ -5,9 +5,10 @@ import os
 import logging
 import json
 import uuid
+import time
 from datetime import datetime
 
-from flask import render_template, jsonify, request
+from flask import render_template, jsonify, request, abort
 
 logger = logging.getLogger("eva.webgui")
 
@@ -21,6 +22,11 @@ except Exception as e:
 
 
 def register_routes(app, web_gui_instance):
+
+    @app.before_request
+    def check_request_timeout():
+        if request.path == '/api/chat':
+            request._start_time = time.time()
 
     @app.route('/')
     def index():
