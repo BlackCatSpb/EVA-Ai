@@ -276,6 +276,9 @@ class RecursiveModelPipeline:
         
         logger.info("Three-GGUF пайплайн завершён")
         
+        # Добавляем алиас 'response' для совместимости с brain_query.py
+        results['response'] = results.get('final_response', '')
+        
         return results
     
     def unload_models(self):
