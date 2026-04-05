@@ -108,18 +108,33 @@ class QueryMixin:
         """Handles GGUF Two-Model Pipeline queries."""
         if not self.two_model_pipeline_ready or not self.two_model_pipeline:
             return None
+
+        command_id = None
+        tracker = getattr(self, 'generation_tracker', None)
+        if tracker:
+            command_id = tracker.start_generation(query, source="gguf_pipeline")
+            tracker.update_progress(command_id, "pipeline_start", 10)
+
         try:
             result = self.two_model_pipeline.process_query(query)
+            if tracker and command_id:
+                tracker.update_progress(command_id, "pipeline_complete", 90)
             if result and result.get('response'):
                 result["processing_time"] = time.time() - start_time
                 result["source"] = "gguf_pipeline"
+                if tracker and command_id:
+                    tracker.complete(command_id, result.get('response', ''))
                 return result
             # Если pipeline вернул timeout — пробрасываем дальше
             if result and result.get('status') == 'timeout':
                 query_logger.warning(f"GGUF pipeline timeout: {result.get('timeout_seconds', '?')}с")
+                if tracker and command_id:
+                    tracker.timeout(command_id, result.get('timeout_seconds', 0))
                 return result
         except Exception as e:
             query_logger.warning(f"GGUF pipeline error: {e}")
+            if tracker and command_id:
+                tracker.fail(command_id, str(e))
         return None
 
     def _handle_qwen_mode(self, query: str, user_context: Optional[Dict], start_time: float,
@@ -226,13 +241,24 @@ class QueryMixin:
 6. Защищай конфиденциальность данных
 7. Будь честной — проверяй информацию и признавай ошибки"""
                 prompt = system_prompt + "\n\n" + "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+
+                tracker = getattr(self, 'generation_tracker', None)
+                command_id = None
+                if tracker:
+                    command_id = tracker.start_generation(query, source="llama_cpp_qwen_mode")
+                    tracker.update_progress(command_id, "generating", 30)
+
                 response_text, gen_err = self._generate_with_timeout(
                     lambda: self.llama_cpp_deployment.generate(
                         prompt=prompt, max_new_tokens=max_new_tokens or 2048,
                         temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty),
                     timeout=60)
+                if tracker and command_id:
+                    tracker.update_progress(command_id, "generation_done", 80)
                 if gen_err:
                     query_logger.warning(f"Generation timeout/error: {gen_err}")
+                    if tracker and command_id:
+                        tracker.fail(command_id, str(gen_err))
                     return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",
                             "status": "error", "confidence": 0.0, "source": "generation_timeout",
                             "processing_time": time.time() - start_time}
@@ -259,6 +285,8 @@ class QueryMixin:
                         except Exception as e:
                             query_logger.debug(f"Self-dialog launch error: {e}")
                     query_logger.info(f"LlamaCpp generated {len(response_text)} chars")
+                    if tracker and command_id:
+                        tracker.complete(command_id, response_text)
                     return {
                         "response": response_text, "text": response_text, "status": "ok",
                         "confidence": 0.9 if not is_unknown else 0.4, "source": "llama_cpp",
@@ -267,8 +295,11 @@ class QueryMixin:
                     }
                 else:
                     query_logger.warning("LlamaCpp returned empty response")
+                    if tracker and command_id:
+                        tracker.fail(command_id, "empty_response")
             except Exception as e:
                 query_logger.warning(f"LlamaCpp error: {e}")
+                tracker = getattr(self, 'generation_tracker', None)
 
         disable_pytorch = self.config.get('model', {}).get('disable_pytorch', False)
         if disable_pytorch:
@@ -906,6 +937,16 @@ class QueryMixin:
                 lines.append(f"\nОтвет: {response[:200]}...")
 
         return "\n".join(lines) if lines else str(reasoning_result)
+
+    def _handle_generation_status(self, command_id: Optional[str] = None) -> Dict[str, Any]:
+        """Return status of active generation(s)."""
+        tracker = getattr(self, 'generation_tracker', None)
+        if not tracker:
+            return {"error": "GenerationTracker not initialized"}
+        if command_id:
+            status = tracker.get_status(command_id)
+            return status if status else {"error": f"Command {command_id} not found"}
+        return {"active_generations": tracker.get_all_active()}
 
     def _extract_key_concepts(self, query: str, response: str) -> List[Dict[str, Any]]:
         """Extracts key concepts from query and response via word frequency."""

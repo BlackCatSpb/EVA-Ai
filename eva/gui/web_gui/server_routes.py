@@ -862,6 +862,36 @@ def register_routes(app, web_gui_instance):
                 logger.error(f"Error triggering self-dialog: {e}")
                 return jsonify({'error': str(e)}), 500
 
+    @app.route('/api/generation-status', defaults={'command_id': None})
+    @app.route('/api/generation-status/<command_id>')
+    def api_generation_status(command_id):
+        """Get status of active generation(s)."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        try:
+            brain = web_gui_instance.brain
+            if not brain:
+                return jsonify({'error': 'Brain not available'}), 500
+
+            if hasattr(brain, '_handle_generation_status'):
+                result = brain._handle_generation_status(command_id)
+                return jsonify(result)
+
+            tracker = getattr(brain, 'generation_tracker', None)
+            if not tracker:
+                return jsonify({'error': 'GenerationTracker not initialized'}), 500
+
+            if command_id:
+                status = tracker.get_status(command_id)
+                if status:
+                    return jsonify(status)
+                return jsonify({'error': f'Command {command_id} not found'}), 404
+            return jsonify({'active_generations': tracker.get_all_active()})
+        except Exception as e:
+            logger.error(f"Error getting generation status: {e}")
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/snapshots', methods=['GET', 'POST'])
     def api_snapshots():
         """Управление слепками знаний."""
