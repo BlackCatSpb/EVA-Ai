@@ -210,6 +210,9 @@ def _init_two_model_pipeline(brain):
             pipeline_kwargs['model_c_path'] = model_c_path
         if brain.fractal_memory:
             pipeline_kwargs['fractal_memory'] = brain.fractal_memory
+        event_bus = getattr(brain, '_new_event_bus', None) or (brain.events.event_bus if getattr(brain, 'events', None) else None)
+        if event_bus:
+            pipeline_kwargs['event_bus'] = event_bus
         from eva.core.recursive_model_pipeline import RecursiveModelPipeline
         brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
         brain.two_model_pipeline.load_models()

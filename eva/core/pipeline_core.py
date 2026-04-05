@@ -69,7 +69,8 @@ class RecursiveModelPipeline:
         model_c_path: str = None,
         n_ctx: int = 8192,
         n_threads: int = 8,
-        fractal_memory = None
+        fractal_memory = None,
+        event_bus = None
     ):
         self.model_a_path = model_a_path
         self.model_b_path = model_b_path
@@ -81,6 +82,7 @@ class RecursiveModelPipeline:
         self.model_c = None
         self.fractal_memory = fractal_memory
         self.quality_checker = None
+        self.event_bus = event_bus
         
         self.model_a_params = AdaptiveParameterController({
             'temperature': self.MODEL_A_TEMPERATURE,
@@ -98,6 +100,13 @@ class RecursiveModelPipeline:
         })
         
         logger.info(f"RecursiveModelPipeline инициализирован (3-модельный, адаптивные параметры)")
+    
+    def _publish_event(self, event_type: str, data: Dict):
+        if self.event_bus:
+            try:
+                self.event_bus.publish(event_type, data)
+            except Exception:
+                pass
     
     def load_models(self):
         """Загрузка GGUF моделей - Model A и B как отдельные экземпляры"""
@@ -213,6 +222,22 @@ class RecursiveModelPipeline:
         gen_params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Implementation of query processing (called within timeout wrapper)"""
+        pipeline_start = time.time()
+        self._publish_event('pipeline.start', {'query': query[:100]})
+        try:
+            return self._process_query_impl_inner(query, max_iterations, gen_params, pipeline_start)
+        except Exception as e:
+            self._publish_event('pipeline.failed', {'error': str(e)})
+            raise
+
+    def _process_query_impl_inner(
+        self,
+        query: str,
+        max_iterations: int = 1,
+        gen_params: Dict[str, Any] = None,
+        pipeline_start: float = None
+    ) -> Dict[str, Any]:
+        """Inner implementation of query processing."""
         if not self.model_a or not self.model_b:
             raise RuntimeError("Модели не загружены. Вызовите load_models()")
         
@@ -254,9 +279,17 @@ class RecursiveModelPipeline:
                     logger.info(f"Контекст из графа обучения: {len(graph_context)} символов")
         
         logger.info("=== Шаг 1: Генерация ответа на Model A (логическое ядро) ===")
+        self._publish_event('pipeline.model_a.start', {'query_length': len(enriched_query)})
+        model_a_start = time.time()
         model_a_result = self.generate_with_model_a(enriched_query)
+        model_a_elapsed = time.time() - model_a_start
         logger.info(f"Model A ответ: {model_a_result['natural_response'][:150]}...")
         results['model_a_result'] = model_a_result
+        self._publish_event('pipeline.model_a.complete', {
+            'response_length': len(model_a_result.get('natural_response', '')),
+            'quality': model_a_result['quality'].get('score', 0.0),
+            'time': round(model_a_elapsed, 2)
+        })
         
         results['reasoning_steps'].append({
             'step': 1,
@@ -270,9 +303,17 @@ class RecursiveModelPipeline:
         })
         
         logger.info("=== Шаг 2: Генерация расширенного ответа на Model B ===")
+        self._publish_event('pipeline.model_b.start', {'query_length': len(query), 'model_a_response_length': len(model_a_result.get('natural_response', ''))})
+        model_b_start = time.time()
         model_b_result = self.generate_with_model_b(query, model_a_result.get('natural_response', ''))
+        model_b_elapsed = time.time() - model_b_start
         logger.info(f"Model B ответ: {model_b_result['natural_response'][:150]}...")
         results['model_b_result'] = model_b_result
+        self._publish_event('pipeline.model_b.complete', {
+            'response_length': len(model_b_result.get('natural_response', '')),
+            'quality': model_b_result['quality'].get('score', 0.0),
+            'time': round(model_b_elapsed, 2)
+        })
         
         results['reasoning_steps'].append({
             'step': 2,
@@ -294,9 +335,17 @@ class RecursiveModelPipeline:
         if self.model_c and self._is_code_request(query):
             logger.info("=== Шаг 3: Генерация кода на Model C (Coder) ===")
             results['has_code'] = True
+            self._publish_event('pipeline.model_c.start', {'query_length': len(query), 'context_length': len(model_b_result.get('natural_response', ''))})
+            model_c_start = time.time()
             model_c_result = self.generate_with_model_c(query, model_b_result['natural_response'])
+            model_c_elapsed = time.time() - model_c_start
             logger.info(f"Model C ответ: {model_c_result['natural_response'][:150]}...")
             results['model_c_result'] = model_c_result
+            self._publish_event('pipeline.model_c.complete', {
+                'response_length': len(model_c_result.get('natural_response', '')),
+                'quality': model_c_result['quality'].get('score', 0.0),
+                'time': round(model_c_elapsed, 2)
+            })
             
             results['reasoning_steps'].append({
                 'step': 3,
@@ -331,6 +380,12 @@ class RecursiveModelPipeline:
         
         logger.info("Three-GGUF пайплайн завершён")
         
+        total_elapsed = time.time() - pipeline_start
+        self._publish_event('pipeline.complete', {
+            'total_time': round(total_elapsed, 2),
+            'final_quality': results.get('final_quality', {}).get('score', 0.0)
+        })
+        
         # Добавляем алиас 'response' для совместимости с brain_query.py
         results['response'] = results.get('final_response', '')
         
@@ -364,7 +419,8 @@ def create_recursive_pipeline(
     model_c_path: str = None,
     n_ctx: int = 8192,
     n_threads: int = 8,
-    fractal_memory = None
+    fractal_memory = None,
+    event_bus = None
 ) -> 'RecursiveModelPipeline':
     """Фабричная функция для создания пайплайна"""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -384,7 +440,8 @@ def create_recursive_pipeline(
         model_c_path=model_c_path,
         n_ctx=n_ctx,
         n_threads=n_threads,
-        fractal_memory=fractal_memory
+        fractal_memory=fractal_memory,
+        event_bus=event_bus
     )
     pipeline.load_models()
     return pipeline
