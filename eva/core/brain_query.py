@@ -114,6 +114,10 @@ class QueryMixin:
                 result["processing_time"] = time.time() - start_time
                 result["source"] = "gguf_pipeline"
                 return result
+            # Если pipeline вернул timeout — пробрасываем дальше
+            if result and result.get('status') == 'timeout':
+                query_logger.warning(f"GGUF pipeline timeout: {result.get('timeout_seconds', '?')}с")
+                return result
         except Exception as e:
             query_logger.warning(f"GGUF pipeline error: {e}")
         return None

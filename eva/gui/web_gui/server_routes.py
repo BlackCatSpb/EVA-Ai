@@ -148,6 +148,11 @@ def register_routes(app, web_gui_instance):
             user_id = data.get('user_id')
             file_data = data.get('file_data')
 
+            # Адаптивный таймаут: 120с базовый + 30с на каждые 100 символов
+            base_timeout = 120
+            extra_timeout = (len(message) // 100) * 30
+            total_timeout = min(base_timeout + extra_timeout, 360)  # максимум 6 минут
+
             result_holder = {'done': False, 'result': None, 'error': None}
 
             def _process():
@@ -160,13 +165,14 @@ def register_routes(app, web_gui_instance):
             worker = threading.Thread(target=_process)
             worker.daemon = True
             worker.start()
-            worker.join(timeout=90)
+            worker.join(timeout=total_timeout)
 
             if not result_holder['done']:
-                logger.error("api_chat: request timeout (90s)")
+                logger.error(f"api_chat: request timeout ({total_timeout}с)")
                 return jsonify({
-                    'response': 'Ответ не успел сгенерироваться за 90 секунд. Попробуйте позже.',
-                    'status': 'timeout'
+                    'response': f'Генерация не завершена за {total_timeout}с. Нажмите "Перегенерировать" для повторной попытки.',
+                    'status': 'timeout',
+                    'timeout_seconds': total_timeout
                 })
 
             if result_holder['error']:

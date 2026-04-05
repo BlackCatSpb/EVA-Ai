@@ -170,7 +170,12 @@ class RecursiveModelPipeline:
         max_iterations: int = 1,
         gen_params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """Wrapper with 60s global timeout"""
+        """Wrapper with adaptive timeout based on query complexity."""
+        # Адаптивный таймаут: базовый 90с + 30с на каждые 100 символов запроса
+        base_timeout = 90
+        extra_timeout = (len(query) // 100) * 30
+        total_timeout = min(base_timeout + extra_timeout, 300)  # максимум 5 минут
+        
         result_holder = {'done': False, 'result': None}
 
         def _run():
@@ -180,22 +185,23 @@ class RecursiveModelPipeline:
         worker = threading.Thread(target=_run)
         worker.daemon = True
         worker.start()
-        worker.join(timeout=60)
+        worker.join(timeout=total_timeout)
 
         if not result_holder['done']:
-            logger.error("process_query: global timeout (60s)")
+            logger.error(f"process_query: global timeout ({total_timeout}с, запрос {len(query)} символов)")
             return {
                 'query': query,
-                'response': 'Ответ не успел сгенерироваться за 60 секунд.',
-                'final_response': 'Ответ не успел сгенерироваться за 60 секунд.',
+                'response': f'Генерация не завершена за {total_timeout}с. Попробуйте перегенерировать.',
+                'final_response': f'Генерация не завершена за {total_timeout}с. Попробуйте перегенерировать.',
                 'status': 'timeout',
+                'timeout_seconds': total_timeout,
                 'model_a_result': None,
                 'model_b_result': None,
                 'model_c_result': None,
                 'reasoning_steps': [],
                 'has_code': False,
                 'fractal_context': None,
-                'final_quality': {'is_gibberish': False, 'score': 0.0, 'reasons': ['Таймаут пайплайна']},
+                'final_quality': {'is_gibberish': False, 'score': 0.0, 'reasons': [f'Таймаут пайплайна ({total_timeout}с)']},
             }
 
         return result_holder['result']
