@@ -6,6 +6,7 @@ import logging
 import json
 import uuid
 import time
+import threading
 from datetime import datetime
 
 from flask import render_template, jsonify, request, abort
@@ -147,8 +148,31 @@ def register_routes(app, web_gui_instance):
             user_id = data.get('user_id')
             file_data = data.get('file_data')
 
-            result = web_gui_instance.process_message(message, session_id, user_id, file_data)
-            return jsonify(result)
+            result_holder = {'done': False, 'result': None, 'error': None}
+
+            def _process():
+                try:
+                    result_holder['result'] = web_gui_instance.process_message(message, session_id, user_id, file_data)
+                except Exception as e:
+                    result_holder['error'] = str(e)
+                result_holder['done'] = True
+
+            worker = threading.Thread(target=_process)
+            worker.daemon = True
+            worker.start()
+            worker.join(timeout=90)
+
+            if not result_holder['done']:
+                logger.error("api_chat: request timeout (90s)")
+                return jsonify({
+                    'response': 'Ответ не успел сгенерироваться за 90 секунд. Попробуйте позже.',
+                    'status': 'timeout'
+                })
+
+            if result_holder['error']:
+                return jsonify({'error': result_holder['error']}), 500
+
+            return jsonify(result_holder['result'])
         except Exception as e:
             logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
             return jsonify({'error': str(e)}), 500
