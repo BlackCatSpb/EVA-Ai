@@ -188,8 +188,11 @@ class BaseComponent(ABC):
     def stop(self) -> bool:
         """Остановка компонента"""
         with self._lock:
+            if self._state == ComponentState.STOPPED:
+                return True  # Уже остановлен — это нормально
+            
             if self._state != ComponentState.RUNNING:
-                logger.warning(f"Компонент {self.name} не запущен (состояние: {self._state})")
+                logger.debug(f"Компонент {self.name} не запущен (состояние: {self._state}), пропуск остановки")
                 return False
             
             try:
