@@ -157,18 +157,21 @@ def _remove_looping_blocks(self, text: str, max_repeats: int = 2) -> str:
     return '\n'.join(result_lines)
 
 
-def _generate_with_timeout(self, model, messages: list, params: dict, timeout: int = 45) -> Optional[Dict]:
+def _generate_with_timeout(self, model, messages: list, params: dict, timeout: int = 45, logit_bias: dict = None) -> Optional[Dict]:
     """Генерация с таймаутом через ThreadPoolExecutor."""
     def _generate():
-        return model.create_chat_completion(
-            messages=messages,
-            max_tokens=params['max_tokens'],
-            temperature=params['temperature'],
-            top_p=params['top_p'],
-            top_k=params['top_k'],
-            repeat_penalty=params['repeat_penalty'],
-            stop=self.STOP_TOKENS
-        )
+        kwargs = {
+            'messages': messages,
+            'max_tokens': params['max_tokens'],
+            'temperature': params['temperature'],
+            'top_p': params['top_p'],
+            'top_k': params['top_k'],
+            'repeat_penalty': params['repeat_penalty'],
+            'stop': self.STOP_TOKENS
+        }
+        if logit_bias:
+            kwargs['logit_bias'] = logit_bias
+        return model.create_chat_completion(**kwargs)
     
     future = _generation_executor.submit(_generate)
     try:

@@ -174,17 +174,18 @@ def generate_with_model_b(
                        f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
         
         system_prompt = (
+            "ОТВЕЧАЙ СТРОГО НА РУССКОМ ЯЗЫКЕ. НИКАКИХ КИТАЙСКИХ, АНГЛИЙСКИХ ИНОСТРАННЫХ СИМВОЛОВ.\n"
             "Ты — Модуль Развития Концепций EVA.\n"
             "Задача: Развивай мысль, добавляй детали и примеры.\n"
             "Спецификации:\n"
             "1. Расширяй факты примерами и пояснениями.\n"
             "2. Используй структурированный формат (списки, абзацы).\n"
-            "3. Отвечай строго на русском языке.\n"
+            "3. Только русские буквы и знаки препинания.\n"
             "4. Добавляй контекст и смежные темы.\n"
             "5. Максимум 10 предложений.\n"
             "Ограничения:\n"
             "- Не повторяй факты дословно.\n"
-            "- Не используй английские или китайские вставки.\n"
+            "- Запрещены китайские, английские, иностранные символы.\n"
             "Формат вывода: Русский, развёрнутый ответ.\n"
             "Конец инструкции."
         )
@@ -225,11 +226,17 @@ def generate_with_model_b(
         
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query}
+            {"role": "user", "content": f"Ответь на русском языке:\n{query}"}
         ]
         
+        # Logit bias против китайских токенов (диапазон 4E00-9FFF)
+        logit_bias = {}
+        if attempt > 0 and any('китайск' in r.lower() or 'chinese' in r.lower() for r in (failure_reasons or [])):
+            # Агрессивно подавляем китайские токены
+            logit_bias = {str(i): -100 for i in range(10000, 20000)}  # CJK диапазон в Qwen vocab
+        
         start_time = time.time()
-        output = self._generate_with_timeout(self.model_b, messages, params, timeout=45)
+        output = self._generate_with_timeout(self.model_b, messages, params, timeout=45, logit_bias=logit_bias if logit_bias else None)
         elapsed = time.time() - start_time
         
         if output is None:
