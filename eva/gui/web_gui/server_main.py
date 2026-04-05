@@ -412,7 +412,7 @@ class WebGUI:
         def run():
             import click
             click.echo = lambda *args, **kwargs: None
-            app.run(host=self.host, port=self.port, debug=False, use_reloader=False)
+            app.run(host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True)
 
         self.thread = threading.Thread(target=run, daemon=True)
         self.thread.start()
