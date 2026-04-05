@@ -14,8 +14,208 @@
         sre_enabled: true
     };
 
-    const $ = (s, p) => (p || document).querySelector(s);
-    const $$ = (s, p) => [...(p || document).querySelectorAll(s)];
+    /* ── SSE Event Source ── */
+    let eventSource = null;
+    let genProgressEl = null;
+    let genStartTime = null;
+    let genTimerInterval = null;
+    let currentGenCommandId = null;
+    let genSteps = { modelA: false, modelB: false, complete: false };
+
+    function initSSE() {
+        if (eventSource) {
+            eventSource.close();
+        }
+        eventSource = new EventSource('/api/events/stream');
+
+        eventSource.addEventListener('pipeline.start', function(e) {
+            const data = JSON.parse(e.data);
+            showGenerationProgress('start');
+        });
+
+        eventSource.addEventListener('pipeline.model_a.start', function(e) {
+            genSteps.modelA = false;
+            genSteps.modelB = false;
+            updateGenerationStep('model_a');
+        });
+
+        eventSource.addEventListener('pipeline.model_a.complete', function(e) {
+            genSteps.modelA = true;
+            updateGenerationStep('model_a_done');
+        });
+
+        eventSource.addEventListener('pipeline.model_b.start', function(e) {
+            genSteps.modelB = false;
+            updateGenerationStep('model_b');
+        });
+
+        eventSource.addEventListener('pipeline.model_b.complete', function(e) {
+            genSteps.modelB = true;
+            updateGenerationStep('model_b_done');
+        });
+
+        eventSource.addEventListener('pipeline.complete', function(e) {
+            genSteps.complete = true;
+            updateGenerationStep('complete');
+            setTimeout(hideGenerationProgress, 800);
+        });
+
+        eventSource.addEventListener('pipeline.failed', function(e) {
+            updateGenerationStep('failed');
+            setTimeout(hideGenerationProgress, 1500);
+        });
+
+        eventSource.addEventListener('generation.progress', function(e) {
+            const data = JSON.parse(e.data);
+            if (genProgressEl) {
+                const pct = data.progress || 0;
+                const fill = genProgressEl.querySelector('.progress-bar-fill');
+                if (fill) fill.style.width = pct + '%';
+            }
+        });
+
+        eventSource.addEventListener('generation.started', function(e) {
+            const data = JSON.parse(e.data);
+            currentGenCommandId = data.command_id;
+            genStartTime = Date.now();
+            startGenTimer();
+        });
+
+        eventSource.addEventListener('generation.completed', function(e) {
+            stopGenTimer();
+            currentGenCommandId = null;
+        });
+
+        eventSource.addEventListener('generation.failed', function(e) {
+            stopGenTimer();
+            currentGenCommandId = null;
+        });
+
+        eventSource.onerror = function() {
+            if (eventSource.readyState === EventSource.CLOSED) return;
+            setTimeout(initSSE, 5000);
+        };
+    }
+
+    function showGenerationProgress(phase) {
+        const chatContainer = $('#chatMessages');
+        if (!chatContainer) return;
+
+        removeTyping();
+
+        if (genProgressEl) genProgressEl.remove();
+
+        genSteps = { modelA: false, modelB: false, complete: false };
+        genStartTime = Date.now();
+
+        const div = document.createElement('div');
+        div.className = 'generation-progress';
+        div.id = 'genProgress';
+        div.innerHTML = `
+            <div class="gen-header">
+                <div class="gen-label"><span class="spinner"></span><span id="genLabel">Подготовка...</span></div>
+                <div class="gen-time" id="genTime">0.0с</div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" style="width: 5%"></div>
+            </div>
+            <div class="gen-steps">
+                <div class="gen-step" id="stepA"><span class="step-dot"></span>Model A</div>
+                <span class="gen-step-arrow">→</span>
+                <div class="gen-step" id="stepB"><span class="step-dot"></span>Model B</div>
+                <span class="gen-step-arrow">→</span>
+                <div class="gen-step" id="stepC"><span class="step-dot"></span>Завершение</div>
+            </div>
+        `;
+
+        chatContainer.appendChild(div);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+        genProgressEl = div;
+
+        startGenTimer();
+    }
+
+    function updateGenerationStep(step) {
+        if (!genProgressEl) return;
+
+        const label = $('#genLabel', genProgressEl);
+        const fill = $('.progress-bar-fill', genProgressEl);
+        const stepA = $('#stepA', genProgressEl);
+        const stepB = $('#stepB', genProgressEl);
+        const stepC = $('#stepC', genProgressEl);
+
+        switch(step) {
+            case 'model_a':
+                if (label) label.textContent = 'Model A генерирует...';
+                if (fill) fill.style.width = '25%';
+                if (stepA) { stepA.className = 'gen-step active'; }
+                break;
+            case 'model_a_done':
+                if (stepA) { stepA.className = 'gen-step done'; }
+                if (stepB) { stepB.className = 'gen-step active'; }
+                if (label) label.textContent = 'Model B генерирует...';
+                if (fill) fill.style.width = '55%';
+                break;
+            case 'model_b':
+                if (label) label.textContent = 'Model B генерирует...';
+                if (fill) fill.style.width = '55%';
+                if (stepB) { stepB.className = 'gen-step active'; }
+                break;
+            case 'model_b_done':
+                if (stepB) { stepB.className = 'gen-step done'; }
+                if (stepC) { stepC.className = 'gen-step active'; }
+                if (label) label.textContent = 'Завершение...';
+                if (fill) fill.style.width = '85%';
+                break;
+            case 'complete':
+                if (stepC) { stepC.className = 'gen-step done'; }
+                if (label) label.textContent = 'Готово!';
+                if (fill) fill.style.width = '100%';
+                stopGenTimer();
+                break;
+            case 'failed':
+                if (label) label.textContent = 'Ошибка генерации';
+                if (fill) { fill.style.width = '100%'; fill.style.background = '#ef4444'; }
+                stopGenTimer();
+                break;
+        }
+    }
+
+    function startGenTimer() {
+        stopGenTimer();
+        genStartTime = Date.now();
+        genTimerInterval = setInterval(function() {
+            const elapsed = ((Date.now() - genStartTime) / 1000).toFixed(1);
+            const timeEl = $('#genTime');
+            if (timeEl) timeEl.textContent = elapsed + 'с';
+
+            const elapsedSec = Date.now() - genStartTime;
+            if (elapsedSec > 30000 && genProgressEl) {
+                let notice = genProgressEl.querySelector('.gen-timeout-notice');
+                if (!notice) {
+                    notice = document.createElement('div');
+                    notice.className = 'gen-timeout-notice';
+                    notice.innerHTML = '<span class="timeout-spinner"></span>Генерация занимает больше времени. Ожидание...';
+                    genProgressEl.appendChild(notice);
+                }
+            }
+        }, 200);
+    }
+
+    function stopGenTimer() {
+        if (genTimerInterval) {
+            clearInterval(genTimerInterval);
+            genTimerInterval = null;
+        }
+    }
+
+    function hideGenerationProgress() {
+        if (genProgressEl) {
+            genProgressEl.remove();
+            genProgressEl = null;
+        }
+        stopGenTimer();
+    }
 
     /* ── API ── */
     async function api(path, opts = {}) {
@@ -567,7 +767,6 @@
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
 
-        // Show file in message if attached
         let msgText = text;
         if (currentFileData) {
             msgText = text || `Проанализируй файл ${currentFileData.filename}`;
@@ -577,7 +776,6 @@
         input.style.height = 'auto';
         addMsg('user', msgText, null, null, currentFileData);
         
-        // Рассуждения - только в folded меню
         addTyping();
         const body = { message: text || `Проанализируй файл ${currentFileData?.filename || ''}`, session_id: activeSessionId, user_id: userId };
         if (currentFileData) {
@@ -588,17 +786,15 @@
             method: 'POST',
             body: body
         }).then(d => {
+            hideGenerationProgress();
             removeTyping();
             
-            // Рассуждения - передаём structured steps для рендеринга карточками
             let reasoningData = null;
 
-            // 1. Основные рассуждения (steps) - передаём как массив
             if (d.reasoning_steps && d.reasoning_steps.length > 0) {
                 reasoningData = d.reasoning_steps;
             }
 
-            // 2. Веб-поиск - добавляем как дополнительный шаг
             if (d.web_search_info) {
                 if (!reasoningData) reasoningData = [];
                 reasoningData.push({
@@ -609,7 +805,6 @@
                 });
             }
 
-            // 3. Самодиалог - добавляем как дополнительный шаг
             if (d.self_dialog) {
                 const sd = d.self_dialog;
                 let sdText = 'Самодиалог: ' + (sd.topic || '');
@@ -624,15 +819,12 @@
                 });
             }
 
-            // Fallback на plain text reasoning
             if (!reasoningData && d.reasoning) {
                 reasoningData = d.reasoning;
             }
 
-            // Добавляем финальный ответ со структурированными рассуждениями
             addMsg('system', d.response || 'Нет ответа', null, reasoningData);
             
-            // Показываем уточняющий вопрос если есть
             if (d.clarification_question) {
                 const clarHtml = `
                     <div class="clarification-box">
@@ -648,9 +840,9 @@
                 }
             }
             
-            // Самодиалог теперь в меню рассуждений
             clearFile();
         }).catch(() => {
+            hideGenerationProgress();
             removeTyping();
             addMsg('system', 'Ошибка соединения');
             clearFile();
@@ -841,6 +1033,9 @@
     // Poll status every 5 seconds
     checkStatus();
     setInterval(checkStatus, 5000);
+
+    // Init SSE for real-time generation progress
+    initSSE();
 
     /* ── Selection Popup Menu (QWEN-style) ── */
     const selectionPopup = document.createElement('div');

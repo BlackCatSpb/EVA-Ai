@@ -9,7 +9,7 @@ import time
 import threading
 from datetime import datetime
 
-from flask import render_template, jsonify, request, abort
+from flask import render_template, jsonify, request, abort, Response, stream_with_context
 
 logger = logging.getLogger("eva.webgui")
 
@@ -891,6 +891,85 @@ def register_routes(app, web_gui_instance):
         except Exception as e:
             logger.error(f"Error getting generation status: {e}")
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/events/stream')
+    def api_events_stream():
+        """Server-Sent Events endpoint for real-time generation progress."""
+        def event_stream():
+            if not web_gui_instance or not web_gui_instance.brain:
+                yield 'event: error\ndata: {"error": "Brain not available"}\n\n'
+                return
+
+            brain = web_gui_instance.brain
+            event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
+
+            if not event_bus:
+                yield 'event: error\ndata: {"error": "EventBus not available"}\n\n'
+                return
+
+            import queue
+            msg_queue = queue.Queue()
+
+            def handler(event):
+                try:
+                    data = event.data if hasattr(event, 'data') else {}
+                    event_type = event.type if hasattr(event, 'type') else ''
+                    msg_queue.put({'event_type': event_type, 'data': data})
+                except Exception:
+                    pass
+
+            pipeline_events = [
+                'pipeline.start', 'pipeline.model_a.start', 'pipeline.model_a.complete',
+                'pipeline.model_b.start', 'pipeline.model_b.complete',
+                'pipeline.model_c.start', 'pipeline.model_c.complete',
+                'pipeline.complete', 'pipeline.failed',
+                'generation.progress', 'generation.started', 'generation.completed',
+                'generation.failed', 'generation.timeout',
+            ]
+
+            subscriptions = {}
+            try:
+                from eva.core.event_bus import EventTypes
+                event_type_map = {
+                    'pipeline.start': EventTypes.PIPELINE_START,
+                    'pipeline.model_a.start': EventTypes.PIPELINE_MODEL_A_START,
+                    'pipeline.model_a.complete': EventTypes.PIPELINE_MODEL_A_COMPLETE,
+                    'pipeline.model_b.start': EventTypes.PIPELINE_MODEL_B_START,
+                    'pipeline.model_b.complete': EventTypes.PIPELINE_MODEL_B_COMPLETE,
+                    'pipeline.complete': EventTypes.PIPELINE_COMPLETE,
+                    'pipeline.failed': EventTypes.PIPELINE_FAILED,
+                }
+                for evt_name, evt_type in event_type_map.items():
+                    sub_id = event_bus.subscribe(evt_type, handler)
+                    subscriptions[evt_name] = sub_id
+            except Exception:
+                for evt_name in pipeline_events:
+                    try:
+                        sub_id = event_bus.subscribe(evt_name, handler)
+                        subscriptions[evt_name] = sub_id
+                    except Exception:
+                        pass
+
+            try:
+                yield ': connected\n\n'
+                while True:
+                    try:
+                        msg = msg_queue.get(timeout=1)
+                        event_name = msg['event_type']
+                        data = msg['data']
+                        yield f'event: {event_name}\ndata: {json.dumps(data, default=str)}\n\n'
+                    except queue.Empty:
+                        yield ': heartbeat\n\n'
+            except GeneratorExit:
+                pass
+            finally:
+                for sub_id in subscriptions.values():
+                    try:
+                        event_bus.unsubscribe(sub_id)
+                    except Exception:
+                        pass
+
+        return Response(stream_with_context(event_stream()), mimetype='text/event-stream')
 
     @app.route('/api/snapshots', methods=['GET', 'POST'])
     def api_snapshots():
