@@ -5,6 +5,19 @@ SRE Recursive Module — recursive reasoning steps, semantic stability, fractal 
 import logging
 from typing import Dict, Any, Optional, List
 
+__all__ = [
+    '_recursive_process_query',
+    '_check_semantic_stability',
+    '_recursive_reasoning_step',
+    '_is_complex_query',
+    'decompose_query',
+    'retrieve_similar_reasoning',
+    'build_recursive_context',
+    '_synthesize_recursive_results',
+    '_linear_process_query',
+    '_init_retriever',
+]
+
 logger = logging.getLogger(__name__)
 
 
