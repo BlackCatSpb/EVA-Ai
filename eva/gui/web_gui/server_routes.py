@@ -10,6 +10,7 @@ import threading
 from datetime import datetime
 
 from flask import render_template, jsonify, request, abort, Response, stream_with_context
+from eva.core.api_compat import API_VERSION, API_PREFIX, api_version
 
 logger = logging.getLogger("eva.webgui")
 
@@ -346,40 +347,61 @@ def register_routes(app, web_gui_instance):
             user_id = data.get('user_id')
             file_data = data.get('file_data')
 
-            # Адаптивный таймаут: 120с базовый + 30с на каждые 100 символов
+            result = web_gui_instance.process_message(message, session_id, user_id, file_data)
+            return jsonify(result)
+        except Exception as e:
+            logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+
+    @app.route(f'{API_PREFIX}/chat', methods=['POST'])
+    @api_version("1.0.0")
+    def api_chat_v1():
+        """v1 API endpoint for chat"""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        try:
+            data = request.get_json(force=True)
+            if not data:
+                return jsonify({'error': 'Invalid JSON'}), 400
+            message = data.get('message', '')
+            session_id = data.get('session_id')
+            user_id = data.get('user_id')
+            file_data = data.get('file_data')
+            
             base_timeout = 120
             extra_timeout = (len(message) // 100) * 30
-            total_timeout = min(base_timeout + extra_timeout, 360)  # максимум 6 минут
-
+            total_timeout = min(base_timeout + extra_timeout, 360)
+            
             result_holder = {'done': False, 'result': None, 'error': None}
-
+            
             def _process():
                 try:
                     result_holder['result'] = web_gui_instance.process_message(message, session_id, user_id, file_data)
                 except Exception as e:
                     result_holder['error'] = str(e)
                 result_holder['done'] = True
-
+            
             worker = threading.Thread(target=_process)
             worker.daemon = True
             worker.start()
             worker.join(timeout=total_timeout)
-
+            
             if not result_holder['done']:
-                logger.error(f"api_chat: request timeout ({total_timeout}с)")
                 return jsonify({
-                    'response': f'Генерация не завершена за {total_timeout}с. Нажмите "Перегенерировать" для повторной попытки.',
-                    'status': 'timeout',
-                    'timeout_seconds': total_timeout
-                })
-
+                    'version': API_VERSION,
+                    'response': f'Таймаут генерации',
+                    'status': 'timeout'
+                }), 504
+            
             if result_holder['error']:
-                return jsonify({'error': result_holder['error']}), 500
-
-            return jsonify(result_holder['result'])
+                return jsonify({'version': API_VERSION, 'error': result_holder['error']}), 500
+            
+            response_data = result_holder['result']
+            response_data['version'] = API_VERSION
+            return jsonify(response_data)
         except Exception as e:
-            logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+            logger.error(f"Ошибка в api_chat_v1: {e}", exc_info=True)
+            return jsonify({'version': API_VERSION, 'error': str(e)}), 500
 
     @app.route('/api/sessions', methods=['GET', 'POST', 'DELETE'])
     def api_sessions():
@@ -787,6 +809,7 @@ def register_routes(app, web_gui_instance):
         return jsonify(learning)
 
     @app.route('/api/settings', methods=['GET', 'POST'])
+    @app.route(f'{API_PREFIX}/settings', methods=['GET', 'POST'])
     def api_settings():
         """Получить или обновить настройки системы."""
         if not web_gui_instance:
@@ -800,7 +823,9 @@ def register_routes(app, web_gui_instance):
                 'dark_theme': True,
                 'sound_enabled': False,
                 'model_name': 'Qwen2.5-0.5B GGUF',
-                'version': '1.0.0'
+                'version': API_VERSION,
+                'api_prefix': API_PREFIX,
+                'available_versions': ['1.0.0']
             }
 
             try:

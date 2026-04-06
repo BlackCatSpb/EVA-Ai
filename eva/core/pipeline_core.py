@@ -28,6 +28,10 @@ from .pipeline_models import (
     generate_with_model_c,
     _load_model_c,
 )
+from .resource_manager import ResourceManager
+from .contradiction_resolver import ContradictionResolver
+from .knowledge_rollback import KnowledgeRollback
+from .event_bus import Event
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +74,9 @@ class RecursiveModelPipeline:
         n_ctx: int = 8192,
         n_threads: int = 8,
         fractal_memory = None,
-        event_bus = None
+        event_bus = None,
+        resource_manager = None,
+        attention_system = None
     ):
         self.model_a_path = model_a_path
         self.model_b_path = model_b_path
@@ -83,6 +89,16 @@ class RecursiveModelPipeline:
         self.fractal_memory = fractal_memory
         self.quality_checker = None
         self.event_bus = event_bus
+        self.resource_manager = resource_manager
+        self.attention_system = attention_system
+        
+        self.contradiction_resolver = None
+        self.knowledge_rollback = None
+        if self.attention_system:
+            self.contradiction_resolver = ContradictionResolver(self.attention_system)
+            self.knowledge_rollback = KnowledgeRollback(
+                event_bus=self.event_bus
+            )
         
         self.model_a_params = AdaptiveParameterController({
             'temperature': self.MODEL_A_TEMPERATURE,
@@ -99,7 +115,42 @@ class RecursiveModelPipeline:
             'max_tokens': self.MODEL_B_MAX_TOKENS,
         })
         
+        try:
+            self.resource_manager = ResourceManager()
+            self.resource_manager.start_monitoring(interval=10.0)
+        except Exception:
+            self.resource_manager = None
+        
         logger.info(f"RecursiveModelPipeline инициализирован (3-модельный, адаптивные параметры)")
+        
+        self.ethics_framework = None
+        self._init_ethics_framework()
+
+    def _init_ethics_framework(self):
+        try:
+            from eva.ethics.ethics_core import EthicsFramework
+            self.ethics_framework = EthicsFramework()
+            logger.info("EthicsFramework инициализирован")
+        except ImportError as e:
+            logger.warning(f"EthicsFramework не найден: {e}")
+            self.ethics_framework = None
+
+    def _check_ethics(self, query: str) -> Dict[str, Any]:
+        if not self.ethics_framework:
+            return {'allowed': True, 'reason': 'Ethics not available'}
+        
+        try:
+            result = self.ethics_framework.assess_ethics({'query': query})
+            decision = result.decision if hasattr(result, 'decision') else 'allow'
+            is_high_risk = hasattr(result, 'requires_human_review') and result.requires_human_review
+            return {
+                'allowed': decision != 'block',
+                'reason': result.justification if hasattr(result, 'justification') else '',
+                'risk_level': 'high' if is_high_risk else 'low'
+            }
+        except Exception as e:
+            logger.error(f"Ошибка ethical check: {e}")
+            return {'allowed': True, 'reason': f'Check error: {e}'}
     
     def _publish_event(self, event_type: str, data: Dict):
         if self.event_bus:
@@ -108,9 +159,31 @@ class RecursiveModelPipeline:
             except Exception:
                 pass
     
+    def _get_adaptive_generation_params(self):
+        """Получить адаптированные параметры генерации"""
+        if not self.resource_manager:
+            return {
+                'max_tokens': self.MODEL_A_MAX_TOKENS,
+                'temperature': self.MODEL_A_TEMPERATURE
+            }
+        
+        recommended_ctx = self.resource_manager.get_recommended_context_size()
+        
+        if recommended_ctx <= 2048:
+            return {'max_tokens': 256, 'temperature': 0.3}
+        elif recommended_ctx <= 4096:
+            return {'max_tokens': 512, 'temperature': 0.4}
+        else:
+            return {'max_tokens': 1024, 'temperature': 0.5}
+    
     def load_models(self):
         """Загрузка GGUF моделей - Model A и B как отдельные экземпляры"""
-        a_ctx = min(self.n_ctx, 2048)
+        if self.resource_manager:
+            recommended_ctx = self.resource_manager.get_recommended_context_size()
+        else:
+            recommended_ctx = 8192
+        
+        a_ctx = min(recommended_ctx, 2048)
         
         logger.info(f"Загрузка Model A: {self.model_a_path}")
         self.model_a = Llama(
@@ -171,49 +244,7 @@ class RecursiveModelPipeline:
         gen_params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Основной метод обработки запроса через 3-модельный пайплайн"""
-        return self._process_query_with_timeout(query, max_iterations, gen_params)
-
-    def _process_query_with_timeout(
-        self,
-        query: str,
-        max_iterations: int = 1,
-        gen_params: Dict[str, Any] = None
-    ) -> Dict[str, Any]:
-        """Wrapper with adaptive timeout based on query complexity."""
-        # Адаптивный таймаут: базовый 90с + 30с на каждые 100 символов запроса
-        base_timeout = 90
-        extra_timeout = (len(query) // 100) * 30
-        total_timeout = min(base_timeout + extra_timeout, 300)  # максимум 5 минут
-        
-        result_holder = {'done': False, 'result': None}
-
-        def _run():
-            result_holder['result'] = self._process_query_impl(query, max_iterations, gen_params)
-            result_holder['done'] = True
-
-        worker = threading.Thread(target=_run)
-        worker.daemon = True
-        worker.start()
-        worker.join(timeout=total_timeout)
-
-        if not result_holder['done']:
-            logger.error(f"process_query: global timeout ({total_timeout}с, запрос {len(query)} символов)")
-            return {
-                'query': query,
-                'response': f'Генерация не завершена за {total_timeout}с. Попробуйте перегенерировать.',
-                'final_response': f'Генерация не завершена за {total_timeout}с. Попробуйте перегенерировать.',
-                'status': 'timeout',
-                'timeout_seconds': total_timeout,
-                'model_a_result': None,
-                'model_b_result': None,
-                'model_c_result': None,
-                'reasoning_steps': [],
-                'has_code': False,
-                'fractal_context': None,
-                'final_quality': {'is_gibberish': False, 'score': 0.0, 'reasons': [f'Таймаут пайплайна ({total_timeout}с)']},
-            }
-
-        return result_holder['result']
+        return self._process_query_impl(query, max_iterations, gen_params)
 
     def _process_query_impl(
         self,
@@ -221,7 +252,7 @@ class RecursiveModelPipeline:
         max_iterations: int = 1,
         gen_params: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """Implementation of query processing (called within timeout wrapper)"""
+        """Implementation of query processing"""
         pipeline_start = time.time()
         self._publish_event('pipeline.start', {'query': query[:100]})
         try:
@@ -241,10 +272,68 @@ class RecursiveModelPipeline:
         if not self.model_a or not self.model_b:
             raise RuntimeError("Модели не загружены. Вызовите load_models()")
         
+        ethics_result = self._check_ethics(query)
+        if not ethics_result.get('allowed'):
+            logger.warning(f"Запрос отклонён по этическим причинам: {ethics_result.get('reason')}")
+            if self.event_bus:
+                self.event_bus.publish(Event(
+                    event_type='pipeline.ethics.blocked',
+                    source='pipeline',
+                    data={'query': query[:100], 'reason': ethics_result.get('reason')}
+                ))
+            return {
+                'response': 'Извините, я не могу ответить на этот запрос.',
+                'final_response': 'Извините, я не могу ответить на этот запрос.',
+                'ethics_blocked': True,
+                'block_reason': ethics_result.get('reason'),
+                'query': query,
+                'model_a_result': None,
+                'model_b_result': None,
+                'model_c_result': None,
+                'reasoning_steps': [],
+                'has_code': False,
+                'fractal_context': None,
+                'final_quality': {'is_gibberish': False, 'score': 0.0, 'reasons': [' ethics_blocked']}
+            }
+        
+        if self.event_bus:
+            self.event_bus.publish(Event(
+                event_type='pipeline.ethics.check_complete',
+                source='pipeline',
+                data={'query': query[:100], 'allowed': ethics_result.get('allowed')}
+            ))
+        
         a_max_tokens = self.MODEL_A_MAX_TOKENS
         a_temperature = self.MODEL_A_TEMPERATURE
         b_max_tokens = self.MODEL_B_MAX_TOKENS
         b_temperature = self.MODEL_B_TEMPERATURE
+        
+        resource_usage = {'cpu': 0.0, 'ram': 0.0}
+        if self.resource_manager:
+            try:
+                resource_usage = {
+                    'cpu': self.resource_manager.get_cpu_usage(),
+                    'ram': self.resource_manager.get_memory_usage()
+                }
+                logger.debug(f"Resource usage before generation: CPU={resource_usage['cpu']:.2f}, RAM={resource_usage['ram']:.2f}")
+            except Exception as e:
+                logger.debug(f"Error getting resource usage: {e}")
+        
+        adapted_params_a = self.model_a_params.adapt_to_resources(resource_usage)
+        adapted_params_b = self.model_b_params.adapt_to_resources(resource_usage)
+        
+        if adapted_params_a.get('max_tokens'):
+            a_max_tokens = adapted_params_a['max_tokens']
+        if adapted_params_a.get('temperature'):
+            a_temperature = adapted_params_a['temperature']
+        if adapted_params_b.get('max_tokens'):
+            b_max_tokens = adapted_params_b['max_tokens']
+        if adapted_params_b.get('temperature'):
+            b_temperature = adapted_params_b['temperature']
+        
+        skip_model_c = self.model_a_params.should_skip_model_c(resource_usage)
+        if skip_model_c:
+            logger.info(f"Skipping Model C due to high resource usage: CPU={resource_usage['cpu']:.2f}, RAM={resource_usage['ram']:.2f}")
         
         if gen_params:
             params_a = gen_params.get('model_a', {})
@@ -283,6 +372,17 @@ class RecursiveModelPipeline:
         model_a_start = time.time()
         model_a_result = self.generate_with_model_a(enriched_query)
         model_a_elapsed = time.time() - model_a_start
+        
+        # Проверяем: если генерация ещё идёт (status='generating'), используем Model B
+        if model_a_result.get('status') == 'generating':
+            logger.warning(f"Model A: генерация продолжается ({model_a_elapsed:.1f}с), используем Model B")
+            # Переходим сразу к Model B с оригинальным запросом
+            model_a_result = {
+                'natural_response': '',
+                'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Model A ещё генерирует, переход к Model B']},
+                'status': 'fallback_to_b'
+            }
+        
         logger.info(f"Model A ответ: {model_a_result['natural_response'][:150]}...")
         results['model_a_result'] = model_a_result
         self._publish_event('pipeline.model_a.complete', {
@@ -332,7 +432,7 @@ class RecursiveModelPipeline:
             logger.warning("Model B failed, falling back to Model A response")
             results['final_response'] = model_a_result.get('natural_response', '')
         
-        if self.model_c and self._is_code_request(query):
+        if self.model_c and self._is_code_request(query) and not skip_model_c:
             logger.info("=== Шаг 3: Генерация кода на Model C (Coder) ===")
             results['has_code'] = True
             self._publish_event('pipeline.model_c.start', {'query_length': len(query), 'context_length': len(model_b_result.get('natural_response', ''))})
@@ -377,6 +477,22 @@ class RecursiveModelPipeline:
                 model_used='model_b',
                 quality_score=model_b_result['quality'].get('score', 0.5)
             )
+            
+            if self.contradiction_resolver:
+                contradictions = self.contradiction_resolver.check_response(query, model_b_result['natural_response'])
+                if contradictions and self.knowledge_rollback:
+                    try:
+                        if hasattr(self.fractal_memory, 'learning_loop') and self.fractal_memory.learning_loop:
+                            self.knowledge_rollback.set_graph_learning(self.fractal_memory.learning_loop)
+                            for contr in contradictions:
+                                if 'confidence' in contr and contr['confidence'] > 0.5:
+                                    exp_id = f"exp_{hash(query) % 1000000}"
+                                    self.knowledge_rollback.rollback_knowledge(
+                                        exp_id,
+                                        f"Противоречие в ответе: {contr.get('indicator', 'unknown')}"
+                                    )
+                    except Exception as e:
+                        logger.debug(f"Ошибка проверки противоречий: {e}")
         
         logger.info("Three-GGUF пайплайн завершён")
         
@@ -420,7 +536,9 @@ def create_recursive_pipeline(
     n_ctx: int = 8192,
     n_threads: int = 8,
     fractal_memory = None,
-    event_bus = None
+    event_bus = None,
+    resource_manager = None,
+    attention_system = None
 ) -> 'RecursiveModelPipeline':
     """Фабричная функция для создания пайплайна"""
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -441,7 +559,9 @@ def create_recursive_pipeline(
         n_ctx=n_ctx,
         n_threads=n_threads,
         fractal_memory=fractal_memory,
-        event_bus=event_bus
+        event_bus=event_bus,
+        resource_manager=resource_manager,
+        attention_system=attention_system
     )
     pipeline.load_models()
     return pipeline
