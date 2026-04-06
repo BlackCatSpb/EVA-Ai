@@ -160,6 +160,7 @@ def register_routes(app, web_gui_instance):
 
                 wiki_results = []
                 tavily_results = []
+                tavily_success = False
 
                 if wiki_kb:
                     try:
@@ -170,6 +171,7 @@ def register_routes(app, web_gui_instance):
                 try:
                     tavily_result = tavily_search(query, max_results=limit)
                     if "error" not in tavily_result:
+                        tavily_success = True
                         for r in tavily_result.get("results", []):
                             tavily_results.append({
                                 "title": r.get("title", ""),
@@ -181,8 +183,10 @@ def register_routes(app, web_gui_instance):
                 except Exception as e:
                     logger.warning(f"Ошибка Tavily поиска: {e}")
 
-                increment_quota()
-                _last_search_time = time.time()
+                if tavily_success:
+                    increment_quota()
+                    _last_search_time = time.time()
+                
                 new_quota = load_quota()
 
                 return jsonify({
