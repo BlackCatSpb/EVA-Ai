@@ -86,7 +86,10 @@ class SessionManager:
 
     def get_user_sessions(self, user_id: str) -> list:
         with self._lock:
-            return [s for s in self.sessions.values() if s['user_id'] == user_id]
+            user_sessions = [s for s in self.sessions.values() if s['user_id'] == user_id]
+            # Sort by last_active descending (most recent first)
+            user_sessions.sort(key=lambda s: s.get('last_active', ''), reverse=True)
+            return user_sessions
 
     def update_session(self, session_id: str, data: Dict):
         with self._lock:

@@ -27,6 +27,7 @@ from .pipeline_models import (
     generate_with_model_b,
     generate_with_model_c,
     _load_model_c,
+    _unload_model_c,
 )
 from .resource_manager import ResourceManager
 from .contradiction_resolver import ContradictionResolver
@@ -237,6 +238,103 @@ class RecursiveModelPipeline:
                 return True
         return False
     
+    def _review_with_model_a(
+        self,
+        original_query: str,
+        model_b_response: str,
+        model_a_facts: str
+    ) -> Dict[str, Any]:
+        """Model A проверяет и исправляет ответ Model B"""
+        if not self.model_a or not model_b_response:
+            return {'improved': False, 'changes': [], 'corrected_response': model_b_response}
+        
+        changes = []
+        
+        # Проверка на иностранные символы
+        foreign_chars = re.findall(r'[a-zA-Z\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', model_b_response)
+        if foreign_chars:
+            unique_foreign = set(foreign_chars)
+            changes.append(f"Найдены иностранные символы: {len(unique_foreign)} уникальных")
+            
+            # Исправление - заменяем на русские аналоги или удаляем
+            corrected = model_b_response
+            # Удаляем китайские и японские символы
+            corrected = re.sub(r'[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]', '', corrected)
+            # Оставляем латиницу в коде, но удаляем в тексте
+            corrected = re.sub(r'(?<![a-zA-Z_])([a-zA-Z]+)(?![a-zA-Z_(])', '', corrected)
+            
+            return {
+                'improved': True,
+                'changes': changes,
+                'corrected_response': corrected
+            }
+        
+        # Проверка на грамматические ошибки (базовая)
+        # Проверка повторяющихся слов
+        words = model_b_response.split()
+        word_counts = {}
+        for word in words:
+            word_lower = word.lower().strip('.,!?;:"()[]')
+            if len(word_lower) > 3:
+                word_counts[word_lower] = word_counts.get(word_lower, 0) + 1
+        
+        repeated = [(w, c) for w, c in word_counts.items() if c > 3]
+        if repeated:
+            changes.append(f"Повторяющиеся слова: {repeated[:3]}")
+        
+        # Проверка на "мусорные" паттерны
+        garbage_patterns = [
+            r'\{[^}]{100,}\}',  # слишком длинные JSON-подобные конструкции
+            r'\.{10,}',          # слишком много точек подряд
+            r'-{5,}',            # слишком много дефисов
+        ]
+        for pattern in garbage_patterns:
+            if re.search(pattern, model_b_response):
+                changes.append(f"Найден мусорный паттерн: {pattern}")
+                model_b_response = re.sub(pattern, '', model_b_response)
+        
+        # Если есть изменения, перегенерируем с Model A
+        if changes and self.model_a:
+            logger.info(f"Model A исправляет {len(changes)} проблем в ответе B")
+            
+            review_prompt = (
+                f"Проверь и исправь следующий ответ. Исправь ошибки, грамматику, форматирование.\n"
+                f"Оригинальный запрос: {original_query}\n"
+                f"Известные факты: {model_a_facts[:500]}\n"
+                f"Ответ для проверки: {model_b_response}\n\n"
+                f"Инструкции:\n"
+                f"1. Сохрани смысл ответа\n"
+                f"2. Исправь грамматические ошибки\n"
+                f"3. Убери лишние повторения\n"
+                f"4. Используй норм русский язык\n"
+                f"5. Отвечай строго на русском\n\n"
+                f"Верни только исправленный ответ без комментариев."
+            )
+            
+            try:
+                from .pipeline_models import _generate_response
+                corrected = _generate_response(
+                    self.model_a,
+                    review_prompt,
+                    max_tokens=len(model_b_response) * 2,
+                    temperature=0.3,
+                    max_context=self.context_size
+                )
+                if corrected and len(corrected) > 50:
+                    return {
+                        'improved': True,
+                        'changes': changes,
+                        'corrected_response': corrected
+                    }
+            except Exception as e:
+                logger.debug(f"Error in Model A review: {e}")
+        
+        return {
+            'improved': len(changes) > 0,
+            'changes': changes,
+            'corrected_response': model_b_response
+        }
+    
     def process_query(
         self,
         query: str,
@@ -414,6 +512,51 @@ class RecursiveModelPipeline:
             'quality': model_b_result['quality'].get('score', 0.0),
             'time': round(model_b_elapsed, 2)
         })
+
+        # === Проверка и перегенерация Model B при низком качестве ===
+        model_b_quality = model_b_result.get('quality', {}).get('score', 0.0)
+        model_b_needs_regen = model_b_quality < 0.5 or model_b_result.get('quality', {}).get('is_gibberish', False)
+        
+        if model_b_needs_regen:
+            logger.warning(f"Model B quality low ({model_b_quality:.2f}), attempting regeneration...")
+            self._publish_event('pipeline.model_b.regen.start', {'attempt': 2, 'previous_quality': model_b_quality})
+            
+            regen_result = self.generate_with_model_b(
+                query, 
+                model_a_result.get('natural_response', ''),
+                max_retries=1
+            )
+            
+            regen_quality = regen_result.get('quality', {}).get('score', 0.0)
+            logger.info(f"Model B регенерация: quality={regen_quality:.2f}")
+            
+            if regen_quality > model_b_quality:
+                model_b_result = regen_result
+                model_b_elapsed = time.time() - model_b_start
+                logger.info(f"Model B улучшен до {regen_quality:.2f}")
+                
+                self._publish_event('pipeline.model_b.regen.complete', {'new_quality': regen_quality})
+        
+        # === Model A проверяет и исправляет ответ Model B ===
+        logger.info("=== Шаг 2.5: Model A проверяет ответ Model B ===")
+        self._publish_event('pipeline.model_b.review.start', {'model_b_length': len(model_b_result.get('natural_response', ''))})
+        
+        review_result = self._review_with_model_a(
+            original_query=query,
+            model_b_response=model_b_result.get('natural_response', ''),
+            model_a_facts=model_a_result.get('natural_response', '')
+        )
+        
+        if review_result.get('improved'):
+            logger.info(f"Model A исправила ответ B: {review_result.get('changes', [])}")
+            model_b_result['natural_response'] = review_result.get('corrected_response', model_b_result['natural_response'])
+            model_b_result['review_applied'] = True
+            model_b_result['review_changes'] = review_result.get('changes', [])
+        
+        self._publish_event('pipeline.model_b.review.complete', {
+            'improved': review_result.get('improved', False),
+            'changes_count': len(review_result.get('changes', []))
+        })
         
         results['reasoning_steps'].append({
             'step': 2,
@@ -459,6 +602,10 @@ class RecursiveModelPipeline:
             })
             
             results['final_response'] = model_b_result['natural_response'] + "\n\n" + model_c_result['natural_response']
+        
+        # Выгружаем Model C после генерации кода (экономим ~1GB RAM)
+        if results.get('has_code'):
+            self._unload_model_c()
         else:
             results['final_response'] = model_b_result['natural_response']
         
@@ -576,3 +723,4 @@ RecursiveModelPipeline.generate_with_model_a = generate_with_model_a
 RecursiveModelPipeline.generate_with_model_b = generate_with_model_b
 RecursiveModelPipeline.generate_with_model_c = generate_with_model_c
 RecursiveModelPipeline._load_model_c = _load_model_c
+RecursiveModelPipeline._unload_model_c = _unload_model_c

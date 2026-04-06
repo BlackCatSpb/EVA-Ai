@@ -1,7 +1,47 @@
 # Аудит CogniFlex — Список проблем и задач
 
 **Дата:** 2026-04-06  
-**Версия:** 1.0
+**Версия:** 1.1
+
+---
+
+## Выполненные изменения
+
+### 1. Этика — устранено дублирование
+- ✅ Удалён неиспользуемый `principles_frame_manager.py`
+- ✅ Синхронизированы принципы по умолчанию в:
+  - `principles_manager.py`
+  - `framework_principles.py`
+- ✅ Добавлено поле `phrase` для кратких названий
+- ✅ Обновлён `brain_config.json` с 6 принципами
+- ⏳ `ethics_types.py` — содержит дублирующий класс `EthicalPrinciple` (не используется)
+
+### 2. Дублирующие классы в системе
+
+| Класс | Файлы | Проблема | Рекомендация |
+|-------|-------|----------|--------------|
+| EventBus | `event_system.py`, `event_bus.py` | Два разных архитектуры (sync/async) | ✅ Оставить оба |
+| SessionManager | `server_main.py`, `server_auth.py` | Дублирование | ❌ Удалить из server_main.py |
+| AuthManager | `server_main.py`, `server_auth.py`, `component_managers.py` | Три версии | ❌ Удалить дубликаты |
+| WebGUI | `server_main.py`, `server_main.py` (GUI) | Дублирование | ❌ Удалить старый |
+| QueryProcessor | `processor_core.py`, `pipeline.py`, `handlers.py` | Два пустых stub | ❌ Удалить stub-ы |
+| EthicalPrinciple | `framework_principles.py`, `situations_scenarios.py` | Два разных класса | ✅ Оставить оба |
+| EthicalAssessment | `framework_checks.py`, `situations_scenarios.py` | Разные контексты | ✅ Оставить оба |
+| EthicalDecision | `framework_violations.py`, `situations_scenarios.py`, `utils.py` | Три разных класса | ✅ Оставить все |
+
+### 2.1 Дублирующие файлы для удаления
+- ✅ `eva/server_main.py` — удалён
+- ✅ `eva/core/processor_pipeline.py` — удалён
+- ✅ `eva/core/processor_handlers.py` — удалён
+- ✅ `eva/core/generation_coordinator.py` — удалён (дубликат generation/)
+
+### 2.2 Дублирующие функции
+| Функция | Файлы | Рекомендация |
+|---------|-------|--------------|
+| `get_event_bus` | `event_bus.py`, `deferred_command_system.py` | ⏳ Оставить (разные модули) |
+| `get_security_manager` | `security_framework.py`, `component_managers.py` | ✅ Удалён дубликат |
+| `get_system_health` | `unit_components.py`, `adaptation_integration.py`, `system_monitor.py` | ✅ Оставить (разные модули) |
+| `get_generation_coordinator` | `generation/`, `core/` | ✅ Удалён дубликат |
 
 ---
 

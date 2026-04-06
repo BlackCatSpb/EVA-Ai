@@ -15,11 +15,18 @@ logger = logging.getLogger("eva.ethics")
 @dataclass
 class EthicalAssessment:
     """Результат этической оценки."""
-    violations: List[Dict[str, Any]]
-    recommendations: List[str]
-    principle_scores: Dict[str, float]
+    principle_scores: Dict[str, float] = field(default_factory=dict)
+    violations: List[Dict[str, Any]] = field(default_factory=list)
+    recommendations: List[str] = field(default_factory=list)
     confidence: float = 1.0
     timestamp: float = field(default_factory=time.time)
+    # Дополнительные поля для risk_assessment
+    principle_name: Optional[str] = None
+    score: float = 0.0
+    explanation: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    violation_detected: bool = False
+    severity: str = "low"
 
 @dataclass
 class EthicsAnalysisResult:

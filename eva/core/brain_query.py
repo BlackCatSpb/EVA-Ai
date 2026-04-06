@@ -28,6 +28,10 @@ class QueryMixin:
         """Processes user query via unified generation coordinator with multi-level fallback."""
         start_time = time.time()
         query_logger.info(f"Processing query: {query[:50]}...")
+        
+        # Фиксируем активность для таймера автовыгрузки
+        if hasattr(self, 'record_query_activity'):
+            self.record_query_activity()
 
         if context is not None and user_context is None:
             user_context = context if isinstance(context, dict) else {}

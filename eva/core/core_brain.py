@@ -11,11 +11,12 @@ import weakref
 from typing import Dict, Any, Optional
 
 from .brain_config import load_brain_config, mask_secrets, ConfigMixin
-from .brain_components import ComponentMixin, _init_managers, _init_fractal_model, _init_llama_cpp, _init_two_model_pipeline, _init_preprocessing, _init_qwen_config, _init_background
+from .brain_components import ComponentMixin, _init_managers, _init_fractal_model, _init_llama_cpp, _init_two_model_pipeline, _init_preprocessing, _init_qwen_config, _init_background, _init_mode_controller
 from .brain_init import _init_fractal_final, _init_gen_coord, _init_wikipedia, _init_reasoning, _start_post_init_services, _connect_components, _start_components, _stop_components
 from .brain_query import QueryMixin, FALLBACK_RESPONSES, FALLBACK_RESPONSE_DEFAULT
 from .brain_monitoring import MonitoringMixin
 from .brain_memory import MemoryMixin
+from .brain_memory_manager import MemoryManagerMixin
 from .brain_state import SystemState, SystemStateManager, StateMixin
 from .brain_coordination import EventSubscriptionMixin, CommandIssuerMixin, ProcessTrackerMixin
 
@@ -47,7 +48,7 @@ except ImportError:
         STOPPED = "stopped"; ERROR = "error"
 
 
-class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, MemoryMixin, StateMixin, EventSubscriptionMixin, CommandIssuerMixin, ProcessTrackerMixin):
+class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, MemoryMixin, MemoryManagerMixin, StateMixin, EventSubscriptionMixin, CommandIssuerMixin, ProcessTrackerMixin):
     """Центральный координатор системы ЕВА."""
 
     def __init__(self, config: Optional[Dict[str, Any]] = None):
@@ -125,6 +126,8 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         _init_preprocessing(self)
         _init_qwen_config(self)
         _init_background(self)
+        _init_mode_controller(self)
+        self._init_memory_manager()
         _set_global_brain(self)
         query_logger.debug("ЕВАCore инициализирован")
 

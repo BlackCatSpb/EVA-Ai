@@ -117,6 +117,9 @@ class ResponseGenerator:
         self.text_processor = text_processor
         self.hybrid_cache = hybrid_cache
         
+        # UnifiedCacheBridge - объединённый кэш модели и графа знаний
+        self.unified_bridge = None
+        
         # Система инициализации компонентов для предотвращения повторной инициализации
         self.component_init_manager = None
         if EVENT_SYSTEM_AVAILABLE and self.brain:
@@ -240,6 +243,9 @@ class ResponseGenerator:
             
             # Инициализируем гибридный кэш если доступен
             self._init_hybrid_cache()
+            
+            # Инициализируем UnifiedCacheBridge - мост модели и графа знаний
+            self._init_unified_bridge()
             
             # Проверяем наличие ModelManager (динамическая проверка)
             if not self.model_manager and hasattr(self.brain, 'components'):
@@ -387,6 +393,39 @@ class ResponseGenerator:
             logger.error(f"Ошибка инициализации гибридного кэша: {e}")
             self.hybrid_cache = None
     
+    def _init_unified_bridge(self) -> None:
+        """Инициализирует UnifiedCacheBridge - мост модели и графа знаний."""
+        if self.unified_bridge is not None:
+            return
+        
+        try:
+            from eva.core.unified_cache_bridge import create_unified_bridge
+            
+            knowledge_graph = None
+            if self.brain and hasattr(self.brain, 'knowledge_graph'):
+                knowledge_graph = self.brain.knowledge_graph
+            elif self.brain and hasattr(self.brain, 'components'):
+                knowledge_graph = self.brain.components.get('knowledge_graph')
+            
+            cache_dir = os.path.join(
+                getattr(self.brain, 'cache_dir', './cache'),
+                'unified_bridge'
+            )
+            
+            self.unified_bridge = create_unified_bridge(
+                token_cache=self.hybrid_cache,
+                knowledge_graph=knowledge_graph,
+                cache_dir=cache_dir
+            )
+            
+            if knowledge_graph:
+                logger.info("UnifiedCacheBridge инициализирован с графом знаний")
+            else:
+                logger.info("UnifiedCacheBridge инициализирован (граф знаний недоступен)")
+        except Exception as e:
+            logger.warning(f"Ошибка инициализации UnifiedCacheBridge: {e}")
+            self.unified_bridge = None
+    
     def _create_fallback_tokenizer(self) -> None:
         """Создаёт fallback токенизатор если основной недоступен."""
         if not TRANSFORMERS_AVAILABLE:
@@ -515,6 +554,23 @@ class ResponseGenerator:
             }
         
         try:
+            # ПРИОРИТЕТ 0: Проверяем UnifiedCacheBridge (кэш генерации + граф знаний)
+            if self.unified_bridge:
+                prep = self.unified_bridge.prepare_for_generation(prompt)
+                if prep['cached_response']:
+                    logger.info(f"Ответ найден в кэше генерации (UnifiedCacheBridge)")
+                    return {
+                        "text": prep['cached_response'],
+                        "from_cache": True,
+                        "metadata": {
+                            "source": "unified_cache_bridge",
+                            "generation_time": time.time() - start_time,
+                        }
+                    }
+                if prep['graph_nodes']:
+                    logger.debug(f"Найдено {len(prep['graph_nodes'])} узлов графа, предзагружено {prep['preloaded_count']}")
+                prompt = prep['prompt']
+            
             # ПРИОРИТЕТ 1: Проверяем фрактальную модель
             if self._is_fractal_ready():
                 return self._generate_fractal_response(prompt, start_time, kwargs)
@@ -531,6 +587,13 @@ class ResponseGenerator:
             
             # Генерация ответа
             generated_text = self._generate_with_model(model, tokenizer, final_prompt, **kwargs)
+            
+            # Кэшируем результат через UnifiedCacheBridge
+            if self.unified_bridge:
+                self.unified_bridge.cache_generation_result(
+                    prompt, generated_text,
+                    metadata={'model': model_name, 'tokens': len(generated_text)}
+                )
             
             # Создаём ответ
             clean_kwargs = {k: v for k, v in kwargs.items() if k != 'task'}
@@ -842,7 +905,7 @@ class ResponseGenerator:
                 self.knowledge_awareness.mark_generated(text, confidence)
     
     def shutdown(self) -> None:
-        """Останавливает генератор."""
+        """Останавливает генератор и выгружает модели из памяти."""
         if getattr(self, '_shutdown_event', None) and self._shutdown_event.is_set():
             logger.debug("ResponseGenerator уже завершает работу")
             return
@@ -850,8 +913,16 @@ class ResponseGenerator:
         # Останавливаем фоновые процессы
         if self._thread_pool:
             self._shutdown_event.set()
+            self._shutdown_event = threading.Event()
             self._thread_pool.shutdown(wait=True)
             self._thread_pool = None
+        
+        # Сохраняем состояние UnifiedCacheBridge
+        if self.unified_bridge:
+            try:
+                self.unified_bridge.save_state()
+            except Exception as e:
+                logger.warning(f"Ошибка сохранения UnifiedCacheBridge: {e}")
         
         # Очищаем кэш
         if self.hybrid_cache:
@@ -860,7 +931,18 @@ class ResponseGenerator:
             except Exception as e:
                 logger.warning(f"Ошибка очистки кэша: {e}")
         
-        logger.info("ResponseGenerator остановлен")
+        # Выгружаем PyTorch модели из памяти
+        if TORCH_AVAILABLE and torch.cuda.is_available():
+            try:
+                torch.cuda.empty_cache()
+                logger.info("VRAM очищен")
+            except Exception as e:
+                logger.warning(f"Ошибка очистки VRAM: {e}")
+        
+        # Принудительная сборка мусора
+        import gc
+        collected = gc.collect()
+        logger.info(f"ResponseGenerator остановлен (сборка мусора: {collected} объектов)")
     
     def __enter__(self):
         """Контекстный менеджер."""

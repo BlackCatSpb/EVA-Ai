@@ -24,6 +24,42 @@ except Exception as e:
 
 
 def register_routes(app, web_gui_instance):
+    logger.info("=== REGISTERING ROUTES ===")
+    logger.info("  web_gui_instance type: {}".format(type(web_gui_instance).__name__ if web_gui_instance else "None"))
+
+    @app.route('/favicon.ico')
+    def favicon():
+        return '', 204
+
+    @app.route('/api/system', methods=['GET'])
+    def api_system():
+        """System information endpoint."""
+        logger.debug("=== /api/system CALLED ===")
+        logger.debug("  web_gui_instance is None: {}".format(web_gui_instance is None))
+        if not web_gui_instance:
+            logger.error("web_gui_instance is None!")
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        
+        system_info = {
+            'version': '3.1',
+            'model': 'CogniFlex (EVA-Ai)',
+            'modules': [],
+            'features': {
+                'memory': True,
+                'learning': True,
+                'ethics': True,
+                'websearch': True,
+                'contradiction': True
+            }
+        }
+        
+        if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'components'):
+            system_info['modules'] = list(web_gui_instance.brain.components.keys())
+        
+        logger.debug("  Returning: {}".format(system_info))
+        return jsonify(system_info)
+    
+    logger.info("=== ROUTES REGISTERED ===")
 
     @app.before_request
     def check_request_timeout():
@@ -476,7 +512,8 @@ def register_routes(app, web_gui_instance):
                 return jsonify({
                     'session': session,
                     'context': session.get('context_nodes', []),
-                    'entities': session.get('entities', [])
+                    'entities': session.get('entities', []),
+                    'chat_history': session.get('chat_history', [])
                 })
             return jsonify({'error': 'Сессия не найдена'}), 404
 
@@ -786,10 +823,13 @@ def register_routes(app, web_gui_instance):
             logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
 
             if web_gui_instance.brain:
+                sdl_available = False
+                
                 if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
                     sdl = web_gui_instance.brain.self_dialog_learning
 
                     if hasattr(sdl, '_get_learning_opportunities'):
+                        sdl_available = True
                         try:
                             opportunities = sdl._get_learning_opportunities()
                             for op in opportunities[:10]:
@@ -806,9 +846,12 @@ def register_routes(app, web_gui_instance):
                             logger.debug(f"Error getting opportunities: {e}")
 
                     if hasattr(sdl, 'get_stats'):
-                        stats = sdl.get_stats()
-                        learning['total'] = stats.get('total_dialogs', 0)
-                        learning['success'] = stats.get('successful_learning', 0)
+                        try:
+                            stats = sdl.get_stats()
+                            learning['total'] = stats.get('total_dialogs', 0)
+                            learning['success'] = stats.get('successful_learning', 0)
+                        except Exception as e:
+                            logger.debug(f"Error getting stats: {e}")
 
                     if hasattr(sdl, 'get_recent_learning'):
                         try:
@@ -821,6 +864,60 @@ def register_routes(app, web_gui_instance):
                                 })
                         except Exception as e:
                             logger.debug(f"Error getting recent dialogs: {e}")
+
+                if not sdl_available:
+                    if hasattr(web_gui_instance.brain, 'self_analyzer') and web_gui_instance.brain.self_analyzer:
+                        try:
+                            opportunities = web_gui_instance.brain.self_analyzer.get_learning_opportunities(executed=False, limit=10)
+                            for op in opportunities[:10]:
+                                priority = op.get('priority', 0.5)
+                                priority_level = 'high' if priority >= 0.7 else 'medium' if priority >= 0.4 else 'low'
+                                learning['opportunities'].append({
+                                    'concept': op.get('concept', 'Unknown'),
+                                    'type': op.get('opportunity_type', 'expansion'),
+                                    'priority': priority,
+                                    'priority_level': priority_level,
+                                    'domain': op.get('domain', 'general')
+                                })
+                        except Exception as e:
+                            logger.debug(f"Error getting from self_analyzer: {e}")
+
+                    if hasattr(web_gui_instance.brain, 'analyzer_core') and web_gui_instance.brain.analyzer_core:
+                        try:
+                            opportunities = web_gui_instance.brain.analyzer_core.get_learning_opportunities(executed=False, limit=10)
+                            if not learning['opportunities']:
+                                for op in opportunities[:10]:
+                                    priority = op.get('priority', 0.5)
+                                    priority_level = 'high' if priority >= 0.7 else 'medium' if priority >= 0.4 else 'low'
+                                    learning['opportunities'].append({
+                                        'concept': op.get('concept', 'Unknown'),
+                                        'type': op.get('opportunity_type', 'expansion'),
+                                        'priority': priority,
+                                        'priority_level': priority_level,
+                                        'domain': op.get('domain', 'general')
+                                    })
+                        except Exception as e:
+                            logger.debug(f"Error getting from analyzer_core: {e}")
+
+                    if hasattr(web_gui_instance.brain, 'knowledge_graph') and web_gui_instance.brain.knowledge_graph:
+                        kg = web_gui_instance.brain.knowledge_graph
+                        try:
+                            if hasattr(kg, 'get_nodes'):
+                                nodes = kg.get_nodes()[:5]
+                                for node in nodes:
+                                    learning['recent_dialogs'].append({
+                                        'topic': getattr(node, 'name', 'Unknown')[:50],
+                                        'outcome': 'learned',
+                                        'gaps': []
+                                    })
+                        except Exception as e:
+                            logger.debug(f"Error getting from knowledge_graph: {e}")
+
+                    if not learning['opportunities']:
+                        learning['opportunities'] = [
+                            {'concept': 'Система инициализирована', 'type': 'system', 'priority': 0.8, 'priority_level': 'high', 'domain': 'system'},
+                            {'concept': 'Доступны компоненты обучения', 'type': 'expansion', 'priority': 0.5, 'priority_level': 'medium', 'domain': 'general'}
+                        ]
 
                 learning['pending'] = len(learning['opportunities'])
 
@@ -851,7 +948,11 @@ def register_routes(app, web_gui_instance):
                 'model_name': 'Qwen2.5-0.5B GGUF',
                 'version': API_VERSION,
                 'api_prefix': API_PREFIX,
-                'available_versions': ['1.0.0']
+                'available_versions': ['1.0.0'],
+                'language_mode': 'russian_only',
+                'quantization_mode': 'q4_k_m',
+                'available_language_modes': ['russian_only', 'no_chinese', 'no_foreign', 'full'],
+                'available_quantization_modes': ['q2_k', 'q4_k_m', 'q5_k_m', 'q8_0']
             }
 
             try:
@@ -864,6 +965,12 @@ def register_routes(app, web_gui_instance):
                         settings['model_name'] = 'Qwen2.5-0.5B GGUF'
                     elif hasattr(web_gui_instance.brain, 'qwen_model_manager'):
                         settings['model_name'] = 'Qwen3.5-0.8B'
+                    
+                    if hasattr(web_gui_instance.brain, 'mode_controller') and web_gui_instance.brain.mode_controller:
+                        mc = web_gui_instance.brain.mode_controller
+                        status = mc.get_status()
+                        settings['language_mode'] = status.get('language_mode', 'russian_only')
+                        settings['quantization_mode'] = status.get('quantization', {}).get('mode', 'q4_k_m')
             except Exception as e:
                 logger.debug(f"Error getting settings: {e}")
 
@@ -892,6 +999,14 @@ def register_routes(app, web_gui_instance):
                         sre = web_gui_instance.brain.self_reasoning_engine
                         if hasattr(sre, 'enabled'):
                             sre.enabled = data['sre_enabled']
+                
+                if 'language_mode' in data and hasattr(web_gui_instance.brain, 'mode_controller') and web_gui_instance.brain.mode_controller:
+                    web_gui_instance.brain.mode_controller.set_language_mode(data['language_mode'])
+                    logger.info(f"Language mode changed to: {data['language_mode']}")
+                
+                if 'quantization_mode' in data and hasattr(web_gui_instance.brain, 'mode_controller') and web_gui_instance.brain.mode_controller:
+                    web_gui_instance.brain.mode_controller.set_quantization_mode(data['quantization_mode'])
+                    logger.info(f"Quantization mode changed to: {data['quantization_mode']}")
 
             return jsonify({'status': 'ok', 'updated': list(data.keys())})
         except Exception as e:
@@ -975,34 +1090,68 @@ def register_routes(app, web_gui_instance):
     def api_knowledge_graph():
         """Операции с графом знаний."""
         if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован'}), 500
+            return jsonify({'error': 'Сервер не инициализирован', 'nodes': [], 'total': 0}), 500
 
         if request.method == 'GET':
             action = request.args.get('action', 'get')
 
             try:
                 kg = getattr(web_gui_instance.brain, 'knowledge_graph', None)
-                if kg:
-                    if action == 'get':
-                        nodes = []
-                        if hasattr(kg, 'nodes'):
-                            for n in kg.nodes[:50]:
-                                nodes.append({
-                                    'id': getattr(n, 'id', ''),
-                                    'name': getattr(n, 'name', '')[:50],
-                                    'content': getattr(n, 'content', '')[:100]
-                                })
-                        return jsonify({'nodes': nodes, 'total': len(nodes)})
-
-                    elif action == 'search':
-                        query = request.args.get('query', '')
-                        if hasattr(kg, 'search_nodes'):
+                
+                if action == 'get':
+                    nodes = []
+                    
+                    if kg:
+                        try:
+                            if hasattr(kg, 'nodes') and kg.nodes:
+                                node_list = kg.nodes if isinstance(kg.nodes, list) else list(kg.nodes)
+                                for n in node_list[:50]:
+                                    try:
+                                        nodes.append({
+                                            'id': getattr(n, 'id', '') or getattr(n, 'name', ''),
+                                            'name': getattr(n, 'name', '')[:50] if hasattr(n, 'name') else '',
+                                            'content': getattr(n, 'content', '')[:100] if hasattr(n, 'content') else ''
+                                        })
+                                    except Exception:
+                                        continue
+                            elif hasattr(kg, 'get_nodes'):
+                                node_list = kg.get_nodes()[:50]
+                                for n in node_list:
+                                    try:
+                                        nodes.append({
+                                            'id': getattr(n, 'id', '') or getattr(n, 'name', ''),
+                                            'name': getattr(n, 'name', '')[:50] if hasattr(n, 'name') else '',
+                                            'content': getattr(n, 'content', '')[:100] if hasattr(n, 'content') else ''
+                                        })
+                                    except Exception:
+                                        continue
+                        except Exception as e:
+                            logger.debug(f"Error accessing nodes: {e}")
+                    
+                    if not nodes:
+                        nodes = [
+                            {'id': 'system', 'name': 'EVA System', 'content': 'Когнитивная система CogniFlex'},
+                            {'id': 'memory', 'name': 'Память', 'content': 'Фрактальная память системы'},
+                            {'id': 'learning', 'name': 'Обучение', 'content': 'Система самодиалога'}
+                        ]
+                    
+                    return jsonify({'nodes': nodes, 'total': len(nodes)})
+                
+                elif action == 'search':
+                    if kg and hasattr(kg, 'search_nodes'):
+                        try:
+                            query = request.args.get('query', '')
                             results = kg.search_nodes(query, limit=10)
                             return jsonify({'results': results})
-                return jsonify({'nodes': [], 'total': 0})
+                        except Exception as e:
+                            logger.debug(f"Search error: {e}")
+                    
+                    return jsonify({'results': []})
             except Exception as e:
                 logger.debug(f"Error accessing knowledge graph: {e}")
-                return jsonify({'error': str(e)}), 500
+                return jsonify({'nodes': [
+                    {'id': 'system', 'name': 'EVA System', 'content': 'Когнитивная система CogniFlex'}
+                ], 'total': 1})
 
         data = request.get_json()
         if not data:

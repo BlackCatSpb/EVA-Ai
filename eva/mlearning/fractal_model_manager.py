@@ -496,3 +496,65 @@ class FractalModelManager:
         return {
             "qwen2.5-0.5b_fractal": model_info
         }
+    
+    def unload(self) -> bool:
+        """Активная выгрузка всех моделей из памяти."""
+        try:
+            # Выгружаем GGUF модель
+            if self.llama_cpp_deployment is not None:
+                if hasattr(self.llama_cpp_deployment, 'unload'):
+                    self.llama_cpp_deployment.unload()
+                self.llama_cpp_deployment = None
+            self.llama_cpp_ready = False
+            
+            # Выгружаем PyTorch модель
+            if self.model is not None:
+                # Перемещаем на CPU перед удалением
+                if hasattr(self.model, 'cpu'):
+                    try:
+                        self.model.cpu()
+                    except Exception:
+                        pass
+                # Для мгновенного освобождения VRAM
+                if hasattr(self.model, 'to'):
+                    try:
+                        self.model.to('meta')
+                    except Exception:
+                        pass
+                del self.model
+                self.model = None
+            
+            if self.tokenizer is not None:
+                del self.tokenizer
+                self.tokenizer = None
+            
+            self.initialized = False
+            self.has_fractal_model = False
+            
+            # Очистка VRAM и RAM
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            
+            import gc
+            gc.collect()
+            
+            logger.info("FractalModelManager: все модели выгружены из памяти")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка выгрузки FractalModelManager: {e}")
+            return False
+    
+    def __del__(self):
+        """Деструктор — автоматическая выгрузка при удалении объекта."""
+        try:
+            if self.llama_cpp_deployment is not None:
+                if hasattr(self.llama_cpp_deployment, 'unload'):
+                    self.llama_cpp_deployment.unload()
+            if self.model is not None:
+                del self.model
+        except Exception:
+            pass

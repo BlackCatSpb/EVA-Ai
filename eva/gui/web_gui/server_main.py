@@ -219,6 +219,9 @@ class WebGUI:
         search_results = []
         web_search_info = None
 
+        # Извлекаем ethics и contradiction из brain result ДО обработки по источникам
+        brain_ethics = None
+        brain_contradiction = None
         if result and isinstance(result, dict):
             brain_reasoning = result.get('reasoning')
             brain_reasoning_raw = result.get('reasoning_raw')
@@ -230,8 +233,13 @@ class WebGUI:
                 reasoning_steps = result.get('reasoning_steps', [])
                 logger.debug(f"Got {len(reasoning_steps)} reasoning steps from result")
 
+            # Этическая оценка из brain
             if result.get('ethics_result') and not ethics_result:
                 ethics_result = result.get('ethics_result')
+            brain_ethics = ethics_result
+
+            # Противоречия из brain
+            brain_contradiction = result.get('contradiction_result')
 
             if search_results and len(search_results) > 0:
                 web_search_info = f"Найдено {len(search_results)} результатов:"
@@ -260,24 +268,22 @@ class WebGUI:
                     'confidence': 0.5
                 })
 
-                contr_result = result.get('contradiction_result')
+                # Противоречия
                 contr_count = 0
-                if contr_result:
-                    contr_count = contr_result.get('significant_count', 0)
-                    contr_conf = 1.0 - contr_result.get('contradiction_level', 0.0)
+                if brain_contradiction:
+                    contr_count = brain_contradiction.get('significant_count', 0)
+                    contr_conf = 1.0 - brain_contradiction.get('contradiction_level', 0.0)
                     reasoning_steps.append({
                         'step': 2,
                         'phase': 'contradiction_check',
-                        'thought': f'Проверка противоречий: {contr_count} найдено, уровень={contr_result.get("contradiction_level", 0):.2f}',
+                        'thought': f'Проверка противоречий: {contr_count} найдено, уровень={brain_contradiction.get("contradiction_level", 0):.2f}',
                         'confidence': contr_conf
                     })
 
-                if ethics_result is None:
-                    ethics_result = result.get('ethics_result')
-                has_violations = False
-                if ethics_result:
-                    has_violations = ethics_result.get('has_violations', False)
-                    ethics_conf = ethics_result.get('is_ethical', 1.0)
+                # Этика
+                if brain_ethics:
+                    has_violations = brain_ethics.get('has_violations', False)
+                    ethics_conf = brain_ethics.get('is_ethical', 1.0)
                     reasoning_steps.append({
                         'step': 3,
                         'phase': 'ethics_check',
@@ -299,7 +305,7 @@ class WebGUI:
                         'thought': 'Перегенерация с контекстом из веб-поиска',
                         'confidence': 0.9
                     })
-                elif contr_count > 0 or (ethics_result and has_violations):
+                elif contr_count > 0 or (brain_ethics and brain_ethics.get('has_violations', False)):
                     reasoning_steps.append({
                         'step': 4,
                         'phase': 'refinement',
@@ -319,7 +325,7 @@ class WebGUI:
                     for s in reasoning_steps
                 ])
 
-            if source == 'self_reasoning_engine':
+            elif source == 'self_reasoning_engine':
                 if result.get('reasoning_steps'):
                     reasoning_steps = result.get('reasoning_steps', [])
                     reasoning_text = "Рассуждения системы:\n\n"
@@ -350,6 +356,78 @@ class WebGUI:
                         reasoning_data = reasoning_text
                     elif brain_reasoning:
                         reasoning_data = str(brain_reasoning)
+                elif brain_reasoning:
+                    reasoning_data = str(brain_reasoning)
+
+            elif source == 'enhanced_reasoning_engine':
+                if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
+                    chain = brain_reasoning_raw.get('reasoning_chain', [])
+                    if chain:
+                        reasoning_text = "Регенерация ответа:\n\n"
+                        for i, iteration in enumerate(chain):
+                            resp_preview = iteration.get('response', '')[:80]
+                            conf = iteration.get('confidence', 0)
+                            has_contr = iteration.get('has_contradictions', False)
+                            has_ethics = iteration.get('has_ethics_issues', False)
+                            module_prompts = iteration.get('module_prompts', {})
+
+                            prompts_text = ""
+                            if module_prompts:
+                                prompts_text = "\nПромты модулей:"
+                                for mod, prompt in module_prompts.items():
+                                    prompts_text += f"\n  [{mod.upper()}]: {prompt[:100]}..."
+
+                            reasoning_steps.append({
+                                'step': i + 1,
+                                'phase': 'regeneration',
+                                'thought': resp_preview,
+                                'confidence': conf,
+                                'has_contradictions': has_contr,
+                                'has_ethics_issues': has_ethics,
+                                'module_prompts': prompts_text
+                            })
+                            reasoning_text += f"{i+1}. [regeneration] {resp_preview} (conf: {conf:.2f})\n"
+                            if has_contr:
+                                reasoning_text += f"   ⚠️ Противоречия обнаружены\n"
+                            if has_ethics:
+                                reasoning_text += f"   ⚠️ Этические проблемы обнаружены\n"
+                            if prompts_text:
+                                reasoning_text += prompts_text + "\n"
+                        reasoning_data = reasoning_text
+                    elif brain_reasoning:
+                        reasoning_data = str(brain_reasoning)
+                elif brain_reasoning:
+                    reasoning_data = str(brain_reasoning)
+
+            else:
+                if brain_reasoning:
+                    reasoning_data = str(brain_reasoning)
+
+            # Добавляем ethics и contradiction шаги для НЕ-llama_cpp источников
+            # (для llama_cpp_with_modules они уже добавлены внутри блока выше)
+            if source != 'llama_cpp_with_modules' and not (file_data and file_data.get('extracted_text')):
+                # Противоречия
+                if brain_contradiction:
+                    contr_count = brain_contradiction.get('significant_count', 0)
+                    contr_level = brain_contradiction.get('contradiction_level', 0.0)
+                    contr_conf = 1.0 - contr_level
+                    reasoning_steps.append({
+                        'step': len(reasoning_steps) + 1,
+                        'phase': 'contradiction_check',
+                        'thought': f'Проверка противоречий: найдено={contr_count}, уровень={contr_level:.2f}',
+                        'confidence': contr_conf
+                    })
+
+                # Этика
+                if brain_ethics:
+                    has_violations = brain_ethics.get('has_violations', False)
+                    ethics_conf = brain_ethics.get('is_ethical', brain_ethics.get('confidence', 1.0))
+                    reasoning_steps.append({
+                        'step': len(reasoning_steps) + 1,
+                        'phase': 'ethics_check',
+                        'thought': f'Этическая оценка: violations={has_violations}, score={ethics_conf:.2f}',
+                        'confidence': ethics_conf
+                    })
                 elif brain_reasoning:
                     reasoning_data = str(brain_reasoning)
 
@@ -416,29 +494,16 @@ class WebGUI:
                 self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_memory)
 
         self_dialog_result = None
-        if self.brain and hasattr(self.brain, 'self_dialog_learning') and self.brain.self_dialog_learning:
-            try:
-                self.brain.self_dialog_learning.create_dialog(
-                    topic=query[:100],
-                    context={
-                        "user_query": query,
-                        "system_response": response_text[:200] if response_text else "",
-                        "source": "web_gui_chat"
-                    }
-                )
-                logger.info(f"Запущен самодиалог для темы: {query[:50]}...")
-
-                if hasattr(self.brain.self_dialog_learning, 'get_recent_learning'):
-                    recent_dialogs = self.brain.self_dialog_learning.get_recent_learning(limit=1)
-                    if recent_dialogs:
-                        self_dialog_result = recent_dialogs[0]
-            except Exception as e:
-                logger.debug(f"Error triggering self-dialog: {e}")
+        # Самодиалог НЕ запускается при каждом запросе!
+        # Он запускается автоматически в brain_query.py когда система не знает ответа (обнаружены unknown_patterns)
+        # Во время генерации ответа — только рассуждения, самодиалог это фоновое обучение
 
         return_data = {
             'response': response_text,
             'status': 'ok',
             'warnings': ethics_result.get('warnings', []) if ethics_result else [],
+            'ethics_result': ethics_result,
+            'contradiction_metrics': brain_contradiction,
             'reasoning': reasoning_data,
             'reasoning_steps': reasoning_steps,
             'self_dialog': self_dialog_result,

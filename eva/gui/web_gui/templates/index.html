@@ -65,6 +65,10 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                     <span>Настройки</span>
                 </button>
+                <button class="nav-item" data-view="monitor">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span>Монитор</span>
+                </button>
             </div>
             <div class="sidebar-user">
                 <div class="status-indicator" id="systemStatus" title="Статус системы">
@@ -361,6 +365,26 @@
                             <label>Версия</label>
                             <span>1.0.0</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitor View -->
+            <div class="view" id="monitorView" style="display:none">
+                <div class="view-header">
+                    <h2>Монитор системы</h2>
+                    <button class="refresh-btn" id="clearMonitor">Очистить</button>
+                    <button class="refresh-btn" id="toggleStream">Стрим: Вкл</button>
+                </div>
+                <div class="monitor-container">
+                    <div class="monitor-tabs">
+                        <button class="monitor-tab active" data-tab="all">Все</button>
+                        <button class="monitor-tab" data-tab="selfdialog">Самодиалог</button>
+                        <button class="monitor-tab" data-tab="learning">Обучение</button>
+                        <button class="monitor-tab" data-tab="generation">Генерация</button>
+                    </div>
+                    <div class="monitor-output" id="monitorOutput">
+                        <div class="monitor-empty">Ожидание данных...</div>
                     </div>
                 </div>
             </div>

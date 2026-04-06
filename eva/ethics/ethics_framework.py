@@ -6,6 +6,7 @@ from .framework_core import EthicsFramework
 from .framework_principles import EthicalPrinciple, EthicsPrinciplesMixin
 from .framework_checks import EthicalDecision, EthicalAssessment, EthicsAnalysisResult, EthicsChecksMixin
 from .framework_violations import EthicsViolationsMixin
+from .situations_db import EthicalIssue
 
 __all__ = [
     'EthicsFramework',
@@ -13,6 +14,7 @@ __all__ = [
     'EthicalDecision',
     'EthicalAssessment',
     'EthicsAnalysisResult',
+    'EthicalIssue',
     'EthicsPrinciplesMixin',
     'EthicsChecksMixin',
     'EthicsViolationsMixin',

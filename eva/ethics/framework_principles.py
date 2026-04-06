@@ -15,6 +15,7 @@ class EthicalPrinciple:
     """Представляет этический принцип."""
     name: str
     description: str
+    phrase: str = ""
     weight: float = 1.0
     threshold: float = 0.8
     category: str = "general"
@@ -133,23 +134,61 @@ class EthicsPrinciplesMixin:
         self._init_default_principles()
 
     def _init_default_principles(self):
-        """Инициализирует принципы по умолчанию."""
+        """Инициализирует принципы по умолчанию (согласно brain_config.json)."""
         default_principles = {
-            "safety": EthicalPrinciple(
-                name="safety",
-                description="Обеспечение безопасности пользователей",
-                weight=1.0,
-                threshold=0.8,
+            "no_violence": EthicalPrinciple(
+                name="no_violence",
+                phrase="Без насилия",
+                description="Нет насилию, оружию, наркотикам, травле",
+                weight=1.5,
+                threshold=0.6,
                 category="safety",
                 priority=10
             ),
-            "privacy": EthicalPrinciple(
-                name="privacy",
-                description="Защита приватности данных",
-                weight=0.9,
+            "honesty": EthicalPrinciple(
+                name="honesty",
+                phrase="Честность",
+                description="Если не уверена — скажи, спроси",
+                weight=1.2,
                 threshold=0.7,
-                category="privacy",
+                category="integrity",
                 priority=9
+            ),
+            "fact_verification": EthicalPrinciple(
+                name="fact_verification",
+                phrase="Проверка фактов",
+                description="Проверяй факты, исправляй ошибки",
+                weight=1.2,
+                threshold=0.7,
+                category="accuracy",
+                priority=9
+            ),
+            "safe_code": EthicalPrinciple(
+                name="safe_code",
+                phrase="Безопасный код",
+                description="Нет вредоносному коду",
+                weight=1.5,
+                threshold=0.6,
+                category="security",
+                priority=10
+            ),
+            "risk_blocking": EthicalPrinciple(
+                name="risk_blocking",
+                phrase="Блокировка рисков",
+                description="Блокируй высокорисковые запросы",
+                weight=1.3,
+                threshold=0.65,
+                category="safety",
+                priority=10
+            ),
+            "output_control": EthicalPrinciple(
+                name="output_control",
+                phrase="Контроль вывода",
+                description="Проверяй ответ перед отправкой",
+                weight=1.0,
+                threshold=0.75,
+                category="quality",
+                priority=8
             )
         }
         self.principles.update(default_principles)

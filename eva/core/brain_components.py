@@ -10,6 +10,22 @@ logger = logging.getLogger("eva.core_brain")
 query_logger = logging.getLogger("eva.core_brain.query_processing")
 
 
+def _init_mode_controller(brain):
+    """Инициализация контроллера режимов модели (язык, квантование)."""
+    try:
+        from eva.mlearning.language_filter import ModelModeController
+        brain.mode_controller = ModelModeController(brain=brain)
+        
+        default_language = brain.config.get('model', {}).get('language_mode', 'russian_only')
+        brain.mode_controller.set_language_mode(default_language)
+        
+        brain.components['mode_controller'] = brain.mode_controller
+        logger.info(f"ModelModeController инициализирован (язык: {default_language})")
+    except Exception as e:
+        logger.warning(f"Не удалось инициализировать ModelModeController: {e}")
+        brain.mode_controller = None
+
+
 def _init_managers(brain):
     """Initialize all manager components on the brain instance."""
     try:
@@ -305,6 +321,22 @@ def _init_background(brain):
     except Exception as e:
         logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
         brain.background = None
+
+
+def _init_mode_controller(brain):
+    """Инициализация контроллера режимов модели (язык, квантование)."""
+    try:
+        from eva.mlearning.language_filter import ModelModeController
+        brain.mode_controller = ModelModeController(brain=brain)
+        
+        default_language = brain.config.get('model', {}).get('language_mode', 'russian_only')
+        brain.mode_controller.set_language_mode(default_language)
+        
+        brain.components['mode_controller'] = brain.mode_controller
+        logger.info(f"ModelModeController инициализирован (язык: {default_language})")
+    except Exception as e:
+        logger.warning(f"Не удалось инициализировать ModelModeController: {e}")
+        brain.mode_controller = None
 
 
 class ComponentMixin:

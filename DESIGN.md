@@ -1,8 +1,33 @@
 # EVA-Ai — Архитектура и Принципы Работы
 
-**Версия:** 2.2  
+**Версия:** 2.4  
 **Дата:** 2026-04-06  
 **Репозиторий:** https://github.com/BlackCatSpb/EVA-Ai
+
+---
+
+## 1. Quick Reference
+
+### 1.1 Основные точки входа
+
+| Файл | Назначение | Команда запуска |
+|------|------------|-----------------|
+| `start_webgui.py` | Запуск Web GUI | `python start_webgui.py` |
+| `eva/run.py` | Запуск Core (full) | `python -m eva` |
+| `wsgi.py` | Production (Gunicorn) | `gunicorn -c gunicorn_config.py wsgi:app` |
+
+### 1.2 Часто используемые компоненты
+
+| Компонент | Файл | Ключевые функции |
+|-----------|------|------------------|
+| Обработка запроса | `core/brain_query.py` | `process_query()`, `_execute_query_strategy()` |
+| EventBus | `core/event_bus.py` | `publish()`, `subscribe()`, `get_event_bus()` |
+| Deferred Commands | `core/deferred_command_system.py` | `submit()`, `get_status()` |
+| Память | `memory/unified_fractal_memory.py` | `store()`, `retrieve()`, `search()` |
+| Генерация | `core/pipeline_core.py` | `generate()`, `run_pipeline()` |
+| Генерация (кэш) | `core/unified_cache_bridge.py` | `prepare_for_generation()`, `cache_generation_result()` |
+| Web Routes | `gui/web_gui/server_routes.py` | 30+ endpoints |
+| Knowledge Graph | `knowledge/knowledge_graph.py` | `add_node()`, `search()`, `get_context()` |
 
 ---
 
@@ -245,8 +270,35 @@ start_generation() → update_progress() → complete() / fail() / timeout()
 |-----------|------|----------|
 | **UnifiedFractalMemory** | `memory/unified_fractal_memory.py` | Единая фрактальная память |
 | **GraphLearning** | `memory/graph_learning.py` | Обучение на графе |
-| **HybridTokenCache** | `memory/hybrid_token_cache.py` | Гибридный кэш токенов |
+| **HybridTokenCache** | `memory/hybrid_token_cache.py` | Гибридный кэш токенов (VRAM → RAM → SSD) |
 | **EmbeddingCache** | `memory/embedding_cache.py` | SQLite LRU кэш эмбеддингов |
+
+### 2.7.1 UnifiedCacheBridge — Объединённый кэш модели и графа знаний
+
+**Файл:** `core/unified_cache_bridge.py`
+
+Мост между HybridTokenCache (модель) и KnowledgeGraphCore (граф знаний). Предзагружает релевантные узлы графа в быстрый токен-кэш перед генерацией.
+
+**Архитектура:**
+```
+Query -> Semantic Match -> Graph Nodes -> Token Cache (VRAM/RAM) -> Generation
+```
+
+**Функции:**
+- **Семантический поиск** в графе знаний по ключевым словам запроса
+- **Предзагрузка** релевантных узлов графа в HybridTokenCache
+- **Обогащение промптов** контекстом из графа знаний
+- **Кэширование генерации** — мгновенные ответы на повторные запросы
+- **Статистика** — hit rate для графа, промптов и генерации
+
+**Результаты бенчмарка:**
+| Режим | Время | Примечание |
+|-------|-------|------------|
+| Baseline | 0.502s | Без кэша |
+| Graph Cache | 0.508s | +1% оверхед поиска |
+| Full Cached | ~0.000s | Мгновенный ответ из кэша |
+
+**Интеграция:** Автоматически инициализируется в `ResponseGenerator._init_components()` после HybridTokenCache. Подключается к `brain.knowledge_graph` и `brain.hybrid_cache`.
 
 ### 2.8 Машинное обучение (MLearning)
 
@@ -610,10 +662,7 @@ CogniFlex/
 │   ├── __init__.py
 │   ├── __main__.py                 # Точка входа (python -m eva)
 │   ├── run.py                      # Primary entry point (singleton, signal handling)
-│   ├── server.py                   # Re-exports из server_main
-│   ├── server_main.py              # Flask app, WebGUI class, SessionManager, AuthManager
-│   ├── server_routes.py            # Legacy API routes (sessions, chat, upload, feedback, status)
-│   ├── server_handlers.py          # Extended handlers (analytics, learning, settings, knowledge-graph)
+│   ├── server.py                   # Re-exports из gui.web_gui.server
 │   ├── nlp_fallbacks.py
 │   │
 │   ├── core/                       # CORE BRAIN MODULE
@@ -640,10 +689,7 @@ CogniFlex/
 │   │   ├── resource_manager.py     # System resource monitoring
 │   │   ├── contradiction_resolver.py
 │   │   ├── knowledge_rollback.py
-│   │   ├── query_processor.py
-│   │   ├── processor_pipeline.py
-│   │   ├── processor_core.py
-│   │   ├── processor_handlers.py
+│   │   ├── query_processor.py      # QueryProcessor (from processor_core.py)
 │   │   ├── reasoning_engine.py
 │   │   ├── self_learning_system.py
 │   │   ├── response_generator.py

@@ -285,6 +285,40 @@ class LlamaCppHotDeployment(HotDeploymentManager):
             "n_threads": self.n_threads,
             "speed_estimate": "~70 tok/s"
         }
+    
+    def unload(self) -> bool:
+        """Активная выгрузка GGUF модели из памяти."""
+        try:
+            if self.llama is not None:
+                del self.llama
+                self.llama = None
+            
+            self.ready = False
+            
+            import gc
+            gc.collect()
+            
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            
+            logger.info(f"LlamaCppHotDeployment [{self.purpose}] выгружен из памяти")
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка выгрузки LlamaCppHotDeployment: {e}")
+            return False
+    
+    def __del__(self):
+        """Деструктор — автоматическая выгрузка при удалении объекта."""
+        try:
+            if self.llama is not None:
+                del self.llama
+                self.llama = None
+        except Exception:
+            pass
 
 
 # ============================================================================
@@ -312,6 +346,17 @@ def get_llama_cpp_deployment(
             _llama_cpp_instance.initialize()
         
         return _llama_cpp_instance
+
+
+def unload_llama_cpp_deployment() -> bool:
+    """Выгружает глобальный экземпляр llama.cpp из памяти."""
+    global _llama_cpp_instance
+    with _init_lock:
+        if _llama_cpp_instance is not None:
+            result = _llama_cpp_instance.unload()
+            _llama_cpp_instance = None
+            return result
+        return False
 
 
 # ============================================================================

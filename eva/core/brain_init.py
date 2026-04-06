@@ -33,7 +33,7 @@ def _init_fractal_final(brain):
 def _init_gen_coord(brain):
     """Initialize generation coordinator."""
     try:
-        from .generation_coordinator import initialize_generation_coordinator
+        from eva.generation.generation_coordinator import initialize_generation_coordinator
         brain.generation_coordinator = initialize_generation_coordinator(brain)
         brain.components['generation_coordinator'] = brain.generation_coordinator
     except Exception as e:
@@ -158,7 +158,14 @@ def _start_components(brain) -> tuple:
 
 
 def _stop_components(brain):
-    """Stop all stoppable components."""
+    """Stop all stoppable components and unload models from memory."""
+    # Выгружаем все модели из памяти через MemoryManager
+    try:
+        if hasattr(brain, 'unload_all_models'):
+            brain.unload_all_models()
+    except Exception as e:
+        query_logger.warning(f"Ошибка выгрузки моделей: {e}")
+    
     try:
         if getattr(brain, 'background', None):
             brain.background.stop()

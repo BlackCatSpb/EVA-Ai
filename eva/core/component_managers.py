@@ -351,29 +351,6 @@ class StateManager:
         except Exception as e:
             self.logger.error(f"Ошибка получения состояния {component_name}: {e}")
             return None
-
-
-def get_security_manager() -> SecurityManager:
-    """
-    Создает и возвращает менеджер безопасности.
-
-    Returns:
-        SecurityManager: Экземпляр менеджера безопасности
-    """
-    return SecurityManager()
-
-
-def get_monitoring_manager() -> MonitoringManager:
-    """
-    Создает и возвращает менеджер мониторинга.
-
-    Returns:
-        MonitoringManager: Экземпляр менеджера мониторинга
-    """
-    return MonitoringManager()
-
-
-def get_recovery_manager() -> RecoveryManager:
     """
     Создает и возвращает менеджер восстановления.
 

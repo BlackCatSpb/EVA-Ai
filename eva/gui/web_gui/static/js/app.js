@@ -10,6 +10,11 @@
         return document.getElementById(selector.slice(1));
     }
 
+    /* ── $$ helper for multiple elements (like querySelectorAll) ── */
+    function $$(selector) {
+        return document.querySelectorAll(selector);
+    }
+
     /* ── State ── */
     let token = null;
     let userId = null;
@@ -333,7 +338,18 @@
             $('#settingsUser').textContent = d.user;
             $('#settingsSession').textContent = d.session_id || '—';
             renderSessions();
-            showWelcome();
+            
+            // Load chat history for active session after login
+            if (activeSessionId) {
+                loadSessionMessages(activeSessionId);
+            } else if (sessions.length > 0) {
+                // If no active session but have sessions, load the most recent one
+                activeSessionId = sessions[0].id;
+                loadSessionMessages(activeSessionId);
+            } else {
+                showWelcome();
+            }
+            
             loadSettings();
             loadInitialData();
             toast('Добро пожаловать', 'success');
@@ -495,13 +511,22 @@
             const d = await api(`/session/${id}`);
             const c = $('#chatMessages');
             c.innerHTML = '';
-            if (!d.context || d.context.length === 0) {
+            
+            // First try chat_history, then fall back to context
+            const chatHistory = d.chat_history || d.context || [];
+            
+            if (chatHistory.length === 0) {
                 showWelcome();
                 return;
             }
-            d.context.forEach(node => {
-                if (node.user_message) addMsg('user', node.user_message, node.entities);
-                if (node.assistant_message) addMsg('system', node.assistant_message);
+            
+            // chat_history has {role: 'user'/'assistant', content: '...'}
+            chatHistory.forEach(msg => {
+                if (msg.role === 'user' || msg.role === 'user_message') {
+                    addMsg('user', msg.content, msg.entities);
+                } else if (msg.role === 'assistant' || msg.role === 'assistant_message') {
+                    addMsg('system', msg.content);
+                }
             });
         } catch { /* ignore */ }
     }
@@ -945,6 +970,8 @@
             } else if (view === 'settings') {
                 loadSettings();
                 $('#settingsSession').textContent = activeSessionId || '—';
+            } else if (view === 'monitor') {
+                initMonitor();
             }
         });
     });
@@ -1860,5 +1887,176 @@
         msgDiv.remove();
         sendMessage(userText);
     }
+
+    /* ── Monitor ── */
+    let monitorStream = null;
+    let streamEnabled = true;
+    let currentMonitorTab = 'all';
+    
+    function initMonitor() {
+        const output = $('#monitorOutput');
+        if (!output) return;
+        
+        // Setup tab filtering
+        $$('.monitor-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                $$('.monitor-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentMonitorTab = tab.dataset.tab;
+                filterMonitorOutput();
+            });
+        });
+        
+        // Clear button
+        $('#clearMonitor')?.addEventListener('click', () => {
+            output.innerHTML = '<div class="monitor-empty">Ожидание данных...</div>';
+        });
+        
+        // Toggle stream
+        $('#toggleStream')?.addEventListener('click', () => {
+            streamEnabled = !streamEnabled;
+            $('#toggleStream').textContent = streamEnabled ? 'Стрим: Вкл' : 'Стрим: Выкл';
+            if (streamEnabled) {
+                connectMonitorStream();
+            } else {
+                if (monitorStream) {
+                    monitorStream.close();
+                    monitorStream = null;
+                }
+            }
+        });
+        
+        // Connect to event stream
+        connectMonitorStream();
+    }
+    
+    function connectMonitorStream() {
+        if (monitorStream) {
+            monitorStream.close();
+        }
+        
+        if (!streamEnabled) return;
+        
+        const output = $('#monitorOutput');
+        if (!output) return;
+        
+        const emptyEl = output.querySelector('.monitor-empty');
+        if (emptyEl) {
+            emptyEl.remove();
+        }
+        
+        try {
+            monitorStream = new EventSource('/api/events/stream');
+            
+            monitorStream.onmessage = (e) => {
+                try {
+                    const eventData = JSON.parse(e.data);
+                    addMonitorLine(eventData);
+                } catch (err) {
+                    addMonitorLine({
+                        event_type: 'raw',
+                        data: { message: e.data }
+                    });
+                }
+            };
+            
+            monitorStream.onerror = () => {
+                setTimeout(() => {
+                    if (streamEnabled) connectMonitorStream();
+                }, 5000);
+            };
+        } catch (e) {
+            console.error('SSE connection error:', e);
+        }
+    }
+    
+    function addMonitorLine(event) {
+        const output = $('#monitorOutput');
+        if (!output) return;
+        
+        const emptyEl = output.querySelector('.monitor-empty');
+        if (emptyEl) {
+            emptyEl.remove();
+        }
+        
+        const eventType = event.event_type || 'unknown';
+        let type = 'generation';
+        let message = '';
+        
+        if (eventType.includes('selfdialog') || eventType.includes('dialog')) {
+            type = 'selfdialog';
+            message = event.data?.message || event.data?.text || JSON.stringify(event.data);
+        } else if (eventType.includes('learning') || eventType.includes('train')) {
+            type = 'learning';
+            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
+        } else if (eventType.includes('generation') || eventType.includes('pipeline')) {
+            type = 'generation';
+            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
+        } else if (eventType.includes('error')) {
+            type = 'error';
+            message = event.data?.error || event.data?.message || JSON.stringify(event.data);
+        } else {
+            message = JSON.stringify(event.data || event);
+        }
+        
+        if (currentMonitorTab !== 'all' && type !== currentMonitorTab) {
+            return;
+        }
+        
+        const line = document.createElement('div');
+        line.className = `monitor-line ${type}`;
+        
+        const timestamp = new Date().toLocaleTimeString();
+        const typeTag = `<span class="type-tag ${type}">${type}</span>`;
+        
+        line.innerHTML = `<span class="timestamp">[${timestamp}]</span>${typeTag}${esc(message)}`;
+        
+        output.appendChild(line);
+        
+        // Auto scroll
+        output.scrollTop = output.scrollHeight;
+        
+        // Limit lines
+        while (output.children.length > 500) {
+            output.removeChild(output.firstChild);
+        }
+    }
+    
+    function filterMonitorOutput() {
+        const output = $('#monitorOutput');
+        if (!output) return;
+        
+        const lines = output.querySelectorAll('.monitor-line');
+        lines.forEach(line => {
+            if (currentMonitorTab === 'all') {
+                line.style.display = '';
+            } else {
+                line.style.display = line.classList.contains(currentMonitorTab) ? '' : 'none';
+            }
+        });
+    }
+    
+    // Also add polling fallback for learning events
+    function startMonitorPolling() {
+        setInterval(() => {
+            if (!streamEnabled || !document.getElementById('monitorView')?.style.display.includes('flex')) return;
+            
+            fetch('/api/learning')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.opportunities?.length > 0) {
+                        data.opportunities.forEach(op => {
+                            addMonitorLine({
+                                event_type: 'learning.opportunity',
+                                data: { message: ` opportunity: ${op.concept}`, priority: op.priority }
+                            });
+                        });
+                    }
+                })
+                .catch(() => {});
+        }, 10000);
+    }
+    
+    startMonitorPolling();
 
 })();

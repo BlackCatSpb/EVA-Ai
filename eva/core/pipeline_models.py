@@ -322,6 +322,28 @@ def _load_model_c(self) -> bool:
         return False
 
 
+def _unload_model_c(self) -> None:
+    """Выгрузка Model C из памяти после генерации."""
+    if self.model_c is not None:
+        try:
+            del self.model_c
+            self.model_c = None
+            
+            import gc
+            gc.collect()
+            
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
+            
+            logger.info("Model C выгружена из памяти")
+        except Exception as e:
+            logger.warning(f"Ошибка выгрузки Model C: {e}")
+
+
 def generate_with_model_c(
     self,
     query: str,

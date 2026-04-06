@@ -87,6 +87,16 @@
     "log_throttle_seconds": 30,
     "query_timeout": 30
   },
+  "ethics": {
+    "principles_short": [
+      {"id": 1, "phrase": "Без насилия", "description": "No violence, weapons, drugs, bullying"},
+      {"id": 2, "phrase": "Честность", "description": "If unsure - say so, ask for clarification"},
+      {"id": 3, "phrase": "Проверка фактов", "description": "Verify facts, correct mistakes"},
+      {"id": 4, "phrase": "Безопасный код", "description": "No harmful/destructive code"},
+      {"id": 5, "phrase": "Блокировка рисков", "description": "Block high-risk requests"},
+      {"id": 6, "phrase": "Контроль вывода", "description": "Check output before sending"}
+    ]
+  },
   "logging": {
     "level": "INFO",
     "file": "eva.log",

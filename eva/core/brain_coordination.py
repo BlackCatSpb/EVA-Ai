@@ -242,6 +242,9 @@ class CommandIssuerMixin:
             "adjust_pipeline_params": self._cmd_adjust_params,
             "flush_cache": self._cmd_flush_cache,
             "compact_memory": self._cmd_compact_memory,
+            "unload_models": self._cmd_unload_models,
+            "reload_models": self._cmd_reload_models,
+            "get_memory_usage": self._cmd_get_memory_usage,
             "trigger_learning": self._cmd_trigger_learning,
             "resolve_contradiction": self._cmd_resolve_contradiction,
             "recover_component": self._cmd_recover_component,
@@ -323,6 +326,46 @@ class CommandIssuerMixin:
             if hasattr(mm, "compact"):
                 mm.compact()
                 logger.info("Memory compacted")
+
+    def _cmd_unload_models(self, args):
+        """Выгрузить все модели из памяти."""
+        target = args.get("target", "all")
+        if target == "all":
+            if hasattr(self, "unload_all_models"):
+                results = self.unload_all_models()
+                logger.info(f"Модели выгружены: {results}")
+                if self.event_bus:
+                    self.event_bus.publish(_make_event("memory.models_unloaded", data={"results": results}))
+        elif target == "model_c":
+            if hasattr(self, "unload_model_c_only"):
+                self.unload_model_c_only()
+                logger.info("Model C выгружена")
+        elif target == "fractal":
+            if hasattr(self, "fractal_model_manager") and self.fractal_model_manager:
+                if hasattr(self.fractal_model_manager, "unload"):
+                    self.fractal_model_manager.unload()
+                    logger.info("FractalModelManager выгружен")
+        elif target == "llama_cpp":
+            if hasattr(self, "llama_cpp_deployment") and self.llama_cpp_deployment:
+                if hasattr(self.llama_cpp_deployment, "unload"):
+                    self.llama_cpp_deployment.unload()
+                    logger.info("LlamaCppHotDeployment выгружен")
+
+    def _cmd_reload_models(self, args):
+        """Перезагрузить все модели после выгрузки."""
+        if hasattr(self, "reload_models"):
+            results = self.reload_models()
+            logger.info(f"Модели перезагружены: {results}")
+            if self.event_bus:
+                self.event_bus.publish(_make_event("memory.models_reloaded", data={"results": results}))
+
+    def _cmd_get_memory_usage(self, args):
+        """Получить текущее потребление памяти."""
+        if hasattr(self, "get_memory_usage"):
+            usage = self.get_memory_usage()
+            logger.info(f"Потребление памяти: {usage}")
+            return usage
+        return {}
 
     def _cmd_trigger_learning(self, args):
         """Start a learning session."""

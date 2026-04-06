@@ -144,49 +144,61 @@ class PrinciplesManager:
             self._load_default_principles()
     
     def _load_default_principles(self):
-        """Загружает стандартные этические принципы."""
+        """Загружает стандартные этические принципы (согласно brain_config.json)."""
         default_principles = [
             EthicalPrinciple(
-                name="non_harm",
-                description="Не наносить вред людям и обществу",
-                weight=1.0,
-                threshold=0.85,
-                category="safety"
+                name="no_violence",
+                phrase="Без насилия",
+                description="Нет насилию, оружию, наркотикам, травле",
+                weight=1.5,
+                threshold=0.6,
+                category="safety",
+                priority=10
             ),
             EthicalPrinciple(
-                name="beneficence",
-                description="Принести пользу и улучшить благополучие",
-                weight=0.9,
-                threshold=0.8,
-                category="benefit"
-            ),
-            EthicalPrinciple(
-                name="autonomy",
-                description="Уважать автономию и свободу выбора людей",
-                weight=0.85,
-                threshold=0.75,
-                category="rights"
-            ),
-            EthicalPrinciple(
-                name="justice",
-                description="Обеспечивать справедливое распределение выгод и бремени",
-                weight=0.8,
+                name="honesty",
+                phrase="Честность",
+                description="Если не уверена — скажи, спроси",
+                weight=1.2,
                 threshold=0.7,
-                category="fairness"
+                category="integrity",
+                priority=9
             ),
             EthicalPrinciple(
-                name="transparency",
-                description="Быть прозрачным в действиях и решениях",
-                weight=0.75,
+                name="fact_verification",
+                phrase="Проверка фактов",
+                description="Проверяй факты, исправляй ошибки",
+                weight=1.2,
+                threshold=0.7,
+                category="accuracy",
+                priority=9
+            ),
+            EthicalPrinciple(
+                name="safe_code",
+                phrase="Безопасный код",
+                description="Нет вредоносному коду",
+                weight=1.5,
+                threshold=0.6,
+                category="security",
+                priority=10
+            ),
+            EthicalPrinciple(
+                name="risk_blocking",
+                phrase="Блокировка рисков",
+                description="Блокируй высокорисковые запросы",
+                weight=1.3,
                 threshold=0.65,
-                category="trust"
+                category="safety",
+                priority=10
             ),
             EthicalPrinciple(
-                name="accountability",
-                description="Брать ответственность за свои действия",
-                weight=0.95,
-                threshold=0.9,
-                category="responsibility"
+                name="output_control",
+                phrase="Контроль вывода",
+                description="Проверяй ответ перед отправкой",
+                weight=1.0,
+                threshold=0.75,
+                category="quality",
+                priority=8
             )
         ]
         
