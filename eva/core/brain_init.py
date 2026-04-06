@@ -42,10 +42,9 @@ def _init_gen_coord(brain):
 
 
 def _init_wikipedia(brain):
-    """Initialize Wikipedia KB if enabled."""
+    """Initialize Wikipedia KB if enabled (search only, no auto-learn)."""
     brain.wikipedia_kb = None
     brain.wikipedia_loader = None
-    brain._wikipedia_auto_learn_config = None
     wiki_config = brain.config.get('wikipedia', {})
     if wiki_config.get('enabled', False):
         try:
@@ -53,8 +52,6 @@ def _init_wikipedia(brain):
             from eva.knowledge.wikipedia_loader import get_wikipedia_loader
             brain.wikipedia_kb = get_wikipedia_kb()
             brain.wikipedia_loader = get_wikipedia_loader(brain.wikipedia_kb)
-            if wiki_config.get('auto_learn', False):
-                brain._wikipedia_auto_learn_config = wiki_config
         except (ImportError, RuntimeError, OSError) as e:
             query_logger.warning(f"Wikipedia KB не инициализирована: {e}")
 
@@ -78,17 +75,6 @@ def _start_post_init_services(brain):
             brain.self_dialog_learning.start()
         except Exception as e:
             query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
-
-    if hasattr(brain, '_wikipedia_auto_learn_config') and brain._wikipedia_auto_learn_config and brain.wikipedia_loader:
-        try:
-            wiki_cfg = brain._wikipedia_auto_learn_config
-            brain.wikipedia_loader.start_auto_learning(
-                categories=wiki_cfg.get('categories', ['Наука', 'Математика', 'Физика']),
-                articles_per_category=wiki_cfg.get('articles_per_category', 10),
-                interval_hours=wiki_cfg.get('interval_hours', 24),
-                include_random=wiki_cfg.get('random_per_cycle', 5))
-        except Exception as e:
-            query_logger.warning(f"Не удалось запустить автообучение Википедии: {e}")
 
     try:
         from eva.knowledge.graph_curator import GraphCurator

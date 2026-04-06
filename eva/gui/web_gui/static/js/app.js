@@ -1660,7 +1660,6 @@
             if (data.error) return;
             $('#wikiArticles').textContent = data.articles || 0;
             $('#wikiChunks').textContent = data.chunks || 0;
-            $('#wikiDbSize').textContent = data.db_size || '—';
         }).catch(() => {});
     }
 
@@ -1669,28 +1668,74 @@
             $('#wikiResults').innerHTML = '<div class="empty-state">Введите запрос для поиска</div>';
             return;
         }
-        api('/wikipedia', { params: { action: 'search', query: query.trim(), limit: 5 } }).then(data => {
+        const trimmed = query.trim();
+        if (trimmed.length < 3) {
+            $('#wikiResults').innerHTML = '<div class="empty-state">Запрос слишком короткий. Сформулируйте точнее.</div>';
+            return;
+        }
+        const words = trimmed.split(/\s+/);
+        if (words.length > 15) {
+            $('#wikiResults').innerHTML = '<div class="empty-state">Запрос слишком длинный. Максимум 15 слов.</div>';
+            return;
+        }
+        api('/wikipedia', {
+            method: 'POST',
+            body: { action: 'search', query: trimmed, limit: 5 }
+        }).then(data => {
+            if (data.quota_exhausted) {
+                $('#wikiResults').innerHTML = `<div class="empty-state" style="color:#f87171">${esc(data.error)}</div>`;
+                return;
+            }
             if (data.error) {
                 $('#wikiResults').innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
                 return;
             }
-            const results = data.results || [];
-            if (results.length === 0) {
+
+            const wikiResults = data.wikipedia_results || [];
+            const tavilyResults = data.tavily_results || [];
+            const quotaRemaining = data.quota_remaining ?? '—';
+
+            $('#wikiQuota').textContent = quotaRemaining;
+
+            if (wikiResults.length === 0 && tavilyResults.length === 0) {
                 $('#wikiResults').innerHTML = '<div class="empty-state">Ничего не найдено</div>';
                 return;
             }
-            $('#wikiResults').innerHTML = results.map(r => {
-                const score = r.similarity !== undefined ? (r.similarity * 100).toFixed(1) + '%' : '—';
-                const text = r.text || r.content || '';
-                const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
-                return `
-                    <div class="wiki-result-item">
-                        <div class="wiki-result-title">${esc(r.title || r.article || 'Без названия')}</div>
-                        <div class="wiki-result-score">Сходство: ${score}</div>
-                        <div class="wiki-result-text">${esc(truncated)}</div>
-                    </div>
-                `;
-            }).join('');
+
+            let html = '';
+
+            if (tavilyResults.length > 0) {
+                html += '<div class="wiki-source-label">Веб-поиск (Tavily)</div>';
+                html += tavilyResults.map(r => {
+                    const text = r.text || r.content || '';
+                    const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
+                    return `
+                        <div class="wiki-result-item wiki-result-tavily">
+                            <div class="wiki-result-title">${esc(r.title || 'Без названия')}</div>
+                            ${r.url ? `<a class="wiki-result-url" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url.substring(0, 60))}…</a>` : ''}
+                            <div class="wiki-result-text">${esc(truncated)}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            if (wikiResults.length > 0) {
+                html += '<div class="wiki-source-label">Локальная база Wikipedia</div>';
+                html += wikiResults.map(r => {
+                    const score = r.similarity !== undefined ? (r.similarity * 100).toFixed(1) + '%' : '—';
+                    const text = r.text || r.content || '';
+                    const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
+                    return `
+                        <div class="wiki-result-item wiki-result-local">
+                            <div class="wiki-result-title">${esc(r.title || r.article || 'Без названия')}</div>
+                            <div class="wiki-result-score">Сходство: ${score}</div>
+                            <div class="wiki-result-text">${esc(truncated)}</div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            $('#wikiResults').innerHTML = html;
         }).catch(() => {
             $('#wikiResults').innerHTML = '<div class="empty-state">Ошибка поиска</div>';
         });
@@ -1707,66 +1752,6 @@
     });
 
     $('#refreshWikipedia')?.addEventListener('click', loadWikipedia);
-
-    $('#wikiLoadTopic')?.addEventListener('click', () => {
-        const topic = prompt('Введите название темы:');
-        if (!topic || !topic.trim()) return;
-        api('/wikipedia', {
-            method: 'POST',
-            body: { action: 'load_topic', topic: topic.trim(), limit: 10 }
-        }).then(data => {
-            if (data.error) {
-                toast('Ошибка загрузки темы: ' + data.error, 'error');
-                return;
-            }
-            toast(`Тема "${topic.trim()}" загружена`, 'success');
-            loadWikipedia();
-        }).catch(() => {
-            toast('Ошибка загрузки темы', 'error');
-        });
-    });
-
-    $('#wikiLoadCategory')?.addEventListener('click', () => {
-        const category = prompt('Введите категорию:');
-        if (!category || !category.trim()) return;
-        api('/wikipedia', {
-            method: 'POST',
-            body: { action: 'load_category', category: category.trim(), limit: 20 }
-        }).then(data => {
-            if (data.error) {
-                toast('Ошибка загрузки категории: ' + data.error, 'error');
-                return;
-            }
-            toast(`Категория "${category.trim()}" загружена`, 'success');
-            loadWikipedia();
-        }).catch(() => {
-            toast('Ошибка загрузки категории', 'error');
-        });
-    });
-
-    $('#wikiAutoLearnStart')?.addEventListener('click', () => {
-        api('/wikipedia/auto-learn/start', { method: 'POST' }).then(data => {
-            if (data.error) {
-                toast('Ошибка запуска авто-обучения: ' + data.error, 'error');
-                return;
-            }
-            toast('Авто-обучение запущено', 'success');
-        }).catch(() => {
-            toast('Ошибка запуска авто-обучения', 'error');
-        });
-    });
-
-    $('#wikiAutoLearnStop')?.addEventListener('click', () => {
-        api('/wikipedia/auto-learn/stop', { method: 'POST' }).then(data => {
-            if (data.error) {
-                toast('Ошибка остановки авто-обучения: ' + data.error, 'error');
-                return;
-            }
-            toast('Авто-обучение остановлено', 'success');
-        }).catch(() => {
-            toast('Ошибка остановки авто-обучения', 'error');
-        });
-    });
 
     /* ─── Health Panel ─── */
     function loadHealth() {
