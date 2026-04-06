@@ -99,13 +99,14 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         self._model_load_lock = threading.Lock()
 
         try:
-            from .deferred_command_system import DeferredCommandSystem, CommandPriority
+            from .deferred_command_system import DeferredCommandSystem, CommandPriority, set_event_bus
             self.deferred_system = DeferredCommandSystem(self, max_workers=6)
+            # Устанавливаем EventBus для публикации событий команд
+            if hasattr(self, '_new_event_bus') and self._new_event_bus:
+                set_event_bus(self._new_event_bus)
             self._register_deferred_system_handlers()
         except ImportError:
             self.deferred_system = None
-
-        ProcessTrackerMixin.__init__(self)
 
         self.cache_dir = os.path.join(os.path.dirname(__file__), "eva_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -150,6 +151,9 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             self._update_state(SystemState.INITIALIZING, "Инициализация компонентов")
             if self.resource_manager:
                 self.resource_manager.start_monitoring()
+                # Активируем load shedding мост
+                if self.deferred_system and self.event_bus:
+                    self.deferred_system.create_bridge(self.event_bus, self.resource_manager)
             if self.metrics_manager:
                 self.metrics_manager.start_tracking()
             try:

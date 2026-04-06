@@ -71,6 +71,23 @@ def _init_managers(brain):
         brain.memory_graph_ml = None
 
     try:
+        from .feedback_processor import FeedbackProcessor
+        graph_learning = None
+        if hasattr(brain, 'fractal_memory') and brain.fractal_memory:
+            graph_learning = brain.fractal_memory
+        elif hasattr(brain, 'memory') and brain.memory:
+            graph_learning = brain.memory
+        
+        brain.feedback_processor = FeedbackProcessor(
+            graph_learning=graph_learning,
+            event_bus=getattr(brain, 'event_bus', None)
+        )
+        query_logger.info("FeedbackProcessor initialized")
+    except ImportError as e:
+        query_logger.warning(f"FeedbackProcessor недоступен: {e}")
+        brain.feedback_processor = None
+
+    try:
         from eva.learning.self_dialog_learning import SelfDialogLearningSystem
         if SelfDialogLearningSystem:
             brain.self_dialog_learning = SelfDialogLearningSystem(brain=brain, config=brain.config.get('self_dialog_learning', {}))
@@ -213,6 +230,8 @@ def _init_two_model_pipeline(brain):
         event_bus = getattr(brain, '_new_event_bus', None) or (brain.events.event_bus if getattr(brain, 'events', None) else None)
         if event_bus:
             pipeline_kwargs['event_bus'] = event_bus
+        if brain.resource_manager:
+            pipeline_kwargs['resource_manager'] = brain.resource_manager
         from eva.core.recursive_model_pipeline import RecursiveModelPipeline
         brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
         brain.two_model_pipeline.load_models()

@@ -59,7 +59,61 @@ class EventBusBridge:
         self._new_publish_original = None
         self._patched = False
         
+        self._setup_bridges()
         logger.info("EventBusBridge инициализирован")
+    
+    def _setup_bridges(self):
+        """Настроить двустороннюю связь"""
+        self._bridge_old_to_new()
+        self._bridge_new_to_old()
+    
+    def _bridge_old_to_new(self):
+        """Перенаправление событий из old EventSystem в EventBus"""
+        events_to_bridge = [
+            'ethical_check_request',
+            'pipeline.start',
+            'pipeline.complete',
+            'learning.started',
+            'memory.updated'
+        ]
+        
+        for event_type in events_to_bridge:
+            self._register_bridge(event_type)
+    
+    def _bridge_new_to_old(self):
+        """Перенаправление событий из EventBus в old EventSystem"""
+        new_events = [
+            'pipeline.start',
+            'pipeline.complete', 
+            'pipeline.failed',
+            'command.completed',
+            'command.failed'
+        ]
+        
+        for event_type in new_events:
+            self.new_bus.subscribe(event_type, self._on_new_event)
+    
+    def _on_new_event(self, event=None):
+        """Обработка нового события для old системы"""
+        if event is None:
+            logger.warning("EventBusBridge._on_new_event received None event")
+            return
+        if self.old_system:
+            old_event = self._convert_to_old_format(event)
+            self.old_system.trigger(old_event['type'], old_event['data'])
+    
+    def _convert_to_old_format(self, event) -> Dict:
+        """Конвертация события в формат old EventSystem"""
+        return {
+            'type': event.event_type,
+            'source': event.source,
+            'data': event.data,
+            'timestamp': event.timestamp
+        }
+    
+    def _register_bridge(self, event_type: str):
+        """Регистрация моста для события"""
+        pass
     
     def link(self):
         """Связывает старую и новую шины событий."""

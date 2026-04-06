@@ -412,6 +412,9 @@ class WebGUI:
             }
             self.session_manager.add_context_node(session_id, response_node)
 
+            if self.brain and hasattr(self.brain, 'fractal_memory') and self.brain.fractal_memory:
+                self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_memory)
+
         self_dialog_result = None
         if self.brain and hasattr(self.brain, 'self_dialog_learning') and self.brain.self_dialog_learning:
             try:

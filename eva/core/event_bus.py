@@ -76,6 +76,10 @@ class EventTypes:
     KNOWLEDGE_ADDED = "knowledge.added"
     KNOWLEDGE_DELETED = "knowledge.deleted"
     
+    # Feedback
+    FEEDBACK_PROCESSED = "feedback.processed"
+    FEEDBACK_RECEIVED = "feedback.received"
+    
     # Веб-поиск
     WEB_SEARCH_STARTED = "web.search.started"
     WEB_SEARCH_COMPLETED = "web.search.completed"
@@ -105,6 +109,9 @@ class EventTypes:
     PIPELINE_REFINEMENT_ATTEMPT = "pipeline.refinement.attempt"
     PIPELINE_COMPLETE = "pipeline.complete"
     PIPELINE_FAILED = "pipeline.failed"
+    
+    COMMAND_COMPLETED = "command.completed"
+    COMMAND_FAILED = "command.failed"
 
 class EventBus:
     """Центральная шина событий ЕВА"""
@@ -293,8 +300,6 @@ class EventBus:
             logger.error("Ошибка синхронной публикации события {}: {}".format(event.event_type, e))
             import traceback
             logger.error("  Traceback: {}".format(traceback.format_exc()))
-            return 0
-            logger.error("Ошибка синхронной публикации события {}: {}".format(event.event_type, e))
             return 0
     
     def _process_event(self, event: Event) -> int:

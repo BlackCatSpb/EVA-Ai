@@ -153,5 +153,11 @@
     "admin_password": null,
     "session_timeout_hours": 24,
     "max_sessions": 200
+  },
+  "tavily_api_key": "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",
+  "api": {
+    "version": "1.0.0",
+    "prefix": "/api/v1",
+    "min_compatible_version": "1.0.0"
   }
 }

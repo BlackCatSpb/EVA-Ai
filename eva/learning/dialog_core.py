@@ -11,6 +11,7 @@ from eva.learning.dialog_types import DialogRole, DialogTurn, LearningType, Self
 from eva.learning.dialog_topics import DialogTopicsMixin
 from eva.learning.dialog_generation import DialogGenerationMixin
 from eva.learning.dialog_learning import DialogLearningMixin
+from eva.learning.interest_scorer import InterestScorer
 
 logger = logging.getLogger("eva.self_dialog_learning")
 
@@ -29,13 +30,6 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
     """
 
     def __init__(self, brain=None, config: Optional[Dict[str, Any]] = None):
-        """
-        Инициализирует систему самообучения.
-
-        Args:
-            brain: Ссылка на ядро ЕВА
-            config: Конфигурация системы
-        """
         self.brain = brain
         self.config = config or {}
 
@@ -74,6 +68,7 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
             "opportunities_found": 0
         }
 
+        self.interest_scorer = InterestScorer()
         logger.info("SelfDialogLearningSystem инициализирована")
 
     def start(self):
@@ -295,6 +290,30 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                     "feedback": feedback
                 }
             )
+
+    def check_and_create_dialog(self, query: str, query_embedding: List[float] = None) -> bool:
+        """
+        Проверить интересность запроса и создать самодиалог если нужно.
+        
+        Args:
+            query: Запрос пользователя
+            query_embedding: Эмбеддинг запроса (опционально)
+            
+        Returns:
+            True если создан самодиалог, False иначе
+        """
+        if self.interest_scorer.is_interesting(query):
+            logger.info(f"Запрос признан интересным: {query[:50]}...")
+            self.create_dialog(
+                topic=f"Обучение на интересный запрос: {query[:50]}",
+                context={
+                    "user_query": query,
+                    "query_embedding": query_embedding,
+                    "trigger": "interest_scorer"
+                }
+            )
+            return True
+        return False
 
     def register_learning_callback(self, callback: Callable):
         """Регистрирует callback для завершения обучения."""

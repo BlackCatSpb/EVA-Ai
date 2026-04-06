@@ -11,7 +11,7 @@ import time
 import logging
 from typing import Dict, Any, Optional
 
-from .event_bus import Event
+from .event_bus import Event, EventTypes, EventPriority
 from .deferred_command_system import CommandPriority
 
 logger = logging.getLogger("eva.core.brain_coordination")
@@ -122,13 +122,53 @@ class EventSubscriptionMixin:
         """React to pipeline failure - trigger fallback and track metrics."""
         data = event.data if hasattr(event, 'data') else {}
         error = data.get("error", "unknown")
+        query_id = data.get("query_id", "unknown")
+        
         logger.warning(f"Pipeline failed: {error}, triggering fallback")
-
+        
         self._process_metrics["total_queries"] += 1
         self._process_metrics["failed_queries"] += 1
+        
+        # Get current retry count from event data
+        retry_count = data.get("retry_count", 0)
+        max_retries = 3
+        
+        if retry_count < max_retries:
+            # Calculate exponential backoff: 2^retry_count seconds (2s, 4s, 8s)
+            retry_delay = 2.0 ** retry_count
+            
+            logger.info(f"Scheduling retry {retry_count + 1}/{max_retries} for query {query_id} with delay {retry_delay}s")
+            
+            # Add retry command to DeferredCommandSystem with CRITICAL priority
+            cmd_id = f"retry_pipeline_{query_id}_{int(time.time())}"
+            
+            if self.deferred_system:
+                self.deferred_system.add_command(
+                    command=self._cmd_retry_pipeline,
+                    args=({"query_id": query_id, "retry_count": retry_count, "error": error},),
+                    priority=CommandPriority.CRITICAL,
+                    max_retries=0,  # Don't retry the retry command itself
+                    retry_delay=retry_delay,
+                    command_id=cmd_id,
+                )
+        else:
+            logger.error(f"Max retries ({max_retries}) reached for query {query_id}, giving up")
 
-        if "model" in error.lower() or "load" in error.lower():
-            self._issue_command("reload_pipeline", {}, priority=1)
+    def _cmd_retry_pipeline(self, args):
+        """Retry a failed pipeline."""
+        query_id = args.get("query_id")
+        retry_count = args.get("retry_count", 0)
+        
+        logger.info(f"Executing retry for query {query_id} (attempt {retry_count + 1})")
+        
+        # Republish the pipeline.start event with retry count
+        if self.event_bus:
+            self.event_bus.publish(Event(
+                event_type=EventTypes.PIPELINE_START,
+                source="retry_system",
+                data={"query_id": query_id, "retry_count": retry_count + 1},
+                priority=EventPriority.HIGH
+            ))
 
     def _on_component_error(self, event):
         """React to component error - attempt recovery."""
@@ -210,6 +250,14 @@ class CommandIssuerMixin:
             "rebuild_knowledge": self._cmd_rebuild_knowledge,
             "initiate_search": self._cmd_initiate_search,
             "publish_alert": self._cmd_publish_alert,
+            "set_timeout_limit": self._cmd_set_timeout_limit,
+            "force_model_fallback": self._cmd_force_model_fallback,
+            "reset_generation_attempts": self._cmd_reset_generation_attempts,
+            "set_max_retries": self._cmd_set_max_retries,
+            "get_system_status": self._cmd_get_system_status,
+            "restart_component": self._cmd_restart_component,
+            "update_event_subscription": self._cmd_update_event_subscription,
+            "set_log_level": self._cmd_set_log_level,
         }
 
         handler = handlers.get(command_type)
@@ -359,6 +407,109 @@ class CommandIssuerMixin:
         if self.event_bus:
             self.event_bus.publish(_make_event(event_type, data=data))
             logger.info(f"Alert published: {event_type}")
+
+    # === Дополнительные команды управления системой ===
+
+    def _cmd_set_timeout_limit(self, args):
+        """Установить лимит ожидания генерации (в секундах). 0 = бесконечно."""
+        limit = args.get("limit", 0)
+        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
+            pipeline = self.two_model_pipeline
+            if hasattr(pipeline, "set_timeout_limit"):
+                pipeline.set_timeout_limit(limit)
+                logger.info(f"Timeout limit set to {limit}s")
+
+    def _cmd_force_model_fallback(self, args):
+        """Принудительно использовать fallback модель при генерации."""
+        model = args.get("model", "b")  # "b" = Model B
+        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
+            pipeline = self.two_model_pipeline
+            if hasattr(pipeline, "force_fallback"):
+                pipeline.force_fallback(model)
+                logger.info(f"Force fallback to Model {model.upper()}")
+
+    def _cmd_reset_generation_attempts(self, args):
+        """Сбросить счётчик попыток генерации."""
+        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
+            pipeline = self.two_model_pipeline
+            if hasattr(pipeline, "model_a_params"):
+                pipeline.model_a_params.reset()
+            if hasattr(pipeline, "model_b_params"):
+                pipeline.model_b_params.reset()
+            logger.info("Generation attempt counters reset")
+
+    def _cmd_set_max_retries(self, args):
+        """Установить максимальное количество попыток генерации."""
+        max_retries = args.get("max_retries", 3)
+        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
+            pipeline = self.two_model_pipeline
+            if hasattr(pipeline, "max_retries"):
+                pipeline.max_retries = max_retries
+                logger.info(f"Max retries set to {max_retries}")
+
+    def _cmd_get_system_status(self, args):
+        """Получить полный статус системы."""
+        status = {
+            "pipeline_ready": getattr(self, "two_model_pipeline_ready", False),
+            "memory_loaded": hasattr(self, "fractal_memory") and self.fractal_memory is not None,
+            "event_bus_active": self.event_bus is not None,
+            "deferred_active": hasattr(self, "deferred_system") and self.deferred_system is not None,
+        }
+        if hasattr(self, "resource_manager"):
+            rm = self.resource_manager
+            status["resources"] = {
+                "cpu_usage": rm.get_cpu_usage() if hasattr(rm, "get_cpu_usage") else 0,
+                "ram_usage": rm.get_memory_usage() if hasattr(rm, "get_memory_usage") else 0,
+            }
+        logger.info(f"System status: {status}")
+        return status
+
+    def _cmd_restart_component(self, args):
+        """Перезапустить указанный компонент."""
+        component = args.get("component", "")
+        if hasattr(self, component):
+            comp = getattr(self, component)
+            if hasattr(comp, "stop"):
+                try:
+                    comp.stop()
+                    logger.info(f"Component {component} stopped")
+                except Exception as e:
+                    logger.warning(f"Error stopping {component}: {e}")
+            if hasattr(comp, "start"):
+                try:
+                    comp.start()
+                    logger.info(f"Component {component} started")
+                except Exception as e:
+                    logger.warning(f"Error starting {component}: {e}")
+
+    def _cmd_update_event_subscription(self, args):
+        """Обновить подписку на событие (добавить/удалить обработчик)."""
+        action = args.get("action", "add")  # "add" или "remove"
+        event_type = args.get("event_type", "")
+        handler_name = args.get("handler", "")
+        
+        if self.event_bus and event_type:
+            if action == "add" and hasattr(self, handler_name):
+                handler = getattr(self, handler_name)
+                self.event_bus.subscribe(event_type, handler)
+                logger.info(f"Subscribed {handler_name} to {event_type}")
+            elif action == "remove" and handler_name:
+                if hasattr(self, handler_name):
+                    handler = getattr(self, handler_name)
+                    self.event_bus.unsubscribe(event_type, handler)
+                    logger.info(f"Unsubscribed {handler_name} from {event_type}")
+
+    def _cmd_set_log_level(self, args):
+        """Установить уровень логирования для компонента."""
+        component = args.get("component", "")
+        level = args.get("level", "INFO")  # DEBUG, INFO, WARNING, ERROR
+        
+        import logging
+        log_level = getattr(logging, level.upper(), logging.INFO)
+        
+        logger_obj = logging.getLogger(f"eva.{component}")
+        logger_obj.setLevel(log_level)
+        logger.info(f"Log level for {component} set to {level}")
 
 
 class ProcessTrackerMixin:

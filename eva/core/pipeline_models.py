@@ -102,13 +102,25 @@ def generate_with_model_a(
         ]
         
         start_time = time.time()
-        output = self._generate_with_timeout(self.model_a, messages, params, timeout=60)
+        
+        # Без hard timeout - ждём бесконечно, но с итеративным контролем
+        # Контроль осуществляется через CoreBrain через DeferredCommandSystem
+        output = self._generate_with_timeout(self.model_a, messages, params, timeout=None)
         elapsed = time.time() - start_time
         
         if output is None:
-            logger.warning(f"Model A: попытка {attempt+1} прервана по таймауту ({elapsed:.1f}с)")
-            self.model_a_params.record_failure(attempt + 1, ['Таймаут генерации'], params, '')
-            continue
+            # Таймаут = генерация идёт, но медленно - NOT критическая ошибка
+            # Это не "ошибка генерации", а "ещё генерируется"
+            logger.warning(f"Model A: генерация продолжается ({elapsed:.1f}с), ожидаем завершения")
+            # Возвращаем признак того, что генерация идёт
+            return {
+                'raw_response': '',
+                'natural_response': '',
+                'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Генерация в процессе']},
+                'tokens': 0,
+                'status': 'generating',  # Ключевой признак - идёт генерация!
+                'elapsed': elapsed
+            }
         
         logger.info(f"Model A generation time: {elapsed:.1f}с")
         
@@ -336,10 +348,21 @@ def generate_with_model_c(
             'repeat_penalty': self.MODEL_C_REPEAT_PENALTY + (attempt * 0.1),
             'stop': self.STOP_TOKENS
         }
-        output = self._generate_with_timeout(self.model_c, messages, params, timeout=60)
+        
+        # Model C - кодогенерация, тоже без hard timeout
+        output = self._generate_with_timeout(self.model_c, messages, params, timeout=None)
+        
         if output is None:
-            logger.warning(f"Model C: timeout on attempt {attempt+1}")
-            continue
+            # Генерация продолжается - NOT ошибка
+            logger.warning(f"Model C: генерация продолжается (attempt {attempt+1})")
+            return {
+                'raw_response': '',
+                'natural_response': '',
+                'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Генерация в процессе']},
+                'model': 'Model C (Coder)',
+                'tokens': 0,
+                'status': 'generating'
+            }
         
         raw_response = output['choices'][0]['message']['content'].strip()
         quality = self.check_quality(raw_response)

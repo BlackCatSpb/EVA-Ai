@@ -497,17 +497,43 @@ class EventSystem:
     Предоставляет унифицированный интерфейс для работы с событиями в ЕВА.
     """
     
-    def __init__(self, timeline_maxlen: int = 1000, enable_timeline: bool = True):
+    def __init__(self, event_bus=None, timeline_maxlen: int = 1000, enable_timeline: bool = True):
         """
         Инициализирует событийную систему.
         
         Args:
+            event_bus: Внешний EventBus (опционально)
             timeline_maxlen: Максимальное количество записей в таймлайне
             enable_timeline: Включить/выключить таймлайн событий
         """
-        self.event_bus = EventBus(timeline_maxlen=timeline_maxlen, enable_timeline=enable_timeline)
+        self.external_event_bus = event_bus
+        self.event_bus = event_bus if event_bus else EventBus(timeline_maxlen=timeline_maxlen, enable_timeline=enable_timeline)
         self.component_manager = ComponentInitializationManager(self.event_bus)
+        self._compatibility_mode = True
         self._logger = logging.getLogger("eva.event_system")
+        
+        if event_bus:
+            from .event_bus_bridge import EventBusBridge
+            self.bridge = EventBusBridge(self, event_bus)
+    
+    def publish(self, event: Dict):
+        """Публикация события - в EventBus если доступен"""
+        if self.external_event_bus and self._compatibility_mode:
+            from .event_bus import Event, EventPriority
+            new_event = Event(
+                event_type=event.get('type', ''),
+                source=event.get('source', 'event_system'),
+                data=event.get('data', {}),
+                timestamp=event.get('timestamp', time.time()),
+                priority=EventPriority.NORMAL
+            )
+            self.external_event_bus.publish(new_event)
+        else:
+            self._old_publish(event)
+    
+    def _old_publish(self, event: Dict):
+        """Старая логика публикации через trigger"""
+        self.event_bus.trigger(event.get('type', ''), event.get('data', {}))
     
     def subscribe(self, event_name: str, callback: Callable, priority: int = 5):
         """Подписывается на событие."""

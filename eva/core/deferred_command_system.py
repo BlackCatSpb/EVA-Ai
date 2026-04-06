@@ -14,6 +14,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger("eva.deferred_commands")
 
+# Глобальный EventBus для публикации событий команд
+_global_event_bus = None
+
+def set_event_bus(event_bus):
+    """Устанавливает глобальный EventBus для DeferredCommandSystem."""
+    global _global_event_bus
+    _global_event_bus = event_bus
+
+def get_event_bus():
+    """Получает глобальный EventBus."""
+    return _global_event_bus
+
 class CommandPriority(Enum):
     """Приоритеты команд."""
     CRITICAL = 0
@@ -278,6 +290,8 @@ class DeferredCommandSystem:
             execution_time = time.time() - start_time
             self._update_stats(execution_time, success=True)
             
+            self._publish_command_event("command.completed", cmd)
+            
             logger.debug(f"Команда {cmd.id} выполнена успешно за {execution_time:.3f}с")
             
         except Exception as e:
@@ -306,6 +320,7 @@ class DeferredCommandSystem:
                     cmd.status = CommandStatus.FAILED
                     logger.error(f"Команда {cmd.id} окончательно неудачна после {cmd.attempts} попыток: {error_msg}")
                     self._update_stats(execution_time, success=False)
+                    self._publish_command_event("command.failed", cmd)
     
     def _schedule_retry(self, cmd: DeferredCommand):
         """Планирует повторное выполнение команды."""
@@ -374,6 +389,117 @@ class DeferredCommandSystem:
             if total_completed > 0:
                 current_avg = self.stats["avg_execution_time"]
                 self.stats["avg_execution_time"] = (current_avg * (total_completed - 1) + execution_time) / total_completed
+    
+    def _publish_command_event(self, event_type: str, cmd: DeferredCommand):
+        """Публикует событие при выполнении команды."""
+        global _global_event_bus
+        if _global_event_bus is None:
+            return
+        
+        try:
+            from .event_bus import Event, EventPriority
+            event = Event(
+                event_type=event_type,
+                source="deferred_command_system",
+                data={
+                    "command_id": cmd.id,
+                    "status": cmd.status.value,
+                    "result": cmd.result,
+                    "error": cmd.last_error,
+                    "attempts": cmd.attempts,
+                    "execution_time": time.time() - cmd.created_at
+                },
+                priority=EventPriority.NORMAL
+            )
+            _global_event_bus.publish(event)
+        except Exception as e:
+            logger.debug(f"Не удалось опубликовать событие команды: {e}")
+    
+    def create_bridge(self, event_bus, resource_manager):
+        """Создает мост EventBus ↔ DeferredCommandSystem с load shedding."""
+        global _global_event_bus
+        _global_event_bus = event_bus
+        
+        if not resource_manager:
+            logger.warning("ResourceManager не предоставлен, load shedding не будет работать")
+            return
+        
+        # Register CPU load shedding callback (>80%)
+        def check_cpu_high():
+            try:
+                cpu_usage = resource_manager.get_cpu_usage()
+                return cpu_usage > 0.8
+            except Exception:
+                return False
+        
+        def drop_low_priority_commands():
+            dropped = 0
+            try:
+                low_queue = self.command_queues.get(CommandPriority.LOW)
+                if low_queue:
+                    while not low_queue.empty():
+                        try:
+                            low_queue.get_nowait()
+                            dropped += 1
+                        except queue.Empty:
+                            break
+                    if dropped > 0:
+                        logger.warning(f"Load shedding: сброшено {dropped} LOW приоритет команд")
+            except Exception as e:
+                logger.error(f"Ошибка при сбросе команд: {e}")
+            return dropped
+        
+        self.register_load_shed_callback(
+            condition=check_cpu_high,
+            action=drop_low_priority_commands,
+            name="cpu_high_load_shedding",
+            cooldown_sec=30.0,
+            priority=CommandPriority.HIGH
+        )
+        
+        # Register queue overflow load shedding callback (>100 commands)
+        def check_queue_overflow():
+            try:
+                total = sum(q.qsize() for q in self.command_queues.values())
+                return total > 100
+            except Exception:
+                return False
+        
+        def drop_more_low_priority():
+            dropped = 0
+            try:
+                low_queue = self.command_queues.get(CommandPriority.LOW)
+                if low_queue:
+                    count = 0
+                    temp_items = []
+                    while not low_queue.empty() and count < 20:
+                        try:
+                            item = low_queue.get_nowait()
+                            temp_items.append(item)
+                            count += 1
+                        except queue.Empty:
+                            break
+                    # Return half back
+                    for i, item in enumerate(temp_items):
+                        if i % 2 == 0:
+                            dropped += 1
+                        else:
+                            low_queue.put(item)
+                    if dropped > 0:
+                        logger.warning(f"Queue overflow: сброшено {dropped} LOW приоритет команд")
+            except Exception as e:
+                logger.error(f"Ошибка при сбросе команд: {e}")
+            return dropped
+        
+        self.register_load_shed_callback(
+            condition=check_queue_overflow,
+            action=drop_more_low_priority,
+            name="queue_overflow_shedding",
+            cooldown_sec=15.0,
+            priority=CommandPriority.HIGH
+        )
+        
+        logger.info("Мост EventBus ↔ DeferredCommandSystem создан с load shedding")
     
     def get_command_status(self, command_id: str) -> Optional[CommandStatus]:
         """Возвращает статус команды."""

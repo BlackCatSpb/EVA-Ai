@@ -362,3 +362,15 @@ class ResourceManager:
             return torch.cuda.is_available()
         except ImportError:
             return False
+
+    def get_recommended_context_size(self) -> int:
+        """Рекомендуемый размер контекста на основе загрузки."""
+        cpu = self.get_cpu_usage()
+        ram = self.get_memory_usage()
+        
+        if cpu > 0.85 or ram > 0.90:
+            return 2048
+        elif cpu > 0.70 or ram > 0.75:
+            return 4096
+        else:
+            return 8192

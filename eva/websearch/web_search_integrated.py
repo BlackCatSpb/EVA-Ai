@@ -7,6 +7,8 @@ import logging
 import time
 import os
 import re
+import json
+import requests
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
 
@@ -15,13 +17,60 @@ logger = logging.getLogger("eva.websearch")
 from eva.core.base_component import BaseComponent, ComponentState
 from eva.core.event_bus import get_event_bus, Event, EventTypes
 
-# Импортируем оригинальный поисковый движок
 try:
     from eva.websearch.web_search_engine import WebSearchEngine
     ORIGINAL_AVAILABLE = True
 except ImportError:
     ORIGINAL_AVAILABLE = False
     logger.warning("Оригинальный WebSearchEngine недоступен")
+
+
+def load_brain_config() -> Dict:
+    """Загружает конфигурацию brain"""
+    config_path = os.path.join(os.getcwd(), 'brain_config.json')
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    return {}
+
+
+def tavily_search(query: str, api_key: str = None, max_results: int = 5) -> Dict[str, Any]:
+    """Выполняет поиск через Tavily API"""
+    if not api_key:
+        config = load_brain_config()
+        api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+    
+    if not api_key:
+        logger.warning("Tavily API key не найден")
+        return {"error": "API key не найден", "results": []}
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    data = {"query": query, "max_results": max_results}
+    
+    try:
+        response = requests.post(
+            "https://api.tavily.com/search",
+            headers=headers,
+            json=data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            logger.error(f"Tavily API error: {response.status_code}")
+            return {"error": f"API error: {response.status_code}", "results": []}
+            
+    except requests.exceptions.Timeout:
+        logger.error("Tavily API timeout")
+        return {"error": "API timeout", "results": []}
+    except Exception as e:
+        logger.error(f"Tavily API exception: {e}")
+        return {"error": str(e), "results": []}
 
 
 class IntegratedWebSearchEngine(BaseComponent):
@@ -194,13 +243,42 @@ class IntegratedWebSearchEngine(BaseComponent):
             return {"success": False, "error": str(e)}
     
     def _basic_web_search(self, query: str, search_config: Optional[Dict] = None) -> Dict[str, Any]:
-        """Базовый веб-поиск (симуляция)"""
-        # Симуляция результатов поиска
+        """Веб-поиск через Tavily API с fallback"""
         max_results = search_config.get("max_results", 10) if search_config else 10
         
-        # Генерируем фейковые результаты
+        # Пробуем Tavily API
+        tavily_result = tavily_search(query, max_results=max_results)
+        
+        if "error" not in tavily_result or not tavily_result.get("results"):
+            # Успешный ответ от Tavily
+            results = tavily_result.get("results", [])
+            
+            formatted_results = []
+            for r in results:
+                formatted_results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "snippet": r.get("content", r.get("snippet", "")),
+                    "relevance_score": r.get("score", 0.9),
+                    "source": "tavily",
+                    "timestamp": datetime.now().isoformat()
+                })
+            
+            formatted_results = self._filter_results(formatted_results)
+            
+            return {
+                "success": True,
+                "query": query,
+                "results": formatted_results,
+                "total_results": len(formatted_results),
+                "search_time": time.time(),
+                "source": "tavily"
+            }
+        
+        # Fallback: симулированные результаты при ошибке API
+        logger.warning(f"Tavily API недоступен, используем fallback: {tavily_result.get('error')}")
         results = []
-        for i in range(min(max_results, 5)):  # Ограничиваем для симуляции
+        for i in range(min(max_results, 5)):
             result = {
                 "title": f"Результат поиска #{i+1} для: {query}",
                 "url": f"https://example.com/result{i+1}",
@@ -219,7 +297,7 @@ class IntegratedWebSearchEngine(BaseComponent):
             "results": results,
             "total_results": len(results),
             "search_time": time.time(),
-            "source": "integrated_web_search"
+            "source": "integrated_web_search_fallback"
         }
     
     def search_with_filters(self, query: str, filters: Dict[str, Any]) -> Dict[str, Any]:

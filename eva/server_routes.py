@@ -204,8 +204,16 @@ def api_feedback():
         rating = data.get('rating', 0)
         message_text = data.get('message_text', '')
         message_index = data.get('message_index', 0)
+        
+        explicit_accuracy = data.get('explicit_accuracy')
+        coherence_score = data.get('coherence_score')
+        helpfulness = data.get('helpfulness')
+        toxicity = data.get('toxicity')
+        corrected_answer = data.get('corrected_answer')
+        preferred_response = data.get('preferred_response')
+        reasoning_quality = data.get('reasoning_quality')
 
-        logger.info(f"User feedback: rating={rating}, index={message_index}")
+        logger.info(f"User feedback: rating={rating}, index={message_index}, accuracy={explicit_accuracy}")
 
         if web_gui_instance.brain:
             try:
@@ -216,6 +224,23 @@ def api_feedback():
                     )
             except Exception as e:
                 logger.debug(f"Feedback brain trigger error: {e}")
+            
+            try:
+                if hasattr(web_gui_instance.brain, 'feedback_processor'):
+                    feedback_data = {
+                        'rating': rating,
+                        'message_index': message_index,
+                        'explicit_accuracy': explicit_accuracy if explicit_accuracy is not None else 0.5,
+                        'coherence_score': coherence_score if coherence_score is not None else 0.5,
+                        'helpfulness': helpfulness if helpfulness is not None else 0.5,
+                        'toxicity': toxicity if toxicity is not None else 0.0,
+                        'corrected_answer': corrected_answer,
+                        'preferred_response': preferred_response,
+                        'reasoning_quality': reasoning_quality if reasoning_quality is not None else 0.5
+                    }
+                    web_gui_instance.brain.feedback_processor.process_feedback(feedback_data)
+            except Exception as e:
+                logger.debug(f"Feedback processor error: {e}")
 
         return jsonify({'success': True, 'rating': rating})
 

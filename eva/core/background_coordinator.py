@@ -832,3 +832,61 @@ class BackgroundCoordinator:
             return list(self._timeline)[-int(limit):]
         except Exception:
             return []
+
+    # ---- Интеграция с генерацией ----
+    def register_pipeline_commands(self, pipeline) -> None:
+        """Регистрирует команды для управления пайплайном генерации."""
+        if not self.deferred:
+            logger.warning("DeferredCommandSystem not available, cannot register pipeline commands")
+            return
+        
+        try:
+            self.deferred.add_command(
+                'pipeline_generate_deferred',
+                self._deferred_pipeline_generate,
+                priority=10
+            )
+            self.deferred.add_command(
+                'pipeline_skip_model_c',
+                self._deferred_skip_model_c,
+                priority=10
+            )
+            logger.info("Pipeline commands registered with DeferredCommandSystem")
+        except Exception as e:
+            logger.warning(f"Failed to register pipeline commands: {e}")
+    
+    def _deferred_pipeline_generate(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная генерация с пониженными параметрами."""
+        try:
+            if not hasattr(self, '_pipeline') or not self._pipeline:
+                return {"status": "error", "message": "Pipeline not available"}
+            
+            pipeline = self._pipeline
+            resource_usage = {'cpu': 0.0, 'ram': 0.0}
+            
+            if self.rm:
+                resource_usage = {
+                    'cpu': self.rm.get_cpu_usage(),
+                    'ram': self.rm.get_memory_usage()
+                }
+            
+            deferred_params = pipeline.model_a_params.get_deferred_params(resource_usage)
+            
+            result = pipeline.process_query(
+                query=data.get('query', ''),
+                gen_params={'model_a': deferred_params, 'model_b': deferred_params}
+            )
+            
+            return {"status": "success", "result": result}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+    
+    def _deferred_skip_model_c(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Отложенная команда для пропуска Model C."""
+        try:
+            if not hasattr(self, '_pipeline') or not self._pipeline:
+                return {"status": "error", "message": "Pipeline not available"}
+            
+            return {"status": "success", "skipped": True}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}

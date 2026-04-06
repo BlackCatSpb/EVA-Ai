@@ -19,10 +19,89 @@ import time
 import hashlib
 import logging
 import threading
-from typing import Dict, Any, List
+import numpy as np
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+
+
+class NeuromorphicRanker:
+    """Ранжирование контекста через нейроморфные волны"""
+    
+    def __init__(self, graph_learning):
+        self.graph_learning = graph_learning
+        self.simulator = None
+        self.enabled = False
+        
+        try:
+            from eva.neuromorphic.sim_core import NeuromorphicSimulator
+            self.simulator = NeuromorphicSimulator()
+            self.enabled = True
+            logger.info("NeuromorphicRanker: симулятор подключён")
+        except ImportError as e:
+            logger.warning(f"NeuromorphicRanker: симулятор недоступен - {e}")
+        except Exception as e:
+            logger.warning(f"NeuromorphicRanker: ошибка инициализации - {e}")
+    
+    def rank_context_nodes(self, query_embedding: List[float], nodes: List[dict]) -> List[dict]:
+        """Ранжировать узлы через wave propagation"""
+        if not self.enabled or not self.simulator or not nodes:
+            return sorted(nodes, key=lambda x: x.get('relevance_score', 0) if isinstance(x, dict) else getattr(x, 'quality_score', 0), reverse=True)
+        
+        try:
+            activity = self.simulator.simulate_activity(duration=5.0, memory_type="working")
+            
+            node_activations = {}
+            query_vec = np.array(query_embedding) if query_embedding else np.zeros(100)
+            
+            for node in nodes:
+                node_id = node.get('id') if isinstance(node, dict) else getattr(node, 'id', '')
+                node_emb = node.get('embedding') if isinstance(node, dict) else getattr(node, 'embedding', [])
+                
+                if node_emb:
+                    node_vec = np.array(node_emb)
+                    sim = float(np.dot(query_vec, node_vec) / (np.linalg.norm(query_vec) * np.linalg.norm(node_vec) + 1e-8))
+                    activation = sim * activity.strength
+                else:
+                    activation = 0.5 * activity.strength
+                
+                node_activations[node_id] = activation
+            
+            return sorted(nodes, key=lambda x: node_activations.get(x.get('id') if isinstance(x, dict) else getattr(x, 'id', ''), 0), reverse=True)
+            
+        except Exception as e:
+            logger.error(f"Ошибка нейроморфного ранжирования: {e}")
+            return sorted(nodes, key=lambda x: x.get('relevance_score', 0) if isinstance(x, dict) else getattr(x, 'quality_score', 0), reverse=True)
+    
+    def simple_wave_propagation(self, start_nodes: List[str], steps: int = 3) -> Dict[str, float]:
+        """Упрощённая волновая активация по графу"""
+        if not hasattr(self.graph_learning, '_load_experiences'):
+            return {n: 1.0 for n in start_nodes}
+        
+        activation = {node_id: 1.0 for node_id in start_nodes}
+        
+        try:
+            experiences = self.graph_learning._load_experiences()
+            node_map = {exp.id: exp for exp in experiences}
+            
+            for step in range(steps):
+                new_activation = activation.copy()
+                for node_id, act_val in activation.items():
+                    if node_id in node_map:
+                        exp = node_map[node_id]
+                        for related_id in exp.related_experiences:
+                            if related_id in node_map:
+                                weight = exp.quality_score
+                                new_activation[related_id] = act_val * weight * 0.8
+                
+                activation = new_activation
+            
+            return activation
+            
+        except Exception as e:
+            logger.error(f"Ошибка wave propagation: {e}")
+            return {n: 1.0 for n in start_nodes}
 
 
 @dataclass
@@ -102,6 +181,7 @@ class DynamicContextBuilder:
         self.fractal_memory = fractal_memory
         self.max_experiences = max_experiences
         self.max_concepts = max_concepts
+        self.ranker = NeuromorphicRanker(self)
     
     def build_context(self, query: str, query_embedding: List[float] = None) -> str:
         """Строит контекст из графа для запроса"""
@@ -150,12 +230,18 @@ class DynamicContextBuilder:
         
         scored.sort(reverse=True, key=lambda x: x[0])
         
-        # Увеличиваем usage_count у топ результатов
-        for score, exp in scored[:self.max_experiences]:
+        candidate_nodes = [{'id': exp.id, 'relevance_score': score, 'embedding': exp.embedding, 'quality_score': exp.quality_score} for score, exp in scored[:self.max_experiences * 2]]
+        ranked_nodes = self.ranker.rank_context_nodes(query_embedding if query_embedding else [], candidate_nodes)
+        
+        ranked_exp_ids = [n.get('id') if isinstance(n, dict) else getattr(n, 'id', '') for n in ranked_nodes]
+        exp_map = {exp.id: exp for score, exp in scored}
+        ranked_experiences = [exp_map[exp_id] for exp_id in ranked_exp_ids if exp_id in exp_map]
+        
+        for exp in ranked_experiences[:self.max_experiences]:
             exp.usage_count += 1
             self._save_experience(exp)
         
-        return [exp for _, exp in scored[:self.max_experiences]]
+        return ranked_experiences[:self.max_experiences]
     
     def _find_relevant_concepts(self, query: str, query_embedding: List[float] = None) -> List[ConceptNode]:
         """Находит релевантные концепты"""
@@ -268,26 +354,84 @@ class GraphLearningLoop:
             self._thread.join(timeout=5)
         logger.info("GraphLearningLoop остановлен")
     
-    def add_experience(self, query: str, response: str, model_used: str, quality_score: float) -> str:
-        """Добавляет новый опыт в очередь обучения"""
+    def add_experience(self, query: str, response: str, model_used: str, quality_score: float, query_embedding: List[float] = None) -> str:
+        """
+        Добавляет новый опыт в очередь обучения.
+        
+        Args:
+            query: Запрос пользователя
+            response: Ответ системы
+            model_used: Использованная модель
+            quality_score: Оценка качества ответа (0-1)
+            query_embedding: Эмбеддинг запроса для проверки новизны
+            
+        Returns:
+            ID созданного опыта
+        """
         exp_id = hashlib.sha256(f"{query}:{response}:{time.time()}".encode()).hexdigest()[:16]
+        
+        novelty_score = self._calculate_novelty(query_embedding) if query_embedding else 0.5
         
         exp = ExperienceNode(
             id=f"exp_{exp_id}",
             query=query,
             response=response,
             model_used=model_used,
-            quality_score=quality_score
+            quality_score=quality_score,
+            embedding=query_embedding if query_embedding else []
         )
         
         with self._lock:
             self._pending_experiences.append(exp)
         
-        # Сохраняем сразу
         self.context_builder._save_experience(exp)
         
-        logger.info(f"Добавлен опыт: {exp_id[:8]}... (quality={quality_score:.2f})")
+        is_learning_opportunity = novelty_score > 0.7
+        
+        if is_learning_opportunity:
+            logger.info(f"Добавлен опыт с высокой новизной: {exp_id[:8]}... (novelty={novelty_score:.2f}, quality={quality_score:.2f}) - LEARNING OPPORTUNITY")
+        else:
+            logger.info(f"Добавлен опыт: {exp_id[:8]}... (novelty={novelty_score:.2f}, quality={quality_score:.2f})")
+        
         return exp.id
+    
+    def _calculate_novelty(self, query_embedding: List[float] = None) -> float:
+        """
+        Вычисляет новизну запроса на основе сравнения с существующими embeddings.
+        
+        Returns:
+            float 0-1, где 1 = совершенно новый запрос
+        """
+        if not query_embedding:
+            return 0.5
+        
+        try:
+            experiences = self.context_builder._load_experiences()
+            if not experiences:
+                return 0.8
+            
+            import numpy as np
+            
+            query_vec = np.array(query_embedding)
+            query_norm = np.linalg.norm(query_vec)
+            if query_norm == 0:
+                return 0.5
+            
+            max_similarity = 0.0
+            for exp in experiences:
+                if exp.embedding and len(exp.embedding) == len(query_embedding):
+                    exp_vec = np.array(exp.embedding)
+                    exp_norm = np.linalg.norm(exp_vec)
+                    if exp_norm > 0:
+                        similarity = np.dot(query_vec, exp_vec) / (query_norm * exp_norm)
+                        max_similarity = max(max_similarity, similarity)
+            
+            novelty = 1.0 - max_similarity
+            return float(novelty)
+            
+        except Exception as e:
+            logger.warning(f"Ошибка расчёта новизны: {e}")
+            return 0.5
     
     def _loop(self):
         """Основной цикл обучения"""

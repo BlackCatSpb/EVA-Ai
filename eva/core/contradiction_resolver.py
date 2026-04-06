@@ -6,9 +6,12 @@ import sys
 import time
 import json
 import logging
+import hashlib
+import numpy as np
 from typing import Dict, Any, Optional, List, Tuple
 
 logger = logging.getLogger("eva.contradiction_resolver")
+
 
 class ContradictionResolver:
     """Система обнаружения и разрешения противоречий в знаниях."""
@@ -18,7 +21,10 @@ class ContradictionResolver:
         self.active_contradictions = []
         self.resolution_history = []
         self.logger = logging.getLogger("eva.contradiction_resolver")
-        self.contradiction_threshold = 0.7  # Порог для обнаружения противоречий
+        self.contradiction_threshold = 0.7
+        self.semantic_threshold = 0.3
+        self._embedding_cache = {}
+        self._embedding_model = None
 
     def check_response(self, question: str, response: str):
         """Проверяет ответ на наличие противоречий."""
@@ -187,3 +193,122 @@ class ContradictionResolver:
     def get_resolution_history(self) -> List[Dict[str, Any]]:
         """Возвращает историю разрешенных противоречий."""
         return self.resolution_history
+
+    def _get_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Получает embedding текста через доступные методы."""
+        cache_key = hash(text[:100])
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key]
+        
+        embedding = None
+        
+        try:
+            if hasattr(self.attention_system, 'core_brain'):
+                core_brain = self.attention_system.core_brain
+                
+                if hasattr(core_brain, 'embedding_model') and core_brain.embedding_model:
+                    emb_result = core_brain.embedding_model.encode([text])
+                    if hasattr(emb_result, 'tolist'):
+                        embedding = np.array(emb_result.tolist()[0])
+                    else:
+                        embedding = np.array(emb_result[0])
+                elif hasattr(core_brain, 'fractal_memory') and core_brain.fractal_memory:
+                    fractal = core_brain.fractal_memory
+                    if hasattr(fractal, 'learning_loop') and fractal.learning_loop:
+                        if hasattr(fractal.learning_loop, '_compute_embedding'):
+                            embedding = fractal.learning_loop._compute_embedding(text)
+        except Exception as e:
+            logger.debug(f"Embedding не получен: {e}")
+        
+        if embedding is None:
+            embedding = self._simple_embedding(text)
+        
+        if embedding is not None:
+            self._embedding_cache[cache_key] = embedding
+            if len(self._embedding_cache) > 500:
+                self._embedding_cache.pop(next(iter(self._embedding_cache)))
+        
+        return embedding
+    
+    def _simple_embedding(self, text: str) -> Optional[np.ndarray]:
+        """Простой fallback embedding на основе хеша и случайности."""
+        try:
+            import hashlib
+            hash_bytes = hashlib.md5(text.encode()).digest()
+            np.random.seed(int.from_bytes(hash_bytes[:4], 'little'))
+            return np.random.randn(128)
+        except Exception:
+            return None
+    
+    def _cosine_similarity(self, emb1: np.ndarray, emb2: np.ndarray) -> float:
+        """Вычисляет косинусное сходство между двумя embeddings."""
+        try:
+            norm1 = np.linalg.norm(emb1)
+            norm2 = np.linalg.norm(emb2)
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            return float(np.dot(emb1, emb2) / (norm1 * norm2))
+        except Exception:
+            return 0.0
+    
+    def _semantic_contradiction_detection(self, text1: str, text2: str) -> float:
+        """Обнаружение противоречий через семантическое сравнение."""
+        if not text1 or not text2:
+            return 0.0
+        
+        emb1 = self._get_embedding(text1)
+        emb2 = self._get_embedding(text2)
+        
+        if emb1 is None or emb2 is None:
+            return 0.0
+        
+        similarity = self._cosine_similarity(emb1, emb2)
+        return 1.0 - max(0.0, similarity)
+    
+    def check_graph_contradictions(self, experience_id: str) -> List[Dict]:
+        """Проверить противоречия между связанными опытами в графе."""
+        try:
+            if not hasattr(self.attention_system, 'core_brain'):
+                return []
+            
+            core_brain = self.attention_system.core_brain
+            if not hasattr(core_brain, 'fractal_memory'):
+                return []
+            
+            fractal = core_brain.fractal_memory
+            if not fractal or not hasattr(fractal, 'learning_loop'):
+                return []
+            
+            learning_loop = fractal.learning_loop
+            if not hasattr(learning_loop, 'get_experience'):
+                return []
+            
+            experience = learning_loop.get_experience(experience_id)
+            if not experience:
+                return []
+            
+            related = experience.get('related_experiences', [])
+            if not related:
+                return []
+            
+            contradictions = []
+            for rel_id in related:
+                rel_exp = learning_loop.get_experience(rel_id)
+                if not rel_exp:
+                    continue
+                
+                score = self._semantic_contradiction_detection(
+                    experience.get('response', ''),
+                    rel_exp.get('response', '')
+                )
+                
+                if score > self.semantic_threshold:
+                    contradictions.append({
+                        'experience_id': rel_id,
+                        'contradiction_score': score
+                    })
+            
+            return contradictions
+        except Exception as e:
+            logger.debug(f"Ошибка проверки противоречий в графе: {e}")
+            return []

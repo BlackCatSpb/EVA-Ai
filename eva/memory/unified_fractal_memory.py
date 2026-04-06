@@ -56,6 +56,11 @@ class NodeType(Enum):
     CONTEXT = "context"
 
 
+class EventTypes:
+    """Типы событий для миграции памяти"""
+    MEMORY_TIER_MIGRATED = "memory.tier_migrated"
+
+
 @dataclass
 class MemoryNode:
     """Узел фрактальной памяти"""
@@ -73,6 +78,7 @@ class MemoryNode:
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
     access_count: int = 0
+    usage_count: int = 0  # Для миграции - отслеживание использования
     last_accessed: float = field(default_factory=time.time)
     version: int = 1
     
@@ -150,6 +156,16 @@ class UnifiedFractalMemory:
         self._dirty = False
         self._op_count = 0
         
+        # EventBus для публикации событий миграции
+        self._event_bus = None
+        try:
+            from eva.core.event_bus import Event, EventPriority
+            self._event_types = EventTypes
+            self._Event = Event
+            self._EventPriority = EventPriority
+        except ImportError:
+            pass
+        
         # Загрузка
         self._load()
         
@@ -195,6 +211,107 @@ class UnifiedFractalMemory:
         if self.coordinator:
             return self.coordinator.build_context(query)
         return ""
+    
+    def _publish_migration_event(self, from_tier: str, to_tier: str, node_ids: List[str]):
+        """Публикует событие миграции в EventBus"""
+        if self._event_bus is None:
+            try:
+                from eva.core.event_bus import get_event_bus
+                self._event_bus = get_event_bus()
+            except Exception:
+                pass
+        
+        if self._event_bus and hasattr(self, '_Event'):
+            event = self._Event(
+                event_type=EventTypes.MEMORY_TIER_MIGRATED,
+                source="unified_fractal_memory",
+                data={
+                    "from_tier": from_tier,
+                    "to_tier": to_tier,
+                    "node_ids": node_ids,
+                    "count": len(node_ids)
+                },
+                timestamp=time.time(),
+                priority=self._EventPriority.NORMAL
+            )
+            self._event_bus.publish(event)
+    
+    def _migrate_to_warm(self):
+        """Перенос малоиспользуемых узлов из hot в warm"""
+        nodes_to_migrate = []
+        for node_id in self.hot_nodes:
+            node = self.nodes.get(node_id)
+            if node and not node.is_static and node.access_count < 3:
+                nodes_to_migrate.append(node_id)
+        
+        migrated_count = 0
+        for node_id in nodes_to_migrate[:100]:
+            if node_id in self.hot_nodes:
+                self.hot_nodes.discard(node_id)
+                self.warm_nodes.add(node_id)
+                if node_id in self.nodes:
+                    self.nodes[node_id].tier = MemoryTier.WARM.value
+                migrated_count += 1
+        
+        if migrated_count > 0:
+            self._dirty = True
+            self._publish_migration_event("hot", "warm", nodes_to_migrate[:migrated_count])
+            logger.info(f"Мигрировано {migrated_count} узлов из hot в warm")
+    
+    def _migrate_to_cold(self):
+        """Перенос неактивных узлов из warm в cold"""
+        nodes_to_migrate = []
+        current_time = time.time()
+        
+        for node_id in self.warm_nodes:
+            node = self.nodes.get(node_id)
+            if node and not node.is_static and (current_time - node.last_accessed) > 3600:
+                nodes_to_migrate.append(node_id)
+        
+        migrated_count = 0
+        for node_id in nodes_to_migrate[:50]:
+            if node_id in self.warm_nodes:
+                self.warm_nodes.discard(node_id)
+                if node_id in self.nodes:
+                    self.nodes[node_id].tier = MemoryTier.COLD.value
+                migrated_count += 1
+        
+        if migrated_count > 0:
+            self._dirty = True
+            self._publish_migration_event("warm", "cold", nodes_to_migrate[:migrated_count])
+            logger.info(f"Мигрировано {migrated_count} узлов из warm в cold")
+    
+    def _evict_hot_nodes(self, count: int = 10):
+        """Вытеснение least recently used hot nodes"""
+        sorted_nodes = sorted(
+            [n for n in self.hot_nodes if n in self.nodes and not self.nodes[n].is_static],
+            key=lambda x: self.nodes[x].last_accessed
+        )
+        
+        evicted = []
+        for node_id in sorted_nodes[:count]:
+            self.hot_nodes.discard(node_id)
+            self.warm_nodes.add(node_id)
+            if node_id in self.nodes:
+                self.nodes[node_id].tier = MemoryTier.WARM.value
+            evicted.append(node_id)
+        
+        if evicted:
+            self._dirty = True
+            self._publish_migration_event("hot", "warm", evicted)
+            logger.info(f"Вытеснено {len(evicted)} узлов из hot в warm (LRU)")
+    
+    def _check_and_migrate(self):
+        """Проверяет лимиты и запускает миграцию при необходимости"""
+        if len(self.hot_nodes) > self.HOT_NODE_LIMIT:
+            excess = len(self.hot_nodes) - self.HOT_NODE_LIMIT
+            self._evict_hot_nodes(max(10, excess // 10))
+        
+        if len(self.hot_nodes) > self.HOT_NODE_LIMIT * 0.9:
+            self._migrate_to_warm()
+        
+        if len(self.warm_nodes) > self.WARM_NODE_LIMIT:
+            self._migrate_to_cold()
 
     def _load(self):
         """Загрузка графа с SSD"""
@@ -430,6 +547,8 @@ class UnifiedFractalMemory:
             if self._op_count >= self.AUTO_SAVE_INTERVAL:
                 self._save()
             
+            self._check_and_migrate()
+            
             return node_id
     
     def retrieve_knowledge(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -464,6 +583,7 @@ class UnifiedFractalMemory:
             
             # Сортируем по релевантности
             results.sort(key=lambda x: x['score'], reverse=True)
+            self._check_and_migrate()
             return results[:top_k]
     
     def get_model_context(self, model_type: str) -> Dict[str, Any]:

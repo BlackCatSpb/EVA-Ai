@@ -105,6 +105,9 @@ class SessionManager:
         with self._lock:
             if session_id in self.sessions:
                 self.sessions[session_id]['context_nodes'].append(node)
+                if len(self.sessions[session_id]['context_nodes']) > 20:
+                    self.sessions[session_id]['context_nodes'] = self.sessions[session_id]['context_nodes'][-20:]
+                    logger.debug(f"Ограничены context_nodes до 20 для сессии {session_id}")
                 self._save_sessions()
 
     def add_chat_message(self, session_id: str, role: str, content: str):
@@ -118,7 +121,45 @@ class SessionManager:
                 })
                 if len(self.sessions[session_id]['chat_history']) > 50:
                     self.sessions[session_id]['chat_history'] = self.sessions[session_id]['chat_history'][-50:]
+                    logger.debug(f"Ограничен chat_history до 50 для сессии {session_id}")
                 self._save_sessions()
+
+    def convert_chat_to_knowledge(self, session_id: str, fractal_memory) -> bool:
+        """Преобразует chat_history в knowledge nodes через fractal_memory."""
+        if not fractal_memory or not hasattr(fractal_memory, 'save_experience'):
+            return False
+        
+        with self._lock:
+            if session_id not in self.sessions:
+                return False
+            
+            chat_history = self.sessions[session_id].get('chat_history', [])
+            if len(chat_history) < 2:
+                return False
+            
+            pairs = []
+            for i in range(0, len(chat_history) - 1, 2):
+                if i + 1 < len(chat_history):
+                    user_msg = chat_history[i].get('content', '') if chat_history[i].get('role') == 'user' else ''
+                    assistant_msg = chat_history[i + 1].get('content', '') if i + 1 < len(chat_history) and chat_history[i + 1].get('role') == 'assistant' else ''
+                    if user_msg and assistant_msg:
+                        pairs.append((user_msg, assistant_msg))
+            
+            saved_count = 0
+            for query, response in pairs:
+                try:
+                    fractal_memory.save_experience(
+                        query=query,
+                        response=response,
+                        model_used='web_ui',
+                        quality_score=0.5
+                    )
+                    saved_count += 1
+                except Exception as e:
+                    logger.warning(f"Не удалось сохранить опыт: {e}")
+            
+            logger.info(f"Сохранено {saved_count} опытов в fractal_memory для сессии {session_id}")
+            return saved_count > 0
 
     def get_chat_history(self, session_id: str, limit: int = 20) -> list:
         """Возвращает историю чата для контекста генерации."""
@@ -133,6 +174,9 @@ class SessionManager:
         with self._lock:
             if session_id in self.sessions:
                 self.sessions[session_id]['entities'].append(entity)
+                if len(self.sessions[session_id]['entities']) > 30:
+                    self.sessions[session_id]['entities'] = self.sessions[session_id]['entities'][-30:]
+                    logger.debug(f"Ограничены entities до 30 для сессии {session_id}")
                 self._save_sessions()
 
 
