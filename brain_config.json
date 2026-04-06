@@ -128,12 +128,7 @@
     }
   },
   "wikipedia": {
-    "enabled": true,
-    "auto_learn": false,
-    "categories": [],
-    "articles_per_category": 0,
-    "interval_hours": 0,
-    "random_per_cycle": 0
+    "enabled": true
   },
   "web_gui": {
     "host": "127.0.0.1",

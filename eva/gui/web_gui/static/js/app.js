@@ -335,6 +335,7 @@
             renderSessions();
             showWelcome();
             loadSettings();
+            loadInitialData();
             toast('Добро пожаловать', 'success');
         } catch(err) {
             console.error('Login exception:', err);
@@ -932,22 +933,30 @@
             
             if (view === 'memory') {
                 loadMemory();
+                loadKnowledgeGraph();
             } else if (view === 'analytics') {
                 loadAnalytics();
             } else if (view === 'learning') {
                 loadLearning();
             } else if (view === 'knowledge') {
                 loadKnowledge();
-            } else if (view === 'wikipedia') {
+            } else if (view === 'wikipedia' || view === 'search') {
                 loadWikipedia();
-            } else if (view === 'health') {
-                loadHealth();
             } else if (view === 'settings') {
                 loadSettings();
                 $('#settingsSession').textContent = activeSessionId || '—';
             }
         });
     });
+    
+    // Load initial data after login
+    function loadInitialData() {
+        loadMemory();
+        loadKnowledgeGraph();
+        loadAnalytics();
+        loadLearning();
+        loadKnowledge();
+    }
 
     /* ── Helpers ── */
     function esc(s) {

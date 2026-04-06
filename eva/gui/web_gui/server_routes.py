@@ -46,6 +46,32 @@ def register_routes(app, web_gui_instance):
             'users': list(web_gui_instance.auth_manager.users.keys()) if web_gui_instance else []
         })
     
+    @app.route('/api/status')
+    def api_status():
+        """System status endpoint for frontend."""
+        if not web_gui_instance:
+            return jsonify({'status': 'not_initialized'})
+        
+        status = {
+            'status': 'active',
+            'sessions_count': len(web_gui_instance.session_manager.sessions) if web_gui_instance.session_manager else 0,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        if web_gui_instance.brain:
+            status['brain_connected'] = True
+            if hasattr(web_gui_instance.brain, 'running'):
+                status['brain_running'] = web_gui_instance.brain.running
+            if hasattr(web_gui_instance.brain, 'components'):
+                status['components'] = len(web_gui_instance.brain.components)
+            if hasattr(web_gui_instance.brain, 'get_state'):
+                status['brain_state'] = str(web_gui_instance.brain.get_state())
+        else:
+            status['brain_connected'] = False
+            status['brain_running'] = False
+        
+        return jsonify(status)
+    
     @app.route('/api/debug/deferred')
     def api_debug_deferred():
         """Debug endpoint - получить данные из системы отложенных команд."""
