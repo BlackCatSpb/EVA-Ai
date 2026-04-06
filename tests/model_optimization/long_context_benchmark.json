@@ -1,0 +1,12 @@
+{
+  "test_type": "long_context",
+  "baseline_avg_sec": 4.206460799996421,
+  "optimized_avg_sec": 4.454081224997935,
+  "speedup_x": 0.9444059476033401,
+  "improvement_percent": -5.886669025935653,
+  "tokenize_baseline_ms": 0.0034999975468963385,
+  "tokenize_optimized_ms": 0.03712499892571941,
+  "tokenize_speedup_x": 0.09427603092727942,
+  "cache_hit_rate": 100.0,
+  "avg_words_per_prompt": 41.0
+}

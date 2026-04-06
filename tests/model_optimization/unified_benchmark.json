@@ -1,0 +1,41 @@
+{
+  "baseline_avg": 0.5017514375003884,
+  "graph_cache_avg": 0.5077804499987906,
+  "enriched_avg": 0.5076680125002895,
+  "full_first_avg": 0.5078216500014605,
+  "full_cached_avg": 3.987501258961856e-06,
+  "graph_vs_baseline_improvement": -1.2015934679604152,
+  "cached_vs_baseline_speedup": 125831.04177652828,
+  "bridge_stats": {
+    "graph_hits": 9,
+    "graph_misses": 15,
+    "enriched_prompt_hits": 0,
+    "enriched_prompt_misses": 8,
+    "tokens_preloaded": 3,
+    "total_queries": 24,
+    "generation_cache_hits": 8,
+    "generation_cache_misses": 8,
+    "graph_hit_rate": 37.5,
+    "enriched_hit_rate": 0.0,
+    "generation_cache_hit_rate": 50.0,
+    "enriched_prompt_cache_size": 3,
+    "token_cache": {
+      "hits": 9,
+      "misses": 11,
+      "total": 20,
+      "hit_rate": 0.45,
+      "size": 11
+    },
+    "knowledge_graph": {
+      "graph_total_nodes": 6,
+      "graph_total_edges": 3
+    }
+  },
+  "token_cache_stats": {
+    "hits": 9,
+    "misses": 11,
+    "total": 20,
+    "hit_rate": 0.45,
+    "size": 11
+  }
+}

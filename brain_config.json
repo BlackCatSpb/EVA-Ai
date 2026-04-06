@@ -114,6 +114,26 @@
     "unknown_entity_threshold": 0.3,
     "gap_confidence_threshold": 0.5
   },
+  "fractal_graph_v2": {
+    "enabled": true,
+    "storage_dir": "eva/memory/fractal_graph_v2/data",
+    "embedding_model": "intfloat/multilingual-e5-base",
+    "embedding_device": "cuda",
+    "embedding_dim": 768
+  },
+  "graph_curator": {
+    "enabled": true,
+    "curation_interval": 300,
+    "min_interval": 60,
+    "max_interval": 600,
+    "adaptive_interval": true,
+    "check_graph_health": true,
+    "cleanup_orphans": true,
+    "cleanup_duplicates": true,
+    "recluster_threshold": 0.4,
+    "extract_from_gguf": true,
+    "gguf_models_dir": "eva/mlearning/eva_models"
+  },
   "knowledge_awareness": {
     "enabled": true
   },

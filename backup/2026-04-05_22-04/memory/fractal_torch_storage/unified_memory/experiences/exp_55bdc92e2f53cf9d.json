@@ -1,0 +1,12 @@
+{
+  "id": "exp_55bdc92e2f53cf9d",
+  "query": "Что такое машинное обучение?",
+  "response": "ML — подраздел ИИ, где модели обучаются на данных.",
+  "model_used": "model_a",
+  "quality_score": 0.85,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775188167.2166598,
+  "usage_count": 43,
+  "related_experiences": []
+}

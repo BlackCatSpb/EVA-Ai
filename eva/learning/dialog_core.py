@@ -69,7 +69,47 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
         }
 
         self.interest_scorer = InterestScorer()
+        
+        # Подписка на события куратора
+        self._setup_curator_events()
+        
         logger.info("SelfDialogLearningSystem инициализирована")
+
+    def _setup_curator_events(self):
+        """Подписаться на события куратора графа."""
+        if not self.brain:
+            return
+        
+        event_bus = getattr(self.brain, 'event_bus', None) or getattr(self.brain, '_new_event_bus', None)
+        if not event_bus:
+            return
+        
+        try:
+            event_bus.subscribe("curator.knowledge_extracted", self._on_curator_knowledge_extracted, priority=3)
+            event_bus.subscribe("curator.graph_optimized", self._on_curator_graph_optimized, priority=3)
+            event_bus.subscribe("curator.cleanup_done", self._on_curator_cleanup_done, priority=3)
+            logger.debug("Подписка на события куратора установлена")
+        except Exception as e:
+            logger.debug(f"Ошибка подписки на события куратора: {e}")
+
+    def _on_curator_knowledge_extracted(self, data: Dict[str, Any]):
+        """Обработка извлечённых знаний от куратора."""
+        count = data.get('count', 0)
+        if count > 0:
+            logger.info(f"Куратор извлёк {count} новых знаний")
+            self.stats["knowledge_gaps_identified"] += count
+
+    def _on_curator_graph_optimized(self, data: Dict[str, Any]):
+        """Обработка оптимизации графа куратором."""
+        groups_created = data.get('groups_created', 0)
+        if groups_created > 0:
+            logger.debug(f"Куратор создал {groups_created} групп")
+
+    def _on_curator_cleanup_done(self, data: Dict[str, Any]):
+        """Обработка чистки графа куратором."""
+        orphans = data.get('orphans_removed', 0)
+        if orphans > 0:
+            logger.debug(f"Куратор удалил {orphans} сиротских узлов")
 
     def start(self):
         """Запускает систему самообучения."""
@@ -280,6 +320,27 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                 is_negative = True
             if feedback.get("corrected", False):
                 is_negative = True
+
+        # Сохраняем опыт в FractalGraphV2
+        quality_score = 0.5
+        if feedback:
+            rating = feedback.get("rating", 5)
+            quality_score = rating / 10.0
+        
+        if self.brain and hasattr(self.brain, 'fractal_graph_v2'):
+            try:
+                fg = self.brain.fractal_graph_v2
+                if hasattr(fg, 'save_experience'):
+                    model_used = feedback.get('model_used', 'self_dialog') if feedback else 'self_dialog'
+                    fg.save_experience(
+                        query=query,
+                        response=response,
+                        model_used=model_used,
+                        quality_score=quality_score
+                    )
+                    logger.debug(f"Saved experience to FractalGraphV2: {query[:30]}...")
+            except Exception as e:
+                logger.debug(f"Error saving to FractalGraphV2: {e}")
 
         if is_negative:
             self.create_dialog(

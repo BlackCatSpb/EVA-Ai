@@ -1,0 +1,556 @@
+"""
+Component initialization, deferred commands, module management, model management, and CoreBrain init helpers.
+"""
+import os
+import logging
+import time
+from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger("eva.core_brain")
+query_logger = logging.getLogger("eva.core_brain.query_processing")
+
+
+def _init_managers(brain):
+    """Initialize all manager components on the brain instance."""
+    try:
+        from .config_manager import ConfigManager
+        brain.config_manager = ConfigManager()
+    except ImportError:
+        brain.config_manager = None
+        query_logger.warning("Менеджер конфигурации недоступен")
+
+    try:
+        from .system_state import SystemStateManager, SystemState
+        brain.state_manager = SystemStateManager()
+        if brain.state_manager and hasattr(brain.state_manager, 'set_state'):
+            brain.state_manager.set_state(SystemState.INITIALIZING, "Начало инициализации CoreBrain")
+    except ImportError:
+        brain.state_manager = None
+        query_logger.warning("Менеджер состояния системы недоступен")
+
+    try:
+        from .resource_manager import ResourceManager
+        brain.resource_manager = ResourceManager(brain.config_manager) if brain.config_manager else ResourceManager(None)
+    except ImportError:
+        brain.resource_manager = None
+        query_logger.warning("Менеджер ресурсов недоступен")
+
+    try:
+        from eva.learning.self_analyzer import SelfAnalyzer
+        brain.self_analyzer = SelfAnalyzer(brain=brain, cache_dir=brain.cache_dir)
+    except ImportError as e:
+        brain.self_analyzer = None
+        query_logger.warning(f"Модуль самоанализа недоступен: {e}")
+
+    try:
+        from .system_metrics import SystemMetricsManager
+        brain.metrics_manager = SystemMetricsManager()
+    except ImportError:
+        class SystemMetricsManager:
+            def __init__(self): self.metrics = {"error_rate": 0.0}
+            def start_tracking(self): pass
+            def get_metrics(self): return self.metrics
+            def record_error(self, error_type): pass
+            def record_warning(self, warning_type): pass
+            def record_system_startup(self, time): pass
+            def record_system_shutdown(self, time): pass
+            def record_query_metrics(self, **kwargs): pass
+            def emit(self, metric): pass
+            def emit_many(self, metrics): return 0
+            def flush(self): return []
+        brain.metrics_manager = SystemMetricsManager()
+        query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
+
+    try:
+        from .memory_graph_ml import MemoryGraphML
+        brain.memory_graph_ml = MemoryGraphML(brain, config=brain.config.get('memory_graph_ml', {}))
+        if not brain.memory_graph_ml.initialize():
+            query_logger.warning("Не удалось инициализировать MemoryGraphML")
+    except ImportError as e:
+        query_logger.warning(f"MemoryGraphML недоступен: {e}")
+        brain.memory_graph_ml = None
+
+    try:
+        from eva.learning.self_dialog_learning import SelfDialogLearningSystem
+        if SelfDialogLearningSystem:
+            brain.self_dialog_learning = SelfDialogLearningSystem(brain=brain, config=brain.config.get('self_dialog_learning', {}))
+            query_logger.info("SelfDialogLearningSystem initialized")
+        else:
+            brain.self_dialog_learning = None
+    except Exception as e:
+        brain.self_dialog_learning = None
+        query_logger.warning(f"SelfDialogLearningSystem initialization failed: {e}")
+
+    try:
+        from eva.learning.performance_analyzer import PerformanceAnalyzer
+        if PerformanceAnalyzer:
+            brain.performance_analyzer = PerformanceAnalyzer(brain=brain)
+        else:
+            brain.performance_analyzer = None
+    except Exception:
+        brain.performance_analyzer = None
+
+    try:
+        from eva.knowledge.online_knowledge import OnlineKnowledgeAccess
+        if OnlineKnowledgeAccess:
+            brain.online_knowledge = OnlineKnowledgeAccess(brain=brain, config=brain.config.get('online_knowledge', {}))
+        else:
+            brain.online_knowledge = None
+    except Exception:
+        brain.online_knowledge = None
+
+    try:
+        from .self_learning_system import initialize_self_learning
+        if not initialize_self_learning(brain):
+            query_logger.warning("Не удалось инициализировать систему самообучения (legacy)")
+    except ImportError:
+        query_logger.warning("Система самообучения (legacy) недоступна")
+
+    try:
+        from .query_processor import QueryProcessor
+        brain.query_processor = QueryProcessor(brain) if QueryProcessor else None
+    except Exception:
+        brain.query_processor = None
+    if brain.query_processor:
+        brain.components['query_processor'] = brain.query_processor
+
+    try:
+        from .component_initializer import ComponentInitializer
+        brain.component_initializer = ComponentInitializer(brain)
+    except Exception as e:
+        brain.component_initializer = None
+        query_logger.warning(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)
+
+    try:
+        from ..memory.hybrid_token_cache import get_shared_cache
+        brain.token_cache = get_shared_cache(brain, "default")
+    except Exception as e:
+        query_logger.warning(f"Ошибка инициализации гибридного кэша: {e}")
+        brain.token_cache = None
+
+    brain.fractal_ready = False
+    brain.qwen_ready = False
+    brain.models_ready = False
+
+
+def _init_fractal_model(brain):
+    try:
+        from ..mlearning.fractal_model_manager import FractalModelManager
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        model_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
+        brain.fractal_model_manager = FractalModelManager(model_path=model_path)
+        query_logger.debug(f"FractalModelManager инициализирован с путем: {model_path}")
+    except (ImportError, Exception) as e:
+        query_logger.debug(f"Ошибка инициализации FractalModelManager: {e}")
+        brain.fractal_model_manager = None
+
+
+def _init_llama_cpp(brain):
+    brain.llama_cpp_deployment = None
+    brain.llama_cpp_ready = False
+    try:
+        model_config = brain.config.get('model', {})
+        if model_config.get('use_llama_cpp', False):
+            from eva.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
+            brain.llama_cpp_deployment = LlamaCppHotDeployment(
+                model_path=model_config.get('gguf_model_path', ''),
+                n_ctx=model_config.get('llama_cpp_n_ctx', 4096),
+                n_threads=model_config.get('llama_cpp_threads', 8)
+            )
+            if brain.llama_cpp_deployment.initialize(preload_root=True):
+                brain.llama_cpp_ready = True
+                query_logger.info("LlamaCpp (GGUF) готов к работе!")
+    except Exception as e:
+        query_logger.debug(f"LlamaCpp не инициализирован: {e}")
+        brain.llama_cpp_deployment = None
+
+
+def _init_two_model_pipeline(brain):
+    brain.two_model_pipeline = None
+    brain.two_model_pipeline_ready = False
+    brain.fractal_memory = None
+    try:
+        model_config = brain.config.get('model', {})
+        if not model_config.get('use_two_model_pipeline', False):
+            return
+
+        try:
+            from eva.memory.unified_fractal_memory import UnifiedFractalMemory
+            fractal_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "fractal_torch_storage", "unified_memory")
+            brain.fractal_memory = UnifiedFractalMemory(storage_dir=fractal_dir, config=brain.config.get('fractal_memory', {}))
+        except Exception:
+            brain.fractal_memory = None
+
+        model_a_path = model_config.get('model_a_gguf_path', '')
+        model_b_path = model_config.get('model_b_gguf_path', '')
+        model_c_path = model_config.get('model_c_gguf_path', '')
+        n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
+        n_threads = model_config.get('llama_cpp_threads', 8)
+
+        if not model_a_path or not model_b_path:
+            query_logger.warning("Two-Model Pipeline: не указаны пути к моделям")
+            return
+
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if not os.path.isabs(model_a_path):
+            model_a_path = os.path.join(project_root, model_a_path)
+        if not os.path.isabs(model_b_path):
+            model_b_path = os.path.join(project_root, model_b_path)
+        if model_c_path and not os.path.isabs(model_c_path):
+            model_c_path = os.path.join(project_root, model_c_path)
+
+        if not os.path.exists(model_a_path):
+            query_logger.error(f"Model A file not found: {model_a_path}")
+            return
+        if not os.path.exists(model_b_path):
+            model_b_path = model_a_path
+
+        pipeline_kwargs = {'model_a_path': model_a_path, 'model_b_path': model_b_path, 'n_ctx': n_ctx, 'n_threads': n_threads}
+        if model_c_path:
+            pipeline_kwargs['model_c_path'] = model_c_path
+        if brain.fractal_memory:
+            pipeline_kwargs['fractal_memory'] = brain.fractal_memory
+        event_bus = getattr(brain, '_new_event_bus', None) or (brain.events.event_bus if getattr(brain, 'events', None) else None)
+        if event_bus:
+            pipeline_kwargs['event_bus'] = event_bus
+        from eva.core.recursive_model_pipeline import RecursiveModelPipeline
+        brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+        brain.two_model_pipeline.load_models()
+        brain.two_model_pipeline_ready = True
+        query_logger.info("Two-Model Pipeline готов к работе!")
+
+        try:
+            from eva.core.event_bus import Event, EventTypes
+            if brain.events:
+                brain.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
+                    "component": "TwoModelPipeline", "model_a": model_a_path,
+                    "model_b": model_b_path, "n_ctx": n_ctx, "n_threads": n_threads, "ready": True
+                })
+        except Exception:
+            pass
+    except Exception as e:
+        query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
+        brain.two_model_pipeline = None
+
+
+def _init_preprocessing(brain):
+    brain.preprocessing_pipeline = None
+    try:
+        from ..preprocess.preprocessing_pipeline import PreprocessingPipeline
+        llama_instance = brain.llama_cpp_deployment.llama if brain.llama_cpp_deployment and hasattr(brain.llama_cpp_deployment, 'llama') else None
+        brain.preprocessing_pipeline = PreprocessingPipeline(llama_instance=llama_instance, hybrid_cache=brain.hybrid_cache)
+    except Exception as e:
+        query_logger.debug(f"PreprocessingPipeline не инициализирован: {e}")
+
+
+def _init_qwen_config(brain):
+    brain.qwen_model_manager = None
+    brain._qwen_config = None
+    try:
+        model_config = brain.config.get('model', {})
+        model_type = model_config.get('type', '')
+        model_name = model_config.get('name', '')
+        if model_type == 'qwen' or model_name.startswith('qwen'):
+            brain._qwen_config = model_config
+            query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
+        else:
+            query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'")
+    except Exception as e:
+        query_logger.warning(f"Qwen config не найден: {e}")
+
+
+def _init_background(brain):
+    try:
+        from .background_coordinator import BackgroundCoordinator, Policies
+        brain.background = BackgroundCoordinator(
+            brain=brain, deferred_system=getattr(brain, 'deferred_system', None),
+            resource_manager=getattr(brain, 'resource_manager', None),
+            metrics_manager=getattr(brain, 'metrics_manager', None),
+            state_manager=getattr(brain, 'state_manager', None),
+            policies=Policies(
+                idle_threshold_s=float(brain.config.get('autopilot_idle_threshold_s', 10.0)),
+                cpu_threshold_soft=float(brain.config.get('autopilot_cpu_soft', 0.90)),
+                cpu_threshold_hard=float(brain.config.get('autopilot_cpu_hard', 0.95))
+            )
+        )
+        brain.components['background_coordinator'] = brain.background
+        try:
+            from .background_jobs.training_job import TrainingJob
+            from .background_jobs.web_index_job import WebIndexJob
+            from .background_jobs.module_recovery_job import ModuleRecoveryJob
+            brain.background.register_job_type(TrainingJob)
+            brain.background.register_job_type(WebIndexJob)
+            brain.background.register_job_type(ModuleRecoveryJob)
+        except Exception:
+            pass
+    except Exception as e:
+        logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
+        brain.background = None
+
+
+class ComponentMixin:
+    """Mixin providing component initialization, deferred commands, module management, and model management to CoreBrain."""
+
+    def _register_deferred_system_handlers(self):
+        if not getattr(self, 'deferred_system', None):
+            return
+
+        if hasattr(self, 'two_model_pipeline') and self.two_model_pipeline:
+            def check_pipeline():
+                return hasattr(self, 'two_model_pipeline_ready') and self.two_model_pipeline_ready
+            self.deferred_system.add_module_health_check('two_model_pipeline', check_pipeline)
+            def recover_pipeline():
+                try:
+                    self.two_model_pipeline.load_models()
+                    self.two_model_pipeline_ready = True
+                    logger.info("Two-Model Pipeline restored")
+                except Exception as e:
+                    logger.error(f"Failed to restore Two-Model Pipeline: {e}")
+            self.deferred_system.add_module_recovery_strategy('two_model_pipeline', recover_pipeline)
+
+        if hasattr(self, 'self_reasoning_engine') and self.self_reasoning_engine:
+            def check_sre():
+                return hasattr(self.self_reasoning_engine, 'brain') and self.self_reasoning_engine.brain is not None
+            self.deferred_system.add_module_health_check('self_reasoning_engine', check_sre)
+
+        if hasattr(self, 'llama_cpp_deployment') and self.llama_cpp_deployment:
+            def check_llama():
+                return hasattr(self, 'llama_cpp_ready') and self.llama_cpp_ready
+            self.deferred_system.add_module_health_check('llama_cpp_deployment', check_llama)
+
+        if hasattr(self, 'web_search_engine') and self.web_search_engine:
+            def check_web_search():
+                return True
+            self.deferred_system.add_module_health_check('web_search_engine', check_web_search)
+        
+        if hasattr(self, 'web_gui') and self.web_gui:
+            def check_web_gui():
+                return hasattr(self, 'web_gui') and self.web_gui is not None and getattr(self.web_gui, 'running', False)
+            self.deferred_system.add_module_health_check('web_gui', check_web_gui)
+            def recover_web_gui():
+                try:
+                    if hasattr(self, 'web_gui') and self.web_gui:
+                        if not getattr(self.web_gui, 'running', False):
+                            self.web_gui.start()
+                            logger.info("WebGUI recovered")
+                except Exception as e:
+                    logger.error("Failed to recover WebGUI: {}".format(e))
+            self.deferred_system.add_module_recovery_strategy('web_gui', recover_web_gui)
+
+        logger.info("Health checks and recovery strategies registered for deferred system")
+
+    def _execute_deferred_commands(self):
+        with self._deferred_commands_lock:
+            commands_to_execute = list(self.deferred_commands)
+            self.deferred_commands.clear()
+        query_logger.info(f"Executing {len(commands_to_execute)} deferred commands...")
+        for command, args, kwargs in commands_to_execute:
+            try:
+                command(*args, **kwargs)
+                query_logger.info(f"Deferred command {getattr(command, '__name__', 'lambda')} executed successfully.")
+            except Exception as e:
+                query_logger.error(f"Error executing deferred command {getattr(command, '__name__', 'lambda')}: {e}", exc_info=True)
+        query_logger.info("All deferred commands executed.")
+
+    def add_deferred_command(self, command: callable, *args, **kwargs):
+        query_logger.info(f"Deferred command added: {getattr(command, '__name__', 'lambda')}")
+        with self._deferred_commands_lock:
+            self.deferred_commands.append((command, args, kwargs))
+
+    def _initialize_memory_manager(self) -> bool:
+        try:
+            if not self.component_initializer:
+                query_logger.warning("ComponentInitializer недоступен")
+                return False
+            if hasattr(self, 'memory_manager') and self.memory_manager is not None:
+                return True
+            if hasattr(self.component_initializer, 'memory_manager'):
+                self.memory_manager = self.component_initializer.memory_manager
+                self.components['memory_manager'] = self.memory_manager
+                if hasattr(self.memory_manager, 'initialize'):
+                    return self.memory_manager.initialize()
+                return True
+            else:
+                query_logger.warning("memory_manager не найден в component_initializer")
+                return False
+        except Exception as e:
+            query_logger.error(f"Ошибка инициализации MemoryManager: {e}")
+            return False
+
+    def _initialize_detailed_logging(self):
+        import torch, psutil, sys
+        query_logger.debug("ДЕТАЛЬНОЕ ЛОГГИРОВАНИЕ ЗАПУСКА СИСТЕМЫ COGNIFLEX")
+        query_logger.debug(f"Python version: {sys.version}")
+        query_logger.debug(f"Platform: {sys.platform}")
+        query_logger.debug(f"CPU count: {os.cpu_count()}")
+        mem = psutil.virtual_memory()
+        query_logger.debug(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+        query_logger.debug(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+        query_logger.debug(f"RAM usage: {mem.percent}%")
+        disk = psutil.disk_usage('.')
+        query_logger.debug(f"Total disk: {disk.total / (1024**3):.2f} GB")
+        query_logger.debug(f"Free disk: {disk.free / (1024**3):.2f} GB")
+        query_logger.debug(f"Disk usage: {disk.percent}%")
+        if torch.cuda.is_available():
+            query_logger.debug(f"CUDA available: Yes")
+            query_logger.debug(f"CUDA device count: {torch.cuda.device_count()}")
+            query_logger.debug(f"CUDA device name: {torch.cuda.get_device_name(0)}")
+        else:
+            query_logger.debug("CUDA available: No")
+        return True
+
+    def _ensure_module_entry(self, name: str) -> Dict[str, Any]:
+        if name not in self.module_control:
+            self.module_control[name] = {"enabled": True, "status": "unknown", "last_error": None, "last_change": time.time()}
+        return self.module_control[name]
+
+    def enable_module(self, name: str) -> bool:
+        entry = self._ensure_module_entry(name)
+        entry["enabled"] = True; entry["last_change"] = time.time()
+        query_logger.info(f"Модуль '{name}' включен")
+        return True
+
+    def disable_module(self, name: str, stop_if_running: bool = True) -> bool:
+        entry = self._ensure_module_entry(name)
+        entry["enabled"] = False; entry["last_change"] = time.time()
+        component = self.components.get(name)
+        try:
+            if stop_if_running and component and hasattr(component, 'stop'):
+                component.stop(); entry["status"] = "stopped"
+                query_logger.info(f"Модуль '{name}' остановлен при отключении")
+            else:
+                query_logger.info(f"Модуль '{name}' отключен")
+            return True
+        except Exception as e:
+            entry["last_error"] = str(e)
+            query_logger.error(f"Ошибка при отключении модуля '{name}': {e}", exc_info=True)
+            return False
+
+    def start_module(self, name: str) -> bool:
+        entry = self._ensure_module_entry(name)
+        if not entry.get("enabled", True):
+            query_logger.warning(f"Попытка запуска отключенного модуля '{name}'"); return False
+        component = self.components.get(name)
+        if not component or not hasattr(component, 'start'):
+            query_logger.warning(f"Компонент '{name}' не найден или не поддерживает start()"); return False
+        try:
+            component.start(); entry["status"] = "running"; entry["last_error"] = None; entry["last_change"] = time.time()
+            query_logger.info(f"Модуль '{name}' запущен"); return True
+        except Exception as e:
+            entry["last_error"] = str(e); entry["status"] = "error"
+            if hasattr(self.metrics_manager, 'record_error'):
+                self.metrics_manager.record_error(f"module_{name}_start_failed")
+            query_logger.error(f"Ошибка запуска модуля '{name}': {e}", exc_info=True); return False
+
+    def stop_module(self, name: str) -> bool:
+        entry = self._ensure_module_entry(name)
+        component = self.components.get(name)
+        if not component or not hasattr(component, 'stop'):
+            query_logger.warning(f"Компонент '{name}' не найден или не поддерживает stop()"); return False
+        try:
+            component.stop(); entry["status"] = "stopped"; entry["last_error"] = None; entry["last_change"] = time.time()
+            query_logger.info(f"Модуль '{name}' остановлен"); return True
+        except Exception as e:
+            entry["last_error"] = str(e); entry["status"] = "error"
+            query_logger.error(f"Ошибка остановки модуля '{name}': {e}", exc_info=True); return False
+
+    def get_module_status(self, name: str) -> Dict[str, Any]:
+        entry = self._ensure_module_entry(name)
+        component = self.components.get(name)
+        status = {"enabled": entry.get("enabled", True), "status": entry.get("status", "unknown"),
+                  "last_error": entry.get("last_error"), "last_change": entry.get("last_change"),
+                  "running": bool(getattr(component, 'running', False)) if component else False, "healthy": None}
+        try:
+            if component and hasattr(component, 'health_check'):
+                hc = component.health_check()
+                status["healthy"] = bool(hc.get('healthy')) if isinstance(hc, dict) else bool(hc)
+        except Exception:
+            status["healthy"] = False
+        return status
+
+    def list_modules(self) -> Dict[str, Dict[str, Any]]:
+        return {name: self.get_module_status(name) for name in sorted(self.components.keys())}
+
+    def check_module_dependencies(self, module_name: str) -> List[str]:
+        dependencies = {'model_manager': ['ml_unit'], 'response_generator': ['model_manager', 'text_processor'],
+                        'integrated_learning_manager': ['model_manager', 'knowledge_graph'],
+                        'analytics_manager': ['learning_manager', 'memory_manager'],
+                        'learning_processor': ['model_manager', 'hybrid_cache']}
+        missing_deps = []
+        if module_name in dependencies:
+            for dep in dependencies[module_name]:
+                if dep not in self.components:
+                    missing_deps.append(dep)
+        return missing_deps
+
+    def register_component(self, name: str, component: Any) -> bool:
+        try:
+            self.components[name] = component
+            query_logger.debug(f"Компонент '{name}' зарегистрирован в CoreBrain"); return True
+        except Exception as e:
+            query_logger.error(f"Ошибка регистрации компонента '{name}': {e}"); return False
+
+    def get_component(self, name: str) -> Any:
+        return self.components.get(name)
+
+    def get_available_models(self) -> List[Dict[str, Any]]:
+        try:
+            ml_unit = self.components.get('ml_unit')
+            if ml_unit and hasattr(ml_unit, 'get_available_models'):
+                return ml_unit.get_available_models()
+            if hasattr(self, 'model_manager') and self.model_manager and hasattr(self.model_manager, 'get_available_models'):
+                return self.model_manager.get_available_models()
+            return []
+        except Exception as e:
+            query_logger.warning(f"get_available_models: ошибка получения списка моделей: {e}"); return []
+
+    @property
+    def knowledge_graph(self):
+        kg = self.components.get('knowledge_graph')
+        if kg is None:
+            query_logger.debug("knowledge_graph не инициализирован или недоступен")
+        return kg
+
+    @knowledge_graph.setter
+    def knowledge_graph(self, value):
+        if value is not None:
+            query_logger.debug(f"Установка компонента knowledge_graph: {type(value).__name__}")
+        self.components['knowledge_graph'] = value
+
+    @property
+    def qwen_api_enhancer(self):
+        return self.components.get('qwen_api_enhancer')
+
+    @qwen_api_enhancer.setter
+    def qwen_api_enhancer(self, value):
+        query_logger.debug(f"Установка компонента qwen_api_enhancer: {value}")
+        self.components['qwen_api_enhancer'] = value
+
+    def is_model_ready(self, model_id: str) -> bool:
+        try:
+            mm = getattr(self, 'model_manager', None)
+            if not mm: return False
+            return model_id in getattr(mm, 'models', {})
+        except Exception:
+            return False
+
+    def ensure_model_available(self, model_id: str, wait: bool = False, timeout_s: float = 0.0) -> Dict[str, Any]:
+        info = {"requested": model_id, "started": False, "ready": False, "waited": 0.0, "remaining": None}
+        mm = getattr(self, 'model_manager', None)
+        if not mm:
+            info["error"] = "ModelManager недоступен"; return info
+        try:
+            if not self.is_model_ready(model_id):
+                info["started"] = bool(mm.load_model(model_id)) if hasattr(mm, 'load_model') else False
+            if wait:
+                t0 = time.time(); deadline = t0 + max(0.0, float(timeout_s))
+                while time.time() < deadline:
+                    if self.is_model_ready(model_id): info["ready"] = True; break
+                    time.sleep(0.2)
+                info["waited"] = round(time.time() - t0, 3)
+                info["remaining"] = max(0.0, round(deadline - time.time(), 3))
+            else:
+                info["ready"] = self.is_model_ready(model_id)
+            return info
+        except Exception as e:
+            info["error"] = str(e); return info

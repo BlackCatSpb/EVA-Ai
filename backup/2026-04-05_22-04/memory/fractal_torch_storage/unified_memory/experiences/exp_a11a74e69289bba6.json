@@ -1,0 +1,12 @@
+{
+  "id": "exp_a11a74e69289bba6",
+  "query": "Объясни: Привет!",
+  "response": "Не удалось сформировать ответ.",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775222532.738407,
+  "usage_count": 0,
+  "related_experiences": []
+}

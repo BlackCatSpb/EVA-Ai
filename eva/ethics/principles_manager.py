@@ -367,6 +367,27 @@ class PrinciplesManager:
         """
         return self.principles.get(principle_id)
     
+    def get_principle_by_name(self, name: str) -> Optional[EthicalPrinciple]:
+        """
+        Получает этический принцип по имени.
+        
+        Args:
+            name: Имя принципа (например, 'no_violence', 'honesty')
+            
+        Returns:
+            Optional[EthicalPrinciple]: Принцип или None
+        """
+        name_map = {
+            'no_violence': 'no_violence',
+            'honesty': 'honesty',
+            'fact_verification': 'fact_verification',
+            'safe_code': 'safe_code',
+            'risk_blocking': 'risk_blocking',
+            'output_control': 'output_control',
+        }
+        principle_id = name_map.get(name, name)
+        return self.principles.get(principle_id)
+    
     def get_principles_by_category(self, category: str) -> List[Tuple[str, EthicalPrinciple]]:
         """
         Получает принципы по категории.

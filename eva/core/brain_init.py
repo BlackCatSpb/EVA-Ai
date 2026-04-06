@@ -76,10 +76,29 @@ def _start_post_init_services(brain):
         except Exception as e:
             query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
 
+    # Инициализация Fractal Graph V2 если включен
+    if brain.config.get('fractal_graph_v2', {}).get('enabled', True):
+        try:
+            from eva.memory.fractal_graph_v2 import FractalMemoryGraph
+            brain.fractal_graph_v2 = FractalMemoryGraph(
+                storage_dir=brain.config.get('fractal_graph_v2', {}).get('storage_dir'),
+                embedding_device=brain.config.get('fractal_graph_v2', {}).get('embedding_device', 'cuda')
+            )
+            query_logger.info("FractalGraphV2 инициализирован")
+        except Exception as e:
+            query_logger.warning(f"Не удалось инициализировать FractalGraphV2: {e}")
+            brain.fractal_graph_v2 = None
+
+    # GraphCurator
     try:
         from eva.knowledge.graph_curator import GraphCurator
         if not (hasattr(brain, 'graph_curator') and brain.graph_curator and hasattr(brain.graph_curator, 'is_running') and brain.graph_curator.is_running()):
             brain.graph_curator = GraphCurator(brain=brain, config=brain.config.get('graph_curator', {}))
+            
+            # Передаём deferred_system если доступен
+            if hasattr(brain, 'deferred_system') and brain.deferred_system:
+                brain.graph_curator._deferred_system = brain.deferred_system
+            
             brain.graph_curator.start()
     except Exception as e:
         query_logger.warning(f"Failed to start GraphCurator: {e}")

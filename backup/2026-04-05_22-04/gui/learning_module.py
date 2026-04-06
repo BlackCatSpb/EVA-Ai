@@ -1,0 +1,1964 @@
+"""
+Модуль обучения для ЕВА GUI - полнофункциональная реализация с интеграцией улучшения генерации
+"""
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog, scrolledtext
+import logging
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+import numpy as np
+import time
+import json
+import os
+from typing import Dict, List, Optional, Any, Union
+import re
+from datetime import datetime
+import threading
+
+logger = logging.getLogger("eva.gui.learning")
+
+def safe_get(obj: Union[Dict, Any], key: str, default: Any = None) -> Any:
+    """
+    Безопасно получает значение из объекта (словаря или объекта с атрибутами).
+    """
+    try:
+        if isinstance(obj, dict):
+            return obj.get(key, default)
+        elif hasattr(obj, key):
+            return getattr(obj, key)
+        return default
+    except Exception:
+        return default
+
+class LearningModule:
+    """Модуль для мониторинга и управления процессом обучения в ЕВА."""
+    
+    def __init__(self, gui):
+        self.gui = gui
+        self.learning_frame = None
+        self.learning_tree = None
+        self.learning_details = None
+        self.learning_progress = None
+        self.learning_canvas = None
+        self.learning_fig = None
+        self.learning_ax = None
+        self.learning_opportunities = []
+        self.current_opportunity = None
+        self.learning_history = []
+        self.learning_statistics = {
+            "total_opportunities": 0,
+            "resolved": 0,
+            "in_progress": 0,
+            "pending": 0,
+            "domains": {},
+            "trend": "stable"
+        }
+        self.training_stats = {}
+        self.learning_status = "idle"
+        self.learning_progress_value = 0
+        self.update_interval = 5000
+        self.update_job = None
+        self.active = False
+        self._orchestrator: Optional[Any] = None
+        self._import_pipeline: Optional[Any] = None
+        self._train_thread: Optional[threading.Thread] = None
+        self._current_doc_id: Optional[str] = None
+        self._train_total_chunks: int = 0
+        self._model_selection_var: Optional[tk.StringVar] = None
+        self._model_id_map: Dict[str, Optional[str]] = {}
+        self.model_combo: Optional[ttk.Combobox] = None
+        self._pending_after_ids: List[str] = []
+        self._suppress_selection_events: bool = False
+        self._last_learning_log_ts: float = 0.0
+        self._last_progress_ui_ts: float = 0.0
+        self._last_auto_train_ts: float = 0.0
+        self.notifications_enabled: bool = False
+        self.auto_training_enabled: bool = False
+        
+        # Интеграция улучшения генерации
+        self.quality_integration: Optional[Any] = None
+        self.quality_integration_active: bool = False
+        
+        logger.info("Модуль обучения инициализирован с поддержкой улучшения генерации")
+    
+    def activate(self):
+        """Активирует модуль обучения."""
+        for widget in self.gui.content_area.winfo_children():
+            widget.destroy()
+            
+        self._create_learning_interface()
+        logger.info("Модуль обучения активирован")
+        
+        self.active = True
+        self._start_auto_update()
+        
+        # Активируем интеграцию улучшения генерации
+        self._activate_quality_integration()
+        
+        self.refresh_learning_data()
+    
+    def deactivate(self):
+        """Деактивирует модуль обучения."""
+        self.active = False
+        if self.update_job:
+            self.gui.root.after_cancel(self.update_job)
+            self.update_job = None
+        try:
+            root = getattr(self.gui, 'root', None)
+            if root and hasattr(root, 'after_cancel'):
+                for aid in list(self._pending_after_ids):
+                    try:
+                        root.after_cancel(aid)
+                    except Exception:
+                        pass
+        finally:
+            self._pending_after_ids.clear()
+        
+        logger.info("Модуль обучения деактивирован")
+
+    def _safe_after(self, delay_ms: int, func) -> Optional[str]:
+        """Безопасно планирует Tkinter after."""
+        try:
+            if not self.active:
+                return None
+            root = getattr(self.gui, 'root', None) if self.gui else None
+            if not root or not getattr(root, 'winfo_exists', None) or not root.winfo_exists():
+                return None
+            
+            # Создаем обертку с уникальным именем
+            import uuid
+            job_id = str(uuid.uuid4())[:8]
+            
+            def wrapper():
+                try:
+                    if self.active and root.winfo_exists():
+                        func()
+                except Exception as e:
+                    logger.debug(f"Ошибка в _safe_after wrapper {job_id}: {e}")
+            
+            aid = root.after(delay_ms, wrapper)
+            aid_str = f"job_{job_id}_{aid}"
+            self._pending_after_ids.append(aid_str)
+            return aid_str
+        except Exception:
+            return None
+    
+    def cleanup(self):
+        """Очищает все запланированные задачи."""
+        try:
+            if hasattr(self, '_pending_after_ids') and hasattr(self.gui, 'root') and self.gui.root:
+                for aid_str in self._pending_after_ids:
+                    try:
+                        self.gui.root.after_cancel(aid_str)
+                    except Exception:
+                        pass
+                self._pending_after_ids.clear()
+                logger.debug("Очищены все after задачи в learning_module")
+        except Exception as e:
+            logger.error(f"Ошибка очистки learning_module: {e}")
+
+    def _widget_exists(self, widget) -> bool:
+        """Безопасно проверяет существование виджета Tk."""
+        try:
+            return widget is not None and str(widget) and widget.winfo_exists()
+        except Exception:
+            return False
+
+    def _start_auto_update(self):
+        """Запускает периодическое обновление данных обучения."""
+        if self.update_job:
+            self.gui.root.after_cancel(self.update_job)
+        
+        def update():
+            try:
+                if not self.active or not self.gui or not getattr(self.gui, 'root', None):
+                    return
+                if not self.gui.root.winfo_exists():
+                    return
+                self.refresh_learning_data()
+            except Exception:
+                return
+            if self.active:
+                self.update_job = self.gui.root.after(self.update_interval, update)
+        
+        if self.active and self.gui and getattr(self.gui, 'root', None) and self.gui.root.winfo_exists():
+            self.update_job = self.gui.root.after(self.update_interval, update)
+        logger.debug("Запущено периодическое обновление данных обучения")
+
+    def refresh_learning_data(self):
+        """Обновляет данные обучения из системы."""
+        try:
+            if not self.active or not self._widget_exists(self.learning_frame):
+                return
+            if not self.gui.brain:
+                logger.warning("Ядро системы недоступно для модуля обучения")
+                self.learning_status = "error"
+                if self._widget_exists(self.learning_status_label):
+                    self._update_learning_status()
+                return
+            
+            self_analyzer = None
+            if hasattr(self.gui.brain, 'self_analyzer'):
+                self_analyzer = self.gui.brain.self_analyzer
+            elif hasattr(self.gui.brain, 'components') and 'self_analyzer' in self.gui.brain.components:
+                self_analyzer = self.gui.brain.components['self_analyzer']
+        
+            if not self_analyzer:
+                logger.warning("Самоанализатор недоступен для модуля обучения")
+                self.learning_status = "error"
+                if self._widget_exists(self.learning_status_label):
+                    self._update_learning_status()
+                return
+            
+            try:
+                if hasattr(self_analyzer, 'get_learning_opportunities'):
+                    self.learning_opportunities = self_analyzer.get_learning_opportunities(executed=False)
+                else:
+                    self.learning_opportunities = getattr(self_analyzer, 'learning_opportunities', [])
+            except Exception as e:
+                logger.error(f"Ошибка получения возможностей для обучения: {e}")
+                self.learning_opportunities = []
+            
+            self.learning_statistics["total_opportunities"] = len(self.learning_opportunities)
+            
+            self.learning_statistics["resolved"] = 0
+            self.learning_statistics["in_progress"] = 0
+            self.learning_statistics["pending"] = 0
+            
+            for op in self.learning_opportunities:
+                status = safe_get(op, "status", "pending").lower()
+                if status == "resolved":
+                    self.learning_statistics["resolved"] += 1
+                elif status == "in_progress":
+                    self.learning_statistics["in_progress"] += 1
+                else:
+                    self.learning_statistics["pending"] += 1
+            
+            self.learning_statistics["domains"] = {}
+            for op in self.learning_opportunities:
+                domain = safe_get(op, "domain", "general")
+                self.learning_statistics["domains"][domain] = self.learning_statistics["domains"].get(domain, 0) + 1
+            
+            self._determine_learning_trend()
+
+            try:
+                self._maybe_trigger_auto_training()
+            except Exception as e:
+                logger.debug(f"Автозапуск обучения пропущен: {e}")
+
+            try:
+                trainer = getattr(self.gui.brain, 'memory_graph_trainer', None)
+                if trainer is None:
+                    trainer = getattr(self_analyzer, 'memory_graph_trainer', None)
+                if trainer is not None and hasattr(trainer, 'get_training_stats'):
+                    self.training_stats = trainer.get_training_stats() or {}
+                else:
+                    self.training_stats = {}
+            except Exception as e:
+                logger.error(f"Ошибка получения метрик обучения из тренера: {e}")
+                self.training_stats = {}
+
+            if self._widget_exists(self.learning_tree):
+                self._update_learning_opportunities()
+            if self._widget_exists(self.learning_status_label):
+                self._update_learning_status()
+            if self._widget_exists(self.learning_progress):
+                self._update_learning_progress()
+            if self._widget_exists(self.learning_canvas):
+                self._update_learning_charts()
+            if hasattr(self, 'stats_tree') and self._widget_exists(self.stats_tree):
+                self._update_learning_statistics()
+            
+            now_ts = time.time()
+            if now_ts - self._last_learning_log_ts >= 30.0:
+                logger.info(f"Данные обучения обновлены: {self.learning_statistics['total_opportunities']} возможностей")
+                self._last_learning_log_ts = now_ts
+        
+        except Exception as e:
+            logger.error(f"Ошибка обновления данных обучения: {e}", exc_info=True)
+            self.learning_status = "error"
+            if self._widget_exists(self.learning_status_label):
+                self._update_learning_status()
+
+    def _determine_learning_trend(self):
+        """Определяет тренд обучения на основе истории."""
+        try:
+            if self.learning_statistics["total_opportunities"] == 0:
+                self.learning_statistics["trend"] = "stable"
+                return
+            
+            completed_ratio = (self.learning_statistics["resolved"] + self.learning_statistics["in_progress"]) / \
+                             self.learning_statistics["total_opportunities"]
+            
+            if completed_ratio > 0.6:
+                self.learning_statistics["trend"] = "positive"
+            elif completed_ratio < 0.3:
+                self.learning_statistics["trend"] = "negative"
+            else:
+                self.learning_statistics["trend"] = "stable"
+                
+        except Exception as e:
+            logger.error(f"Ошибка определения тренда обучения: {e}")
+            self.learning_statistics["trend"] = "stable"
+
+    def _create_learning_interface(self):
+        """Создает интерфейс обучения."""
+        self.learning_frame = ttk.Frame(self.gui.content_area)
+        self.learning_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self._create_learning_header()
+        
+        main_container = ttk.Frame(self.learning_frame)
+        main_container.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
+        
+        left_panel = ttk.Frame(main_container, width=400)
+        left_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=False)
+        left_panel.pack_propagate(False)
+        
+        right_panel = ttk.Frame(main_container)
+        right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
+        
+        self._create_learning_opportunities_panel(left_panel)
+        self._create_learning_details_panel(right_panel)
+        self._create_learning_control_panel(self.learning_frame)
+
+    def _create_learning_header(self):
+        """Создает заголовок с общей статистикой обучения."""
+        header_frame = ttk.Frame(self.learning_frame, style='Card.TFrame')
+        header_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(
+            header_frame, 
+            text="Процесс обучения", 
+            font=('Segoe UI', 16, 'bold'),
+            style='Header.TLabel'
+        ).pack(anchor=tk.W, padx=15, pady=10)
+        
+        stats_frame = ttk.Frame(header_frame)
+        stats_frame.pack(fill=tk.X, padx=15, pady=(0, 10))
+        
+        total_frame = ttk.Frame(stats_frame)
+        total_frame.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(
+            total_frame, 
+            text="Всего возможностей",
+            style='Secondary.TLabel'
+        ).pack(anchor=tk.W)
+        
+        self.total_opportunities_label = ttk.Label(
+            total_frame, 
+            text="0",
+            font=('Segoe UI', 14, 'bold')
+        )
+        self.total_opportunities_label.pack(anchor=tk.W)
+        
+        resolved_frame = ttk.Frame(stats_frame)
+        resolved_frame.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(
+            resolved_frame, 
+            text="Завершено",
+            style='Secondary.TLabel'
+        ).pack(anchor=tk.W)
+        
+        self.resolved_label = ttk.Label(
+            resolved_frame, 
+            text="0",
+            font=('Segoe UI', 14, 'bold'),
+            foreground='#28a745'
+        )
+        self.resolved_label.pack(anchor=tk.W)
+        
+        in_progress_frame = ttk.Frame(stats_frame)
+        in_progress_frame.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(
+            in_progress_frame, 
+            text="В процессе",
+            style='Secondary.TLabel'
+        ).pack(anchor=tk.W)
+        
+        self.in_progress_label = ttk.Label(
+            in_progress_frame, 
+            text="0",
+            font=('Segoe UI', 14, 'bold'),
+            foreground='#007bff'
+        )
+        self.in_progress_label.pack(anchor=tk.W)
+        
+        trend_frame = ttk.Frame(stats_frame)
+        trend_frame.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(
+            trend_frame, 
+            text="Тренд",
+            style='Secondary.TLabel'
+        ).pack(anchor=tk.W)
+        
+        self.trend_label = ttk.Label(
+            trend_frame, 
+            text="Стабильный",
+            font=('Segoe UI', 14, 'bold')
+        )
+        self.trend_label.pack(anchor=tk.W)
+    
+    def _create_learning_opportunities_panel(self, parent):
+        """Создает панель с возможностями для обучения."""
+        ttk.Label(
+            parent, 
+            text="Возможности для обучения", 
+            font=('Segoe UI', 12, 'bold'),
+            style='Header.TLabel'
+        ).pack(anchor=tk.W, padx=10, pady=(0, 5))
+        
+        toolbar = ttk.Frame(parent)
+        toolbar.pack(fill=tk.X, pady=(0, 5))
+        
+        ttk.Button(
+            toolbar,
+            text="Обновить",
+            command=self.refresh_learning_data,
+            style='TButton'
+        ).pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.start_learning_btn = ttk.Button(
+            toolbar,
+            text="Запустить обучение",
+            command=self._start_learning_process,
+            style='Primary.TButton'
+        )
+        self.start_learning_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        self.import_and_train_btn = ttk.Button(
+            toolbar,
+            text="Импортировать и обучать",
+            command=self._on_import_and_train,
+            style='Primary.TButton'
+        )
+        self.import_and_train_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.clear_list_btn = ttk.Button(
+            toolbar,
+            text="Очистить список",
+            command=self._on_clear_opportunities,
+            style='Danger.TButton'
+        )
+        self.clear_list_btn.pack(side=tk.LEFT, padx=(0, 5))
+        
+        ttk.Button(
+            toolbar,
+            text="Экспорт",
+            command=self._export_learning_data,
+            style='TButton'
+        ).pack(side=tk.LEFT)
+        
+        filter_frame = ttk.Frame(parent)
+        filter_frame.pack(fill=tk.X, pady=(5, 10))
+        
+        ttk.Label(filter_frame, text="Фильтр по домену:", style='Secondary.TLabel').pack(side=tk.LEFT)
+        
+        self.domain_var = tk.StringVar(value="Все")
+        domains = ["Все", "general", "knowledge", "reasoning", "ethics", "performance"]
+        domain_combobox = ttk.Combobox(
+            filter_frame,
+            textvariable=self.domain_var,
+            values=domains,
+            state="readonly",
+            width=12
+        )
+        domain_combobox.pack(side=tk.LEFT, padx=(5, 0))
+        domain_combobox.bind("<<ComboboxSelected>>", lambda e: self._filter_learning_opportunities())
+        
+        ttk.Label(filter_frame, text="  Статус:", style='Secondary.TLabel').pack(side=tk.LEFT, padx=(10, 0))
+        
+        self.status_var = tk.StringVar(value="Все")
+        status_combobox = ttk.Combobox(
+            filter_frame,
+            textvariable=self.status_var,
+            values=["Все", "pending", "in_progress", "resolved"],
+            state="readonly",
+            width=12
+        )
+        status_combobox.pack(side=tk.LEFT, padx=(5, 0))
+        status_combobox.bind("<<ComboboxSelected>>", lambda e: self._filter_learning_opportunities())
+        
+        table_frame = ttk.Frame(parent)
+        table_frame.pack(fill=tk.BOTH, expand=True)
+        
+        columns = ("id", "concept", "type", "priority", "status")
+        self.learning_tree = ttk.Treeview(
+            table_frame,
+            columns=columns,
+            show="headings",
+            selectmode="browse"
+        )
+        
+        self.learning_tree.heading("id", text="ID", anchor=tk.W)
+        self.learning_tree.heading("concept", text="Концепт", anchor=tk.W)
+        self.learning_tree.heading("type", text="Тип", anchor=tk.W)
+        self.learning_tree.heading("priority", text="Приоритет", anchor=tk.W)
+        self.learning_tree.heading("status", text="Статус", anchor=tk.W)
+        
+        self.learning_tree.column("id", width=80, stretch=tk.NO)
+        self.learning_tree.column("concept", width=150, stretch=tk.YES)
+        self.learning_tree.column("type", width=120, stretch=tk.NO)
+        self.learning_tree.column("priority", width=80, stretch=tk.NO)
+        self.learning_tree.column("status", width=100, stretch=tk.NO)
+        
+        scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.learning_tree.yview)
+        self.learning_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.learning_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.learning_tree.bind("<<TreeviewSelect>>", self._on_learning_opportunity_select)
+        
+        self.learning_tree.tag_configure("pending", background="#fff8e1")
+        self.learning_tree.tag_configure("in_progress", background="#e3f2fd")
+        self.learning_tree.tag_configure("resolved", background="#e8f5e9")
+
+    def _create_learning_details_panel(self, parent):
+        """Создает панель с деталями обучения."""
+        ttk.Label(
+            parent, 
+            text="Детали обучения", 
+            font=('Segoe UI', 12, 'bold'),
+            style='Header.TLabel'
+        ).pack(anchor=tk.W, padx=10, pady=(0, 5))
+        
+        notebook = ttk.Notebook(parent)
+        notebook.pack(fill=tk.BOTH, expand=True)
+        
+        details_frame = ttk.Frame(notebook)
+        notebook.add(details_frame, text="Детали")
+        self._create_learning_details_tab(details_frame)
+        
+        stats_frame = ttk.Frame(notebook)
+        notebook.add(stats_frame, text="Статистика")
+        self._create_learning_stats_tab(stats_frame)
+        
+        charts_frame = ttk.Frame(notebook)
+        notebook.add(charts_frame, text="Графики")
+        self._create_learning_charts_tab(charts_frame)
+
+    def _create_learning_details_tab(self, parent):
+        """Создает вкладку с деталями текущей возможности обучения."""
+        self.details_container = ttk.Frame(parent)
+        self.details_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.learning_details = ttk.Label(
+            self.details_container,
+            text="Выберите возможность обучения для просмотра деталей",
+            wraplength=600,
+            justify=tk.CENTER,
+            font=('Segoe UI', 10)
+        )
+        self.learning_details.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+
+    def _create_learning_stats_tab(self, parent):
+        """Создает вкладку со статистикой обучения."""
+        stats_container = ttk.Frame(parent)
+        stats_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.stats_tree = ttk.Treeview(
+            stats_container,
+            columns=("metric", "value"),
+            show="headings",
+            height=10
+        )
+        
+        self.stats_tree.heading("metric", text="Метрика", anchor=tk.W)
+        self.stats_tree.heading("value", text="Значение", anchor=tk.W)
+        
+        self.stats_tree.column("metric", width=200, stretch=tk.NO)
+        self.stats_tree.column("value", width=150, stretch=tk.NO)
+        
+        scrollbar = ttk.Scrollbar(stats_container, orient=tk.VERTICAL, command=self.stats_tree.yview)
+        self.stats_tree.configure(yscrollcommand=scrollbar.set)
+        
+        self.stats_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self._update_learning_statistics()
+
+    def _create_learning_charts_tab(self, parent):
+        """Создает вкладку с графиками обучения."""
+        charts_container = ttk.Frame(parent)
+        charts_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        self.learning_fig, (self.learning_ax) = plt.subplots(1, 1, figsize=(8, 5))
+        self.learning_fig.tight_layout()
+        
+        self.learning_canvas = FigureCanvasTkAgg(self.learning_fig, master=charts_container)
+        self.learning_canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        
+        toolbar = ttk.Frame(charts_container)
+        toolbar.pack(fill=tk.X)
+        
+        ttk.Button(
+            toolbar,
+            text="Обновить график",
+            command=self._update_learning_charts,
+            style='TButton'
+        ).pack(side=tk.LEFT, padx=5, pady=5)
+        
+        ttk.Button(
+            toolbar,
+            text="Сохранить график",
+            command=self._save_learning_chart,
+            style='TButton'
+        ).pack(side=tk.LEFT, padx=5, pady=5)
+        
+        self._update_learning_charts()
+
+    def _load_available_models(self):
+        """Загружает список доступных моделей из MLUnit/ModelManager и заполняет комбобокс."""
+        try:
+            if not self.gui or not getattr(self.gui, 'brain', None):
+                return
+            brain = self.gui.brain
+
+            ml_unit = getattr(brain, 'ml_unit', None)
+            if not ml_unit and hasattr(brain, 'components'):
+                try:
+                    ml_unit = brain.components.get('ml_unit')
+                except Exception:
+                    ml_unit = None
+            direct_mm = getattr(brain, 'model_manager', None)
+            if not direct_mm and hasattr(brain, 'components'):
+                try:
+                    direct_mm = brain.components.get('model_manager')
+                except Exception:
+                    direct_mm = None
+
+            models: List[Any] = []
+            try:
+                if ml_unit and hasattr(ml_unit, 'model_manager') and ml_unit.model_manager:
+                    getm = getattr(ml_unit.model_manager, 'get_available_models', None)
+                    if callable(getm):
+                        models = getm() or []
+                        logger.debug(f"ModelManager (через ml_unit) вернул моделей: {len(models)}")
+                if (not models) and direct_mm and hasattr(direct_mm, 'get_available_models'):
+                    getm2 = getattr(direct_mm, 'get_available_models', None)
+                    if callable(getm2):
+                        mm_models = getm2() or []
+                        if mm_models:
+                            models = mm_models
+                            logger.debug(f"Прямой ModelManager вернул моделей: {len(models)}")
+                if (not models) and ml_unit and hasattr(ml_unit, 'get_available_hf_models'):
+                    models = ml_unit.get_available_hf_models() or []
+                    logger.debug(f"HF список моделей: {len(models)}")
+            except Exception as ex:
+                logger.debug(f"Не удалось получить список моделей: {ex}")
+                models = []
+
+            display_items: List[str] = []
+            id_map: Dict[str, Optional[str]] = {}
+
+            auto_label = "Авто (по умолчанию)"
+            display_items.append(auto_label)
+            id_map[auto_label] = None
+
+            # Добавляем фрактальную модель если она активна
+            if brain and getattr(brain, 'fractal_ready', False) and getattr(brain, 'fractal_model_manager', None):
+                try:
+                    fm = brain.fractal_model_manager
+                    model_info = fm.get_model_info() if hasattr(fm, 'get_model_info') else {}
+                    total_params = model_info.get('total_parameters', 0)
+                    fractal_label = f"Фрактальная модель ruGPT ({total_params:,} параметров)"
+                    display_items.append(fractal_label)
+                    id_map[fractal_label] = "fractal_rugpt"
+                    logger.debug("Фрактальная модель добавлена в список")
+                except Exception as e:
+                    logger.warning(f"Не удалось добавить фрактальную модель: {e}")
+
+            for m in models:
+                mid = None
+                mname = None
+                try:
+                    if isinstance(m, dict):
+                        mid = m.get('id') or m.get('model_id') or m.get('alias') or m.get('name')
+                        mname = m.get('name') or m.get('alias') or mid
+                    else:
+                        mid = getattr(m, 'id', None) or getattr(m, 'model_id', None) or getattr(m, 'alias', None) or getattr(m, 'name', None)
+                        mname = getattr(m, 'name', None) or getattr(m, 'alias', None) or mid
+                except Exception:
+                    mid = None
+                    mname = None
+                if not mid and not mname:
+                    continue
+                label = str(mname) if mname else str(mid)
+                if mid and mname and str(mid) != str(mname):
+                    label = f"{mname} ({mid})"
+                display_items.append(label)
+                id_map[label] = str(mid) if mid is not None else None
+
+            if self.model_combo is not None:
+                try:
+                    self.model_combo['values'] = tuple(display_items)
+                except Exception:
+                    self.model_combo.configure(values=tuple(display_items))
+                current = None
+                try:
+                    current = self._model_selection_var.get() if self._model_selection_var else None
+                except Exception:
+                    current = None
+                if not current or current not in id_map:
+                    if self._model_selection_var is not None:
+                        self._model_selection_var.set(auto_label)
+
+            self._model_id_map = id_map
+            if len(display_items) <= 1:
+                self._show_notification(
+                    "Модели",
+                    "Доступные модели не найдены. Используется режим Авто.",
+                    level="warning"
+                )
+        except Exception as e:
+            logger.error(f"Ошибка загрузки доступных моделей: {e}", exc_info=True)
+            try:
+                self._show_notification("Модели", f"Ошибка загрузки моделей: {e}", level="error")
+            except Exception:
+                pass
+
+    def _rescan_models_and_reload(self):
+        """Фоново пересканирует директорию моделей и обновит комбобокс без блокировки UI."""
+        def worker():
+            try:
+                if not self.gui or not getattr(self.gui, 'brain', None):
+                    return
+                brain = self.gui.brain
+
+                model_manager = getattr(brain, 'model_manager', None)
+                if not model_manager and hasattr(brain, 'components'):
+                    try:
+                        model_manager = brain.components.get('model_manager')
+                    except Exception:
+                        model_manager = None
+
+                if model_manager and hasattr(model_manager, 'scan_models_directory'):
+                    try:
+                        found = model_manager.scan_models_directory()
+                    except Exception:
+                        found = None
+                    self._safe_after(0, self._load_available_models)
+                    msg = "Сканирование завершено" if found is None else f"Сканирование завершено. Найдено/зарегистрировано: {found}"
+                    self._safe_after(0, lambda: self._show_notification("Модели", msg, level="info"))
+                else:
+                    self._safe_after(0, lambda: self._show_notification("Модели", "ModelManager недоступен", level="warning"))
+            except Exception as e:
+                logger.error(f"Ошибка пересканирования моделей: {e}", exc_info=True)
+                self._safe_after(0, lambda: self._show_notification("Модели", f"Ошибка пересканирования: {e}", level="error"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _show_error(self, title, message):
+        """Показывает сообщение об ошибке."""
+        if not getattr(self, 'notifications_enabled', False):
+            logger.error(f"ERROR (suppressed UI): {title} - {message}")
+            return
+        messagebox.showerror(title, message)
+
+    def _show_message(self, message, msg_type="info"):
+        """Показывает информационное сообщение."""
+        if not getattr(self, 'notifications_enabled', False):
+            lvl = logging.INFO if msg_type == "info" else logging.WARNING
+            logger.log(lvl, f"MESSAGE (suppressed UI): {message}")
+            return
+        if msg_type == "info":
+            messagebox.showinfo("Информация", message)
+        elif msg_type == "warning":
+            messagebox.showwarning("Предупреждение", message)
+
+    def _create_learning_control_panel(self, parent):
+        """Создает панель управления обучением."""
+        control_frame = ttk.Frame(parent, style='Card.TFrame')
+        control_frame.pack(fill=tk.X, pady=(10, 0))
+
+        model_frame = ttk.Frame(control_frame)
+        model_frame.pack(fill=tk.X, padx=15, pady=(10, 0))
+
+        ttk.Label(
+            model_frame,
+            text="Модель для обучения",
+            font=('Segoe UI', 10, 'bold'),
+            style='Header.TLabel'
+        ).pack(anchor=tk.W, pady=(0, 5))
+
+        controls_row = ttk.Frame(model_frame)
+        controls_row.pack(fill=tk.X)
+
+        self._model_selection_var = tk.StringVar(value="Авто (по умолчанию)")
+        self.model_combo = ttk.Combobox(
+            controls_row,
+            textvariable=self._model_selection_var,
+            state="readonly",
+            width=60
+        )
+        self.model_combo.pack(side=tk.LEFT, padx=(0, 8), fill=tk.X, expand=True)
+
+        ttk.Button(
+            controls_row,
+            text="Пересканировать модели",
+            command=self._rescan_models_and_reload,
+            style='TButton'
+        ).pack(side=tk.LEFT, padx=(0, 5))
+
+        # Кнопка принудительного обучения
+        ttk.Button(
+            controls_row,
+            text="Принудительное обучение",
+            command=self._on_forced_training,
+            style='Accent.TButton'
+        ).pack(side=tk.LEFT)
+
+        try:
+            self._load_available_models()
+        except Exception:
+            pass
+
+        progress_frame = ttk.Frame(control_frame)
+        progress_frame.pack(fill=tk.X, padx=15, pady=10)
+        
+        ttk.Label(
+            progress_frame, 
+            text="Прогресс обучения", 
+            font=('Segoe UI', 10, 'bold'),
+            style='Header.TLabel'
+        ).pack(anchor=tk.W, pady=(0, 5))
+        
+        self.learning_progress = ttk.Progressbar(
+            progress_frame,
+            orient=tk.HORIZONTAL,
+            length=100,
+            mode='determinate'
+        )
+        self.learning_progress.pack(fill=tk.X, pady=(0, 5))
+        
+        self.learning_status_label = ttk.Label(
+            progress_frame,
+            text="Готов к обучению",
+            foreground="#6c757d"
+        )
+        self.learning_status_label.pack(anchor=tk.W)
+
+    def _on_import_and_train(self):
+        """Открывает файл для изучения через самодиалог."""
+        try:
+            if not self.gui or not getattr(self.gui, 'brain', None):
+                self._show_error("Ошибка", "Ядро системы недоступно")
+                return
+
+            file_path = filedialog.askopenfilename(
+                title="Выберите документ",
+                filetypes=[
+                    ("Документы", "*.txt *.md *.log *.pdf *.epub"),
+                    ("Текстовые файлы", "*.txt *.md *.log"),
+                    ("PDF", "*.pdf"),
+                    ("EPUB", "*.epub"),
+                    ("Все файлы", "*.*"),
+                ]
+            )
+            if not file_path:
+                return
+
+            if not self._import_pipeline:
+                from eva.tools.import_pipeline import ImportPipeline
+                self._import_pipeline = ImportPipeline(self.gui.brain, chunk_tokens=512, overlap_tokens=64)
+            
+            def progress_cb(evt: Dict[str, Any]):
+                try:
+                    if not self.active:
+                        return
+                    root = getattr(self.gui, 'root', None) if self.gui else None
+                    if not root or not getattr(root, 'winfo_exists', None) or not root.winfo_exists():
+                        return
+                    def _safe_handle(e=evt):
+                        try:
+                            if not self.active:
+                                return
+                            r = getattr(self.gui, 'root', None) if self.gui else None
+                            if not r or not r.winfo_exists():
+                                return
+                            self._handle_train_progress(e)
+                        except Exception:
+                            pass
+                    self._safe_after(0, _safe_handle)
+                except Exception:
+                    pass
+
+            imported = self._import_pipeline.import_path(file_path)
+            self._current_doc_id = getattr(imported, 'id', None)
+
+            selected_label = None
+            selected_id: Optional[str] = None
+            try:
+                if self._model_selection_var is not None:
+                    selected_label = self._model_selection_var.get()
+                if selected_label and isinstance(self._model_id_map, dict):
+                    selected_id = self._model_id_map.get(selected_label)
+            except Exception:
+                selected_id = None
+
+            def _run():
+                try:
+                    result = self._orchestrator.train_from_document(imported, model_id=selected_id)
+                    if self.gui and getattr(self.gui, 'root', None):
+                        self._safe_after(0, lambda r=result: self._handle_train_progress({"event": r.get("status", "completed"), **r}))
+                except Exception as ex:
+                    logger.error(f"Ошибка обучения: {ex}", exc_info=True)
+                    if self.gui and getattr(self.gui, 'root', None):
+                        self._safe_after(0, lambda: self._handle_train_progress({"event": "failed", "error": str(ex), "document_id": self._current_doc_id or ""}))
+
+            self.learning_status = "active"
+            if self._widget_exists(self.learning_status_label):
+                self._update_learning_status()
+            if self._widget_exists(self.learning_progress):
+                self.learning_progress['value'] = 0
+            self._show_notification("Обучение", f"Начат импорт и обучение: {os.path.basename(file_path)}", level="info")
+
+            self._train_thread = threading.Thread(target=_run, daemon=True)
+            self._train_thread.start()
+
+        except Exception as e:
+            logger.error(f"Ошибка импорта/обучения: {e}", exc_info=True)
+            error_msg = str(e)
+            def show_error():
+                self._show_error("Ошибка", f"Не удалось запустить импорт/обучение: {error_msg}")
+            self._safe_after(0, show_error)
+
+    def _handle_train_progress(self, evt: Dict[str, Any]):
+        """Обрабатывает события прогресса обучения."""
+        try:
+            if not self.active or not self.gui or not getattr(self.gui, 'root', None):
+                return
+            try:
+                if not self.gui.root.winfo_exists():
+                    return
+            except Exception:
+                return
+            event = evt.get("event")
+            if event == "start":
+                total = int(evt.get("total_chunks", 0))
+                self._train_total_chunks = total
+                self.learning_status = "active"
+                if self._widget_exists(self.learning_status_label):
+                    self._update_learning_status()
+                if self._widget_exists(self.learning_progress):
+                    self.learning_progress['maximum'] = 100
+                    self.learning_progress['value'] = 0
+            elif event in ("batch_end", "batch_progress"):
+                processed_raw = evt.get("processed_chunks", evt.get("end_idx", 0))
+                try:
+                    processed = int(processed_raw)
+                except Exception:
+                    processed = 0
+
+                total_raw = evt.get("total_chunks", None)
+                if total_raw is None:
+                    total_raw = self._train_total_chunks or 1
+                try:
+                    total = int(total_raw)
+                except Exception:
+                    total = max(1, int(self._train_total_chunks or 1))
+
+                pct = 0.0 if total <= 0 else (processed / max(1, total)) * 100.0
+                now = time.time()
+                if (now - self._last_progress_ui_ts) >= 0.1 or event == "batch_end":
+                    self.update_learning_progress(pct)
+                    self._last_progress_ui_ts = now
+            elif event == "batch_retry":
+                err = evt.get("error", "")
+                self._show_notification("Повтор пакета", f"Повтор обработки пакета: {err}", level="warning")
+            elif event == "failed":
+                self.learning_status = "error"
+                if self._widget_exists(self.learning_status_label):
+                    self._update_learning_status()
+                self._show_notification("Обучение", f"Сбой обучения: {evt.get('error', '')}", level="error")
+            elif event == "completed":
+                self.learning_status = "completed"
+                if self._widget_exists(self.learning_status_label):
+                    self._update_learning_status()
+                self.update_learning_progress(100.0)
+                self._show_notification("Обучение", "Обучение завершено", level="info")
+        except Exception as e:
+            logger.debug(f"Ошибка обработки прогресса: {e}")
+
+    def _on_forced_training(self):
+        """Запускает принудительное обучение с отображением метрик в GUI"""
+        try:
+            if not self.gui or not getattr(self.gui, 'brain', None):
+                self._show_error("Ошибка", "Ядро системы недоступно")
+                return
+            
+            # Проверяем наличие EnhancedSelfLearningSystem
+            enhanced_learning = getattr(self.gui.brain, 'enhanced_learning', None)
+            if not enhanced_learning:
+                self._show_error("Ошибка", "Система самообучения недоступна")
+                return
+            
+            # Запрашиваем количество эпох
+            import tkinter.simpledialog as simpledialog
+            epochs = simpledialog.askinteger(
+                "Принудительное обучение", 
+                "Введите количество эпох:",
+                initialvalue=3,
+                minvalue=1,
+                maxvalue=1000
+            )
+            
+            if epochs is None:  # Пользователь отменил
+                return
+            
+            self.learning_status_label.config(text=f"Запуск принудительного обучения ({epochs} эпох)...")
+            self.learning_progress['value'] = 0
+            
+            # Callback для обновления прогресса
+            def progress_callback(progress_percent, session_data):
+                try:
+                    if not self.active:
+                        return
+                    self._safe_after(0, lambda: self._update_training_progress(progress_percent, session_data))
+                except Exception as e:
+                    logger.debug(f"Ошибка progress callback: {e}")
+            
+            # Callback для обновления метрик эпохи
+            def epoch_callback(epoch_metrics):
+                try:
+                    if not self.active:
+                        return
+                    self._safe_after(0, lambda: self._update_epoch_metrics(epoch_metrics))
+                except Exception as e:
+                    logger.debug(f"Ошибка epoch callback: {e}")
+            
+            # Запускаем обучение в отдельном потоке
+            def run_training():
+                try:
+                    result = enhanced_learning.force_training(
+                        epochs=epochs,
+                        progress_callback=progress_callback,
+                        epoch_callback=epoch_callback
+                    )
+                    
+                    # Обновляем GUI по завершении
+                    self._safe_after(0, lambda: self._on_training_completed(result))
+                    
+                except Exception as e:
+                    logger.error(f"Ошибка принудительного обучения: {e}")
+                    error_msg = str(e)
+                    def show_error():
+                        self._show_error("Ошибка", f"Обучение не удалось: {error_msg}")
+                    self._safe_after(0, show_error)
+            
+            threading.Thread(target=run_training, daemon=True).start()
+            
+        except Exception as e:
+            logger.error(f"Ошибка запуска принудительного обучения: {e}")
+            error_msg = str(e)
+            def show_error():
+                self._show_error("Ошибка", f"Не удалось запустить обучение: {error_msg}")
+            self._safe_after(0, show_error)
+    
+    def _update_training_progress(self, progress_percent, session_data):
+        """Обновляет прогресс обучения в GUI"""
+        try:
+            if not self._widget_exists(self.learning_progress):
+                return
+            
+            self.learning_progress['value'] = progress_percent
+            
+            # Обновляем статус с информацией о сессии
+            status_text = f"Обучение: {progress_percent:.1f}%"
+            if session_data:
+                current_epoch = session_data.get('epochs_completed', 0)
+                total_epochs = session_data.get('total_epochs', 0)
+                status_text += f" | Эпоха {current_epoch}/{total_epochs}"
+            
+            if self._widget_exists(self.learning_status_label):
+                self.learning_status_label.config(text=status_text)
+            
+            # Обновляем графики если есть данные
+            try:
+                if hasattr(self, 'training_stats') and self.training_stats:
+                    self._update_learning_charts()
+            except Exception as chart_error:
+                logger.debug(f"Ошибка обновления графиков при прогрессе: {chart_error}")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка обновления прогресса: {e}")
+    
+    def _update_epoch_metrics(self, epoch_metrics):
+        """Обновляет метрики текущей эпохи в GUI"""
+        try:
+            epoch = epoch_metrics.get('epoch', 0)
+            loss = epoch_metrics.get('loss', 0)
+            accuracy = epoch_metrics.get('accuracy', 0)
+            lr = epoch_metrics.get('learning_rate', 0)
+            
+            status_text = f"Эпоха {epoch}: Loss={loss:.4f}, Acc={accuracy:.2%}, LR={lr:.2e}"
+            
+            if self._widget_exists(self.learning_status_label):
+                self.learning_status_label.config(text=status_text)
+            
+            # Обновляем статистику обучения
+            try:
+                if not hasattr(self, 'training_stats'):
+                    self.training_stats = {"training_history": []}
+                
+                # Добавляем метрики в историю
+                self.training_stats["training_history"].append({
+                    "epoch": epoch,
+                    "total_loss": loss,
+                    "accuracy": accuracy,
+                    "learning_rate": lr,
+                    "timestamp": time.time()
+                })
+                
+                # Обновляем графики
+                self._update_learning_charts()
+                
+            except Exception as stats_error:
+                logger.debug(f"Ошибка обновления статистики: {stats_error}")
+            
+            # Логируем метрики
+            logger.info(f"Эпоха {epoch}: loss={loss:.4f}, accuracy={accuracy:.4f}")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка обновления метрик эпохи: {e}")
+    
+    def _on_training_completed(self, result):
+        """Обработка завершения обучения"""
+        try:
+            success = result.get('success', False)
+            session = result.get('session', {})
+            
+            if success and session:
+                epochs_completed = session.get('epochs_completed', 0)
+                final_accuracy = session.get('validation_accuracy', 0)
+                duration = session.get('duration', 0)
+                
+                message = f"Обучение завершено!\n\n"
+                message += f"Эпох: {epochs_completed}\n"
+                message += f"Точность: {final_accuracy:.2%}\n"
+                message += f"Длительность: {duration:.1f}с\n"
+                message += f"Сгенерировано сущностей: {len(session.get('model_improvements', []))}"
+                
+                messagebox.showinfo("Обучение завершено", message)
+                self._show_notification("Обучение", "Принудительное обучение успешно завершено", "success")
+            else:
+                error_msg = result.get('message', 'Неизвестная ошибка')
+                self._show_error("Ошибка обучения", error_msg)
+            
+            # Сбрасываем прогресс бар
+            if self._widget_exists(self.learning_progress):
+                self.learning_progress['value'] = 0
+            if self._widget_exists(self.learning_status_label):
+                self.learning_status_label.config(text="Готов к обучению")
+                
+        except Exception as e:
+            logger.error(f"Ошибка обработки завершения обучения: {e}")
+
+    def _update_learning_opportunities(self):
+        """Обновляет список возможностей для обучения."""
+        if not self._widget_exists(self.learning_tree):
+            return
+        prev_selected_id = None
+        try:
+            prev_selected_id = self._get_selected_opportunity_id()
+        except Exception:
+            prev_selected_id = None
+        for item in self.learning_tree.get_children():
+            self.learning_tree.delete(item)
+        
+        self._suppress_selection_events = True
+        try:
+            for opportunity in self.learning_opportunities:
+                id_val = safe_get(opportunity, "id", "N/A")
+                concept = safe_get(opportunity, "concept", "Неизвестно")
+                type_val = safe_get(opportunity, "type", "Неизвестно")
+                priority = safe_get(opportunity, "priority", 0)
+                status = safe_get(opportunity, "status", "pending")
+                
+                priority_str = f"{priority:.2f}" if isinstance(priority, (int, float)) else str(priority)
+                
+                self.learning_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        id_val,
+                        concept,
+                        type_val,
+                        priority_str,
+                        status
+                    ),
+                    tags=(status,)
+                )
+        finally:
+            self._suppress_selection_events = False
+        
+        restored = False
+        try:
+            if prev_selected_id is not None:
+                for iid in self.learning_tree.get_children():
+                    try:
+                        vals = self.learning_tree.item(iid).get('values', [])
+                        if vals and str(vals[0]) == str(prev_selected_id):
+                            self._suppress_selection_events = True
+                            try:
+                                self.learning_tree.selection_set(iid)
+                                self.learning_tree.focus(iid)
+                                self.learning_tree.see(iid)
+                            finally:
+                                self._suppress_selection_events = False
+                            try:
+                                self.current_opportunity = next(
+                                    (op for op in self.learning_opportunities if str(safe_get(op, "id", "N/A")) == str(prev_selected_id)),
+                                    None
+                                )
+                                if self.current_opportunity:
+                                    self._update_learning_details()
+                            except Exception:
+                                pass
+                            restored = True
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            restored = False
+        
+        if not restored:
+            self._clear_learning_details()
+
+    def _filter_learning_opportunities(self):
+        """Фильтрует возможности для обучения на основе выбранных критериев."""
+        if not self._widget_exists(self.learning_tree):
+            return
+        prev_selected_id = None
+        try:
+            prev_selected_id = self._get_selected_opportunity_id()
+        except Exception:
+            prev_selected_id = None
+        for item in self.learning_tree.get_children():
+            self.learning_tree.delete(item)
+        
+        filtered_opportunities = []
+        domain_filter = self.domain_var.get()
+        status_filter = self.status_var.get()
+        
+        for opportunity in self.learning_opportunities:
+            domain = safe_get(opportunity, "domain", "general")
+            domain_match = (domain_filter == "Все" or domain == domain_filter)
+            
+            status = safe_get(opportunity, "status", "pending")
+            status_match = (status_filter == "Все" or status == status_filter)
+            
+            if domain_match and status_match:
+                filtered_opportunities.append(opportunity)
+        
+        self._suppress_selection_events = True
+        try:
+            for opportunity in filtered_opportunities:
+                id_val = safe_get(opportunity, "id", "N/A")
+                concept = safe_get(opportunity, "concept", "Неизвестно")
+                type_val = safe_get(opportunity, "type", "Неизвестно")
+                priority = safe_get(opportunity, "priority", 0)
+                status = safe_get(opportunity, "status", "pending")
+                
+                priority_str = f"{priority:.2f}" if isinstance(priority, (int, float)) else str(priority)
+                
+                self.learning_tree.insert(
+                    "",
+                    tk.END,
+                    values=(
+                        id_val,
+                        concept,
+                        type_val,
+                        priority_str,
+                        status
+                    ),
+                    tags=(status,)
+                )
+        finally:
+            self._suppress_selection_events = False
+        
+        restored = False
+        try:
+            if prev_selected_id is not None:
+                for iid in self.learning_tree.get_children():
+                    try:
+                        vals = self.learning_tree.item(iid).get('values', [])
+                        if vals and str(vals[0]) == str(prev_selected_id):
+                            self._suppress_selection_events = True
+                            try:
+                                self.learning_tree.selection_set(iid)
+                                self.learning_tree.focus(iid)
+                                self.learning_tree.see(iid)
+                            finally:
+                                self._suppress_selection_events = False
+                            try:
+                                self.current_opportunity = next(
+                                    (op for op in self.learning_opportunities if str(safe_get(op, "id", "N/A")) == str(prev_selected_id)),
+                                    None
+                                )
+                                if self.current_opportunity:
+                                    self._update_learning_details()
+                            except Exception:
+                                pass
+                            restored = True
+                            break
+                    except Exception:
+                        continue
+        except Exception:
+            restored = False
+        
+        if not restored:
+            self._clear_learning_details()
+
+    def _on_learning_opportunity_select(self, event):
+        """Обрабатывает выбор возможности обучения."""
+        if getattr(self, "_suppress_selection_events", False):
+            return
+        selected_items = self.learning_tree.selection()
+        if not selected_items:
+            return
+        
+        item = self.learning_tree.item(selected_items[0])
+        opportunity_id = item['values'][0]
+        
+        self.current_opportunity = None
+        for op in self.learning_opportunities:
+            if safe_get(op, "id", "N/A") == opportunity_id:
+                self.current_opportunity = op
+                break
+        
+        if not self.current_opportunity:
+            self._clear_learning_details()
+            return
+        
+        self._update_learning_details()
+
+    def _get_selected_opportunity_id(self) -> Optional[str]:
+        """Возвращает ID выбранной в дереве возможности."""
+        try:
+            sel = self.learning_tree.selection()
+            if not sel:
+                return None
+            item = self.learning_tree.item(sel[0])
+            vals = item.get('values', [])
+            return str(vals[0]) if vals else None
+        except Exception:
+            return None
+
+    def _update_learning_details(self):
+        """Обновляет детали выбранной возможности обучения."""
+        if not self.current_opportunity:
+            self._clear_learning_details()
+            return
+        
+        concept = safe_get(self.current_opportunity, "concept", "Неизвестно")
+        type_val = safe_get(self.current_opportunity, "type", "Неизвестно")
+        priority = safe_get(self.current_opportunity, "priority", 0)
+        domain = safe_get(self.current_opportunity, "domain", "general")
+        status = safe_get(self.current_opportunity, "status", "pending")
+        description = safe_get(self.current_opportunity, "description", "Нет описания")
+        
+        if isinstance(priority, (int, float)):
+            priority_str = f"{priority:.2f}"
+        else:
+            priority_str = str(priority)
+
+        details = (
+            f"Концепт: {concept}\n"
+            f"Тип: {type_val}\n"
+            f"Приоритет: {priority_str}\n"
+            f"Домен: {domain}\n"
+            f"Статус: {self._format_status(status)}\n\n"
+            f"Описание: {description}\n\n"
+        )
+        
+        evidence = safe_get(self.current_opportunity, "evidence", [])
+        if evidence:
+            details += "Доказательства:\n"
+            for i, ev in enumerate(evidence, 1):
+                details += f"{i}. {ev}\n"
+            details += "\n"
+        
+        actions = safe_get(self.current_opportunity, "actions", [])
+        if actions:
+            details += "Рекомендуемые действия:\n"
+            for i, action in enumerate(actions, 1):
+                details += f"{i}. {action}\n"
+        
+        self._clear_learning_details()
+        self.learning_details = ttk.Label(
+            self.details_container,
+            text=details,
+            justify=tk.LEFT,
+            wraplength=600,
+            font=('Segoe UI', 10)
+        )
+        self.learning_details.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+    def _clear_learning_details(self):
+        """Очищает область деталей."""
+        for widget in self.details_container.winfo_children():
+            widget.destroy()
+
+    def _format_status(self, status: str) -> str:
+        """Форматирует статус для отображения."""
+        status_map = {
+            "pending": "В ожидании",
+            "in_progress": "В процессе",
+            "resolved": "Решено",
+            "rejected": "Отклонено"
+        }
+        return status_map.get(status, status)
+
+    def _update_learning_status(self):
+        """Обновляет статус обучения."""
+        self.total_opportunities_label.config(text=str(self.learning_statistics["total_opportunities"]))
+        self.resolved_label.config(text=str(self.learning_statistics["resolved"]))
+        self.in_progress_label.config(text=str(self.learning_statistics["in_progress"]))
+        
+        trend_text = {
+            "positive": "Позитивный",
+            "negative": "Негативный",
+            "stable": "Стабильный"
+        }.get(self.learning_statistics["trend"], "Стабильный")
+        
+        trend_color = {
+            "positive": "#28a745",
+            "negative": "#dc3545",
+            "stable": "#6c757d"
+        }.get(self.learning_statistics["trend"], "#6c757d")
+        
+        self.trend_label.config(text=trend_text, foreground=trend_color)
+        
+        status_text = {
+            "idle": "Готов к обучению",
+            "active": "Обучение активно",
+            "paused": "Обучение приостановлено",
+            "completed": "Обучение завершено",
+            "error": "Ошибка обучения"
+        }.get(self.learning_status, "Готов к обучению")
+        
+        status_color = {
+            "idle": "#6c757d",
+            "active": "#007bff",
+            "paused": "#ffc107",
+            "completed": "#28a745",
+            "error": "#dc3545"
+        }.get(self.learning_status, "#6c757d")
+        
+        self.learning_status_label.config(text=status_text, foreground=status_color)
+        
+        if self.learning_status in ["idle", "paused", "error"]:
+            self.start_learning_btn.config(text="Запустить обучение", style='Primary.TButton')
+        else:
+            self.start_learning_btn.config(text="Приостановить обучение", style='Warning.TButton')
+
+    def update_learning_progress(self, pct: float):
+        """Обновляет прогресс обучения."""
+        if self._widget_exists(self.learning_progress):
+            self.learning_progress['value'] = pct
+
+    def _update_learning_progress(self):
+        """Обновляет прогресс обучения (внутренний метод)."""
+        if self.learning_statistics["total_opportunities"] == 0:
+            progress = 0
+        else:
+            progress = (self.learning_statistics["resolved"] / self.learning_statistics["total_opportunities"]) * 100
+        
+        self.learning_progress_value = progress
+        if self._widget_exists(self.learning_progress):
+            self.learning_progress['value'] = progress
+
+    def _update_learning_statistics(self):
+        """Обновляет статистику обучения в таблице."""
+        for item in self.stats_tree.get_children():
+            self.stats_tree.delete(item)
+        
+        stats = [
+            ("Всего возможностей", str(self.learning_statistics["total_opportunities"])),
+            ("Завершено", str(self.learning_statistics["resolved"])),
+            ("В процессе", str(self.learning_statistics["in_progress"])),
+            ("Ожидает", str(self.learning_statistics["pending"])),
+            ("Процент завершения", f"{self.learning_progress_value:.1f}%")
+        ]
+        
+        stats.append(("---", "---"))
+        stats.append(("Статистика по доменам", ""))
+        
+        for domain, count in self.learning_statistics["domains"].items():
+            stats.append((f"  {domain}", str(count)))
+
+        if isinstance(self.training_stats, dict) and self.training_stats:
+            stats.append(("---", "---"))
+            stats.append(("Метрики обучения (реальные)", ""))
+            epoch = self.training_stats.get("epoch", 0)
+            total_loss = self.training_stats.get("total_loss", 0.0)
+            node_loss = self.training_stats.get("node_loss", 0.0)
+            link_loss = self.training_stats.get("link_loss", 0.0)
+            accuracy = self.training_stats.get("accuracy", 0.0)
+            stats.extend([
+                ("Эпоха", str(epoch)),
+                ("Loss (total)", f"{total_loss:.4f}"),
+                ("Loss (node)", f"{node_loss:.4f}"),
+                ("Loss (link)", f"{link_loss:.4f}"),
+                ("Accuracy", f"{accuracy:.4f}")
+            ])
+        
+        for metric, value in stats:
+            self.stats_tree.insert("", tk.END, values=(metric, value))
+
+    def _update_learning_charts(self):
+        """Обновляет графики обучения."""
+        try:
+            self.learning_ax.clear()
+            
+            history = []
+            if isinstance(self.training_stats, dict):
+                history = self.training_stats.get("training_history", []) or []
+            if history:
+                epochs = [h.get("epoch", i + 1) for i, h in enumerate(history)]
+                total_loss = [float(h.get("total_loss", 0.0)) for h in history]
+                accuracy = [float(h.get("accuracy", 0.0)) for h in history]
+
+                self.learning_ax.plot(epochs, total_loss, label='Total Loss', color='#007bff')
+                self.learning_ax.set_xlabel('Epoch')
+                self.learning_ax.set_ylabel('Loss')
+                self.learning_ax.set_title('Динамика обучения: Loss и Accuracy')
+
+                ax2 = self.learning_ax.twinx()
+                ax2.plot(epochs, accuracy, label='Accuracy', color='#28a745')
+                ax2.set_ylabel('Accuracy')
+
+                lines, labels = self.learning_ax.get_legend_handles_labels()
+                lines2, labels2 = ax2.get_legend_handles_labels()
+                self.learning_ax.legend(lines + lines2, labels + labels2, loc='best')
+
+                self.learning_canvas.draw()
+                return
+
+            if self.learning_opportunities:
+                domains = list(self.learning_statistics["domains"].keys())
+                counts = list(self.learning_statistics["domains"].values())
+                self.learning_ax.pie(
+                    counts,
+                    labels=domains,
+                    autopct='%1.1f%%',
+                    startangle=90,
+                    colors=plt.cm.Paired(np.linspace(0, 1, len(domains)))
+                )
+                self.learning_ax.axis('equal')
+                self.learning_ax.set_title('Распределение возможностей по доменам')
+                self.learning_canvas.draw()
+                return
+
+            self.learning_ax.text(0.5, 0.5, "Нет данных для отображения", 
+                                 ha='center', va='center', fontsize=12)
+            self.learning_canvas.draw()
+            
+        except Exception as e:
+            logger.error(f"Ошибка обновления графиков: {e}")
+
+    def _save_learning_chart(self):
+        """Сохраняет график обучения в файл."""
+        try:
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".png",
+                filetypes=[("PNG", "*.png"), ("PDF", "*.pdf"), ("Все файлы", "*.*")]
+            )
+            if file_path:
+                self.learning_fig.savefig(file_path, dpi=300, bbox_inches='tight')
+                self._show_message(f"График сохранен в {file_path}", "info")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения графика: {e}")
+            error_msg = str(e)
+            def show_error():
+                self._show_error("Ошибка", f"Не удалось сохранить график: {error_msg}")
+            self._safe_after(0, show_error)
+
+    def _export_learning_data(self):
+        """Экспортирует данные обучения в файл."""
+        try:
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("JSON", "*.json"), ("CSV", "*.csv"), ("Все файлы", "*.*")]
+            )
+            if file_path:
+                data = {
+                    "timestamp": datetime.now().isoformat(),
+                    "statistics": self.learning_statistics,
+                    "opportunities": self.learning_opportunities,
+                    "training_stats": self.training_stats
+                }
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                self._show_message(f"Данные экспортированы в {file_path}", "info")
+        except Exception as e:
+            logger.error(f"Ошибка экспорта данных: {e}")
+            error_msg = str(e)
+            def show_error():
+                self._show_error("Ошибка", f"Не удалось экспортировать данные: {error_msg}")
+            self._safe_after(0, show_error)
+
+    def _start_learning_process(self):
+        """Запускает процесс обучения."""
+        if not self.gui.brain:
+            self._show_error("Ошибка", "Ядро системы недоступно")
+            return
+        
+        if self.learning_status == "active":
+            # Приостанавливаем обучение
+            self.learning_status = "paused"
+            self._update_learning_status()
+            self._show_message("Обучение приостановлено", "info")
+            logger.info("Обучение приостановлено пользователем")
+        else:
+            # Запускаем реальное обучение
+            try:
+                # Проверяем наличие training_orchestrator
+                brain = self.gui.brain
+                training_orchestrator = None
+                
+                if hasattr(brain, 'training_orchestrator'):
+                    training_orchestrator = brain.training_orchestrator
+                elif hasattr(brain, 'components') and 'training_orchestrator' in brain.components:
+                    training_orchestrator = brain.components['training_orchestrator']
+                
+                if training_orchestrator:
+                    # Запускаем обучение в отдельном потоке
+                    def run_training():
+                        try:
+                            logger.info("Запуск реального обучения через training_orchestrator")
+                            
+                            # Получаем параметры обучения
+                            training_params = self._get_training_params()
+                            
+                            # Запускаем обучение
+                            result = training_orchestrator.start_training_session(
+                                **training_params
+                            )
+                            
+                            # Обновляем GUI по завершении
+                            self._safe_after(0, lambda: self._on_training_completed(result))
+                            
+                        except Exception as e:
+                            logger.error(f"Ошибка запуска обучения: {e}")
+                            error_msg = str(e)  # Сохраняем ошибку в локальную переменную
+                            # Создаем функцию с захваченной переменной
+                            def show_error():
+                                self._show_error("Ошибка", f"Не удалось запустить обучение: {error_msg}")
+                            self._safe_after(0, show_error)
+                    
+                    threading.Thread(target=run_training, daemon=True).start()
+                    
+                    # Обновляем статус
+                    self.learning_status = "active"
+                    self._update_learning_status()
+                    self._show_message("Обучение запущено", "info")
+                    logger.info("Процесс обучения запущен")
+                    
+                else:
+                    # Fallback - имитация обучения
+                    self._simulate_training_process()
+                    
+            except Exception as e:
+                logger.error(f"Ошибка запуска обучения: {e}")
+                error_msg = str(e)
+                def show_error():
+                    self._show_error("Ошибка", f"Не удалось запустить обучение: {error_msg}")
+                self._safe_after(0, show_error)
+    
+    def _get_training_params(self):
+        """Возвращает параметры обучения."""
+        try:
+            # Получаем параметры из GUI
+            params = {
+                'epochs': 10,
+                'batch_size': 32,
+                'learning_rate': 0.001,
+                'dataset_size': 1000
+            }
+            
+            # Пробуем получить из настроек
+            if hasattr(self, 'epochs_var'):
+                params['epochs'] = int(self.epochs_var.get())
+            if hasattr(self, 'batch_size_var'):
+                params['batch_size'] = int(self.batch_size_var.get())
+            if hasattr(self, 'learning_rate_var'):
+                params['learning_rate'] = float(self.learning_rate_var.get())
+            
+            return params
+        except Exception as e:
+            logger.warning(f"Ошибка получения параметров обучения: {e}")
+            return {
+                'epochs': 10,
+                'batch_size': 32,
+                'learning_rate': 0.001,
+                'dataset_size': 1000
+            }
+    
+    def _simulate_training_process(self):
+        """Имитирует процесс обучения для демонстрации."""
+        def simulate():
+            try:
+                self.learning_status = "active"
+                self._update_learning_status()
+                
+                # Имитация прогресса
+                for progress in range(0, 101, 5):
+                    if self.learning_status != "active":
+                        break
+                    
+                    self._safe_after(0, lambda p=progress: self._update_training_progress(p, {
+                        'epochs_completed': progress // 10,
+                        'total_epochs': 10
+                    }))
+                    
+                    time.sleep(0.5)  # Имитация времени обучения
+                
+                if self.learning_status == "active":
+                    self._safe_after(0, lambda: self._on_training_completed({
+                        'status': 'completed',
+                        'final_loss': 0.1,
+                        'epochs_trained': 10
+                    }))
+                    
+            except Exception as e:
+                logger.error(f"Ошибка имитации обучения: {e}")
+        
+        threading.Thread(target=simulate, daemon=True).start()
+
+    def _on_clear_opportunities(self):
+        """Очищает список возможностей для обучения."""
+        if not self.gui.brain:
+            self._show_error("Ошибка", "Ядро системы недоступно")
+            return
+        
+        try:
+            self_analyzer = None
+            if hasattr(self.gui.brain, 'self_analyzer'):
+                self_analyzer = self.gui.brain.self_analyzer
+            elif hasattr(self.gui.brain, 'components') and 'self_analyzer' in self.gui.brain.components:
+                self_analyzer = self.gui.brain.components['self_analyzer']
+            
+            if self_analyzer and hasattr(self_analyzer, 'clear_learning_opportunities'):
+                self_analyzer.clear_learning_opportunities()
+                self.learning_opportunities = []
+                self._update_learning_opportunities()
+                self._show_message("Список возможностей очищен", "info")
+                logger.info("Список возможностей для обучения очищен")
+            else:
+                self._show_error("Ошибка", "Метод очистки списка недоступен")
+        except Exception as e:
+            logger.error(f"Ошибка очистки списка возможностей: {e}")
+            error_msg = str(e)
+            def show_error():
+                self._show_error("Ошибка", f"Не удалось очистить список: {error_msg}")
+            self._safe_after(0, show_error)
+
+    def _activate_quality_integration(self):
+        """Активирует интеграцию улучшения генерации"""
+        try:
+            # Проверяем наличие FractalModelManager
+            brain = getattr(self.gui, 'brain', None)
+            if not brain:
+                logger.warning("Brain недоступен для интеграции улучшения генерации")
+                return
+            
+            # Ищем FractalModelManager
+            fractal_manager = None
+            if hasattr(brain, 'fractal_model_manager'):
+                fractal_manager = brain.fractal_model_manager
+            elif hasattr(brain, 'model_manager'):
+                fractal_manager = brain.model_manager
+            
+            if not fractal_manager:
+                logger.warning("FractalModelManager недоступен")
+                return
+            
+            # Импортируем и создаем интеграцию
+            try:
+                from ..mlearning.text_quality_learning_integration import TextQualityLearningIntegration
+                
+                self.quality_integration = TextQualityLearningIntegration(
+                    learning_module=self,
+                    fractal_model_manager=fractal_manager
+                )
+                
+                # Активируем интеграцию
+                if self.quality_integration.activate_integration():
+                    self.quality_integration_active = True
+                    logger.info("Интеграция улучшения генерации успешно активирована")
+                    
+                    # Показываем уведомление
+                    if hasattr(self.gui, 'show_toast'):
+                        self.gui.show_toast(
+                            "🎯 Улучшение генерации активировано", 
+                            "success", 
+                            key="quality_integration_activated"
+                        )
+                else:
+                    logger.warning("Не удалось активировать интеграцию улучшения генерации")
+                    
+            except ImportError as e:
+                logger.error(f"Не удалось импортировать TextQualityLearningIntegration: {e}")
+            except Exception as e:
+                logger.error(f"Ошибка активации интеграции: {e}", exc_info=True)
+                
+        except Exception as e:
+            logger.error(f"Ошибка подготовки интеграции улучшения генерации: {e}", exc_info=True)
+
+    def get_quality_integration_status(self) -> Dict[str, Any]:
+        """Возвращает статус интеграции улучшения генерации"""
+        if not self.quality_integration:
+            return {"active": False, "error": "Интеграция не инициализирована"}
+        
+        try:
+            return self.quality_integration.get_integration_status()
+        except Exception as e:
+            logger.error(f"Ошибка получения статуса интеграции: {e}")
+            return {"active": False, "error": str(e)}
+
+
+    def _check_optimized_manager(self):
+        """Проверяет наличие оптимизированного менеджера"""
+        try:
+            from ..mlearning.optimized_fractal_model_manager import OptimizedFractalModelManager
+            
+            brain = getattr(self.gui, 'brain', None)
+            if brain and hasattr(brain, 'fractal_model_manager'):
+                manager = brain.fractal_model_manager
+                
+                # Проверяем, есть ли оптимизации
+                if hasattr(manager, 'optimizations'):
+                    return True, manager.optimizations
+                elif hasattr(manager, 'get_performance_stats'):
+                    return True, manager
+                else:
+                    return False, None
+            else:
+                return False, None
+                
+        except Exception as e:
+            logger.error(f"Ошибка проверки оптимизированного менеджера: {e}")
+            return False, None
+    
+    def _show_optimization_stats(self):
+        """Показывает статистику оптимизаций"""
+        has_optimizations, opt_manager = self._check_optimized_manager()
+        
+        if has_optimizations and opt_manager:
+            try:
+                stats = opt_manager.get_performance_stats()
+                
+                # Создаем окно со статистикой
+                stats_window = tk.Toplevel(self.gui.root)
+                stats_window.title("📊 Статистика оптимизаций")
+                stats_window.geometry("400x300")
+                
+                # Метрики
+                metrics_frame = ttk.Frame(stats_window)
+                metrics_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+                
+                ttk.Label(metrics_frame, text="📈 Метрики производительности", 
+                         font=('Arial', 12, 'bold')).pack(pady=5)
+                
+                for key, value in stats.items():
+                    if isinstance(value, float):
+                        if 'time' in key:
+                            text = f"{key}: {value:.4f}s"
+                        elif 'rate' in key:
+                            text = f"{key}: {value:.2%}"
+                        else:
+                            text = f"{key}: {value:.3f}"
+                    else:
+                        text = f"{key}: {value}"
+                    
+                    ttk.Label(metrics_frame, text=text).pack(anchor=tk.W, pady=2)
+                
+                # Кнопка закрытия
+                ttk.Button(stats_window, text="Закрыть", 
+                          command=stats_window.destroy).pack(pady=10)
+                
+            except Exception as e:
+                logger.error(f"Ошибка показа статистики: {e}")
+                messagebox.showerror("Ошибка", f"Не удалось показать статистику: {e}")
+        else:
+            messagebox.showinfo("Информация", "Оптимизации недоступны")
+
+
+    def _maybe_trigger_auto_training(self):
+        """Автоматически запускает обучение модели при наличии возможностей."""
+        if not getattr(self, 'auto_training_enabled', False):
+            return
+
+        now = time.time()
+        cooldown_sec = 60.0
+        if now - getattr(self, "_last_auto_train_ts", 0.0) < cooldown_sec:
+            return
+
+        total = int(self.learning_statistics.get("total_opportunities", 0))
+        if total <= 0:
+            return
+        pending_cnt = int(self.learning_statistics.get("pending", 0))
+        in_progress_cnt = int(self.learning_statistics.get("in_progress", 0))
+        if pending_cnt <= 0 and in_progress_cnt <= 0:
+            return
+
+        brain = getattr(self, 'gui', None)
+        brain = getattr(brain, 'brain', None)
+        if not brain:
+            return
+        trainer = getattr(brain, 'memory_graph_trainer', None)
+        if trainer is None:
+            self_analyzer = getattr(brain, 'self_analyzer', None)
+            trainer = getattr(self_analyzer, 'memory_graph_trainer', None) if self_analyzer else None
+        if trainer is None:
+            return
+
+        try:
+            busy = False
+            if hasattr(trainer, 'is_training'):
+                busy = bool(getattr(trainer, 'is_training')) if not callable(trainer.is_training) else bool(trainer.is_training())
+            elif hasattr(trainer, 'is_busy'):
+                busy = bool(getattr(trainer, 'is_busy')) if not callable(trainer.is_busy) else bool(trainer.is_busy())
+            if busy:
+                return
+        except Exception:
+            return
+
+        try:
+            ok = bool(trainer.train_async())
+            if ok:
+                self._last_auto_train_ts = now
+                try:
+                    self._show_notification("Авто-обучение", "Автоматическое обучение модели запущено", level="info")
+                except Exception:
+                    pass
+                logger.info("Авто-обучение: запуск выполнен")
+        except Exception as e:
+            logger.debug(f"Автозапуск обучения пропущен: {e}")
+
+    def _show_notification(self, title: str, message: str, level: str = "info"):
+        """Показывает уведомление."""
+        try:
+            if not getattr(self, 'notifications_enabled', False):
+                log_func = getattr(logger, level, logger.info)
+                log_func(f"NOTIFICATION (suppressed): {title} - {message}")
+                return
+            
+            import tkinter as tk
+            from tkinter import messagebox
+            
+            if level == "error":
+                messagebox.showerror(title, message)
+            elif level == "warning":
+                messagebox.showwarning(title, message)
+            else:
+                messagebox.showinfo(title, message)
+        except Exception as e:
+            logger.warning(f"Не удалось показать уведомление: {e}")

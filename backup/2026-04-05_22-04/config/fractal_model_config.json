@@ -1,0 +1,14 @@
+{
+  "device": "cpu",
+  "max_memory_tokens": 22000,
+  "target_memory_gb": 0.5,
+  "batch_size": 2,
+  "max_length": 128,
+  "overlap_tokens": 32,
+  "cache_tokenization": true,
+  "parallel_tokenization": false,
+  "tokenization_workers": 2,
+  "memory_optimization": true,
+  "use_uint16": true,
+  "tensor_pool_size": 500
+}

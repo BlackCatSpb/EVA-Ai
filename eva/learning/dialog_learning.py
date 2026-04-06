@@ -15,6 +15,47 @@ logger = logging.getLogger("eva.self_dialog_learning")
 class DialogLearningMixin:
     """Mixin for learning from dialogs, knowledge extraction, and graph updates."""
 
+    def _get_fractal_graph(self):
+        """Получить FractalGraphV2 если доступен."""
+        if not self.brain:
+            return None
+        return getattr(self.brain, 'fractal_graph_v2', None)
+
+    def _add_to_fractal_graph(self, content: str, node_type: str = "learned",
+                               level: int = 1, metadata: Dict = None) -> Optional[str]:
+        """Добавить знание в FractalGraphV2."""
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'add_node'):
+            return None
+        
+        try:
+            node = fg.add_node(
+                content=content[:500],
+                node_type=node_type,
+                level=level,
+                confidence=0.7,
+                metadata=metadata or {},
+                auto_vectorize=True,
+                auto_cluster=True
+            )
+            logger.debug(f"Added to FractalGraphV2: {content[:50]}...")
+            return node.id if node else None
+        except Exception as e:
+            logger.debug(f"Error adding to FractalGraphV2: {e}")
+            return None
+
+    def _check_contradiction_fractal(self, content: str) -> Dict[str, Any]:
+        """Проверить противоречие в FractalGraphV2."""
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'check_contradiction'):
+            return {"is_contradiction": False, "reason": "FractalGraphV2 not available"}
+        
+        try:
+            return fg.check_contradiction(content)
+        except Exception as e:
+            logger.debug(f"Error checking contradiction: {e}")
+            return {"is_contradiction": False, "error": str(e)}
+
     def _check_and_execute_learning_opportunities(self) -> None:
         """Проверяет и автоматически выполняет возможности для обучения."""
         current_time = time.time()
@@ -144,6 +185,34 @@ class DialogLearningMixin:
         """Расширяет знания по концепту."""
         suggested_actions = opportunity.get('suggested_actions', [])
 
+        # Используем FractalGraphV2 если доступен
+        fg = self._get_fractal_graph()
+        if fg and hasattr(fg, 'add_node'):
+            try:
+                # Проверяем на противоречия
+                contradiction = self._check_contradiction_fractal(concept)
+                if contradiction and contradiction.get('is_contradiction'):
+                    logger.info(f"Обнаружено противоречие при расширении: {concept}")
+                
+                node = fg.add_node(
+                    content=concept,
+                    node_type="learned_knowledge",
+                    level=1,
+                    confidence=0.7,
+                    metadata={
+                        "learned_at": time.time(),
+                        "type": "expansion",
+                        "source": "self_dialog_learning",
+                        "domain": domain
+                    },
+                    auto_vectorize=True,
+                    auto_cluster=True
+                )
+                logger.debug(f"Добавлен узел в FractalGraphV2: {concept}")
+            except Exception as e:
+                logger.debug(f"Ошибка добавления в FractalGraphV2: {e}")
+
+        # Также добавляем в классический knowledge_graph для совместимости
         knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
         if knowledge_graph:
             try:
@@ -177,6 +246,16 @@ class DialogLearningMixin:
         if evidence:
             refinement_text += f". Основание: {'; '.join(evidence[:2])}"
 
+        # FractalGraphV2: используем self_dialogue для проверки и уточнения
+        fg = self._get_fractal_graph()
+        if fg and hasattr(fg, 'self_dialogue'):
+            try:
+                result = fg.self_dialogue(f"Уточнение: {concept}")
+                logger.debug(f"Self-dialogue for refinement: {result.get('action', 'none')}")
+            except Exception as e:
+                logger.debug(f"Error in self_dialogue: {e}")
+
+        # Классический knowledge_graph
         knowledge_graph = getattr(self.brain, 'knowledge_graph', None) if self.brain else None
         if knowledge_graph:
             try:

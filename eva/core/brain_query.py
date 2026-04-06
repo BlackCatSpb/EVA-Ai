@@ -175,18 +175,32 @@ class QueryMixin:
                 query_logger.debug(f"Preprocessing error: {e}")
 
         knowledge_context = ""
-        knowledge_graph = getattr(self, 'knowledge_graph', None)
-        if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
+        
+        # Пробуем FractalGraphV2 (новый граф)
+        fractal_graph = getattr(self, 'fractal_graph_v2', None)
+        if fractal_graph and hasattr(fractal_graph, 'get_context_for_query'):
             try:
-                relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
-                if relevant:
-                    knowledge_context = "\n\nИз памяти системы:\n"
-                    for node in relevant:
-                        name = getattr(node, 'name', '') or ''
-                        content = getattr(node, 'content', '') or ''
-                        knowledge_context += f"- {content}\n" if content else f"- {name}\n"
+                graph_context = fractal_graph.get_context_for_query(query, max_length=256)
+                if graph_context:
+                    knowledge_context = f"\n\nИз памяти системы:\n{graph_context}\n"
+                    query_logger.debug("Using FractalGraphV2 for context")
             except Exception as e:
-                query_logger.debug(f"Knowledge graph context error: {e}")
+                query_logger.debug(f"FractalGraphV2 context error: {e}")
+        
+        # Fallback: классический knowledge_graph
+        if not knowledge_context:
+            knowledge_graph = getattr(self, 'knowledge_graph', None)
+            if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
+                try:
+                    relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
+                    if relevant:
+                        knowledge_context = "\n\nИз памяти системы:\n"
+                        for node in relevant:
+                            name = getattr(node, 'name', '') or ''
+                            content = getattr(node, 'content', '') or ''
+                            knowledge_context += f"- {content}\n" if content else f"- {name}\n"
+                except Exception as e:
+                    query_logger.debug(f"Knowledge graph context error: {e}")
 
         full_prompt = query + knowledge_context if knowledge_context else query
 

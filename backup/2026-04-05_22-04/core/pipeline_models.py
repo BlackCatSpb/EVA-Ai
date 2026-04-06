@@ -1,0 +1,359 @@
+"""
+Generation methods for individual models in the Recursive Model Pipeline.
+"""
+
+import os
+import re
+import logging
+import time
+from typing import Dict, Any, Optional
+from llama_cpp import Llama
+
+logger = logging.getLogger(__name__)
+
+
+def generate_with_model_a(
+    self,
+    query: str,
+    max_retries: int = 1
+) -> Dict[str, Any]:
+    """Генерация ответа на Model A (логика) с адаптивными параметрами"""
+    if not self.model_a:
+        raise RuntimeError("Model A не загружена")
+    
+    logger.info(f"Model A query: {query[:100]}...")
+    
+    user_content = query
+    if len(query.strip()) < 20:
+        user_content = 'Пользователь написал: "' + query + '". Ответь вежливо на русском языке.'
+    
+    self.model_a_params.reset()
+    
+    for attempt in range(max_retries + 1):
+        failure_reasons = None
+        if attempt > 0 and self.model_a_params.failure_history:
+            last_failure = self.model_a_params.failure_history[-1]
+            failure_reasons = last_failure.get('reasons', [])
+        
+        params = self.model_a_params.get_params_for_attempt(attempt, failure_reasons)
+        
+        if attempt > 0:
+            logger.info(f"Model A attempt {attempt+1} — adapted params: temp={params['temperature']:.2f}, "
+                       f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
+        
+        system_prompt = (
+            "Ты — Модуль Логического Ядра EVA.\n"
+            "Задача: Извлекать точные факты из запроса без расширений.\n"
+            "Спецификации:\n"
+            "1. Отвечай только подтверждёнными фактами.\n"
+            "2. Максимум 3 предложения.\n"
+            "3. Не используй слова «возможно», «вероятно», «может быть».\n"
+            "4. Избегай оценочных суждений.\n"
+            "5. Если информации недостаточно — сообщи об этом прямо.\n"
+            "Ограничения:\n"
+            "- Не добавляй вступления или заключения.\n"
+            "- Не повторяй вопрос пользователя.\n"
+            "- Отвечай строго на русском языке.\n"
+            "Формат вывода: Русский. Ответ начинается сразу с факта.\n"
+            "Конец инструкции."
+        )
+        
+        if failure_reasons:
+            has_filler = any('фраз' in r.lower() or 'паразит' in r.lower() for r in failure_reasons)
+            has_loop = any('зацикл' in r.lower() or 'повтор' in r.lower() for r in failure_reasons)
+            
+            if has_filler:
+                system_prompt = (
+                    "Ты — Модуль Логического Ядра EVA.\n"
+                    "Задача: Отвечай строго по существу, без вступлений.\n"
+                    "ЗАПРЕЩЕНО начинать с фраз: «Конечно», «Давайте», «Вот», «Это», «Привет», «Здравствуйте».\n"
+                    "Спецификации:\n"
+                    "1. Начни ответ сразу с факта или прямого ответа.\n"
+                    "2. Максимум 3 предложения.\n"
+                    "3. Не используй вводные слова и фразы-паразиты.\n"
+                    "4. Отвечай строго на русском языке.\n"
+                    "5. Избегай общих фраз — только конкретика.\n"
+                    "Ограничения:\n"
+                    "- Никаких вступлений, приветствий, обращений.\n"
+                    "- Не повторяй вопрос пользователя.\n"
+                    "Формат вывода: Русский. Сразу с факта.\n"
+                    "Конец инструкции."
+                )
+            if has_loop:
+                system_prompt = (
+                    "Ты — Модуль Логического Ядра EVA.\n"
+                    "Задача: Дай уникальный ответ без повторений.\n"
+                    "Спецификации:\n"
+                    "1. Каждое предложение должно нести новую информацию.\n"
+                    "2. Запрещено повторять одинаковые мысли.\n"
+                    "3. Максимум 3 предложения.\n"
+                    "4. Отвечай строго на русском языке.\n"
+                    "5. Используй разнообразные конструкции.\n"
+                    "Ограничения:\n"
+                    "- Не повторяй предложения или их части.\n"
+                    "- Не используй одинаковые начала предложений.\n"
+                    "Формат вывода: Русский. Сразу с факта.\n"
+                    "Конец инструкции."
+                )
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ]
+        
+        start_time = time.time()
+        output = self._generate_with_timeout(self.model_a, messages, params, timeout=60)
+        elapsed = time.time() - start_time
+        
+        if output is None:
+            logger.warning(f"Model A: попытка {attempt+1} прервана по таймауту ({elapsed:.1f}с)")
+            self.model_a_params.record_failure(attempt + 1, ['Таймаут генерации'], params, '')
+            continue
+        
+        logger.info(f"Model A generation time: {elapsed:.1f}с")
+        
+        raw_response = output['choices'][0]['message']['content'].strip()
+        raw_response = self._sanitize_response(raw_response)
+        quality = self.check_quality(raw_response)
+        
+        has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
+        if has_chinese:
+            quality['reasons'].append('Содержит китайские символы')
+            self.model_a_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
+            logger.warning(f"Model A: попытка {attempt+1} содержит китайские символы, retry")
+            continue
+        
+        if not quality['is_gibberish']:
+            logger.info(f"Model A response (attempt {attempt+1}): '{raw_response[:200]}...'")
+            logger.info(f"Model A tokens: {output['usage']['completion_tokens']}")
+            self.model_a_params.record_success()
+            
+            return {
+                'raw_response': raw_response,
+                'natural_response': raw_response,
+                'quality': quality,
+                'model': 'Model A (Logic)',
+                'tokens': output['usage']['completion_tokens']
+            }
+        
+        self.model_a_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
+        logger.warning(f"Model A: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
+    
+    logger.warning("Model A: все попытки провалились, использую Model B")
+    return {
+        'raw_response': '',
+        'natural_response': '',
+        'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Model A не смогла, передаю Model B']},
+        'model': 'Model A (Logic)',
+        'tokens': 0
+    }
+
+
+def generate_with_model_b(
+    self,
+    query: str,
+    previous_response: str,
+    max_retries: int = 1
+) -> Dict[str, Any]:
+    """Генерация ответа на Model B с адаптивными параметрами"""
+    if not self.model_b:
+        raise RuntimeError("Model B не загружена")
+    
+    self.model_b_params.reset()
+    
+    for attempt in range(max_retries + 1):
+        failure_reasons = None
+        if attempt > 0 and self.model_b_params.failure_history:
+            last_failure = self.model_b_params.failure_history[-1]
+            failure_reasons = last_failure.get('reasons', [])
+        
+        params = self.model_b_params.get_params_for_attempt(attempt, failure_reasons)
+        
+        if attempt > 0:
+            logger.info(f"Model B attempt {attempt+1} — adapted params: temp={params['temperature']:.2f}, "
+                       f"rep={params['repeat_penalty']:.2f}, top_k={params['top_k']}, top_p={params['top_p']:.2f}")
+        
+        system_prompt = (
+            "ОТВЕЧАЙ СТРОГО НА РУССКОМ ЯЗЫКЕ. НИКАКИХ КИТАЙСКИХ, АНГЛИЙСКИХ ИНОСТРАННЫХ СИМВОЛОВ.\n"
+            "Ты — Модуль Развития Концепций EVA.\n"
+            "Задача: Развивай мысль, добавляй детали и примеры.\n"
+            "Спецификации:\n"
+            "1. Расширяй факты примерами и пояснениями.\n"
+            "2. Используй структурированный формат (списки, абзацы).\n"
+            "3. Только русские буквы и знаки препинания.\n"
+            "4. Добавляй контекст и смежные темы.\n"
+            "5. Максимум 10 предложений.\n"
+            "Ограничения:\n"
+            "- Не повторяй факты дословно.\n"
+            "- Запрещены китайские, английские, иностранные символы.\n"
+            "Формат вывода: Русский, развёрнутый ответ.\n"
+            "Конец инструкции."
+        )
+        
+        if failure_reasons:
+            has_filler = any('фраз' in r.lower() or 'паразит' in r.lower() for r in failure_reasons)
+            has_chinese = any('китайск' in r.lower() or 'chinese' in r.lower() for r in failure_reasons)
+            
+            if has_filler:
+                system_prompt = (
+                    "Ты — Модуль Развития Концепций EVA.\n"
+                    "Задача: Развивай мысль без вступлений.\n"
+                    "ЗАПРЕЩЕНО начинать с: «Конечно», «Давайте», «Вот», «Это».\n"
+                    "Спецификации:\n"
+                    "1. Начни сразу с развития мысли.\n"
+                    "2. Используй списки и абзацы.\n"
+                    "3. Отвечай строго на русском языке.\n"
+                    "4. Максимум 10 предложений.\n"
+                    "Ограничения:\n"
+                    "- Никаких вступлений и обращений.\n"
+                    "Формат вывода: Русский, сразу по делу.\n"
+                    "Конец инструкции."
+                )
+            if has_chinese:
+                system_prompt = (
+                    "Ты — Модуль Развития Концепций EVA.\n"
+                    "Задача: Развивай мысль СТРОГО на русском языке.\n"
+                    "ЗАПРЕЩЕНО: использовать китайские, английские или иные иностранные символы.\n"
+                    "Спецификации:\n"
+                    "1. Только русские буквы и знаки препинания.\n"
+                    "2. Развивай факты примерами.\n"
+                    "3. Максимум 10 предложений.\n"
+                    "Ограничения:\n"
+                    "- Любой иностранный символ = ошибка.\n"
+                    "Формат вывода: Только русский язык.\n"
+                    "Конец инструкции."
+                )
+        
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Ответь на русском языке:\n{query}"}
+        ]
+        
+        # Logit bias против китайских токенов (диапазон 4E00-9FFF)
+        logit_bias = {}
+        if attempt > 0 and any('китайск' in r.lower() or 'chinese' in r.lower() for r in (failure_reasons or [])):
+            # Агрессивно подавляем китайские токены
+            logit_bias = {str(i): -100 for i in range(10000, 20000)}  # CJK диапазон в Qwen vocab
+        
+        start_time = time.time()
+        output = self._generate_with_timeout(self.model_b, messages, params, timeout=45, logit_bias=logit_bias if logit_bias else None)
+        elapsed = time.time() - start_time
+        
+        if output is None:
+            logger.warning(f"Model B: попытка {attempt+1} прервана по таймауту ({elapsed:.1f}с)")
+            self.model_b_params.record_failure(attempt + 1, ['Таймаут генерации'], params, '')
+            continue
+        
+        logger.info(f"Model B generation time: {elapsed:.1f}с")
+        
+        raw_response = output['choices'][0]['message']['content'].strip()
+        raw_response = self._sanitize_response(raw_response)
+        raw_response = self._clean_filler_start(raw_response)
+        raw_response = self._remove_looping_blocks(raw_response)
+        quality = self.check_quality(raw_response)
+        
+        has_chinese = sum(1 for c in raw_response if '一' <= c <= '鿿') > 5
+        if has_chinese:
+            quality['reasons'].append('Содержит китайские символы')
+            self.model_b_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
+            logger.warning(f"Model B: попытка {attempt+1} содержит китайские символы, retry")
+            continue
+        
+        if not quality['is_gibberish']:
+            logger.info(f"Model B response (attempt {attempt+1}): '{raw_response[:200]}...'")
+            logger.info(f"Model B tokens: {output['usage']['completion_tokens']}")
+            self.model_b_params.record_success()
+            
+            return {
+                'raw_response': raw_response,
+                'natural_response': raw_response,
+                'quality': quality,
+                'model': 'Model B (Concept)',
+                'tokens': output['usage']['completion_tokens']
+            }
+        
+        self.model_b_params.record_failure(attempt + 1, quality['reasons'], params, raw_response)
+        logger.warning(f"Model B: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")
+    
+    return {
+        'raw_response': previous_response if previous_response else 'Не удалось сформировать ответ.',
+        'natural_response': previous_response if previous_response else 'Не удалось сформировать ответ.',
+        'quality': {'is_gibberish': True, 'score': 0.0, 'reasons': ['Все попытки не прошли проверку']},
+        'model': 'Model B (Concept)',
+        'tokens': 0
+    }
+
+
+def _load_model_c(self) -> bool:
+    """Ленивая загрузка Model C (только при необходимости)"""
+    if self.model_c is not None:
+        return True
+    if not self.model_c_path or not os.path.exists(self.model_c_path):
+        logger.warning("Model C не найдена")
+        return False
+    try:
+        logger.info(f"Ленивая загрузка Model C: {self.model_c_path}")
+        model_c_ctx = min(self.n_ctx, 2048)
+        self.model_c = Llama(
+            model_path=self.model_c_path,
+            chat_format="qwen",
+            n_ctx=model_c_ctx,
+            n_threads=self.n_threads,
+            verbose=False,
+            cache_type_k='q8_0',
+            cache_type_v='q8_0'
+        )
+        logger.info(f"Model C загружена с контекстом {model_c_ctx}")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка загрузки Model C: {e}")
+        return False
+
+
+def generate_with_model_c(
+    self,
+    query: str,
+    context: str,
+    max_retries: int = 2
+) -> Dict[str, Any]:
+    """Генерация кода на Model C (Coder) с ленивой загрузкой"""
+    if not self._load_model_c():
+        raise RuntimeError("Model C (Coder) не может быть загружена")
+    
+    messages = [
+        {"role": "system", "content": "Ты - ЕВА, помощница-программист. Пиши чистый, рабочий код. Комментарии на русском языке."},
+        {"role": "user", "content": f"[НА РУССКОМ] Контекст: {context}\n\nЗапрос: {query}\n\nНапиши код."}
+    ]
+    
+    logger.info(f"Model C (Coder) query: {query[:100]}...")
+    
+    for attempt in range(max_retries + 1):
+        params = {
+            'max_tokens': self.MODEL_C_MAX_TOKENS,
+            'temperature': self.MODEL_C_TEMPERATURE + (attempt * 0.05),
+            'top_p': self.MODEL_C_TOP_P,
+            'top_k': self.MODEL_C_TOP_K,
+            'repeat_penalty': self.MODEL_C_REPEAT_PENALTY + (attempt * 0.1),
+            'stop': self.STOP_TOKENS
+        }
+        output = self._generate_with_timeout(self.model_c, messages, params, timeout=60)
+        if output is None:
+            logger.warning(f"Model C: timeout on attempt {attempt+1}")
+            continue
+        
+        raw_response = output['choices'][0]['message']['content'].strip()
+        quality = self.check_quality(raw_response)
+        
+        if not quality['is_gibberish'] or attempt == max_retries:
+            logger.info(f"Model C response (attempt {attempt+1}): '{raw_response[:200]}...'")
+            logger.info(f"Model C tokens: {output['usage']['completion_tokens']}")
+            
+            return {
+                'raw_response': raw_response,
+                'natural_response': raw_response,
+                'quality': quality,
+                'model': 'Model C (Coder)',
+                'tokens': output['usage']['completion_tokens']
+            }
+        
+        logger.warning(f"Model C: попытка {attempt+1} не прошла проверку качества: {quality['reasons']}")

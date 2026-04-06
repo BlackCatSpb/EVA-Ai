@@ -734,6 +734,30 @@ def register_routes(app, web_gui_instance):
                         analytics['gaps'] = stats.get('knowledge_gaps_identified', 0)
                         analytics['learned'] = stats.get('successful_learning', 0)
 
+                # FractalGraphV2 метрики
+                if hasattr(web_gui_instance.brain, 'fractal_graph_v2'):
+                    fg = web_gui_instance.brain.fractal_graph_v2
+                    if fg and hasattr(fg, 'get_stats'):
+                        try:
+                            fg_stats = fg.get_stats()
+                            analytics['fractal_nodes'] = fg_stats.get('total_nodes', 0)
+                            analytics['fractal_edges'] = fg_stats.get('total_edges', 0)
+                            analytics['fractal_groups'] = fg_stats.get('total_groups', 0)
+                        except Exception as e:
+                            logger.debug(f"FractalGraphV2 stats error: {e}")
+
+                # GraphCurator метрики
+                if hasattr(web_gui_instance.brain, 'graph_curator'):
+                    curator = web_gui_instance.brain.graph_curator
+                    if curator and hasattr(curator, 'get_metrics'):
+                        try:
+                            cur_metrics = curator.get_metrics()
+                            analytics['curator_cycles'] = cur_metrics.get('cycles_completed', 0)
+                            analytics['curator_state'] = cur_metrics.get('state', 'idle')
+                            analytics['curator_next_run'] = cur_metrics.get('next_run', 0)
+                        except Exception as e:
+                            logger.debug(f"GraphCurator metrics error: {e}")
+
                 if hasattr(web_gui_instance.brain, 'performance_analyzer'):
                     pa = web_gui_instance.brain.performance_analyzer
                     if hasattr(pa, 'analyze_performance'):
@@ -806,6 +830,8 @@ def register_routes(app, web_gui_instance):
     @app.route('/api/learning')
     def api_learning():
         """Get learning opportunities and stats."""
+        import traceback
+        
         if not web_gui_instance:
             logger.warning("api_learning: web_gui_instance is None")
             return jsonify({'error': 'Сервер не инициализирован'}), 500
@@ -820,109 +846,67 @@ def register_routes(app, web_gui_instance):
         }
 
         try:
-            logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
-
-            if web_gui_instance.brain:
-                sdl_available = False
+            brain = web_gui_instance.brain
+            
+            if not brain:
+                logger.warning("api_learning: brain is None")
+                return jsonify(learning)
+            
+            logger.info(f"api_learning: brain type = {type(brain).__name__}")
+            logger.info(f"api_learning: has self_dialog_learning = {hasattr(brain, 'self_dialog_learning')}")
+            
+            sdl = None
+            
+            # 1. Прямой атрибут brain
+            if hasattr(brain, 'self_dialog_learning'):
+                sdl = brain.self_dialog_learning
+            
+            # 2. Через components
+            if not sdl and hasattr(brain, 'components') and brain.components:
+                sdl = brain.components.get('self_dialog_learning')
+                if sdl:
+                    logger.info("api_learning: SDL from components")
+            
+            if sdl:
+                logger.info(f"api_learning: SDL found, type = {type(sdl).__name__}")
                 
-                if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
-                    sdl = web_gui_instance.brain.self_dialog_learning
+                # Stats
+                if hasattr(sdl, 'get_stats'):
+                    stats = sdl.get_stats()
+                    learning['total'] = stats.get('total_dialogs', 0)
+                    learning['success'] = stats.get('successful_learning', 0)
+                    learning['pending'] = stats.get('opportunities_executed', 0)
+                    logger.info(f"api_learning: stats = {stats}")
+                
+                # Opportunities
+                if hasattr(sdl, '_get_learning_opportunities'):
+                    try:
+                        opportunities = sdl._get_learning_opportunities()
+                        logger.info(f"api_learning: {len(opportunities)} opportunities")
+                        for op in opportunities[:10]:
+                            learning['opportunities'].append({
+                                'concept': op.get('concept', 'Unknown'),
+                                'type': op.get('opportunity_type', 'expansion'),
+                                'priority': op.get('priority', 0.5),
+                                'priority_level': 'high' if op.get('priority', 0) >= 0.7 else 'medium' if op.get('priority', 0) >= 0.4 else 'low',
+                                'domain': op.get('domain', 'general')
+                            })
+                    except Exception as e:
+                        logger.error(f"api_learning: opportunities error: {e}")
 
-                    if hasattr(sdl, '_get_learning_opportunities'):
-                        sdl_available = True
-                        try:
-                            opportunities = sdl._get_learning_opportunities()
-                            for op in opportunities[:10]:
-                                priority = op.get('priority', 0.5)
-                                priority_level = 'high' if priority >= 0.7 else 'medium' if priority >= 0.4 else 'low'
-                                learning['opportunities'].append({
-                                    'concept': op.get('concept', 'Unknown'),
-                                    'type': op.get('opportunity_type', 'expansion'),
-                                    'priority': priority,
-                                    'priority_level': priority_level,
-                                    'domain': op.get('domain', 'general')
-                                })
-                        except Exception as e:
-                            logger.debug(f"Error getting opportunities: {e}")
-
-                    if hasattr(sdl, 'get_stats'):
-                        try:
-                            stats = sdl.get_stats()
-                            learning['total'] = stats.get('total_dialogs', 0)
-                            learning['success'] = stats.get('successful_learning', 0)
-                        except Exception as e:
-                            logger.debug(f"Error getting stats: {e}")
-
-                    if hasattr(sdl, 'get_recent_learning'):
-                        try:
-                            recent = sdl.get_recent_learning(limit=5)
-                            for d in recent:
-                                learning['recent_dialogs'].append({
-                                    'topic': d.get('topic', '')[:50],
-                                    'outcome': d.get('outcome', 'unknown'),
-                                    'gaps': d.get('gaps', [])
-                                })
-                        except Exception as e:
-                            logger.debug(f"Error getting recent dialogs: {e}")
-
-                if not sdl_available:
-                    if hasattr(web_gui_instance.brain, 'self_analyzer') and web_gui_instance.brain.self_analyzer:
-                        try:
-                            opportunities = web_gui_instance.brain.self_analyzer.get_learning_opportunities(executed=False, limit=10)
-                            for op in opportunities[:10]:
-                                priority = op.get('priority', 0.5)
-                                priority_level = 'high' if priority >= 0.7 else 'medium' if priority >= 0.4 else 'low'
-                                learning['opportunities'].append({
-                                    'concept': op.get('concept', 'Unknown'),
-                                    'type': op.get('opportunity_type', 'expansion'),
-                                    'priority': priority,
-                                    'priority_level': priority_level,
-                                    'domain': op.get('domain', 'general')
-                                })
-                        except Exception as e:
-                            logger.debug(f"Error getting from self_analyzer: {e}")
-
-                    if hasattr(web_gui_instance.brain, 'analyzer_core') and web_gui_instance.brain.analyzer_core:
-                        try:
-                            opportunities = web_gui_instance.brain.analyzer_core.get_learning_opportunities(executed=False, limit=10)
-                            if not learning['opportunities']:
-                                for op in opportunities[:10]:
-                                    priority = op.get('priority', 0.5)
-                                    priority_level = 'high' if priority >= 0.7 else 'medium' if priority >= 0.4 else 'low'
-                                    learning['opportunities'].append({
-                                        'concept': op.get('concept', 'Unknown'),
-                                        'type': op.get('opportunity_type', 'expansion'),
-                                        'priority': priority,
-                                        'priority_level': priority_level,
-                                        'domain': op.get('domain', 'general')
-                                    })
-                        except Exception as e:
-                            logger.debug(f"Error getting from analyzer_core: {e}")
-
-                    if hasattr(web_gui_instance.brain, 'knowledge_graph') and web_gui_instance.brain.knowledge_graph:
-                        kg = web_gui_instance.brain.knowledge_graph
-                        try:
-                            if hasattr(kg, 'get_nodes'):
-                                nodes = kg.get_nodes()[:5]
-                                for node in nodes:
-                                    learning['recent_dialogs'].append({
-                                        'topic': getattr(node, 'name', 'Unknown')[:50],
-                                        'outcome': 'learned',
-                                        'gaps': []
-                                    })
-                        except Exception as e:
-                            logger.debug(f"Error getting from knowledge_graph: {e}")
-
-                    if not learning['opportunities']:
-                        learning['opportunities'] = [
-                            {'concept': 'Система инициализирована', 'type': 'system', 'priority': 0.8, 'priority_level': 'high', 'domain': 'system'},
-                            {'concept': 'Доступны компоненты обучения', 'type': 'expansion', 'priority': 0.5, 'priority_level': 'medium', 'domain': 'general'}
-                        ]
-
-                learning['pending'] = len(learning['opportunities'])
-
+            logger.info(f"api_learning: returning {learning}")
+            return jsonify(learning)
+            
         except Exception as e:
             logger.error(f"Error getting learning data: {e}")
+            return jsonify({
+                'opportunities': [],
+                'total': 0,
+                'success': 0,
+                'pending': 0,
+                'dialogs': [],
+                'recent_dialogs': []
+            })
 
         if not web_gui_instance or not web_gui_instance.brain:
             learning['total'] = 0
@@ -1163,14 +1147,77 @@ def register_routes(app, web_gui_instance):
                 name = data.get('name', '')
                 content = data.get('content', '')
                 node_type = data.get('type', 'concept')
-
                 if name or content:
                     kg.add_node(name=name, content=content, node_type=node_type)
                     return jsonify({'status': 'ok', 'message': 'Node added'})
-
             return jsonify({'error': 'Knowledge graph not available'}), 400
         except Exception as e:
             return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/knowledge')
+    def api_knowledge():
+        """Получить статистику базы знаний."""
+        if not web_gui_instance:
+            return jsonify({'total_entities': 0, 'total_relations': 0, 'entities': [], 'relations': []})
+
+        result = {
+            'total_entities': 0,
+            'total_relations': 0,
+            'entities': [],
+            'relations': [],
+            'session_entities': 0
+        }
+
+        try:
+            brain = web_gui_instance.brain
+            
+            # Пробуем разные источники
+            kg = None
+            
+            # 1. KnowledgeGraph
+            if hasattr(brain, 'knowledge_graph'):
+                kg = brain.knowledge_graph
+            
+            # 2. FractalGraphV2
+            if not kg and hasattr(brain, 'fractal_graph_v2'):
+                fg = brain.fractal_graph_v2
+                if fg and hasattr(fg, 'get_stats'):
+                    stats = fg.get_stats()
+                    result['total_entities'] = stats.get('total_nodes', 0)
+                    result['total_relations'] = stats.get('total_edges', 0)
+                    logger.info(f"api_knowledge: FG2 stats = {stats}")
+            
+            # 3. Classic KnowledgeGraph
+            if kg:
+                try:
+                    if hasattr(kg, 'get_stats'):
+                        stats = kg.get_stats()
+                        result['total_entities'] = stats.get('total_nodes', 0)
+                        result['total_relations'] = stats.get('total_edges', 0)
+                    elif hasattr(kg, 'nodes'):
+                        nodes = kg.nodes if isinstance(kg.nodes, list) else list(kg.nodes.values()) if hasattr(kg.nodes, 'values') else []
+                        result['total_entities'] = len(nodes)
+                    elif hasattr(kg, 'get_nodes'):
+                        nodes = kg.get_nodes()
+                        result['total_entities'] = len(nodes) if nodes else 0
+                except Exception as e:
+                    logger.debug(f"KnowledgeGraph stats error: {e}")
+
+            # Fallback demo data
+            if result['total_entities'] == 0:
+                result['entities'] = [
+                    {'id': 'system', 'name': 'EVA System', 'type': 'system'},
+                    {'id': 'memory', 'name': 'Память', 'type': 'memory'},
+                    {'id': 'learning', 'name': 'Обучение', 'type': 'learning'}
+                ]
+                result['total_entities'] = len(result['entities'])
+
+            logger.info(f"api_knowledge: returning {result}")
+            return jsonify(result)
+
+        except Exception as e:
+            logger.error(f"api_knowledge error: {e}")
+            return jsonify(result)
 
     @app.route('/api/cache-stats')
     def api_cache_stats():
@@ -1323,6 +1370,12 @@ def register_routes(app, web_gui_instance):
                 'pipeline.complete', 'pipeline.failed',
                 'generation.progress', 'generation.started', 'generation.completed',
                 'generation.failed', 'generation.timeout',
+                # События куратора
+                'curator.started', 'curator.completed', 'curator.error',
+                'curator.graph_optimized', 'curator.knowledge_extracted', 'curator.cleanup_done',
+                'curator.metrics_updated',
+                # События self-dialog
+                'self_dialog.started', 'self_dialog.completed', 'self_dialog.learning',
             ]
 
             subscriptions = {}

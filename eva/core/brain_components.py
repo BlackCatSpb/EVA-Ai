@@ -605,3 +605,139 @@ class ComponentMixin:
             return info
         except Exception as e:
             info["error"] = str(e); return info
+
+    # === GRAPH API ===
+    
+    def get_graph_tools(self) -> Dict[str, Any]:
+        """Получить инструменты для работы с графом знаний."""
+        return {
+            "curator": self._get_curator_tools(),
+            "fractal_graph_v2": self._get_fractal_graph_tools(),
+            "knowledge_graph": self._get_kg_tools()
+        }
+    
+    def _get_curator_tools(self) -> Dict[str, Any]:
+        """Инструменты куратора графа."""
+        if not hasattr(self, 'graph_curator') or not self.graph_curator:
+            return {"available": False, "reason": "Curator not initialized"}
+        
+        curator = self.graph_curator
+        return {
+            "available": True,
+            "state": curator.get_state(),
+            "metrics": curator.get_metrics(),
+            "actions": {
+                "start": lambda: curator.start() if not curator.running else None,
+                "stop": curator.stop,
+                "pause": curator.pause,
+                "resume": curator.resume,
+                "force_curation": curator.force_curation,
+                "get_stats": curator.get_graph_stats
+            }
+        }
+    
+    def _get_fractal_graph_tools(self) -> Dict[str, Any]:
+        """Инструменты Fractal Graph V2."""
+        fg = getattr(self, 'fractal_graph_v2', None)
+        if not fg:
+            return {"available": False, "reason": "FractalGraphV2 not initialized"}
+        
+        return {
+            "available": True,
+            "stats": fg.get_stats(),
+            "actions": {
+                "add_node": fg.add_node,
+                "add_knowledge": fg.add_knowledge,
+                "semantic_search": fg.semantic_search,
+                "keyword_search": fg.keyword_search,
+                "check_contradiction": fg.check_contradiction,
+                "self_dialogue": fg.self_dialogue,
+                "save_experience": fg.save_experience,
+                "get_context_for_query": fg.get_context_for_query,
+                "retrieve_knowledge": fg.retrieve_knowledge,
+                "vectorize_all": fg.vectorize_all,
+                "vectorize_groups": fg.vectorize_groups,
+                "auto_cluster": fg.auto_cluster
+            }
+        }
+    
+    def _get_kg_tools(self) -> Dict[str, Any]:
+        """Инструменты классического Knowledge Graph."""
+        kg = getattr(self, 'knowledge_graph', None)
+        if not kg:
+            return {"available": False, "reason": "KnowledgeGraph not initialized"}
+        
+        tools = {"available": True}
+        
+        if hasattr(kg, 'add_node'):
+            tools['add_node'] = kg.add_node
+        if hasattr(kg, 'add_edge'):
+            tools['add_edge'] = kg.add_edge
+        if hasattr(kg, 'get_relevant_nodes'):
+            tools['search'] = kg.get_relevant_nodes
+        if hasattr(kg, 'get_stats'):
+            tools['stats'] = kg.get_stats
+        
+        return tools
+    
+    def execute_graph_command(self, command: str, **kwargs) -> Any:
+        """Выполнить команду управления графом."""
+        cmd = command.lower().strip()
+        
+        # Curator commands
+        if cmd in ('curator_start', 'curator.start'):
+            if hasattr(self, 'graph_curator') and self.graph_curator:
+                return self.graph_curator.start()
+            return {"error": "Curator not available"}
+        
+        elif cmd in ('curator_stop', 'curator.stop'):
+            if hasattr(self, 'graph_curator') and self.graph_curator:
+                self.graph_curator.stop()
+                return {"status": "stopped"}
+            return {"error": "Curator not available"}
+        
+        elif cmd in ('curator_status', 'curator.status'):
+            if hasattr(self, 'graph_curator') and self.graph_curator:
+                return self.graph_curator.get_state()
+            return {"error": "Curator not available"}
+        
+        elif cmd in ('curator_metrics', 'curator.metrics'):
+            if hasattr(self, 'graph_curator') and self.graph_curator:
+                return self.graph_curator.get_metrics()
+            return {"error": "Curator not available"}
+        
+        elif cmd in ('curator_force', 'curator.force'):
+            if hasattr(self, 'graph_curator') and self.graph_curator:
+                self.graph_curator.force_curation()
+                return {"status": "curation started"}
+            return {"error": "Curator not available"}
+        
+        # Graph stats
+        elif cmd in ('graph_stats', 'graph.stats'):
+            fg = getattr(self, 'fractal_graph_v2', None)
+            if fg:
+                return fg.get_stats()
+            kg = getattr(self, 'knowledge_graph', None)
+            if kg and hasattr(kg, 'get_stats'):
+                return kg.get_stats()
+            return {"error": "No graph available"}
+        
+        # Search
+        elif cmd.startswith('search '):
+            query = command[7:]
+            fg = getattr(self, 'fractal_graph_v2', None)
+            if fg:
+                return fg.semantic_search(query, top_k=kwargs.get('top_k', 5))
+            return {"error": "FractalGraphV2 not available"}
+        
+        # Add knowledge
+        elif cmd.startswith('add '):
+            parts = command[4:].split(' | ')
+            if len(parts) >= 3:
+                subject, relation, obj = parts[0], parts[1], parts[2]
+                fg = getattr(self, 'fractal_graph_v2', None)
+                if fg:
+                    return fg.add_knowledge(subject, relation, obj)
+            return {"error": "Invalid format. Use: add subject | relation | object"}
+        
+        return {"error": f"Unknown command: {command}"}

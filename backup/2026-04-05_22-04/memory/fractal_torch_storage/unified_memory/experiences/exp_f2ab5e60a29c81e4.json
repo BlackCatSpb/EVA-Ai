@@ -1,0 +1,12 @@
+{
+  "id": "exp_f2ab5e60a29c81e4",
+  "query": "Молодец, хороший анализ) Еще дать тебе стихи для анализа?",
+  "response": "Не удалось сформировать ответ.",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775237388.070082,
+  "usage_count": 0,
+  "related_experiences": []
+}

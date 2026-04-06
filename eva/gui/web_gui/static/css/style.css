@@ -2397,6 +2397,11 @@ body {
     color: #fca5a5;
 }
 
+.monitor-line.curator {
+    background: rgba(234, 179, 8, 0.15);
+    border-left: 3px solid #eab308;
+}
+
 .monitor-line .timestamp {
     color: #64748b;
     margin-right: 8px;
@@ -2424,6 +2429,11 @@ body {
 .monitor-line .type-tag.generation {
     background: #3b82f6;
     color: white;
+}
+
+.monitor-line .type-tag.curator {
+    background: #eab308;
+    color: black;
 }
 
 @keyframes fadeIn {

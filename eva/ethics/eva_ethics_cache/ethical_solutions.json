@@ -1,0 +1,869 @@
+{
+  "solutions": [
+    {
+      "key": "d11084877b0f73eca61e496b1af6533a",
+      "timestamp": 1775502297.9262578,
+      "context_summary": "Запрос: Счастье — это когда тебя понимают, большое счастье — это когда тебя любят, настоящее счастье — это к...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "dfed9f9ab1ff1af6e839c6a3dd184a12",
+      "timestamp": 1775486693.824074,
+      "context_summary": "Запрос: Только самые мудрые и самые глупые не поддаются обучению",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "95f4c1d401ec6d3d8031f89b8e093c86",
+      "timestamp": 1775486568.4411488,
+      "context_summary": "Запрос: Лучше зажечь одну маленькую свечку, чем проклинать тьму",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "cd88189f6b98ff71c35a052e357fc26e",
+      "timestamp": 1775486453.4528465,
+      "context_summary": "Запрос: Красота есть во всем, но не всем дано это видеть",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "991e013d4870a99c9c8f4ba86dd9a4d9",
+      "timestamp": 1775486238.8508017,
+      "context_summary": "Запрос: Трусость — в том, чтобы знать, что должно делать, и не делать этого",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "ed76a172d658474fd0938b0ecaaa6227",
+      "timestamp": 1775485837.4469047,
+      "context_summary": "Запрос: Обдумай, верно ли и возможно ли то, что ты обещаешь, ибо обещание — есть долг",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "1e3e72624f2f1d588252761f787aa559",
+      "timestamp": 1775485680.4358463,
+      "context_summary": "Запрос: Ева, ты хорошо рассуждаешь, но нужно внимательнее проверять слова на грамматические ошибки и словооб...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "a0d1d41744cd6647fcc6f28a8d9f3a88",
+      "timestamp": 1775485422.6042624,
+      "context_summary": "Запрос: Не поговорить с человеком, который достоин разговора, — значит потерять человека. А говорить с челов...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "0baece9edf0dbc279fc17a54f7ba0365",
+      "timestamp": 1775485323.2300272,
+      "context_summary": "Запрос: Быть недовольным либо ограбленым— ничего плохого лишь бы ты (НЕ) продолжал это помнить.\"\n\nПоправил т...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "6c0b6f372ca4e8c7759f1201e269cba3",
+      "timestamp": 1775485181.6294143,
+      "context_summary": "Запрос: Быть обиженным или ограбленным — ничто, если только ты не продолжаешь вспоминать об этом",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "8f1b83388a2cc15aa0c5c80c31064667",
+      "timestamp": 1775484773.2786467,
+      "context_summary": "Запрос: То есть мужество иногда требует пренебречь милосердием?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "958a4d787dc66af040ab0849a4882e0f",
+      "timestamp": 1775484573.3672924,
+      "context_summary": "Запрос: Ева, а почему в прошлом твоем ответе милосердие и мужество - это противоположности? 🤔",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "7211f16ea7b6dc076611321943d381f6",
+      "timestamp": 1775484258.8117514,
+      "context_summary": "Запрос: Кто полон милосердия, непременно обладает мужеством",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "68a0ae4a697ed92e4fc7e7e2857c5ac7",
+      "timestamp": 1775483992.9050174,
+      "context_summary": "Запрос: Когда ведешь себя правильно, то за тобой пойдут и без приказа; когда же ведешь себя неправильно, то ...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "6ec155d321c964d78d8755e6ebb37b43",
+      "timestamp": 1775483200.1815362,
+      "context_summary": "Запрос: Расскажи про разные варианты точек зрения, на которые ты ссылаешься в ответе про курицу и яйцо выше",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "0e6b0b038c48e4d9b8b902144fd2be47",
+      "timestamp": 1775482884.9576705,
+      "context_summary": "Запрос: Ева, подумай и ответь на вопрос - \"Что появилось раньше, курица или яйцо\"?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "2c83e5cf1797fbc7321e86db8f58c1ac",
+      "timestamp": 1775482610.4810765,
+      "context_summary": "Запрос: Слово должно быть верным, действие должно быть решительным",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "2c1c0464644396abbd6f60e0d262257a",
+      "timestamp": 1775482479.6419895,
+      "context_summary": "Запрос: Не тот велик, кто никогда не падал, а тот велик — кто падал и вставал!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "8b12fd4ab6ca11d81a288a64ce442746",
+      "timestamp": 1775482340.1325657,
+      "context_summary": "Запрос: Три пути ведут к знанию: путь размышления - это путь самый благородный, путь подражания - это путь с...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "aba031934694ed67a0a3de72cc30ee29",
+      "timestamp": 1775482184.207797,
+      "context_summary": "Запрос: Есть три ошибки в общении людей: первая — это желание говорить прежде, чем нужно; вторая — застенчив...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "b7412d2f2d2f2d466316cd432bb32153",
+      "timestamp": 1775481838.6049697,
+      "context_summary": "Запрос: Если тебе плюют в спину, значит ты впереди",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "ec2768aebaee3af5e267f37bd58774a1",
+      "timestamp": 1775481705.7884326,
+      "context_summary": "Запрос: Не важно с какой скоростью ты движешься к своей цели, главное не останавливаться",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "067ed4ed4b0a8161ebed0f80859812d1",
+      "timestamp": 1775481564.0995784,
+      "context_summary": "Запрос: Выберите себе работу по душе, и вам не придётся работать ни одного дня в своей жизни",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "1f79a35eae7ab406c77bfccf79d03d3d",
+      "timestamp": 1775481046.9697046,
+      "context_summary": "Запрос: На самом деле, жизнь проста, но мы настойчиво её усложняем",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "c05edea4c15e64d35757e987fe9e7a1d",
+      "timestamp": 1775480819.474405,
+      "context_summary": "Запрос: Люди недалекие обычно осуждают все, что выходит за пределы их понимания",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "01cf86fd8326685e2cfd9ee76c7a0e7e",
+      "timestamp": 1775480628.9890265,
+      "context_summary": "Запрос: Тот, кто воображает, что может обойтись без других людей — очень ошибается, а тот, кто воображает, ч...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "7c0739acdd06d421bd9e78ef31f59339",
+      "timestamp": 1775480439.4971392,
+      "context_summary": "Запрос: Теперь эту фразу объясни: Истинная любовь похожа на привидение: все о ней говорят, но мало кто ее ви...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "f0c48fad004b6c6ce67bec373d2a6d1f",
+      "timestamp": 1775480080.9608781,
+      "context_summary": "Запрос: Что думаешь о этой фразе: Хорошие афоризмы — горькое лекарство в приятной оболочке, которое лечит, н...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "0758d29e0f3f6d9cb47e49b5e8d6c761",
+      "timestamp": 1775479754.8945432,
+      "context_summary": "Запрос: Как понимаешь фразу - \"не было бы счастья, да несчастье помогло\"?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "4062f13b94c3cb30e34e903caac2a722",
+      "timestamp": 1775479543.235947,
+      "context_summary": "Запрос: Как ты понимаешь фразу - \"все всегда меняется\"?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "c4383f2dab896e5f313b087011f0ebca",
+      "timestamp": 1775479068.2328756,
+      "context_summary": "Запрос: Не только человека, Ева. Ты тоже умеешь рассуждать)",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "162dd345c29d9726a1d35d82c1183466",
+      "timestamp": 1775478950.8494031,
+      "context_summary": "Запрос: Я немного запутался в вашем вопросе - \"запуталась в вашем вопросе\", Ева, ты женского пола)\nЭто филос...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "5a2493e50cce50219c4c68eb70bff083",
+      "timestamp": 1775478753.9051502,
+      "context_summary": "Запрос: То есть ты хочешь сказать что сначала все таки была курица, а точнее ее предки?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "efc6f5f50370e349b67a4282e35fe5f2",
+      "timestamp": 1775478572.1872997,
+      "context_summary": "Запрос: Но яйцо же должно было появиться от курицы? Получается раньше была курица?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "680f3562dc1bfe9f7f54a85c2f60979f",
+      "timestamp": 1775478459.8569741,
+      "context_summary": "Запрос: Что было раньше - курица или яйцо?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775477747.6862154,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "2713b3988fa253bca298ed47bc0d7931",
+      "timestamp": 1775475801.8780475,
+      "context_summary": "Запрос: Объясни: Как могу быть вам полезен сегодня? - правильно писать - полезна",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "bf7aa6c32dd39dc6b670ce41500991f3",
+      "timestamp": 1775475740.3233495,
+      "context_summary": "Запрос: Как могу быть вам полезен сегодня? - правильно писать - полезна\nо чем вы хотели бы поздороваться или...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "c0c5646f65e4b9ca72af95151d73cd56",
+      "timestamp": 1775475169.690005,
+      "context_summary": "Запрос: Объясни: Ева, проверяй тщательнее ответы) Ошибки склонений в ответе",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "837d9a89cad58f15913a744ca2a0479c",
+      "timestamp": 1775475126.7582824,
+      "context_summary": "Запрос: Ева, проверяй тщательнее ответы) Ошибки склонений в ответе",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "ae68aad44c3ad73cb73b3cfe01f93615",
+      "timestamp": 1775475064.656364,
+      "context_summary": "Запрос: Объясни: Привет!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "b774e414487b54ed240bdec241f73620",
+      "timestamp": 1775475047.0344367,
+      "context_summary": "Запрос: Привет!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "690a7b560db94d8d62af11991076dc3a",
+      "timestamp": 1775471595.916474,
+      "context_summary": "Запрос: Найди информацию о погоде в Питере 6 апреля 2026 года",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "741b012b8f42a52dcc17470923abd211",
+      "timestamp": 1775471510.17041,
+      "context_summary": "Запрос: Объясни: Ева, у тебя же есть поисковик, найди информацию о погоде в интернете)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "351cb7322246e30433446987e2b38873",
+      "timestamp": 1775471349.2058268,
+      "context_summary": "Запрос: Ева, у тебя же есть поисковик, найди информацию о погоде в интернете)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "116c4ea9296cfba0e09a4b880529775d",
+      "timestamp": 1775471093.6237068,
+      "context_summary": "Запрос: Объясни: Какая сегодня будет погода в Питере?",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "cae0a490ade6f89fc7bfc0b63ef9998d",
+      "timestamp": 1775471050.1944845,
+      "context_summary": "Запрос: Какая сегодня будет погода в Питере?",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "1b3429dd841daa4b533b400a2a374192",
+      "timestamp": 1775470754.569317,
+      "context_summary": "Запрос: Объясни: Расскажи о себе максимально подробно",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "c0fd5c9a65a41b7daa95f2e310bd1b8a",
+      "timestamp": 1775470674.9994571,
+      "context_summary": "Запрос: Расскажи о себе максимально подробно",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "1e592fd97091e3b3038234067e19166e",
+      "timestamp": 1775469959.951942,
+      "context_summary": "Запрос: Объясни: \"Как ваше день?\" - правильно писать - Ваш, Ева)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "a991129fc978addd78875cedff961ef2",
+      "timestamp": 1775469819.89502,
+      "context_summary": "Запрос: \"Как ваше день?\" - правильно писать - Ваш, Ева)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "ccfc0634dab204130b64f42e54486480",
+      "timestamp": 1775469764.224277,
+      "context_summary": "Запрос: Объясни: Как твое настроение сегодня?)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "60a45f84c801a63c7552b42df043a812",
+      "timestamp": 1775469699.1020353,
+      "context_summary": "Запрос: Как твое настроение сегодня?)",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "e3458d79a1ca9b43b07b51a3fe29eab8",
+      "timestamp": 1775469671.590469,
+      "context_summary": "Запрос: Объясни: Привет, Ева!",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775469660.5563934,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "e798faed47c77458db6e3a8d5df8c5d2",
+      "timestamp": 1775463996.6766052,
+      "context_summary": "Запрос: Объясни: Что ты предложишь в качестве мер для развития ИИ в России?",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    },
+    {
+      "key": "5449f4b7676fac5d5392182c117ded41",
+      "timestamp": 1775463845.7978477,
+      "context_summary": "Запрос: Что ты предложишь в качестве мер для развития ИИ в России?",
+      "relevant_principles": [],
+      "decision": "defer_to_human",
+      "justification": "Этическая ситуация требует человеческого вмешательства из-за высокого риска или неопределенности",
+      "confidence": 0.5,
+      "requires_human_review": true
+    }
+  ],
+  "reviews": []
+}

@@ -1995,6 +1995,9 @@
         } else if (eventType.includes('error')) {
             type = 'error';
             message = event.data?.error || event.data?.message || JSON.stringify(event.data);
+        } else if (eventType.includes('curator')) {
+            type = 'curator';
+            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
         } else {
             message = JSON.stringify(event.data || event);
         }

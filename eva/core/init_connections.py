@@ -16,6 +16,7 @@ def define_dependencies() -> Dict[str, List[str]]:
         'memory_manager': [],
         'hybrid_cache': ['memory_manager'],
         'knowledge_graph': ['event_bus'],
+        'fractal_graph_v2': ['event_bus'],  # Новый граф памяти
         'text_processor': ['hybrid_cache'],
         'ml_unit': ['memory_manager', 'knowledge_graph'],
         'model_manager': ['ml_unit'],

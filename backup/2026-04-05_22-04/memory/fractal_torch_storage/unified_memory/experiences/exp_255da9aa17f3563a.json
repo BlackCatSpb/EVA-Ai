@@ -1,0 +1,12 @@
+{
+  "id": "exp_255da9aa17f3563a",
+  "query": "Как выучить Python?",
+  "response": "Начните с основ: переменные, циклы, функции.",
+  "model_used": "model_b",
+  "quality_score": 0.7,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775188167.216255,
+  "usage_count": 15,
+  "related_experiences": []
+}

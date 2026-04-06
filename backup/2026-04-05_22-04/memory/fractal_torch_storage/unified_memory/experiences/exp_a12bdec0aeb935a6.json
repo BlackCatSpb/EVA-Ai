@@ -1,0 +1,12 @@
+{
+  "id": "exp_a12bdec0aeb935a6",
+  "query": "Объясни: Тебя зовут Ева, ты частный проект когнитивной нейросети. Я твой создатель",
+  "response": "Не удалось сформировать ответ.",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775236094.4465246,
+  "usage_count": 0,
+  "related_experiences": []
+}
