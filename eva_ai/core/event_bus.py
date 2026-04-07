@@ -75,20 +75,18 @@ class EventTypes:
     KNOWLEDGE_UPDATED = "knowledge.updated"
     KNOWLEDGE_ADDED = "knowledge.added"
     KNOWLEDGE_DELETED = "knowledge.deleted"
-    
-    # Feedback
-    FEEDBACK_PROCESSED = "feedback.processed"
-    FEEDBACK_RECEIVED = "feedback.received"
-    
-    # Веб-поиск
-    WEB_SEARCH_STARTED = "web.search.started"
-    WEB_SEARCH_COMPLETED = "web.search.completed"
-    WEB_SEARCH_FAILED = "web.search.failed"
+    KNOWLEDGE_GRAPH_UPDATED = "knowledge.graph.updated"
     
     # Память
     MEMORY_CLEARED = "memory.cleared"
     MEMORY_OPTIMIZED = "memory.optimized"
     MEMORY_WARNING = "memory.warning"
+    MEMORY_GRAPH_UPDATED = "memory.graph.updated"
+    
+    # Обучение
+    LEARNING_STATS_UPDATED = "learning.stats.updated"
+    LEARNING_OPPORTUNITIES_UPDATED = "learning.opportunities.updated"
+    LEARNING_DIALOGS_UPDATED = "learning.dialogs.updated"
     
     # Адаптация
     ADAPTATION_STARTED = "adaptation.started"
@@ -112,6 +110,16 @@ class EventTypes:
     
     COMMAND_COMPLETED = "command.completed"
     COMMAND_FAILED = "command.failed"
+    
+    # Concept Miner - концептуальный вывод
+    CONCEPT_MINING_START = "concept.mining.start"
+    CONCEPT_MINING_COMPLETE = "concept.mining.complete"
+    CONCEPT_MINING_FAILED = "concept.mining.failed"
+    CONCEPT_CANDIDATE_GENERATED = "concept.candidate.generated"
+    CONCEPT_VALIDATION_COMPLETE = "concept.validation.complete"
+    CONCEPT_WEB_VERIFY = "concept.web.verify"
+    CONCEPT_LIFECYCLE_UPDATE = "concept.lifecycle.update"
+    MEMORY_CLUSTERING_COMPLETE = "memory.clustering.complete"
 
 class EventBus:
     """Центральная шина событий ЕВА"""

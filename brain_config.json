@@ -133,6 +133,24 @@
     "extract_from_gguf": true,
     "gguf_models_dir": "eva_ai/mlearning/eva_models"
   },
+  "concept_miner": {
+    "enabled": true,
+    "dry_run": true,
+    "base_threshold": 0.30,
+    "dedup_radius": 0.15,
+    "max_candidates_per_cycle": 5,
+    "priority_queue": "NORMAL",
+    "llm_temperature": 0.35,
+    "llm_repeat_penalty": 1.8,
+    "max_llm_tokens": 128,
+    "enable_web_search_validation": true,
+    "idle_threshold_seconds": 10.0,
+    "cpu_threshold_soft": 0.80,
+    "cpu_threshold_hard": 0.90,
+    "cycles_before_stable": 5,
+    "confidence_threshold_confirm": 0.75,
+    "confidence_threshold_archive": 0.25
+  },
   "knowledge_awareness": {
     "enabled": true
   },

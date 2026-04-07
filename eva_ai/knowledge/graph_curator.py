@@ -350,6 +350,15 @@ class GraphCurator:
         
         try:
             self._event_bus.trigger(event_type.value, data)
+            
+            # Публикуем в EventBus для внешних подписчиков (ConceptMiner)
+            from eva_ai.core.event_bus import Event, EventTypes
+            if event_type == CuratorEventType.GRAPH_OPTIMIZED:
+                self._event_bus.publish(Event(
+                    event_type=EventTypes.MEMORY_CLUSTERING_COMPLETE,
+                    source="graph_curator",
+                    data=data
+                ))
         except Exception as e:
             logger.debug(f"Ошибка публикации события: {e}")
     

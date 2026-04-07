@@ -94,7 +94,57 @@ def main():
     
     import server
     logger.info("Creating app with brain: {}".format(brain))
+    
+    # Создаём bridge если brain доступен
+    bridge = None
+    if brain:
+        try:
+            from eva_ai.gui.web_gui.bridge import GUIBridge
+            bridge = GUIBridge(brain=brain, integrator=None)
+            logger.info("Bridge created successfully")
+        except Exception as e:
+            logger.warning(f"Failed to create bridge: {e}")
+        
+        # Инициализация ConceptMiner
+        try:
+            from eva_ai.knowledge.concept_miner import create_concept_miner
+            config = brain.config.get("concept_miner", {}) if hasattr(brain, 'config') else {}
+            
+            concept_miner = create_concept_miner(
+                brain=brain,
+                event_bus=getattr(brain, 'event_bus', None),
+                deferred_system=getattr(brain, 'deferred_system', None),
+                background_coordinator=getattr(brain, 'background_coordinator', None),
+                config=config
+            )
+            concept_miner.start()
+            
+            brain.concept_miner = concept_miner
+            logger.info("ConceptMiner initialized and started")
+            
+            # Инициализация интегратора Concept-Dialog
+            try:
+                from eva_ai.learning.concept_dialog_integration import create_concept_dialog_integrator
+                
+                self_dialog_learning = getattr(brain, 'self_dialog_learning', None)
+                
+                concept_dialog_integrator = create_concept_dialog_integrator(
+                    self_dialog_learning=self_dialog_learning,
+                    concept_miner=concept_miner,
+                    brain=brain,
+                    config={}
+                )
+                concept_dialog_integrator.start()
+                
+                brain.concept_dialog_integrator = concept_dialog_integrator
+                logger.info("ConceptDialogIntegrator initialized and started")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ConceptDialogIntegrator: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize ConceptMiner: {e}")
+    
     gui = server.create_app(brain=brain)
+    gui.bridge = bridge
     logger.info("GUI brain reference: {}".format(gui.brain))
     
     # Log all registered routes

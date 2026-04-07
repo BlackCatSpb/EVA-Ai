@@ -674,6 +674,13 @@ def register_routes(app, web_gui_instance):
         graph_data = {'nodes': [], 'edges': [], 'stats': {}}
 
         try:
+            # Сначала пробуем получить из bridge кэша
+            if hasattr(web_gui_instance, 'bridge') and web_gui_instance.bridge:
+                cached = web_gui_instance.bridge.get_cached_memory_graph()
+                if cached and cached.get('nodes'):
+                    logger.info("api_memory_graph: returning cached data")
+                    return jsonify(cached)
+            
             if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                 mm = web_gui_instance.brain.memory_manager
                 if hasattr(mm, 'get_graph_data'):
@@ -862,6 +869,13 @@ def register_routes(app, web_gui_instance):
         }
 
         try:
+            # Сначала пробуем получить из bridge кэша
+            if hasattr(web_gui_instance, 'bridge') and web_gui_instance.bridge:
+                cached = web_gui_instance.bridge.get_cached_learning_stats()
+                if cached and cached.get('total', 0) > 0:
+                    logger.info("api_learning: returning cached data")
+                    return jsonify(cached)
+            
             brain = web_gui_instance.brain
             
             if not brain:
@@ -1095,6 +1109,13 @@ def register_routes(app, web_gui_instance):
         if request.method == 'GET':
             action = request.args.get('action', 'get')
 
+            # Пробуем получить из bridge кэша
+            if hasattr(web_gui_instance, 'bridge') and web_gui_instance.bridge:
+                cached = web_gui_instance.bridge.get_cached_knowledge_graph()
+                if cached and cached.get('nodes'):
+                    logger.info("api_knowledge_graph: returning cached data")
+                    return jsonify(cached)
+            
             try:
                 kg = getattr(web_gui_instance.brain, 'knowledge_graph', None)
                 

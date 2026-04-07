@@ -1,5 +1,5 @@
 """
-Модуль управления знаниями ЕВА
+Модуль управления знаний ЕВА
 """
 
 from .knowledge_graph import KnowledgeGraph, KnowledgeNode, KnowledgeEdge
@@ -16,6 +16,7 @@ from .context_entity import (
     EntityExtractor
 )
 from .ambiguity_resolver import AmbiguityResolver
+from .concept_miner import ConceptMiner, ConceptStatus, PhantomCandidate, create_concept_miner
 
 __all__ = [
     'KnowledgeGraph',
@@ -31,5 +32,9 @@ __all__ = [
     'RefinementQuery',
     'AmbiguityType',
     'EntityExtractor',
-    'AmbiguityResolver'
+    'AmbiguityResolver',
+    'ConceptMiner',
+    'ConceptStatus',
+    'PhantomCandidate',
+    'create_concept_miner'
 ]

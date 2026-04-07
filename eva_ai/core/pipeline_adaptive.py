@@ -17,11 +17,11 @@ class AdaptiveParameterController:
     """
     
     DEFAULT_PARAMS = {
-        'temperature': 0.3,
+        'temperature': 0.25,
         'top_p': 0.9,
         'top_k': 40,
-        'repeat_penalty': 1.5,
-        'max_tokens': 1024,
+        'repeat_penalty': 2.0,
+        'max_tokens': 512,
     }
     
     PARAM_RANGES = {
@@ -29,7 +29,7 @@ class AdaptiveParameterController:
         'top_p': (0.1, 1.0),
         'top_k': (10, 100),
         'repeat_penalty': (0.5, 3.0),
-        'max_tokens': (64, 4096),
+        'max_tokens': (64, 2048),
     }
     
     SEMANTIC_STUCK_THRESHOLD = 0.85

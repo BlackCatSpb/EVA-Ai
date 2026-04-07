@@ -47,14 +47,14 @@ class RecursiveModelPipeline:
     Использует create_chat_completion с автоматическим форматированием Qwen
     """
     
-    MODEL_A_MAX_TOKENS = 1024
+    MODEL_A_MAX_TOKENS = 2048
     MODEL_A_TEMPERATURE = 0.3
     MODEL_A_TOP_P = 0.9
     MODEL_A_TOP_K = 40
     MODEL_A_REPEAT_PENALTY = 1.5
     
-    MODEL_B_MAX_TOKENS = 512
-    MODEL_B_TEMPERATURE = 0.3
+    MODEL_B_MAX_TOKENS = 1024
+    MODEL_B_TEMPERATURE = 0.25
     MODEL_B_TOP_P = 0.9
     MODEL_B_TOP_K = 40
     MODEL_B_REPEAT_PENALTY = 2.0

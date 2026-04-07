@@ -59,7 +59,8 @@ class WebGUI:
         self.port = port
         self.running = False
         self.thread = None
-
+        self.bridge = None
+        
         self.auth_manager = AuthManager()
         self.session_manager = SessionManager()
         self.entity_extractor = EntityExtractor()

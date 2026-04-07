@@ -1,6 +1,125 @@
 {
   "solutions": [
     {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775583942.4635863,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "c3cc6e4a9ee70298d981c4d8b53be82a",
+      "timestamp": 1775574071.316633,
+      "context_summary": "Запрос: Я Дима, ты Ева, запомни",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775574012.1083524,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "9f6428f78c0e9b1eb166dbafac565f2c",
+      "timestamp": 1775572483.340478,
+      "context_summary": "Запрос: Спасибо) Обсудим историю России?)",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775572423.725014,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "1dabd401ab68f436c7fef619819fdf6d",
+      "timestamp": 1775571107.179216,
+      "context_summary": "Запрос: Привет! Запоминай:\n\nИстория Древней Руси (кратко): от Руси - к Российскому государству\nВ ходе рассел...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "b348c6f888f78539f9c30285d4cff6ef",
+      "timestamp": 1775570036.8757913,
+      "context_summary": "Запрос: Продолжаем:\n\nПериод с середины XIII по XV столетие – время кардинальных перемен в судьбе Руси. Удар,...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
       "key": "1afdb7412f5f95c656c89d465cd13817",
       "timestamp": 1775569349.1158001,
       "context_summary": "Запрос: Давай обсудим это. Я буду давать тебе частями материал, ты делать выводы и запоминать их:\n\nИстория Д...",

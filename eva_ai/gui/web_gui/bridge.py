@@ -3,6 +3,7 @@ GUI Bridge - интеграция Web GUI с ЕВА Core
 """
 import logging
 import threading
+import time
 from typing import Optional, Callable, Any, Dict
 
 logger = logging.getLogger("eva_ai.webgui.bridge")
@@ -22,6 +23,19 @@ class GUIBridge:
         self._reasoning_callbacks = []
         self._training_callbacks = []
         self._lock = threading.Lock()
+        
+        # Кэш данных для GUI
+        self._cached_knowledge_graph = {'nodes': [], 'edges': [], 'stats': {}}
+        self._cached_memory_graph = {'nodes': [], 'edges': [], 'stats': {}}
+        self._cached_learning_stats = {
+            'total': 0, 'success': 0, 'pending': 0,
+            'opportunities': [], 'dialogs': [], 'recent_dialogs': []
+        }
+        self._last_update_time = {
+            'knowledge_graph': 0,
+            'memory_graph': 0,
+            'learning': 0
+        }
         
         logger.info("GUIBridge инициализирован")
     
@@ -104,8 +118,23 @@ class GUIBridge:
             # Знания
             event_bus.subscribe(EventTypes.KNOWLEDGE_UPDATED, self._on_knowledge_updated)
             event_bus.subscribe(EventTypes.KNOWLEDGE_ADDED, self._on_knowledge_added)
+            event_bus.subscribe(EventTypes.KNOWLEDGE_GRAPH_UPDATED, self._on_knowledge_graph_updated)
             
-            logger.info("Подписки на новую EventBus настроены (17 событий)")
+            # Память
+            event_bus.subscribe(EventTypes.MEMORY_WARNING, self._on_memory_warning)
+            event_bus.subscribe(EventTypes.MEMORY_OPTIMIZED, self._on_memory_optimized)
+            event_bus.subscribe(EventTypes.MEMORY_GRAPH_UPDATED, self._on_memory_graph_updated)
+            
+            # Обучение
+            event_bus.subscribe(EventTypes.LEARNING_STATS_UPDATED, self._on_learning_stats_updated)
+            event_bus.subscribe(EventTypes.LEARNING_OPPORTUNITIES_UPDATED, self._on_learning_opportunities_updated)
+            event_bus.subscribe(EventTypes.LEARNING_DIALOGS_UPDATED, self._on_learning_dialogs_updated)
+            
+            # Подписки на старые события knowledge_graph
+            event_bus.subscribe('knowledge_graph.node_added', self._on_kg_node_added)
+            event_bus.subscribe('knowledge_graph.edge_added', self._on_kg_edge_added)
+            
+            logger.info("Подписки на новые события (knowledge, memory, learning) настроены")
         except Exception as e:
             logger.warning("Не удалось подписаться на новую EventBus: {}".format(e))
     
@@ -377,6 +406,87 @@ class GUIBridge:
                 'type': 'info',
                 'message': 'Добавлены новые знания'
             })
+        self._invalidate_knowledge_cache()
+    
+    def _on_knowledge_graph_updated(self, event):
+        """Обработка обновления графа знаний"""
+        data = event.data if hasattr(event, 'data') else {}
+        with self._lock:
+            self._cached_knowledge_graph = data.get('graph_data', self._cached_knowledge_graph)
+            self._last_update_time['knowledge_graph'] = time.time()
+        logger.debug("Knowledge graph updated via event bus")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_knowledge_graph_updated", lambda: None)(data.get('graph_data', {}))
+    
+    def _on_kg_node_added(self, event):
+        """Обработка добавления узла в граф знаний"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.debug("KG node added: {}".format(data.get('node_id', 'unknown')))
+        self._invalidate_knowledge_cache()
+    
+    def _on_kg_edge_added(self, event):
+        """Обработка добавления связи в граф знаний"""
+        data = event.data if hasattr(event, 'data') else {}
+        logger.debug("KG edge added: {}".format(data.get('edge_id', 'unknown')))
+        self._invalidate_knowledge_cache()
+    
+    def _on_memory_graph_updated(self, event):
+        """Обработка обновления графа памяти"""
+        data = event.data if hasattr(event, 'data') else {}
+        with self._lock:
+            self._cached_memory_graph = data.get('graph_data', self._cached_memory_graph)
+            self._last_update_time['memory_graph'] = time.time()
+        logger.debug("Memory graph updated via event bus")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_memory_graph_updated", lambda: None)(data.get('graph_data', {}))
+    
+    def _on_learning_stats_updated(self, event):
+        """Обработка обновления статистики обучения"""
+        data = event.data if hasattr(event, 'data') else {}
+        with self._lock:
+            self._cached_learning_stats.update(data.get('stats', {}))
+            self._last_update_time['learning'] = time.time()
+        logger.debug("Learning stats updated via event bus")
+        if self.web_gui:
+            getattr(self.web_gui, "emit_learning_updated", lambda: None)(data.get('stats', {}))
+    
+    def _on_learning_opportunities_updated(self, event):
+        """Обработка обновления возможностей обучения"""
+        data = event.data if hasattr(event, 'data') else {}
+        with self._lock:
+            self._cached_learning_stats['opportunities'] = data.get('opportunities', [])
+    
+    def _on_learning_dialogs_updated(self, event):
+        """Обработка обновления диалогов обучения"""
+        data = event.data if hasattr(event, 'data') else {}
+        with self._lock:
+            self._cached_learning_stats['dialogs'] = data.get('dialogs', [])
+            self._cached_learning_stats['recent_dialogs'] = data.get('recent_dialogs', [])
+    
+    def _invalidate_knowledge_cache(self):
+        """Инвалидация кэша знаний"""
+        with self._lock:
+            self._last_update_time['knowledge_graph'] = 0
+    
+    def get_cached_knowledge_graph(self):
+        """Получение кэшированного графа знаний"""
+        with self._lock:
+            return self._cached_knowledge_graph.copy()
+    
+    def get_cached_memory_graph(self):
+        """Получение кэшированного графа памяти"""
+        with self._lock:
+            return self._cached_memory_graph.copy()
+    
+    def get_cached_learning_stats(self):
+        """Получение кэшированной статистики обучения"""
+        with self._lock:
+            return self._cached_learning_stats.copy()
+    
+    def get_cache_status(self):
+        """Получение статуса кэша"""
+        with self._lock:
+            return self._last_update_time.copy()
     
     def send_message(self, query: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """Отправка сообщения через Core"""
