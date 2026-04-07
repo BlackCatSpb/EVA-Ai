@@ -493,6 +493,8 @@ class WebGUI:
 
             if self.brain and hasattr(self.brain, 'fractal_memory') and self.brain.fractal_memory:
                 self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_memory)
+            elif self.brain and hasattr(self.brain, 'fractal_graph_v2') and self.brain.fractal_graph_v2:
+                self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_graph_v2)
 
         self_dialog_result = None
         # Самодиалог НЕ запускается при каждом запросе!

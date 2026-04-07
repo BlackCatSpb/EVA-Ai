@@ -96,9 +96,11 @@ class FractalWeightStorage:
             key = f"{layer_name}.{tensor_name}"
             
             # Компрессия если нужно
+            is_compressed = False
             if self.compressor.should_compress(shape):
                 compressed = self.compressor.compress(data, shape)
                 storage_data = compressed
+                is_compressed = True
                 self.stats["compressions"] += 1
             else:
                 storage_data = data
@@ -113,7 +115,8 @@ class FractalWeightStorage:
                 tensor_name=tensor_name,
                 shape=shape,
                 dtype=dtype,
-                size_bytes=len(storage_data)
+                size_bytes=len(storage_data),
+                compressed=is_compressed
             )
             
             # Обновляем менеджер слоёв

@@ -38,7 +38,8 @@ class WeightIndex:
         tensor_name: str,
         shape: tuple,
         dtype: str,
-        size_bytes: int
+        size_bytes: int,
+        compressed: bool = False
     ):
         """
         Регистрирует вес в индексе.
@@ -50,6 +51,7 @@ class WeightIndex:
             shape: Форма тензора
             dtype: Тип данных
             size_bytes: Размер в байтах
+            compressed: Флаг компрессии
         """
         # Основной индекс
         self._index[key] = {
@@ -57,7 +59,8 @@ class WeightIndex:
             "tensor": tensor_name,
             "shape": shape,
             "dtype": dtype,
-            "size_bytes": size_bytes
+            "size_bytes": size_bytes,
+            "compressed": compressed
         }
         
         # Индекс по слоям
