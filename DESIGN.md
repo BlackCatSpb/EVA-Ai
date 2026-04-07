@@ -1,7 +1,7 @@
 # EVA-Ai — Архитектура и Принципы Работы
 
-**Версия:** 2.4  
-**Дата:** 2026-04-06  
+**Версия:** 2.5  
+**Дата:** 2026-04-07  
 **Репозиторий:** https://github.com/BlackCatSpb/EVA-Ai
 
 ---
@@ -208,7 +208,45 @@ start_generation() → update_progress() → complete() / fail() / timeout()
 - Автоочистка завершённых записей старше 300 секунд
 - Интеграция с `DeferredCommandSystem` для отслеживания таймаутов
 
-### 2.5 RecursiveModelPipeline — Three-GGUF Pipeline
+### 2.5 ConceptMiner — Модуль автономного концептуального вывода
+
+**Файл:** `eva_ai/knowledge/concept_miner.py` (850+ строк)
+
+**Назначение:** Проактивное обнаружение семантических лакун во фрактальной памяти через анализ кластеров.
+
+**Архитектура:**
+
+| Компонент | Функция |
+|-----------|---------|
+| **SemanticGapDetector** | Детекция разрывов между кластерами через centroid distance |
+| **HypothesisGenerator** | Генерация гипотез через LLM (system + user промпты) |
+| **ConceptValidator** | NLI-когерентность, этическая фильтрация, веб-верификация |
+| **LifecycleManager** | Жизненный цикл: provisional → confirmed → stable → archived |
+
+**EventTypes:**
+- `CONCEPT_MINING_START`, `CONCEPT_MINING_COMPLETE`
+- `CONCEPT_CANDIDATE_GENERATED`, `CONCEPT_CANDIDATE_CONFIRMED`
+- `MEMORY_CLUSTERING_COMPLETE` (публикуется GraphCurator)
+
+**Конфигурация (brain_config.json):**
+```json
+"concept_miner": {
+  "enabled": true,
+  "dry_run": true,
+  "base_threshold": 0.30,
+  "llm_temperature": 0.35,
+  "llm_repeat_penalty": 1.8,
+  "max_llm_tokens": 128
+}
+```
+
+### 2.5.1 ConceptDialogIntegrator — Интегратор самодиалогов
+
+**Файл:** `eva_ai/learning/concept_dialog_integration.py`
+
+Связывает ConceptMiner с SelfDialogLearning для валидации и изучения новых концептов.
+
+### 2.6 RecursiveModelPipeline — Three-GGUF Pipeline
 
 **Файл:** `eva/core/pipeline_core.py`
 
@@ -216,8 +254,8 @@ start_generation() → update_progress() → complete() / fail() / timeout()
 
 | Модель | Файл | Назначение | Параметры |
 |--------|------|------------|-----------|
-| **Model A** | `qwen2.5-3b-instruct-q4_k_m.gguf` | Логическое ядро — извлечение фактов, макс 3 предложения | temp=0.3, top_p=0.9, top_k=40, repeat_penalty=1.5, max_tokens=1024 |
-| **Model B** | `qwen2.5-3b-instruct-q4_k_m_model_b.gguf` | Развитие концепций — расширение фактов примерами и деталями | temp=0.3, top_p=0.9, top_k=40, repeat_penalty=2.0, max_tokens=512 |
+| **Model A** | `qwen2.5-3b-instruct-q4_k_m.gguf` | Логическое ядро — извлечение фактов, макс 3 предложения | temp=0.3, top_p=0.9, top_k=40, repeat_penalty=1.5, max_tokens=2048 |
+| **Model B** | `qwen2.5-3b-instruct-q4_k_m_model_b.gguf` | Развитие концепций — расширение фактов примерами и деталями | temp=0.3, top_p=0.9, top_k=40, repeat_penalty=2.0, max_tokens=1024, no timeout |
 | **Model C** | `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` | Генерация кода — ленивая загрузка только при запросе кода | temp=0.1, top_p=0.9, top_k=50, repeat_penalty=1.3, max_tokens=512 |
 
 **AdaptiveParameterController** (`pipeline_adaptive.py`):
@@ -233,8 +271,10 @@ start_generation() → update_progress() → complete() / fail() / timeout()
 - Детекция соотношения английских слов
 - Санитизация ответов (смешанные кириллица/латиница, сохранение блоков кода)
 - Удаление зацикленных блоков
+- **Строгая проверка русского языка** (`check_russian_quality()`) для Model B
+- **Text chunking** (`text_chunker.py`) для больших запросов (> 1000 токенов)
 
-### 2.6 Query Processing — Fallback Chain
+### 2.7 Query Processing — Fallback Chain
 
 **Файл:** `eva/core/brain_query.py` (815+ строк)
 
@@ -902,6 +942,7 @@ WebGUI (Flask server)
 | 2.0 | 2026-04-03 | Three-GGUF Pipeline, Web GUI |
 | 2.1 | 2026-04-05 | **EventBus**, **DeferredCommandSystem**, debug endpoints, login fix |
 | 2.2 | 2026-04-06 | **GenerationTracker**, **SSE streaming**, **CoreBrain 8 mixins**, **полная документация API (30+ endpoints)**, **frontend архитектура**, **fallback chain**, **pipeline детали**, **модульная экосистема** |
+| 2.5 | 2026-04-07 | **ConceptMiner**, **ConceptDialogIntegrator**, max_tokens increase, Model B fixes, Russian grammar checks, text chunking |
 
 ---
 
