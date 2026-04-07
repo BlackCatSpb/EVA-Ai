@@ -225,6 +225,7 @@ class FractalGraphV2:
         self.nodes_by_type: Dict[str, List[str]] = defaultdict(list)
         self.nodes_by_level: Dict[int, List[str]] = defaultdict(list)
         self.nodes_by_group: Dict[str, List[str]] = defaultdict(list)
+        self.groups_by_level: Dict[int, List[str]] = defaultdict(list)
         
         # Word index для простого поиска
         self.word_index: Dict[str, Set[str]] = defaultdict(set)

@@ -15,7 +15,8 @@ import atexit
 atexit.register(lambda: _generation_executor.shutdown(wait=False))
 
 
-def check_quality(self, text: str) -> Dict[str, Any]:
+@staticmethod
+def check_quality(text: str) -> Dict[str, Any]:
     """Проверка качества текста с детекцией зацикливания"""
     if not text or len(text.strip()) < 5:
         return {'is_gibberish': True, 'score': 0.1, 'reasons': ['Пустой или слишком короткий текст']}
@@ -56,7 +57,8 @@ def check_quality(self, text: str) -> Dict[str, Any]:
     return {'is_gibberish': False, 'score': 0.8, 'reasons': ['OK']}
 
 
-def _sanitize_response(self, text: str) -> str:
+@staticmethod
+def _sanitize_response(text: str) -> str:
     """Постобработка: удаление артефактов, латиницы в кириллических словах"""
     code_blocks = []
     def save_code_block(match):
@@ -120,7 +122,8 @@ def _sanitize_response(self, text: str) -> str:
     return text.strip()
 
 
-def _clean_filler_start(self, text: str) -> str:
+@staticmethod
+def _clean_filler_start(text: str) -> str:
     """Удаляет вводные фразы-паразиты из начала ответа"""
     fillers = [
         'Конечно! ', 'Конечно, ', 'Конечно!', 'Конечно',
@@ -137,7 +140,8 @@ def _clean_filler_start(self, text: str) -> str:
     return cleaned
 
 
-def _remove_looping_blocks(self, text: str, max_repeats: int = 2) -> str:
+@staticmethod
+def _remove_looping_blocks(text: str, max_repeats: int = 2) -> str:
     """Удаляет зацикливающиеся блоки текста"""
     lines = text.split('\n')
     seen_blocks = {}
