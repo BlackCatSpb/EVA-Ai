@@ -219,7 +219,8 @@ class FractalMemoryGraph:
         self,
         query: str,
         top_k: int = 5,
-        min_level: int = 2
+        min_level: int = 2,
+        min_similarity: float = 0.3
     ) -> List[Dict[str, Any]]:
         """
         Семантический поиск по запросу.
@@ -228,6 +229,7 @@ class FractalMemoryGraph:
             query: Текстовый запрос
             top_k: Количество результатов
             min_level: Минимальный уровень для поиска
+            min_similarity: Минимальная схожесть (по умолчанию 0.3)
             
         Returns:
             List of {node, similarity, group}
@@ -238,16 +240,20 @@ class FractalMemoryGraph:
         if query_emb is None:
             return []
         
-        # Поиск в графе
+        # Поиск в графе (берём больше для фильтрации)
         results = self.storage.semantic_search(
             query_embedding=query_emb.tolist(),
-            top_k=top_k,
+            top_k=min(top_k * 3, 30),  # Берём больше для фильтрации
             min_level=min_level
         )
         
-        # Форматируем результаты
+        # Форматируем и фильтруем результаты
         formatted = []
         for node_id_or_group_id, similarity, group_id in results:
+            # Фильтр по минимальной схожести
+            if similarity < min_similarity:
+                continue
+                
             if node_id_or_group_id in self.storage.nodes:
                 node = self.storage.nodes[node_id_or_group_id]
                 formatted.append({
@@ -702,7 +708,7 @@ class FractalMemoryGraph:
         
         return query_node.id
     
-    def get_context_for_query(self, query: str, max_length: int = 512) -> str:
+    def get_context_for_query(self, query: str, max_length: int = 512, min_similarity: float = 0.3) -> str:
         """
         Получить контекст для запроса.
         Аналог UnifiedFractalMemory.get_context_for_query()
@@ -710,12 +716,13 @@ class FractalMemoryGraph:
         Args:
             query: Запрос пользователя
             max_length: Максимальная длина контекста
+            min_similarity: Минимальная схожесть для включения в контекст
             
         Returns:
             Текстовый контекст из графа
         """
-        # Семантический поиск
-        results = self.semantic_search(query, top_k=10, min_level=1)
+        # Семантический поиск с фильтрацией по схожести
+        results = self.semantic_search(query, top_k=10, min_level=1, min_similarity=min_similarity)
         
         if not results:
             return ""
@@ -735,7 +742,7 @@ class FractalMemoryGraph:
         
         return context
     
-    def retrieve_knowledge(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def retrieve_knowledge(self, query: str, top_k: int = 5, min_similarity: float = 0.3) -> List[Dict[str, Any]]:
         """
         Извлечь знания по запросу.
         Аналог UnifiedFractalMemory.retrieve_knowledge()
@@ -743,11 +750,12 @@ class FractalMemoryGraph:
         Args:
             query: Запрос
             top_k: Количество результатов
+            min_similarity: Минимальная схожесть
             
         Returns:
             List of {node_id, content, similarity, level}
         """
-        results = self.semantic_search(query, top_k=top_k, min_level=1)
+        results = self.semantic_search(query, top_k=top_k, min_level=1, min_similarity=min_similarity)
         
         knowledge = []
         for r in results:
