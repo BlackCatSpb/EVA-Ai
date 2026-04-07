@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.2.0] - 2026-04-07
+
+### Added
+- **ConceptMiner** - модуль автономного концептуального вывода (850+ строк)
+- **ConceptDialogIntegrator** - интегратор самодиалогов
+- EventTypes: CONCEPT_MINING_START, CONCEPT_MINING_COMPLETE, MEMORY_CLUSTERING_COMPLETE
+- Алгоритм детекции семантических лакун (centroid distance)
+- Генерация гипотез через LLM с валидацией NLI-когерентности
+- Жизненный цикл концептов: provisional → confirmed → stable → archived
+
+### Changed
+- max_tokens: Model A (1024→2048), Model B (512→1024)
+- Model B: убран timeout, добавлена строгая проверка русского языка
+- Исправлена передача контекста от Model A к Model B
+- Переименование директории eva → eva_ai для избежания конфликтов
+
+---
+
 ## [0.1.2] - 2026-03-17
 
 ### Changed
