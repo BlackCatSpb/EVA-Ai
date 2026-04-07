@@ -3,6 +3,10 @@ Ensures subpackages can be imported via `python -m eva.<module>`.
 """
 __version__ = "0.1.0"
 
+import eva.memory
+import eva.core
+import eva.mlearning
+
 __all__ = [
     "core",
     "mlearning",

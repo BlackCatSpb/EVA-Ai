@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 KnowledgeHybridIndex: гибридный индекс для графа знаний (узлы/связи)
-- In-memory LRU для «горячих» элементов
+- In-memory LRU для "горячих" элементов
 - DiskCache для долговременного хранения/оффлоада
 
 Использование:
@@ -13,10 +13,15 @@ KnowledgeHybridIndex: гибридный индекс для графа знан
 """
 from __future__ import annotations
 import os
+import sys
 import json
 import logging
 from collections import OrderedDict
 from typing import Optional, Any
+
+_eva_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _eva_root not in sys.path:
+    sys.path.insert(0, _eva_root)
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +29,7 @@ try:
     from eva.memory.disk_cache import DiskCache  # type: ignore
 except Exception:
     # Локальный минимальный фоллбэк, если путь импорта отличается
-    from ..memory.disk_cache import DiskCache  # type: ignore
+    from eva.memory.disk_cache import DiskCache  # type: ignore
 
 
 class _LRU:

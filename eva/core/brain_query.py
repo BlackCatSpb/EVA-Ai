@@ -604,7 +604,7 @@ class QueryMixin:
                             try:
                                 from eva.mlearning.qwen_model_manager import get_qwen_model_manager
                             except ImportError:
-                                from ..mlearning.qwen_model_manager import get_qwen_model_manager
+                                from eva.mlearning.qwen_model_manager import get_qwen_model_manager
                             self.qwen_model_manager = get_qwen_model_manager(
                                 model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
                                 device='cpu', load_in_8bit=False, load_in_4bit=False)

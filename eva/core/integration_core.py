@@ -19,11 +19,11 @@ from .system_optimizer import SystemOptimizer
 from .response_generator import ResponseGenerator
 from .reasoning_engine import ReasoningEngine
 try:
-    from ..generation.generation_coordinator import GenerationCoordinator
+    from eva.generation.generation_coordinator import GenerationCoordinator
 except ImportError:
-    from ..generation.generation_coordinator import UnifiedGenerationCoordinator as GenerationCoordinator
-from ..memory.memory_manager import MemoryManager
-from ..knowledge.knowledge_graph import KnowledgeGraph
+    from eva.generation.generation_coordinator import UnifiedGenerationCoordinator as GenerationCoordinator
+from eva.memory.memory_manager import MemoryManager
+from eva.knowledge.knowledge_graph import KnowledgeGraph
 from .integration_adapters import (
     _handle_query_received,
     _handle_tokenize_request,
@@ -141,15 +141,20 @@ class ЕВАIntegrator:
             if hasattr(self.core_brain, 'memory_manager'):
                 self.memory_manager = self.core_brain.memory_manager
             else:
-                from ..memory.memory_manager import MemoryManager
+                from eva.memory.memory_manager import MemoryManager
                 cache_dir = os.path.join(getattr(self.core_brain, 'cache_dir', './cache'), 'memory')
-                self.memory_manager = MemoryManager(cache_dir=cache_dir, brain=self.core_brain)
+                fractal_graph = getattr(self.core_brain, 'fractal_graph_v2', None)
+                self.memory_manager = MemoryManager(
+                    cache_dir=cache_dir,
+                    brain=self.core_brain,
+                    fractal_graph_v2=fractal_graph
+                )
             logger.info("MemoryManager готов")
 
             if hasattr(self.core_brain, 'knowledge_graph'):
                 self.knowledge_graph = self.core_brain.knowledge_graph
             else:
-                from ..knowledge.knowledge_graph import KnowledgeGraph
+                from eva.knowledge.knowledge_graph import KnowledgeGraph
                 self.knowledge_graph = KnowledgeGraph(self.core_brain)
             logger.info("KnowledgeGraph готов")
 

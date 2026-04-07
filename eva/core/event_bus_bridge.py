@@ -96,11 +96,14 @@ class EventBusBridge:
     def _on_new_event(self, event=None):
         """Обработка нового события для old системы"""
         if event is None:
-            logger.warning("EventBusBridge._on_new_event received None event")
-            return
-        if self.old_system:
-            old_event = self._convert_to_old_format(event)
-            self.old_system.trigger(old_event['type'], old_event['data'])
+            return  # Silently ignore None events
+        
+        if hasattr(event, 'event_type') and hasattr(event, 'source'):
+            if self.old_system:
+                old_event = self._convert_to_old_format(event)
+                self.old_system.trigger(old_event['type'], old_event['data'])
+        else:
+            logger.debug("EventBusBridge received non-Event object")
     
     def _convert_to_old_format(self, event) -> Dict:
         """Конвертация события в формат old EventSystem"""

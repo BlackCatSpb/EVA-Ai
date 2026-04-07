@@ -62,16 +62,34 @@ def validate_dependencies(initializer, component_name: str) -> Tuple[bool, List[
             issues.append(f"Dependency {dep} not registered as factory")
             continue
 
-        if dep in initializer.failed_components:
+        # Check if dependency already exists in any form
+        dep_exists = (
+            dep in initializer.initialized_components or  # Successfully initialized
+            dep in initializer.component_instances or  # Has instance
+            dep in getattr(initializer.core_brain, 'components', {}) or  # In brain.components
+            getattr(initializer.core_brain, dep, None) is not None  # As brain attribute
+        )
+        
+        # If failed but exists elsewhere (brain or component_instances), it's OK
+        if dep in initializer.failed_components and dep_exists:
+            initializer.logger.debug(f"Dependency {dep} previously failed but exists in other location - allowing")
+            initializer.failed_components.discard(dep)  # Clear the failure
+            continue
+        
+        if dep in initializer.failed_components and not dep_exists:
             issues.append(f"Dependency {dep} previously failed to initialize")
+            continue
 
-        if dep not in initializer.initialized_components and dep not in initializer.failed_components:
-            issues.append(f"Dependency {dep} not yet initialized")
+        if not dep_exists:
+            # Check if maybe it will be initialized later (try once more)
+            if dep not in initializer.initialized_components:
+                issues.append(f"Dependency {dep} not yet initialized")
+                continue
 
     is_valid = len(issues) == 0
 
     if not is_valid:
-        initializer.logger.warning(f"Dependency validation failed for {component_name}: {issues}")
+        initializer.logger.debug(f"Dependency validation for {component_name}: {issues}")
 
     return is_valid, issues
 

@@ -1782,7 +1782,7 @@ class LearningModule:
             
             # Импортируем и создаем интеграцию
             try:
-                from ..mlearning.text_quality_learning_integration import TextQualityLearningIntegration
+                from eva.mlearning.text_quality_learning_integration import TextQualityLearningIntegration
                 
                 self.quality_integration = TextQualityLearningIntegration(
                     learning_module=self,
@@ -1827,7 +1827,7 @@ class LearningModule:
     def _check_optimized_manager(self):
         """Проверяет наличие оптимизированного менеджера"""
         try:
-            from ..mlearning.optimized_fractal_model_manager import OptimizedFractalModelManager
+            from eva.mlearning.optimized_fractal_model_manager import OptimizedFractalModelManager
             
             brain = getattr(self.gui, 'brain', None)
             if brain and hasattr(brain, 'fractal_model_manager'):

@@ -2,7 +2,7 @@
 import os
 import logging
 from typing import Optional, Dict, Any
-from ..memory.memory_manager import MemoryManager
+from eva.memory.memory_manager import MemoryManager
 
 logger = logging.getLogger("eva.core.memory_initializer")
 
@@ -28,7 +28,8 @@ def initialize_memory_manager(core_brain, config: Optional[Dict[str, Any]] = Non
         memory_manager = MemoryManager(
             cache_dir=cache_dir,
             brain=core_brain,
-            knowledge_graph=getattr(core_brain, 'knowledge_graph', None)
+            knowledge_graph=getattr(core_brain, 'knowledge_graph', None),
+            fractal_graph_v2=getattr(core_brain, 'fractal_graph_v2', None)
         )
         
         # Инициализируем гибридный кэш

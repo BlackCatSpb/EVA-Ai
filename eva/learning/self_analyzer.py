@@ -60,9 +60,8 @@ class SelfAnalyzer:
             self.learning_opportunity_manager = LearningOpportunityManager(brain, self.analyzer_core)
             self.performance_analyzer = PerformanceAnalyzer(brain, self.analyzer_core)
             
-            # Инициализируем тренер графа памяти
-            from .memory_graph_trainer import MemoryGraphTrainer
-            self.memory_graph_trainer = MemoryGraphTrainer(brain)
+            # MemoryGraphTrainer УДАЛЕН - используем GraphCurator и FractalGraphV2
+            self.memory_graph_trainer = None
             
             # Устанавливаем ссылки между компонентами
             if brain:

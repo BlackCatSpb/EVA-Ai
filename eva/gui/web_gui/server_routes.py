@@ -674,16 +674,18 @@ def register_routes(app, web_gui_instance):
         graph_data = {'nodes': [], 'edges': [], 'stats': {}}
 
         try:
-            if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'memory_manager'):
+            if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                 mm = web_gui_instance.brain.memory_manager
                 if hasattr(mm, 'get_graph_data'):
                     graph_data = mm.get_graph_data()
-                elif hasattr(mm, 'nodes'):
+                elif hasattr(mm, 'nodes') and mm.nodes:
                     graph_data['nodes'] = [
                         {'id': n.get('id', i), 'label': n.get('content', '')[:50], 'type': 'memory'}
                         for i, n in enumerate(mm.nodes[:100])
                     ]
                     graph_data['stats']['total_nodes'] = len(mm.nodes)
+            else:
+                logger.debug("memory_manager not available")
         except Exception as e:
             logger.error(f"Error getting memory graph: {e}")
 
@@ -716,61 +718,72 @@ def register_routes(app, web_gui_instance):
 
             if web_gui_instance.brain:
                 if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
-                    snapshot = web_gui_instance.brain.get_resource_snapshot()
-                    analytics['cpu'] = snapshot.get('cpu_usage', snapshot.get('cpu_percent', 0))
-                    analytics['memory'] = snapshot.get('memory_usage', snapshot.get('memory_percent', 0))
-                    analytics['vram'] = snapshot.get('gpu_memory', snapshot.get('gpu_memory_percent', 0))
+                    try:
+                        snapshot = web_gui_instance.brain.get_resource_snapshot()
+                        if snapshot:
+                            analytics['cpu'] = snapshot.get('cpu_usage', snapshot.get('cpu_percent', 0))
+                            analytics['memory'] = snapshot.get('memory_usage', snapshot.get('memory_percent', 0))
+                            analytics['vram'] = snapshot.get('gpu_memory', snapshot.get('gpu_memory_percent', 0))
+                    except Exception as e:
+                        logger.debug(f"get_resource_snapshot error: {e}")
 
                 if hasattr(web_gui_instance.brain, 'get_cache_stats'):
-                    cache_stats = web_gui_instance.brain.get_cache_stats()
-                    analytics['cache_hit_rate'] = cache_stats.get('hit_rate', 0.0)
-                    analytics['cache_utilization'] = cache_stats.get('cache_utilization_percent', 0.0)
+                    try:
+                        cache_stats = web_gui_instance.brain.get_cache_stats()
+                        if cache_stats:
+                            analytics['cache_hit_rate'] = cache_stats.get('hit_rate', 0.0)
+                            analytics['cache_utilization'] = cache_stats.get('cache_utilization_percent', 0.0)
+                    except Exception as e:
+                        logger.debug(f"get_cache_stats error: {e}")
 
-                if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
-                    sdl = web_gui_instance.brain.self_dialog_learning
-                    if hasattr(sdl, 'get_stats'):
-                        stats = sdl.get_stats()
-                        analytics['dialogs'] = stats.get('total_dialogs', 0)
-                        analytics['gaps'] = stats.get('knowledge_gaps_identified', 0)
-                        analytics['learned'] = stats.get('successful_learning', 0)
+                if hasattr(web_gui_instance.brain, 'self_dialog_learning') and web_gui_instance.brain.self_dialog_learning:
+                    try:
+                        sdl = web_gui_instance.brain.self_dialog_learning
+                        if hasattr(sdl, 'get_stats'):
+                            stats = sdl.get_stats()
+                            analytics['dialogs'] = stats.get('total_dialogs', 0)
+                            analytics['gaps'] = stats.get('knowledge_gaps_identified', 0)
+                            analytics['learned'] = stats.get('successful_learning', 0)
+                    except Exception as e:
+                        logger.debug(f"self_dialog_learning error: {e}")
 
                 # FractalGraphV2 метрики
-                if hasattr(web_gui_instance.brain, 'fractal_graph_v2'):
-                    fg = web_gui_instance.brain.fractal_graph_v2
-                    if fg and hasattr(fg, 'get_stats'):
-                        try:
+                if hasattr(web_gui_instance.brain, 'fractal_graph_v2') and web_gui_instance.brain.fractal_graph_v2:
+                    try:
+                        fg = web_gui_instance.brain.fractal_graph_v2
+                        if hasattr(fg, 'get_stats'):
                             fg_stats = fg.get_stats()
                             analytics['fractal_nodes'] = fg_stats.get('total_nodes', 0)
                             analytics['fractal_edges'] = fg_stats.get('total_edges', 0)
                             analytics['fractal_groups'] = fg_stats.get('total_groups', 0)
-                        except Exception as e:
-                            logger.debug(f"FractalGraphV2 stats error: {e}")
+                    except Exception as e:
+                        logger.debug(f"FractalGraphV2 stats error: {e}")
 
                 # GraphCurator метрики
-                if hasattr(web_gui_instance.brain, 'graph_curator'):
-                    curator = web_gui_instance.brain.graph_curator
-                    if curator and hasattr(curator, 'get_metrics'):
-                        try:
+                if hasattr(web_gui_instance.brain, 'graph_curator') and web_gui_instance.brain.graph_curator:
+                    try:
+                        curator = web_gui_instance.brain.graph_curator
+                        if hasattr(curator, 'get_metrics'):
                             cur_metrics = curator.get_metrics()
                             analytics['curator_cycles'] = cur_metrics.get('cycles_completed', 0)
                             analytics['curator_state'] = cur_metrics.get('state', 'idle')
                             analytics['curator_next_run'] = cur_metrics.get('next_run', 0)
-                        except Exception as e:
-                            logger.debug(f"GraphCurator metrics error: {e}")
+                    except Exception as e:
+                        logger.debug(f"GraphCurator metrics error: {e}")
 
-                if hasattr(web_gui_instance.brain, 'performance_analyzer'):
-                    pa = web_gui_instance.brain.performance_analyzer
-                    if hasattr(pa, 'analyze_performance'):
-                        try:
+                if hasattr(web_gui_instance.brain, 'performance_analyzer') and web_gui_instance.brain.performance_analyzer:
+                    try:
+                        pa = web_gui_instance.brain.performance_analyzer
+                        if hasattr(pa, 'analyze_performance'):
                             perf_data = pa.analyze_performance()
                             analytics['queries'] = perf_data.get('total_queries', 0)
                             analytics['avg_time'] = perf_data.get('avg_query_time_ms', 0)
                             analytics['success_rate'] = perf_data.get('success_rate', 0)
-                        except Exception as e:
-                            logger.debug(f"PerformanceAnalyzer error: {e}")
-                            analytics['queries'] = 0
-                            analytics['avg_time'] = 0
-                            analytics['success_rate'] = 0
+                    except Exception as e:
+                        logger.debug(f"PerformanceAnalyzer error: {e}")
+                        analytics['queries'] = 0
+                        analytics['avg_time'] = 0
+                        analytics['success_rate'] = 0
 
                 try:
                     import psutil
@@ -804,16 +817,19 @@ def register_routes(app, web_gui_instance):
                     except Exception as e:
                         logger.debug(f"Memory activity error: {e}")
 
-                if hasattr(web_gui_instance.brain, 'self_dialog_learning'):
-                    sdl = web_gui_instance.brain.self_dialog_learning
-                    if hasattr(sdl, 'stats'):
-                        stats = sdl.stats
-                        if stats.get('total_dialogs', 0) > 0:
-                            activities.append({
-                                'icon': 'learn',
-                                'title': f'Диалогов обучения: {stats["total_dialogs"]}',
-                                'time': 'Сегодня'
-                            })
+                if hasattr(web_gui_instance.brain, 'self_dialog_learning') and web_gui_instance.brain.self_dialog_learning:
+                    try:
+                        sdl = web_gui_instance.brain.self_dialog_learning
+                        if hasattr(sdl, 'stats'):
+                            stats = sdl.stats
+                            if stats.get('total_dialogs', 0) > 0:
+                                activities.append({
+                                    'icon': 'learn',
+                                    'title': f'Диалогов обучения: {stats["total_dialogs"]}',
+                                    'time': 'Сегодня'
+                                })
+                    except Exception as e:
+                        logger.debug(f"self_dialog_learning stats error: {e}")
 
                 analytics['activities'] = activities[:10]
 
@@ -973,7 +989,7 @@ def register_routes(app, web_gui_instance):
                     if hasattr(sdl, 'auto_execute_enabled'):
                         sdl.auto_execute_enabled = data['auto_learning']
 
-                if 'memory_enabled' in data and hasattr(web_gui_instance.brain, 'memory_manager'):
+                if 'memory_enabled' in data and hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                     mm = web_gui_instance.brain.memory_manager
                     if hasattr(mm, 'enabled'):
                         mm.enabled = data['memory_enabled']
@@ -991,7 +1007,7 @@ def register_routes(app, web_gui_instance):
                 if 'quantization_mode' in data and hasattr(web_gui_instance.brain, 'mode_controller') and web_gui_instance.brain.mode_controller:
                     web_gui_instance.brain.mode_controller.set_quantization_mode(data['quantization_mode'])
                     logger.info(f"Quantization mode changed to: {data['quantization_mode']}")
-
+                
             return jsonify({'status': 'ok', 'updated': list(data.keys())})
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -1154,70 +1170,7 @@ def register_routes(app, web_gui_instance):
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/knowledge')
-    def api_knowledge():
-        """Получить статистику базы знаний."""
-        if not web_gui_instance:
-            return jsonify({'total_entities': 0, 'total_relations': 0, 'entities': [], 'relations': []})
-
-        result = {
-            'total_entities': 0,
-            'total_relations': 0,
-            'entities': [],
-            'relations': [],
-            'session_entities': 0
-        }
-
-        try:
-            brain = web_gui_instance.brain
-            
-            # Пробуем разные источники
-            kg = None
-            
-            # 1. KnowledgeGraph
-            if hasattr(brain, 'knowledge_graph'):
-                kg = brain.knowledge_graph
-            
-            # 2. FractalGraphV2
-            if not kg and hasattr(brain, 'fractal_graph_v2'):
-                fg = brain.fractal_graph_v2
-                if fg and hasattr(fg, 'get_stats'):
-                    stats = fg.get_stats()
-                    result['total_entities'] = stats.get('total_nodes', 0)
-                    result['total_relations'] = stats.get('total_edges', 0)
-                    logger.info(f"api_knowledge: FG2 stats = {stats}")
-            
-            # 3. Classic KnowledgeGraph
-            if kg:
-                try:
-                    if hasattr(kg, 'get_stats'):
-                        stats = kg.get_stats()
-                        result['total_entities'] = stats.get('total_nodes', 0)
-                        result['total_relations'] = stats.get('total_edges', 0)
-                    elif hasattr(kg, 'nodes'):
-                        nodes = kg.nodes if isinstance(kg.nodes, list) else list(kg.nodes.values()) if hasattr(kg.nodes, 'values') else []
-                        result['total_entities'] = len(nodes)
-                    elif hasattr(kg, 'get_nodes'):
-                        nodes = kg.get_nodes()
-                        result['total_entities'] = len(nodes) if nodes else 0
-                except Exception as e:
-                    logger.debug(f"KnowledgeGraph stats error: {e}")
-
-            # Fallback demo data
-            if result['total_entities'] == 0:
-                result['entities'] = [
-                    {'id': 'system', 'name': 'EVA System', 'type': 'system'},
-                    {'id': 'memory', 'name': 'Память', 'type': 'memory'},
-                    {'id': 'learning', 'name': 'Обучение', 'type': 'learning'}
-                ]
-                result['total_entities'] = len(result['entities'])
-
-            logger.info(f"api_knowledge: returning {result}")
-            return jsonify(result)
-
-        except Exception as e:
-            logger.error(f"api_knowledge error: {e}")
-            return jsonify(result)
+    # @app.route('/api/knowledge')  # MOVED to server_api_knowledge.py
 
     @app.route('/api/cache-stats')
     def api_cache_stats():
@@ -1234,12 +1187,12 @@ def register_routes(app, web_gui_instance):
         try:
             if hasattr(web_gui_instance.brain, 'hybrid_cache') and web_gui_instance.brain.hybrid_cache:
                 hc = web_gui_instance.brain.hybrid_cache
-                if hasattr(hc, 'get_cache_stats'):
+                if hc and hasattr(hc, 'get_cache_stats'):
                     stats['hybrid_cache'] = hc.get_cache_stats()
-                if hasattr(hc, 'get_search_cache_stats'):
+                if hc and hasattr(hc, 'get_search_cache_stats'):
                     stats['search_cache'] = hc.get_search_cache_stats()
 
-            if hasattr(web_gui_instance.brain, 'memory_manager'):
+            if hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                 mm = web_gui_instance.brain.memory_manager
                 if hasattr(mm, 'nodes'):
                     stats['memory']['total_nodes'] = len(mm.nodes)

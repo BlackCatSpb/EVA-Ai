@@ -140,13 +140,14 @@ class EventBus:
         
         logger.info("EventBus инициализирован")
     
-    def subscribe(self, event_type: str, handler: Callable[[Event], None]) -> str:
+    def subscribe(self, event_type: str, handler: Callable[[Event], None], priority: int = 5) -> str:
         """
         Подписка на события с логированием
         
         Args:
             event_type: Тип события
             handler: Обработчик события
+            priority: Приоритет обработчика (меньше = выше приоритет, по умолчанию 5)
             
         Returns:
             str: ID подписки

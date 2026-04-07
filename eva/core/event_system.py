@@ -472,18 +472,22 @@ class ComponentInitializationManager:
             return True
         return False
 
-    def _on_component_initialized(self, event_data: Dict[str, Any]):
+    def _on_component_initialized(self, event_data):
         """
         Обработчик события успешной инициализации компонента.
         """
+        if hasattr(event_data, 'data'):
+            event_data = event_data.data
         if event_data and "component_name" in event_data:
             component_name = event_data["component_name"]
             self._logger.debug(f"Получено уведомление об инициализации компонента: {component_name}")
 
-    def _on_component_initialization_failed(self, event_data: Dict[str, Any]):
+    def _on_component_initialization_failed(self, event_data):
         """
         Обработчик события ошибки инициализации компонента.
         """
+        if hasattr(event_data, 'data'):
+            event_data = event_data.data
         if event_data and "component_name" in event_data:
             component_name = event_data["component_name"]
             error = event_data.get("error", "неизвестная ошибка")

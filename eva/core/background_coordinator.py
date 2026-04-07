@@ -648,12 +648,13 @@ class BackgroundCoordinator:
             
             # Интеграция с отложенными командами
             if self.deferred:
+                from eva.core.deferred_command_system import CommandPriority
                 # Регистрируем команды автопилота
-                self.deferred.add_command('autopilot_start', self._deferred_start, priority=10)
-                self.deferred.add_command('autopilot_stop', self._deferred_stop, priority=10)
-                self.deferred.add_command('autopilot_pause', self._deferred_pause, priority=10)
-                self.deferred.add_command('autopilot_resume', self._deferred_resume, priority=10)
-                self.deferred.add_command('autopilot_status', self._deferred_status, priority=10)
+                self.deferred.add_command(self._deferred_start, priority=CommandPriority.HIGH, command_id='autopilot_start')
+                self.deferred.add_command(self._deferred_stop, priority=CommandPriority.HIGH, command_id='autopilot_stop')
+                self.deferred.add_command(self._deferred_pause, priority=CommandPriority.HIGH, command_id='autopilot_pause')
+                self.deferred.add_command(self._deferred_resume, priority=CommandPriority.HIGH, command_id='autopilot_resume')
+                self.deferred.add_command(self._deferred_status, priority=CommandPriority.LOW, command_id='autopilot_status')
                 
                 logger.info("BackgroundCoordinator зарегистрировал команды в DeferredCommandSystem")
                 
@@ -720,18 +721,15 @@ class BackgroundCoordinator:
             logger.error(f"Ошибка обработки training_completed: {e}")
 
     # ---- Отложенные команды ----
-    def _deferred_start(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_start(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда запуска автопилота."""
         try:
-            if not self._running:
-                self.start()
-                return {"status": "success", "message": "Autopilot started"}
-            else:
-                return {"status": "info", "message": "Autopilot already running"}
+            self.start()
+            return {"status": "success", "message": "Autopilot started"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def _deferred_stop(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_stop(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда остановки автопилота."""
         try:
             if self._running:
@@ -742,7 +740,7 @@ class BackgroundCoordinator:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def _deferred_pause(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_pause(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда паузы автопилота."""
         try:
             self.pause()
@@ -750,7 +748,7 @@ class BackgroundCoordinator:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def _deferred_resume(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_resume(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда возобновления автопилота."""
         try:
             self.resume()
@@ -758,7 +756,7 @@ class BackgroundCoordinator:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def _deferred_status(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_status(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда получения статуса автопилота."""
         try:
             return {
@@ -855,7 +853,7 @@ class BackgroundCoordinator:
         except Exception as e:
             logger.warning(f"Failed to register pipeline commands: {e}")
     
-    def _deferred_pipeline_generate(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_pipeline_generate(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная генерация с пониженными параметрами."""
         try:
             if not hasattr(self, '_pipeline') or not self._pipeline:
@@ -881,7 +879,7 @@ class BackgroundCoordinator:
         except Exception as e:
             return {"status": "error", "message": str(e)}
     
-    def _deferred_skip_model_c(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _deferred_skip_model_c(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда для пропуска Model C."""
         try:
             if not hasattr(self, '_pipeline') or not self._pipeline:

@@ -9,8 +9,13 @@ import hashlib
 import json
 import logging
 import time
-from dataclasses import dataclass, field
 import os
+import sys
+_eva_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if _eva_root not in sys.path:
+    sys.path.insert(0, _eva_root)
+
+from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("eva.async_text_generator")

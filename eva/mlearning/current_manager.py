@@ -165,7 +165,7 @@ class OptimizedFractalModelManager:
             
             # Инициализируем гибридное хранилище токенов
             try:
-                from ..memory.hybrid_token_cache import HybridTokenCache
+                from eva.memory.hybrid_token_cache import HybridTokenCache
                 
                 class TempBrain:
                     def __init__(self):

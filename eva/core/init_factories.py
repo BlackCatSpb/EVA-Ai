@@ -68,16 +68,83 @@ def create_config_manager(initializer):
 
 
 def create_memory_manager(initializer):
+    _ensure_eva_path()
     try:
-        from eva.memory.memory_manager import MemoryManager
+        # Проверяем, не создан ли уже
+        existing = getattr(initializer.core_brain, 'memory_manager', None)
+        if existing is not None:
+            initializer.logger.info(f"Используем существующий MemoryManager: {id(existing)}")
+            initializer.memory_manager = existing
+            initializer.core_brain.memory_manager = existing
+            return existing
+        
+        # Try multiple import approaches for robustness
+        MemoryManager = None
+        import_errors = []
+        
+        # Approach 1: Direct import
+        try:
+            from eva.memory.memory_manager import MemoryManager as MM1
+            MemoryManager = MM1
+        except ImportError as e1:
+            import_errors.append(f"direct: {e1}")
+        
+        # Approach 2: Import from eva.memory package
+        if MemoryManager is None:
+            try:
+                from eva.memory import MemoryManager as MM2
+                MemoryManager = MM2
+            except ImportError as e2:
+                import_errors.append(f"package: {e2}")
+        
+        # Approach 3: Direct import with explicit path
+        if MemoryManager is None:
+            try:
+                import importlib.util
+                import eva
+                if eva.__file__ is None:
+                    # Namespace package - construct path manually
+                    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    mm_path = os.path.join(project_root, "eva", "memory", "memory_manager.py")
+                else:
+                    eva_dir = os.path.dirname(eva.__file__)
+                    mm_path = os.path.join(eva_dir, "memory", "memory_manager.py")
+                initializer.logger.debug(f"Trying to load from: {mm_path}")
+                if not os.path.exists(mm_path):
+                    import_errors.append(f"file: path does not exist: {mm_path}")
+                else:
+                    spec = importlib.util.spec_from_file_location(
+                        "memory_manager",
+                        mm_path
+                    )
+                    if spec and spec.loader:
+                        module = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(module)
+                        MemoryManager = module.MemoryManager
+            except Exception as e3:
+                import_errors.append(f"file: {e3}")
+        
+        if MemoryManager is None:
+            raise RuntimeError(f"Cannot import MemoryManager: {import_errors}")
+        
+        initializer.logger.info("MemoryManager импортирован успешно")
+        
         cache_dir = os.path.join(
             getattr(initializer.core_brain, 'cache_dir', './cache'),
             'memory'
         )
         os.makedirs(cache_dir, exist_ok=True)
+        
+        event_bus = getattr(initializer.core_brain, 'event_bus', None)
+        deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+        fractal_graph_v2 = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+        
         memory_manager = MemoryManager(
             brain=initializer.core_brain,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            event_bus=event_bus,
+            deferred_system=deferred_system,
+            fractal_graph_v2=fractal_graph_v2
         )
         if hasattr(memory_manager, 'initialize'):
             init_result = memory_manager.initialize()
@@ -94,17 +161,31 @@ def create_memory_manager(initializer):
 
 
 def create_hybrid_cache(initializer):
+    _ensure_eva_path()
     try:
-        initializer.logger.info("Начало создания HybridTokenCache...")
-        initializer.logger.debug(f"core_brain тип: {type(initializer.core_brain)}")
-        initializer.logger.debug(f"core_brain атрибуты: {dir(initializer.core_brain)}")
-
+        # Проверяем, не создан ли уже
         existing = getattr(initializer.core_brain, 'token_cache', None) or getattr(initializer.core_brain, 'hybrid_cache', None)
         if existing is not None:
             initializer.logger.info(f"Используем существующий HybridTokenCache: {id(existing)}")
             hybrid_cache = existing
         else:
-            from eva.memory.hybrid_token_cache import get_shared_cache
+            initializer.logger.info("Начало создания HybridTokenCache...")
+            initializer.logger.debug(f"core_brain тип: {type(initializer.core_brain)}")
+            initializer.logger.debug(f"core_brain атрибуты: {dir(initializer.core_brain)}")
+
+            # Try multiple import approaches
+            get_shared_cache = None
+            try:
+                from eva.memory.hybrid_token_cache import get_shared_cache
+            except ImportError:
+                try:
+                    from eva.memory import get_shared_cache
+                except ImportError:
+                    pass
+            
+            if get_shared_cache is None:
+                raise RuntimeError("Cannot import get_shared_cache")
+            
             initializer.logger.info("Импортирован get_shared_cache")
             hybrid_cache = get_shared_cache(initializer.core_brain, "default")
             initializer.logger.info(f"Создан/получен синглтон HybridTokenCache: {id(hybrid_cache)}")

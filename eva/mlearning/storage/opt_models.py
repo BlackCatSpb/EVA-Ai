@@ -51,7 +51,7 @@ def _initialize_components(self):
             self.trainer_config = None
         
         try:
-            from ..memory.hybrid_token_cache import HybridTokenCache
+            from eva.memory.hybrid_token_cache import HybridTokenCache
             
             class TempBrain:
                 def __init__(self):

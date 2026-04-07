@@ -422,12 +422,12 @@ class GUIBridge:
         }
         
         try:
-            if self.brain and hasattr(self.brain, 'memory_manager'):
+            if self.brain and hasattr(self.brain, 'memory_manager') and self.brain.memory_manager:
                 mm = self.brain.memory_manager
                 
                 if hasattr(mm, 'get_graph_data'):
                     graph_data = mm.get_graph_data()
-                elif hasattr(mm, 'nodes'):
+                elif hasattr(mm, 'nodes') and mm.nodes:
                     nodes = mm.nodes
                     graph_data['nodes'] = [
                         {
@@ -444,7 +444,8 @@ class GUIBridge:
                         {'from': e.get('from', ''), 'to': e.get('to', '')}
                         for e in mm.edges[:200]
                     ]
-                    
+            else:
+                logger.debug("memory_manager not available")
         except Exception as e:
             logger.error("Error getting memory graph: {}".format(e))
         
@@ -462,11 +463,19 @@ class GUIBridge:
         try:
             if self.brain:
                 if hasattr(self.brain, 'get_resource_snapshot'):
-                    snapshot = self.brain.get_resource_snapshot()
-                    metrics.update(snapshot)
+                    try:
+                        snapshot = self.brain.get_resource_snapshot()
+                        if snapshot:
+                            metrics.update(snapshot)
+                    except Exception as e:
+                        logger.debug(f"get_resource_snapshot error: {e}")
                 if hasattr(self.brain, 'get_cache_stats'):
-                    cache = self.brain.get_cache_stats()
-                    metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
+                    try:
+                        cache = self.brain.get_cache_stats()
+                        if cache:
+                            metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
+                    except Exception as e:
+                        logger.debug(f"get_cache_stats error: {e}")
         except Exception as e:
             logger.error("Error getting metrics: {}".format(e))
         

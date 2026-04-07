@@ -82,7 +82,7 @@ class GGUFTrainingSystem:
         
         # Пути к моделям
         self.base_model_path = self.config.get('base_model_path', 
-            'eva/models/qwen2.5-0.5b-instruct-q4_0.gguf')
+            'eva/memory/fractal_torch_storage/gguf_models/qwen2.5-0.5b-instruct-q4_0.gguf')
         self.training_model_path = self.config.get('training_model_path',
             'eva/models/training_qwen.gguf')
         self.lora_path = self.config.get('lora_path',

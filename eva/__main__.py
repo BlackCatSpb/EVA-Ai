@@ -5,29 +5,50 @@
 import os
 import sys
 import logging
+import io
 
-# Добавляем текущую директорию в путь для импорта
-current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
+# Fix Windows console Unicode encoding
+if sys.platform == 'win32':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleOutputCP(65001)
+        kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
+
+# Вычисляем корневую директорию проекта (родитель eva/)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Добавляем project_root в начало sys.path ПЕРЕД любыми импортами
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 # Важно: задаём конфигурацию аллокатора CUDA до импорта torch/transformers
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 # Настраиваем логирование СРАЗУ, перед любыми импортами
-os.makedirs('logs', exist_ok=True)
+log_dir = os.path.join(project_root, 'logs')
+os.makedirs(log_dir, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/eva.log', encoding='utf-8')
+        logging.FileHandler(os.path.join(log_dir, 'eva.log'), encoding='utf-8')
     ]
 )
 
+logger = logging.getLogger("eva.__main__")
+logger.info(f"Project root: {project_root}")
+
 def main():
     """Основная функция запуска системы."""
-    logger = logging.getLogger("eva.__main__")
     try:
         from eva.run import main as run_main
         return run_main()

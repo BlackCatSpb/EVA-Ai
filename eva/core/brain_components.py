@@ -12,6 +12,12 @@ query_logger = logging.getLogger("eva.core_brain.query_processing")
 
 def _init_mode_controller(brain):
     """Инициализация контроллера режимов модели (язык, квантование)."""
+    import sys
+    import os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    
     try:
         from eva.mlearning.language_filter import ModelModeController
         brain.mode_controller = ModelModeController(brain=brain)
@@ -77,14 +83,16 @@ def _init_managers(brain):
         brain.metrics_manager = SystemMetricsManager()
         query_logger.warning("Менеджер системных метрик недоступен, используется заглушка")
 
-    try:
-        from .memory_graph_ml import MemoryGraphML
-        brain.memory_graph_ml = MemoryGraphML(brain, config=brain.config.get('memory_graph_ml', {}))
-        if not brain.memory_graph_ml.initialize():
-            query_logger.warning("Не удалось инициализировать MemoryGraphML")
-    except ImportError as e:
-        query_logger.warning(f"MemoryGraphML недоступен: {e}")
-        brain.memory_graph_ml = None
+    # ОТКЛЮЧЕНО - используем fractal_graph_v2 вместо MemoryGraphML
+    # try:
+    #     from .memory_graph_ml import MemoryGraphML
+    #     brain.memory_graph_ml = MemoryGraphML(brain, config=brain.config.get('memory_graph_ml', {}))
+    #     if not brain.memory_graph_ml.initialize():
+    #         query_logger.warning("Не удалось инициализировать MemoryGraphML")
+    # except ImportError as e:
+    #     query_logger.warning(f"MemoryGraphML недоступен: {e}")
+    #     brain.memory_graph_ml = None
+    brain.memory_graph_ml = None  # Используем fractal_graph_v2
 
     try:
         from .feedback_processor import FeedbackProcessor
@@ -155,8 +163,19 @@ def _init_managers(brain):
         query_logger.warning(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)
 
     try:
-        from ..memory.hybrid_token_cache import get_shared_cache
-        brain.token_cache = get_shared_cache(brain, "default")
+        get_shared_cache = None
+        try:
+            from eva.memory.hybrid_token_cache import get_shared_cache
+        except ImportError:
+            try:
+                from eva.memory import get_shared_cache
+            except ImportError:
+                pass
+        
+        if get_shared_cache:
+            brain.token_cache = get_shared_cache(brain, "default")
+        else:
+            brain.token_cache = None
     except Exception as e:
         query_logger.warning(f"Ошибка инициализации гибридного кэша: {e}")
         brain.token_cache = None
@@ -168,7 +187,7 @@ def _init_managers(brain):
 
 def _init_fractal_model(brain):
     try:
-        from ..mlearning.fractal_model_manager import FractalModelManager
+        from eva.mlearning.fractal_model_manager import FractalModelManager
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         model_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen3.5-0.8b")
         brain.fractal_model_manager = FractalModelManager(model_path=model_path)
@@ -325,6 +344,12 @@ def _init_background(brain):
 
 def _init_mode_controller(brain):
     """Инициализация контроллера режимов модели (язык, квантование)."""
+    import sys
+    import os
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    
     try:
         from eva.mlearning.language_filter import ModelModeController
         brain.mode_controller = ModelModeController(brain=brain)
@@ -415,8 +440,16 @@ class ComponentMixin:
                 return False
             if hasattr(self, 'memory_manager') and self.memory_manager is not None:
                 return True
+            
+            # Проверяем component_initializer и brain.components
             if hasattr(self.component_initializer, 'memory_manager'):
                 self.memory_manager = self.component_initializer.memory_manager
+            elif hasattr(self.component_initializer, 'components') and 'memory_manager' in self.component_initializer.components:
+                self.memory_manager = self.component_initializer.components.get('memory_manager')
+            elif hasattr(self, 'components') and 'memory_manager' in self.components:
+                self.memory_manager = self.components.get('memory_manager')
+            
+            if self.memory_manager:
                 self.components['memory_manager'] = self.memory_manager
                 if hasattr(self.memory_manager, 'initialize'):
                     return self.memory_manager.initialize()

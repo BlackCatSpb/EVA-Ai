@@ -187,15 +187,22 @@ class ComponentInitializer:
                         except Exception as e:
                             self.logger.debug(f"   └─ Failed to publish COMPONENT_INITIALIZED event for {component_name}: {e}")
 
-                        self.initialized_components.add(component_name)
+                            self.initialized_components.add(component_name)
                         self.component_instances[component_name] = component
                         self.core_brain.components[component_name] = component
                         self.logger.info(f"[OK] {component_name} инициализирован")
                         success_count += 1
                     else:
-                        self.logger.error(f"[FAIL] {component_name} не был создан")
-                        self.failed_components.add(component_name)
-                        failed_count += 1
+                        # Check if component already exists in brain.components (created elsewhere)
+                        if component_name in getattr(self.core_brain, 'components', {}):
+                            self.logger.info(f"[SKIP] {component_name} уже существует в brain.components (создан ранее)")
+                            self.initialized_components.add(component_name)
+                            self.component_instances[component_name] = self.core_brain.components[component_name]
+                            success_count += 1
+                        else:
+                            self.logger.error(f"[FAIL] {component_name} не был создан")
+                            self.failed_components.add(component_name)
+                            failed_count += 1
 
                 except Exception as e:
                     self.logger.error(f"[FAIL] {component_name}: {e}", exc_info=True)
