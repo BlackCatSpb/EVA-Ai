@@ -28,7 +28,6 @@ from .pipeline_models import (
     generate_with_model_c,
     _load_model_c,
     _unload_model_c,
-    _generate_response,
 )
 from .resource_manager import ResourceManager
 from .contradiction_resolver import ContradictionResolver
@@ -84,7 +83,6 @@ class RecursiveModelPipeline:
         self.model_b_path = model_b_path
         self.model_c_path = model_c_path
         self.n_ctx = n_ctx
-        self.context_size = n_ctx  # Alias for compatibility
         self.n_threads = n_threads
         self.model_a = None
         self.model_b = None

@@ -1,6 +1,40 @@
 {
   "solutions": [
     {
+      "key": "9ff316c7c6f84951e9fc190425649d95",
+      "timestamp": 1775586181.3672204,
+      "context_summary": "Запрос: Давай поговорим о Конфуции",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "7786ceb7a98a05e71064021114a88417",
+      "timestamp": 1775585986.184594,
+      "context_summary": "Запрос: Еще раз здравствуй, Ева",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
       "key": "62c9df46332e43076e503475c8494d89",
       "timestamp": 1775583942.4635863,
       "context_summary": "Запрос: Привет, Ева!",

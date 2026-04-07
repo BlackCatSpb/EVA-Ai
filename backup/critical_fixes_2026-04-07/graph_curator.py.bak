@@ -383,7 +383,7 @@ class GraphCurator:
             return
         
         try:
-            from eva_ai.core.deferred_command_system import CommandPriority
+            from .deferred_command_system import CommandPriority
             priority_map = {
                 "CRITICAL": CommandPriority.CRITICAL,
                 "HIGH": CommandPriority.HIGH,

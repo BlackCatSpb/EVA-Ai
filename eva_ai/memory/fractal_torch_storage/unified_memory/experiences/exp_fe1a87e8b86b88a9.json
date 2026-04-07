@@ -1,0 +1,12 @@
+{
+  "id": "exp_fe1a87e8b86b88a9",
+  "query": "Еще раз здравствуй, Ева",
+  "response": "Здорова! Как я могу помочь вам сегодня?",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775586427.7490234,
+  "usage_count": 0,
+  "related_experiences": []
+}
