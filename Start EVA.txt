@@ -1,0 +1,23 @@
+# Запуск CogniFlex (EVA-Ai)
+
+## Вариант 1: Запуск через start_webgui.py
+```bash
+cd C:\Users\black\OneDrive\Desktop\CogniFlex
+python start_webgui.py
+```
+
+## Вариант 2: Запуск через модуль
+```bash
+cd C:\Users\black\OneDrive\Desktop\CogniFlex
+python -m eva_ai
+```
+
+## Вариант 3: Production (Gunicorn)
+```bash
+cd C:\Users\black\OneDrive\Desktop\CogniFlex
+gunicorn -c gunicorn_config.py wsgi:app
+```
+
+## Доступ
+- Web UI: http://127.0.0.1:5555
+- Login: admin / cogniflex
