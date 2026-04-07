@@ -26,7 +26,7 @@ logger = logging.getLogger('test_generation')
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Импортируем CoreBrain
-from eva.core.core_brain import CoreBrain
+from eva_ai.core.core_brain import CoreBrain
 
 class TestEventSystem:
     """Простая реализация системы событий для тестирования."""

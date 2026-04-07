@@ -1,0 +1,12 @@
+{
+  "id": "exp_c94b597ddcacbd36",
+  "query": "Ева, у тебя же есть поисковик, найди информацию о погоде в интернете)",
+  "response": "",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775471509.8702688,
+  "usage_count": 0,
+  "related_experiences": []
+}

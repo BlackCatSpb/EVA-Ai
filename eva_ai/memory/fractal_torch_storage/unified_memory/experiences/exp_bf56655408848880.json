@@ -1,0 +1,12 @@
+{
+  "id": "exp_bf56655408848880",
+  "query": "Привет, Ева!",
+  "response": "Здравствуйте！ Как могу вам помочить сегодня?<tool_call>kräfteoпрограмма\r\nIntialized: 2018-7-ZaugZp9yVwczNsWbNYscNzBnRHEJdYNWoXrGKTVMgaQ==",
+  "model_used": "model_b",
+  "quality_score": 0.8,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775456451.8037276,
+  "usage_count": 0,
+  "related_experiences": []
+}

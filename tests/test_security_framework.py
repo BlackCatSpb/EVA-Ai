@@ -9,7 +9,7 @@ import time
 from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 
-from eva.security.security_framework import (
+from eva_ai.security.security_framework import (
     SecurityManager,
     AuthenticationManager,
     AuthorizationManager,
@@ -517,7 +517,7 @@ class TestSecurityDecorators:
 
     def test_require_authentication_decorator(self):
         """Тест декоратора require_authentication."""
-        from eva.security.security_framework import require_authentication
+        from eva_ai.security.security_framework import require_authentication
 
         @require_authentication("read")
         def protected_function(session_token=None, **kwargs):
@@ -539,7 +539,7 @@ class TestSecurityDecorators:
 
     def test_log_security_event_function(self):
         """Тест функции логирования событий безопасности."""
-        from eva.security.security_framework import log_security_event
+        from eva_ai.security.security_framework import log_security_event
 
         security_mgr = get_security_manager()
         initial_events = len(security_mgr.event_log)

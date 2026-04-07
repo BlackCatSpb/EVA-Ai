@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 import torch
 from transformers import AutoTokenizer
 
-from eva.core.response_generator import ResponseGenerator
-from eva.core.core_brain import CoreBrain
+from eva_ai.core.response_generator import ResponseGenerator
+from eva_ai.core.core_brain import CoreBrain
 
 
 class TestTokenizer(unittest.TestCase):

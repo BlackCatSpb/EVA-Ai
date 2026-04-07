@@ -1,0 +1,12 @@
+{
+  "id": "exp_9bc171fbd649f4ad",
+  "query": "Расскажи о стратегии национального ИИ в России",
+  "response": "Генерация не завершена за 90с. Попробуйте перегенерировать.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775425426.30622,
+  "usage_count": 0,
+  "related_experiences": []
+}

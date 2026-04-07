@@ -47,7 +47,7 @@ def open_models_db(path: str = r"core/cogniflex_cache/models/models.db") -> Opti
 def main():
     # 2) Инициализируем CoreBrain
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
     except Exception as e:
         print("[ERR] Не удалось импортировать CoreBrain:", e)
         return
@@ -56,7 +56,7 @@ def main():
 
     # 3) Регистрируем и загружаем русскоязычную GPT (ruGPT3 XL)
     try:
-        from eva.mlearning.model_manager import ModelManager
+        from eva_ai.mlearning.model_manager import ModelManager
     except Exception as e:
         print("[ERR] Не удалось импортировать ModelManager:", e)
         return

@@ -10,7 +10,7 @@ import threading
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timedelta
 
-from eva.monitoring.system_monitor import (
+from eva_ai.monitoring.system_monitor import (
     SystemMonitor,
     MetricsCollector,
     HealthChecker,
@@ -655,7 +655,7 @@ class TestMonitoringIntegration:
         """Тест автоматического запуска мониторинга."""
         # Импортируем модуль заново чтобы проверить автозапуск
         import importlib
-        import eva.monitoring.system_monitor as monitor_module
+        import eva_ai.monitoring.system_monitor as monitor_module
         importlib.reload(monitor_module)
 
         # Проверяем что мониторинг запущен (если не был остановлен)
@@ -711,7 +711,7 @@ class TestMonitoringUtilities:
 
     def test_metric_dataclass(self):
         """Тест dataclass Metric."""
-        from eva.monitoring.system_monitor import Metric
+        from eva_ai.monitoring.system_monitor import Metric
 
         timestamp = datetime.now()
         tags = {"component": "test"}
@@ -730,7 +730,7 @@ class TestMonitoringUtilities:
 
     def test_alert_dataclass(self):
         """Тест dataclass Alert."""
-        from eva.monitoring.system_monitor import Alert
+        from eva_ai.monitoring.system_monitor import Alert
 
         timestamp = datetime.now()
 

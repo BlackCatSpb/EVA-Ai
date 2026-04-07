@@ -56,7 +56,7 @@ class TestMLUnitIntegration:
     @pytest.fixture
     def ml_unit(self, mock_brain):
         """Создает MLUnit для тестирования."""
-        from eva.mlearning.ml_unit import MLUnit
+        from eva_ai.mlearning.ml_unit import MLUnit
 
         # Настраиваем дополнительные атрибуты brain для корректной работы
         mock_brain.on_text_processor_ready = []
@@ -156,7 +156,7 @@ class TestЕВАTokenizer:
     @pytest.fixture
     def tokenizer(self, mock_brain):
         """Создает ЕВАTokenizer для тестирования."""
-        from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
+        from eva_ai.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
         # Создаем токенизатор без фактической загрузки модели
         tokenizer = ЕВАTokenizer(brain=mock_brain)
@@ -272,7 +272,7 @@ class TestParallelTokenizer:
     @pytest.fixture
     def parallel_tokenizer(self, mock_brain):
         """Создает ParallelTokenizer для тестирования."""
-        from eva.mlearning.parallel_tokenization import ParallelTokenizer
+        from eva_ai.mlearning.parallel_tokenization import ParallelTokenizer
 
         tokenizer = ParallelTokenizer(
             brain=mock_brain,
@@ -417,7 +417,7 @@ class TestFractalStorageML:
     @pytest.mark.integration
     def test_ml_unit_fractal_integration(self, mock_brain_with_memory):
         """Тест интеграции MLUnit с фрактальным хранилищем."""
-        from eva.mlearning.ml_unit import MLUnit
+        from eva_ai.mlearning.ml_unit import MLUnit
 
         ml_unit = MLUnit(
             brain=mock_brain_with_memory,
@@ -431,7 +431,7 @@ class TestFractalStorageML:
     @pytest.mark.integration
     def test_tokenizer_fractal_integration(self, mock_brain_with_memory):
         """Тест интеграции ЕВАTokenizer с фрактальным хранилищем."""
-        from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
+        from eva_ai.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
         tokenizer = ЕВАTokenizer(brain=mock_brain_with_memory)
 
@@ -443,7 +443,7 @@ class TestFractalStorageML:
     @pytest.mark.integration
     def test_parallel_tokenizer_fractal_integration(self, mock_brain_with_memory):
         """Тест интеграции ParallelTokenizer с фрактальным хранилищем."""
-        from eva.mlearning.parallel_tokenization import ParallelTokenizer
+        from eva_ai.mlearning.parallel_tokenization import ParallelTokenizer
 
         # Mock CacheRouter для интеграции
         cache_router = Mock()
@@ -485,7 +485,7 @@ class TestMLSystemHealth:
         brain = Mock()
         brain.cache_dir = tempfile.mkdtemp()
 
-        from eva.mlearning.ml_unit import MLUnit
+        from eva_ai.mlearning.ml_unit import MLUnit
 
         ml_unit = MLUnit(
             brain=brain,

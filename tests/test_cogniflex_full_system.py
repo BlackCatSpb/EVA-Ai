@@ -26,9 +26,9 @@ def main():
 
     try:
         # Импорт компонентов системы
-        from eva.core.core_brain import CoreBrain
-        from eva.core.integration_layer import ЕВАIntegrator
-        from eva.gui.core_gui import ЕВАGUI
+        from eva_ai.core.core_brain import CoreBrain
+        from eva_ai.core.integration_layer import ЕВАIntegrator
+        from eva_ai.gui.core_gui import ЕВАGUI
 
         print("✅ Импорт компонентов завершен")
 

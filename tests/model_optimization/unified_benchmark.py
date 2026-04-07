@@ -154,7 +154,7 @@ class MockLLM:
 def run_benchmark():
     """Запуск бенчмарка UnifiedCacheBridge."""
     
-    from eva.core.unified_cache_bridge import UnifiedCacheBridge
+    from eva_ai.core.unified_cache_bridge import UnifiedCacheBridge
     
     logger.info("=" * 60)
     logger.info("UNIFIED CACHE BRIDGE BENCHMARK")

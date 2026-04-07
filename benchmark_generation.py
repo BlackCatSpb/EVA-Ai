@@ -69,7 +69,7 @@ def benchmark_new_system():
     """Новая система - fractal_graph_v2."""
     print("\n=== NEW SYSTEM (fractal_graph_v2) ===")
     
-    from eva.memory.fractal_graph_v2 import FractalMemoryGraph
+    from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
     
     # Инициализация
     start = time.perf_counter()
@@ -80,7 +80,7 @@ def benchmark_new_system():
     print(f"  Edges: {len(graph.storage.edges)}")
     
     # Тест токенизации
-    from eva.memory.fractal_graph_v2 import GraphTokenizer
+    from eva_ai.memory.fractal_graph_v2 import GraphTokenizer
     tokenizer = GraphTokenizer(graph=graph)
     
     test_texts = [
@@ -142,7 +142,7 @@ def benchmark_full_generation():
     """Тест полной генерации ответа (без LLM - только из графа)."""
     print("\n=== FULL GENERATION TEST ===")
     
-    from eva.memory.fractal_graph_v2 import FractalMemoryGraph, GraphTokenizer
+    from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph, GraphTokenizer
     
     graph = FractalMemoryGraph()
     tokenizer = GraphTokenizer(graph=graph)

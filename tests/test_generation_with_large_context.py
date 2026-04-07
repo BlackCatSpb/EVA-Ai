@@ -25,7 +25,7 @@ logger = logging.getLogger('HybridCacheTest')
 
 # Import CoreBrain with error handling
 try:
-    from eva.core.core_brain import CoreBrain
+    from eva_ai.core.core_brain import CoreBrain
 except ImportError as e:
     logger.error(f"Failed to import CoreBrain: {e}")
     logger.error(traceback.format_exc())

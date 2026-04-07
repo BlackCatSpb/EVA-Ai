@@ -1,0 +1,12 @@
+{
+  "id": "exp_43c69f83d94595cf",
+  "query": "Привет, Ева!",
+  "response": "Здравствуйте! Очень рада вашему приветствуию.",
+  "model_used": "model_b",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775421712.176428,
+  "usage_count": 0,
+  "related_experiences": []
+}

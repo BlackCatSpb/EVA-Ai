@@ -2,8 +2,8 @@ import asyncio
 import time
 from typing import List
 import torch
-from eva.core.core_brain import CoreBrain
-from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer
+from eva_ai.core.core_brain import CoreBrain
+from eva_ai.mlearning.cogniflex_tokenizer import ЕВАTokenizer
 
 class TokenizationCoordinator:
     def __init__(self, config: dict):

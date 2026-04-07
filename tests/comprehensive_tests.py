@@ -124,7 +124,7 @@ class ЕВАTests:
         logger.info("🏗️ Тестирование основных компонентов...")
 
         try:
-            from eva.core.event_bus import EventBus, Event, EventTypes, get_event_bus
+            from eva_ai.core.event_bus import EventBus, Event, EventTypes, get_event_bus
 
             # Тест EventBus
             bus = get_event_bus()
@@ -149,7 +149,7 @@ class ЕВАTests:
         logger.info("🔍 Тестирование веб-поиска без заглушек...")
 
         try:
-            from eva.websearch.search_engines import SearchEngines
+            from eva_ai.websearch.search_engines import SearchEngines
 
             engines = SearchEngines()
 
@@ -182,8 +182,8 @@ class ЕВАTests:
         logger.info("⚖️ Тестирование этического фреймворка без placeholder классов...")
 
         try:
-            from eva.ethics import EthicsFramework
-            from eva.ethics.ethics_framework import EthicalDecision
+            from eva_ai.ethics import EthicsFramework
+            from eva_ai.ethics.ethics_framework import EthicalDecision
 
             # Проверяем, что это не placeholder класс
             ethics = EthicsFramework()
@@ -215,7 +215,7 @@ class ЕВАTests:
         logger.info("🧠 Тестирование процессора обучения...")
 
         try:
-            from eva.learning.learning_processor import LearningProcessor
+            from eva_ai.learning.learning_processor import LearningProcessor
 
             # Создаем процессор (без полной инициализации для тестов)
             processor = LearningProcessor(brain=None)
@@ -233,7 +233,7 @@ class ЕВАTests:
         logger.info("🧠 Тестирование Core Brain без пустых возвратов...")
 
         try:
-            from eva.core.core_brain import CoreBrain
+            from eva_ai.core.core_brain import CoreBrain
 
             # Создаем Core Brain
             brain = CoreBrain()
@@ -258,8 +258,8 @@ class ЕВАTests:
         logger.info("🔗 Тестирование интеграции компонентов...")
 
         try:
-            from eva.core.component_initializer import ComponentInitializer
-            from eva.core.core_brain import CoreBrain
+            from eva_ai.core.component_initializer import ComponentInitializer
+            from eva_ai.core.core_brain import CoreBrain
 
             # Создаем компоненты
             brain = CoreBrain()

@@ -1,0 +1,12 @@
+{
+  "id": "exp_44cd352763a4cb01",
+  "query": "Расскажи мне о перспективах развития ИИ в России",
+  "response": "Генерация не завершена за 90с. Попробуйте перегенерировать.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775424093.3013353,
+  "usage_count": 1,
+  "related_experiences": []
+}

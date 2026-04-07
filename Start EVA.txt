@@ -1,11 +1,6 @@
-python -m eva
+cd C:\Users\black\OneDrive\Desktop\CogniFlex
+python -m eva_ai
 
-python -m eva.run
-
-cd C:/Users/black/OneDrive/Desktop/CogniFlex
-python -m eva
-
-python start_webgui.py 
 
 OneDrive/Desktop/CogniFlex && python start_webgui.py
 

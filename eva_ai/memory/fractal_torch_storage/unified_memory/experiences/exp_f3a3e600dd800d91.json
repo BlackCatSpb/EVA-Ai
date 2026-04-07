@@ -1,0 +1,12 @@
+{
+  "id": "exp_f3a3e600dd800d91",
+  "query": "Привет!",
+  "response": "Здравствуйте! Как могу помочить?",
+  "model_used": "model_a",
+  "quality_score": 0.8,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775256184.1592865,
+  "usage_count": 0,
+  "related_experiences": []
+}

@@ -14,7 +14,7 @@ from unittest.mock import Mock, patch
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from eva.recovery.recovery_system import (
+from eva_ai.recovery.recovery_system import (
     RecoveryManager,
     ComponentStateManager,
     FailureDetector,

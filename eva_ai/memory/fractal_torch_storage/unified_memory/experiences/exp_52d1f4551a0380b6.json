@@ -1,0 +1,12 @@
+{
+  "id": "exp_52d1f4551a0380b6",
+  "query": "Как выучить Python?",
+  "response": "Начните с основ.",
+  "model_used": "model_b",
+  "quality_score": 0.7,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775196156.881756,
+  "usage_count": 1,
+  "related_experiences": []
+}

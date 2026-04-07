@@ -101,13 +101,13 @@ class TestЕВАImports:
     def test_core_imports(self):
         """Тест импортов основных компонентов."""
         try:
-            from eva.core.core_brain import CoreBrain
+            from eva_ai.core.core_brain import CoreBrain
             assert CoreBrain is not None
         except ImportError:
             pytest.skip("CoreBrain недоступен")
 
         try:
-            from eva.core.component_initializer import ComponentInitializer
+            from eva_ai.core.component_initializer import ComponentInitializer
             assert ComponentInitializer is not None
         except ImportError:
             pytest.skip("ComponentInitializer недоступен")
@@ -116,7 +116,7 @@ class TestЕВАImports:
     def test_memory_imports(self):
         """Тест импортов компонентов памяти."""
         try:
-            from eva.memory.memory_manager import MemoryManager
+            from eva_ai.memory.memory_manager import MemoryManager
             assert MemoryManager is not None
         except ImportError:
             pytest.skip("MemoryManager недоступен")
@@ -125,14 +125,14 @@ class TestЕВАImports:
     def test_gui_imports(self):
         """Тест импортов GUI компонентов."""
         try:
-            from eva.gui.core_gui import ЕВАGUI, create_gui
+            from eva_ai.gui.core_gui import ЕВАGUI, create_gui
             assert ЕВАGUI is not None
             assert create_gui is not None
         except ImportError:
             pytest.skip("GUI компоненты недоступны")
 
         try:
-            from eva.gui.chat_module import ChatModule
+            from eva_ai.gui.chat_module import ChatModule
             assert ChatModule is not None
         except ImportError:
             pytest.skip("ChatModule недоступен")
@@ -256,7 +256,7 @@ class TestPerformance:
 
         start_time = time.time()
         try:
-            from eva.core.core_brain import CoreBrain
+            from eva_ai.core.core_brain import CoreBrain
             brain = CoreBrain(config=brain_config)
             init_time = time.time() - start_time
 

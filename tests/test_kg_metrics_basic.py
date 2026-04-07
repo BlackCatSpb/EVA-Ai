@@ -1,9 +1,9 @@
 import os
 from typing import List, Dict, Any
 
-from eva.core.core_brain import CoreBrain
-from eva.core.response_generator import ResponseGenerator
-from eva.adapters.kg_adapter import KGAdapter
+from eva_ai.core.core_brain import CoreBrain
+from eva_ai.core.response_generator import ResponseGenerator
+from eva_ai.adapters.kg_adapter import KGAdapter
 
 
 def _project_root() -> str:

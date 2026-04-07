@@ -1,6 +1,6 @@
 import pytest
 
-from eva.core.core_brain import CoreBrain
+from eva_ai.core.core_brain import CoreBrain
 
 
 def test_soft_reload_preserves_ml_where_present():

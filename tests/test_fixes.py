@@ -6,7 +6,7 @@
 def test_core_brain():
     """Тестирует CoreBrain с новым методом process_query"""
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         print("✅ Импорт CoreBrain успешен")
         
         brain = CoreBrain()
@@ -30,7 +30,7 @@ def test_core_brain():
 def test_ml_unit():
     """Тестирует MLUnit с исправленным analyze_query"""
     try:
-        from eva.mlearning.ml_unit import MLUnit
+        from eva_ai.mlearning.ml_unit import MLUnit
         print("✅ Импорт MLUnit успешен")
         
         ml_unit = MLUnit()

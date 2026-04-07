@@ -18,7 +18,7 @@ class TestGUIInitialization:
     def test_gui_imports(self):
         """Тест импортов GUI модулей."""
         try:
-            from eva.gui.core_gui import ЕВАGUI, create_gui
+            from eva_ai.gui.core_gui import ЕВАGUI, create_gui
             assert ЕВАGUI is not None
             assert create_gui is not None
         except ImportError as e:
@@ -29,7 +29,7 @@ class TestGUIInitialization:
     def test_chat_module_imports(self):
         """Тест импортов ChatModule."""
         try:
-            from eva.gui.chat_module import ChatModule
+            from eva_ai.gui.chat_module import ChatModule
             assert ChatModule is not None
         except ImportError as e:
             pytest.skip(f"ChatModule недоступен: {e}")
@@ -39,7 +39,7 @@ class TestGUIInitialization:
     def test_analytics_module_imports(self):
         """Тест импортов AnalyticsModule."""
         try:
-            from eva.gui.analytics_module import AnalyticsModule
+            from eva_ai.gui.analytics_module import AnalyticsModule
             assert AnalyticsModule is not None
         except ImportError as e:
             pytest.skip(f"AnalyticsModule недоступен: {e}")
@@ -56,7 +56,7 @@ class TestGUICoreFunctionality:
             pytest.skip("Brain недоступен для тестирования")
 
         try:
-            from eva.gui.core_gui import create_gui
+            from eva_ai.gui.core_gui import create_gui
 
             gui = create_gui(brain=mock_brain)
 
@@ -72,7 +72,7 @@ class TestGUICoreFunctionality:
     def test_gui_creation_minimal(self, temp_cache_dir):
         """Тест создания GUI в минимальном режиме."""
         try:
-            from eva.gui.core_gui import ЕВАGUI
+            from eva_ai.gui.core_gui import ЕВАGUI
 
             gui = ЕВАGUI(
                 brain=None,
@@ -306,8 +306,8 @@ class TestGUIPerformance:
         import time
 
         try:
-            from eva.core.core_brain import CoreBrain
-            from eva.gui.core_gui import create_gui
+            from eva_ai.core.core_brain import CoreBrain
+            from eva_ai.gui.core_gui import create_gui
 
             # Create brain first
             brain = CoreBrain(config=brain_config)
@@ -354,7 +354,7 @@ def test_gui_initialization():
         logger.info("Starting GUI initialization test...")
 
         # Import required modules
-        from eva.gui.core_gui import ЕВАGUI
+        from eva_ai.gui.core_gui import ЕВАGUI
 
         logger.info("Creating GUI instance...")
 

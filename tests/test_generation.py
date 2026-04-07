@@ -71,7 +71,7 @@ def test_brain_initialization():
     print("\n=== Тест инициализации CoreBrain ===")
     
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         
         # Создаем минимальную конфигурацию
         config = {
@@ -128,17 +128,17 @@ def test_circular_dependencies():
     try:
         # Тестируем импорты в правильном порядке
         print("Импорт core модулей...")
-        from eva.core.config_manager import ConfigManager
-        from eva.core.system_state import SystemStateManager
-        from eva.core.resource_manager import ResourceManager
+        from eva_ai.core.config_manager import ConfigManager
+        from eva_ai.core.system_state import SystemStateManager
+        from eva_ai.core.resource_manager import ResourceManager
         print("✅ Core модули импортированы без циклических зависимостей")
         
         print("Импорт mlearning модулей...")
-        from eva.mlearning.ml_unit import MLUnit
+        from eva_ai.mlearning.ml_unit import MLUnit
         print("✅ MLUnit импортирован без циклических зависимостей")
         
         print("Импорт memory модулей...")
-        from eva.memory.hybrid_token_cache import HybridTokenCache
+        from eva_ai.memory.hybrid_token_cache import HybridTokenCache
         print("✅ HybridTokenCache импортирован без циклических зависимостей")
         
         return True

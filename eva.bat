@@ -1,2 +1,2 @@
 @echo off
-python -m eva %*
+python -m eva_ai %*

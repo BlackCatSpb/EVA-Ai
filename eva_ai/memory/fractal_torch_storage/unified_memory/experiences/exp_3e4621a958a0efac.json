@@ -1,0 +1,12 @@
+{
+  "id": "exp_3e4621a958a0efac",
+  "query": "\"Как ваше день?\" - правильно писать - Ваш, Ева)",
+  "response": "",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775469959.909898,
+  "usage_count": 0,
+  "related_experiences": []
+}

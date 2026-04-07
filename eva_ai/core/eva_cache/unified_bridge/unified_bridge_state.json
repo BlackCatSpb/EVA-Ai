@@ -1,0 +1,13 @@
+{
+  "stats": {
+    "graph_hits": 0,
+    "graph_misses": 0,
+    "enriched_prompt_hits": 0,
+    "enriched_prompt_misses": 0,
+    "tokens_preloaded": 0,
+    "total_queries": 0,
+    "generation_cache_hits": 0,
+    "generation_cache_misses": 0
+  },
+  "query_index": {}
+}

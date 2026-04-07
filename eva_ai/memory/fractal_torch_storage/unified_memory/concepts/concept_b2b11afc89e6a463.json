@@ -1,0 +1,13 @@
+{
+  "id": "concept_b2b11afc89e6a463",
+  "title": "Привет!",
+  "description": "Здравствуйте! Как могу вам помочить сегодня?",
+  "experience_ids": [
+    "exp_f864d993fe8a5cca",
+    "exp_c63491e2a99843ff"
+  ],
+  "embedding": [],
+  "confidence": 0.775,
+  "created_at": 1775568692.8814056,
+  "updated_at": 1775568692.8814063
+}

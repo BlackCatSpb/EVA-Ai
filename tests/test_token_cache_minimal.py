@@ -2,7 +2,7 @@ import os
 import sys
 import logging
 import torch
-from eva.memory.hybrid_token_cache import HybridTokenCache
+from eva_ai.memory.hybrid_token_cache import HybridTokenCache
 
 # Configure logging
 logging.basicConfig(

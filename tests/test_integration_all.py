@@ -134,12 +134,12 @@ class TestEndToEndScenarios:
 
         try:
             # Step 1: Initialize Brain
-            from eva.core.core_brain import CoreBrain
+            from eva_ai.core.core_brain import CoreBrain
             brain = CoreBrain(config=brain_config)
             assert brain is not None
 
             # Step 2: Initialize GUI with Brain
-            from eva.gui.core_gui import create_gui
+            from eva_ai.gui.core_gui import create_gui
             gui = create_gui(brain=brain)
             assert gui is not None
 
@@ -235,8 +235,8 @@ class TestPerformanceAndScalability:
         start_time = time.time()
 
         try:
-            from eva.core.core_brain import CoreBrain
-            from eva.gui.core_gui import create_gui
+            from eva_ai.core.core_brain import CoreBrain
+            from eva_ai.gui.core_gui import create_gui
 
             # Measure Brain initialization
             brain_start = time.time()

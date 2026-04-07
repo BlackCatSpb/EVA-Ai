@@ -3,7 +3,7 @@ Config Import Verification Test
 Run: python -m pytest tests/test_config_import_verification.py -v
 """
 import pytest
-from eva.config import (
+from eva_ai.config import (
     is_model_allowed,
     is_model_loading_disabled,
     is_embedding_loading_disabled,

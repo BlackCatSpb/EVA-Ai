@@ -78,7 +78,7 @@ def categorize_nodes(nodes):
 
 def migrate_to_new_graph(model_nodes, component_nodes, knowledge_nodes, edges, experiences):
     """Перенести данные в новый граф."""
-    from eva.memory.fractal_graph_v2 import FractalMemoryGraph
+    from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
     
     # Очистка нового графа
     if os.path.exists(NEW_DATA_DIR):

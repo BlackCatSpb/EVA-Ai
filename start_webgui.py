@@ -38,7 +38,7 @@ file_handler.setFormatter(file_formatter)
 root_logger.addHandler(console_handler)
 root_logger.addHandler(file_handler)
 
-logger = logging.getLogger("eva.webgui")
+logger = logging.getLogger("eva_ai.webgui")
 logger.info("=== COGNIFLEX STARTED ===")
 logger.info("Log file: {}".format(LOG_FILE))
 
@@ -49,7 +49,7 @@ def init_brain():
     global brain
     try:
         logger.info("Initializing CoreBrain...")
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         brain = CoreBrain()
         logger.info("CoreBrain created, initializing...")
         
@@ -89,7 +89,7 @@ def main():
     print("=" * 50)
     
     # Import server and create app with brain
-    web_gui_dir = os.path.join(script_dir, 'eva', 'gui', 'web_gui')
+    web_gui_dir = os.path.join(script_dir, 'eva_ai', 'gui', 'web_gui')
     sys.path.insert(0, web_gui_dir)
     
     import server

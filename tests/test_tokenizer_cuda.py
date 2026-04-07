@@ -10,13 +10,13 @@ from typing import List, Optional, Dict, Any, Tuple
 # Добавляем корневую директорию в PYTHONPATH
 sys.path.append(str(Path(__file__).parent.parent))
 
-from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
-from eva.core.core_brain import CoreBrain
+from eva_ai.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
+from eva_ai.core.core_brain import CoreBrain
 
 # ModelMetadata is conditionally defined in cogniflex_tokenizer
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from eva.mlearning.model_manager import ModelMetadata
+    from eva_ai.mlearning.model_manager import ModelMetadata
 else:
     class ModelMetadata:  # type: ignore
         pass

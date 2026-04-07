@@ -7,12 +7,12 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from eva.knowledge.context_entity import (
+from eva_ai.knowledge.context_entity import (
     EntityExtractor,
     AmbiguousEntity,
     AmbiguityType
 )
-from eva.knowledge.ambiguity_resolver import (
+from eva_ai.knowledge.ambiguity_resolver import (
     AmbiguityResolver,
     ClarificationRequest,
     RefinementQuery

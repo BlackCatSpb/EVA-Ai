@@ -1,5 +1,5 @@
 import time
-from eva.core.system_metrics import SystemMetricsManager
+from eva_ai.core.system_metrics import SystemMetricsManager
 
 
 def test_validate_metric_schema_valid():

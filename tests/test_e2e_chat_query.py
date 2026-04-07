@@ -6,7 +6,7 @@ import pytest
 from typing import Any, Dict, List, Optional
 
 # Import CoreBrain and QueryProcessor behavior
-from eva.core.core_brain import CoreBrain
+from eva_ai.core.core_brain import CoreBrain
 
 
 # ---- Stubs for components ----

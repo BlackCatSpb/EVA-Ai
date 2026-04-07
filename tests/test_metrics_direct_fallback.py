@@ -1,7 +1,7 @@
 import time
 from typing import Any, Dict, List
 
-from eva.core.core_brain import CoreBrain
+from eva_ai.core.core_brain import CoreBrain
 
 
 def test_direct_metrics_emission_without_events():

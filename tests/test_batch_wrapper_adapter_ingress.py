@@ -1,11 +1,11 @@
 import torch
 
-from eva.core.batch_wrapper import (
+from eva_ai.core.batch_wrapper import (
     WrapperMetadata,
     wrap_for_transfer,
 )
-from eva.core.event_system import EventSystem
-from eva.adapters.torch_adapter import TorchBatchAdapter, Meta
+from eva_ai.core.event_system import EventSystem
+from eva_ai.adapters.torch_adapter import TorchBatchAdapter, Meta
 
 
 def test_adapter_unwrap_and_clean_and_telemetry():

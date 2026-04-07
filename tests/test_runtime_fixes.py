@@ -6,7 +6,7 @@
 def test_system_metrics_manager():
     """Тестирует исправление system_metrics_manager"""
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         brain = CoreBrain()
         
         # Проверяем наличие system_metrics_manager
@@ -22,7 +22,7 @@ def test_system_metrics_manager():
 def test_get_system_health():
     """Тестирует исправление get_system_health"""
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         brain = CoreBrain()
         
         # Проверяем наличие get_system_health
@@ -42,7 +42,7 @@ def test_get_system_health():
 def test_dashboard_data():
     """Тестирует get_system_dashboard_data после исправлений"""
     try:
-        from eva.core.core_brain import CoreBrain
+        from eva_ai.core.core_brain import CoreBrain
         brain = CoreBrain()
         brain.initialize()
         

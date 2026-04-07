@@ -2,7 +2,7 @@ import os
 import pytest
 import pytest_asyncio
 
-from eva.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
+from eva_ai.mlearning.cogniflex_tokenizer import ЕВАTokenizer, TokenizationConfig
 
 
 def is_offline_env() -> bool:

@@ -1,0 +1,12 @@
+{
+  "id": "exp_9b3a318a1753de41",
+  "query": "привет",
+  "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775567888.4814143,
+  "usage_count": 0,
+  "related_experiences": []
+}

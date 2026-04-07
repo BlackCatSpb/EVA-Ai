@@ -20,7 +20,7 @@ def main():
     """Основная функция запуска системы."""
     try:
         # Импортируем и запускаем систему
-        from eva.run import main as run_main
+        from eva_ai.run import main as run_main
         return run_main()
     except ImportError as e:
         print(f"❌ Ошибка импорта: {e}")

@@ -103,7 +103,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_core_gui(self):
         """Test importing core_gui module."""
         try:
-            from eva.gui.core_gui import ЕВАGUI, create_gui
+            from eva_ai.gui.core_gui import ЕВАGUI, create_gui
             logger.info("✓ core_gui module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import core_gui: {e}")
@@ -112,7 +112,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_integrated_gui(self):
         """Test importing integrated_gui module."""
         try:
-            from eva.gui.core_gui import ЕВАGUI
+            from eva_ai.gui.core_gui import ЕВАGUI
             logger.info("✓ core_gui module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import core_gui: {e}")
@@ -121,7 +121,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_chat_module(self):
         """Test importing chat_module."""
         try:
-            from eva.gui.chat_module import ChatModule
+            from eva_ai.gui.chat_module import ChatModule
             logger.info("✓ chat_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import chat_module: {e}")
@@ -130,7 +130,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_memory_module(self):
         """Test importing memory_module."""
         try:
-            from eva.gui.memory_module import MemoryModule
+            from eva_ai.gui.memory_module import MemoryModule
             logger.info("✓ memory_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import memory_module: {e}")
@@ -139,7 +139,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_knowledge_graph_module(self):
         """Test importing knowledge_graph_module."""
         try:
-            from eva.gui.knowledge_graph_module import KnowledgeGraphModule
+            from eva_ai.gui.knowledge_graph_module import KnowledgeGraphModule
             logger.info("✓ knowledge_graph_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import knowledge_graph_module: {e}")
@@ -148,7 +148,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_contradiction_module(self):
         """Test importing contradiction_module."""
         try:
-            from eva.gui.contradiction_module import ContradictionModule
+            from eva_ai.gui.contradiction_module import ContradictionModule
             logger.info("✓ contradiction_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import contradiction_module: {e}")
@@ -157,7 +157,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_learning_module(self):
         """Test importing learning_module."""
         try:
-            from eva.gui.learning_module import LearningModule
+            from eva_ai.gui.learning_module import LearningModule
             logger.info("✓ learning_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import learning_module: {e}")
@@ -166,7 +166,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_settings_module(self):
         """Test importing settings_module."""
         try:
-            from eva.gui.settings_module import SettingsModule
+            from eva_ai.gui.settings_module import SettingsModule
             logger.info("✓ settings_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import settings_module: {e}")
@@ -175,7 +175,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_neuromorphic_module(self):
         """Test importing neuromorphic_module."""
         try:
-            from eva.gui.neuromorphic_module import NeuromorphicModule
+            from eva_ai.gui.neuromorphic_module import NeuromorphicModule
             logger.info("✓ neuromorphic_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import neuromorphic_module: {e}")
@@ -184,7 +184,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_analytics_module(self):
         """Test importing analytics_module."""
         try:
-            from eva.gui.analytics_module import AnalyticsModule
+            from eva_ai.gui.analytics_module import AnalyticsModule
             logger.info("✓ analytics_module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import analytics_module: {e}")
@@ -193,7 +193,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_settings(self):
         """Test importing settings module."""
         try:
-            from eva.gui.settings import load_settings, save_settings
+            from eva_ai.gui.settings import load_settings, save_settings
             logger.info("✓ settings module imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import settings: {e}")
@@ -202,7 +202,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_utils(self):
         """Test importing gui_utils module."""
         try:
-            import eva.gui.gui_utils
+            import eva_ai.gui.gui_utils
             logger.info("✓ gui_utils imported successfully")
         except Exception as e:
             logger.error(f"✗ Failed to import gui_utils: {e}")
@@ -211,7 +211,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_themes(self):
         """Test importing gui_themes module."""
         try:
-            import eva.gui.gui_themes as gt
+            import eva_ai.gui.gui_themes as gt
             self.assertTrue(hasattr(gt, 'THEME_COLORS'))
             logger.info("✓ gui_themes imported successfully")
         except Exception as e:
@@ -221,7 +221,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_util(self):
         """Test importing gui_util."""
         try:
-            import eva.gui.gui_util as gu
+            import eva_ai.gui.gui_util as gu
             self.assertTrue(hasattr(gu, 'create_rounded_button'))
             logger.info("✓ gui_util imported successfully")
         except Exception as e:
@@ -231,7 +231,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_widgets(self):
         """Test importing gui_widgets module."""
         try:
-            import eva.gui.gui_widgets as gw
+            import eva_ai.gui.gui_widgets as gw
             self.assertTrue(hasattr(gw, 'create_main_interface'))
             logger.info("✓ gui_widgets imported successfully")
         except Exception as e:
@@ -241,7 +241,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_widgets(self):
         """Test importing widgets module."""
         try:
-            import eva.gui.widgets as w
+            import eva_ai.gui.widgets as w
             self.assertTrue(hasattr(w, 'create_rounded_button'))
             logger.info("✓ widgets imported successfully")
         except Exception as e:
@@ -251,7 +251,7 @@ class TestGUIImports(unittest.TestCase):
     def test_import_gui_modules(self):
         """Test importing gui_modules."""
         try:
-            import eva.gui.gui_modules as gm
+            import eva_ai.gui.gui_modules as gm
             self.assertTrue(hasattr(gm, 'init_modules'))
             logger.info("✓ gui_modules imported successfully")
         except Exception as e:
@@ -272,7 +272,7 @@ class TestЕВАGUIMethods(unittest.TestCase):
         self.root = tk.Tk()
         self.root.withdraw()  # Hide window during tests
         
-        from eva.gui.core_gui import ЕВАGUI
+        from eva_ai.gui.core_gui import ЕВАGUI
         self.gui = ЕВАGUI(brain=self.brain, integrator=self.integrator)
         self.gui.root = self.root
         self.gui.running = False  # Don't actually run the GUI
@@ -440,7 +440,7 @@ class TestIntegratedЕВАGUIMethods(unittest.TestCase):
         self.root = tk.Tk()
         self.root.withdraw()
         
-        from eva.gui.core_gui import ЕВАGUI
+        from eva_ai.gui.core_gui import ЕВАGUI
         # Patch setup_gui to avoid creating real tkinter widgets
         with patch.object(ЕВАGUI, 'setup_gui', return_value=None):
             self.gui = ЕВАGUI(self.brain)
@@ -604,7 +604,7 @@ class TestChatModuleMethods(unittest.TestCase):
         self.gui.colors = {}
         self.gui.reasoning_active = True
         
-        from eva.gui.chat_module import ChatModule
+        from eva_ai.gui.chat_module import ChatModule
         self.module = ChatModule(self.gui)
         self.module.gui = self.gui
     
@@ -648,7 +648,7 @@ class TestMemoryModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.memory_module import MemoryModule
+        from eva_ai.gui.memory_module import MemoryModule
         self.module = MemoryModule(self.gui)
         self.module.gui = self.gui
     
@@ -702,7 +702,7 @@ class TestKnowledgeGraphModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.knowledge_graph_module import KnowledgeGraphModule
+        from eva_ai.gui.knowledge_graph_module import KnowledgeGraphModule
         self.module = KnowledgeGraphModule(self.gui)
         self.module.gui = self.gui
     
@@ -746,7 +746,7 @@ class TestContradictionModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.contradiction_module import ContradictionModule
+        from eva_ai.gui.contradiction_module import ContradictionModule
         self.module = ContradictionModule(self.gui)
         self.module.gui = self.gui
     
@@ -790,7 +790,7 @@ class TestLearningModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.learning_module import LearningModule
+        from eva_ai.gui.learning_module import LearningModule
         self.module = LearningModule(self.gui)
         self.module.gui = self.gui
     
@@ -834,7 +834,7 @@ class TestSettingsModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.settings_module import SettingsModule
+        from eva_ai.gui.settings_module import SettingsModule
         self.module = SettingsModule(self.gui)
         self.module.gui = self.gui
     
@@ -878,7 +878,7 @@ class TestNeuromorphicModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.neuromorphic_module import NeuromorphicModule
+        from eva_ai.gui.neuromorphic_module import NeuromorphicModule
         self.module = NeuromorphicModule(self.gui)
         self.module.gui = self.gui
     
@@ -922,7 +922,7 @@ class TestAnalyticsModuleMethods(unittest.TestCase):
         self.gui.content_area.winfo_children.return_value = []
         self.gui.root = self.root
         
-        from eva.gui.analytics_module import AnalyticsModule
+        from eva_ai.gui.analytics_module import AnalyticsModule
         self.module = AnalyticsModule(self.gui)
         self.module.gui = self.gui
     
@@ -959,7 +959,7 @@ class TestSettingsModule(unittest.TestCase):
     def test_load_settings(self):
         """Test load_settings function."""
         try:
-            from eva.gui.settings import load_settings
+            from eva_ai.gui.settings import load_settings
             settings = load_settings("nonexistent.json")
             self.assertIsInstance(settings, dict)
             logger.info("✓ load_settings works")
@@ -970,7 +970,7 @@ class TestSettingsModule(unittest.TestCase):
     def test_save_settings(self):
         """Test save_settings function."""
         try:
-            from eva.gui.settings import save_settings
+            from eva_ai.gui.settings import save_settings
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
                 temp_path = f.name
@@ -991,7 +991,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_theme_colors(self):
         """Test THEME_COLORS from gui_themes."""
         try:
-            from eva.gui.gui_themes import THEME_COLORS
+            from eva_ai.gui.gui_themes import THEME_COLORS
             self.assertIsInstance(THEME_COLORS, dict)
             self.assertIn("light", THEME_COLORS)
             self.assertIn("dark", THEME_COLORS)
@@ -1003,7 +1003,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_styles(self):
         """Test create_styles from gui_themes."""
         try:
-            from eva.gui.gui_themes import create_styles
+            from eva_ai.gui.gui_themes import create_styles
             gui_mock = MagicMock()
             gui_mock.colors = {"primary": "blue", "bg": "white"}
             create_styles(gui_mock)
@@ -1015,7 +1015,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_rounded_button(self):
         """Test create_rounded_button from widgets."""
         try:
-            from eva.gui.widgets import create_rounded_button
+            from eva_ai.gui.widgets import create_rounded_button
             root = tk.Tk()
             root.withdraw()
             btn = create_rounded_button(root, "Test", command=lambda: None)
@@ -1028,7 +1028,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_create_gradient_canvas(self):
         """Test create_gradient_canvas from widgets."""
         try:
-            from eva.gui.widgets import create_gradient_canvas
+            from eva_ai.gui.widgets import create_gradient_canvas
             root = tk.Tk()
             root.withdraw()
             canvas = create_gradient_canvas(root, 100, 100, "white", "black")
@@ -1041,7 +1041,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_load_settings_gui_utils(self):
         """Test load_settings from gui_utils."""
         try:
-            from eva.gui.gui_utils import load_settings
+            from eva_ai.gui.gui_utils import load_settings
             settings = load_settings("nonexistent.json")
             self.assertIsInstance(settings, dict)
             logger.info("✓ load_settings from gui_utils works")
@@ -1052,7 +1052,7 @@ class TestUtilityModules(unittest.TestCase):
     def test_save_settings_gui_utils(self):
         """Test save_settings from gui_utils."""
         try:
-            from eva.gui.gui_utils import save_settings
+            from eva_ai.gui.gui_utils import save_settings
             import tempfile
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as f:
                 temp_path = f.name

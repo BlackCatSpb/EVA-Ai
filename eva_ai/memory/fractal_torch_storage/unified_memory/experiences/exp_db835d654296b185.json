@@ -1,0 +1,12 @@
+{
+  "id": "exp_db835d654296b185",
+  "query": "Привет!",
+  "response": "Здравствуйте! Как могу вам помочить сегодня?",
+  "model_used": "model_b",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775374308.1238983,
+  "usage_count": 0,
+  "related_experiences": []
+}

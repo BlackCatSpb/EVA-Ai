@@ -13,7 +13,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from eva.gui.web_gui.server import app
+from eva_ai.gui.web_gui.server import app
 
 if __name__ == '__main__':
     app.run()

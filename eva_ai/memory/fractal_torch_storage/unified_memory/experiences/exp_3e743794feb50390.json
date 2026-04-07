@@ -1,0 +1,12 @@
+{
+  "id": "exp_3e743794feb50390",
+  "query": "Тест оптимизации",
+  "response": "Токенизатор оптимизирован.",
+  "model_used": "model_a",
+  "quality_score": 0.9,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775197002.262443,
+  "usage_count": 3,
+  "related_experiences": []
+}

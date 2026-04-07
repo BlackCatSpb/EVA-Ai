@@ -1,0 +1,12 @@
+{
+  "id": "exp_918304bda86aab6b",
+  "query": "Привет!",
+  "response": "Не удалось сформировать ответ.",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775221453.1648674,
+  "usage_count": 0,
+  "related_experiences": []
+}

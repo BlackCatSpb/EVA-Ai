@@ -15,11 +15,11 @@ def test_basic_imports():
     
     try:
         print("Импорт UnifiedTextProcessor...")
-        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva_ai.mlearning.unified_text_processor import UnifiedTextProcessor
         print("✅ UnifiedTextProcessor импортирован")
         
         print("Импорт HybridTokenCache...")
-        from eva.memory.hybrid_token_cache import HybridTokenCache
+        from eva_ai.memory.hybrid_token_cache import HybridTokenCache
         print("✅ HybridTokenCache импортирован")
         
         return True
@@ -45,7 +45,7 @@ def test_basic_functionality():
         print("✅ MockBrain создан")
         
         # Создаем процессор
-        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva_ai.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain, use_async=False, max_workers=1)
         print("✅ UnifiedTextProcessor создан")
         
@@ -86,7 +86,7 @@ def test_cache_creation():
         
         brain = MockBrain()
         
-        from eva.memory.hybrid_token_cache import HybridTokenCache
+        from eva_ai.memory.hybrid_token_cache import HybridTokenCache
         cache = HybridTokenCache(brain, max_memory_tokens=100)
         print("✅ HybridTokenCache создан")
         
@@ -127,8 +127,8 @@ def test_performance_comparison():
         
         brain = MockBrain()
         
-        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
-        from eva.memory.hybrid_token_cache import HybridTokenCache
+        from eva_ai.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva_ai.memory.hybrid_token_cache import HybridTokenCache
         
         # Тестовые тексты
         test_texts = [
@@ -212,7 +212,7 @@ def analyze_context_quality():
         
         brain = MockBrain()
         
-        from eva.mlearning.unified_text_processor import UnifiedTextProcessor
+        from eva_ai.mlearning.unified_text_processor import UnifiedTextProcessor
         processor = UnifiedTextProcessor(brain=brain)
         
         # Тестовые контексты разной сложности

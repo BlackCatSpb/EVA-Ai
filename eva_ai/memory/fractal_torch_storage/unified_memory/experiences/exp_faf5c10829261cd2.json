@@ -1,0 +1,12 @@
+{
+  "id": "exp_faf5c10829261cd2",
+  "query": "Объясни: Привет! Расскажи о себе",
+  "response": "Не удалось сформировать ответ.",
+  "model_used": "model_a",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775222787.1180496,
+  "usage_count": 0,
+  "related_experiences": []
+}

@@ -1,0 +1,12 @@
+{
+  "id": "exp_7b73ea235148f8c5",
+  "query": "Что такое Python?",
+  "response": "Python — язык программирования высокого уровня.",
+  "model_used": "model_a",
+  "quality_score": 0.8,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775188167.215027,
+  "usage_count": 27,
+  "related_experiences": []
+}

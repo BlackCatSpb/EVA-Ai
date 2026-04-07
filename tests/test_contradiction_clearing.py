@@ -7,8 +7,8 @@ import pytest
 
 from typing import Dict, Any
 
-from eva.contradiction.contradiction_core import OptimizedContradictionDetector
-from eva.core.core_brain import CoreBrain
+from eva_ai.contradiction.contradiction_core import OptimizedContradictionDetector
+from eva_ai.core.core_brain import CoreBrain
 
 
 @pytest.fixture()
