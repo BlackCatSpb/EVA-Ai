@@ -728,38 +728,51 @@ def register_routes(app, web_gui_instance):
                     except Exception as e:
                         logger.debug(f"ConceptMiner metrics error: {e}")
                 
-                # === Health Check ===
+                # === Graph Metrics (только FractalGraphV2) ===
+                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg and hasattr(fg, 'get_stats'):
+                    try:
+                        fg_stats = fg.get_stats()
+                        metrics['graph'] = fg_stats if isinstance(fg_stats, dict) else {}
+                    except Exception as e:
+                        logger.debug(f"FractalGraph stats error: {e}")
+                
+                # === Graph Curator Metrics ===
+                gc = getattr(web_gui_instance.brain, 'graph_curator', None)
+                if gc and hasattr(gc, 'get_metrics'):
+                    try:
+                        gc_metrics = gc.get_metrics()
+                        if 'graph' not in metrics:
+                            metrics['graph'] = {}
+                        metrics['graph']['curator'] = gc_metrics
+                    except Exception as e:
+                        logger.debug(f"GraphCurator metrics error: {e}")
+                
+                # === Health Check (только FractalGraphV2) ===
                 try:
                     health = {
                         'status': 'healthy',
                         'issues': []
                     }
                     
-                    # Проверка узлов
-                    if kg and hasattr(kg, 'get_all_nodes'):
-                        nodes = kg.get_all_nodes()
-                        if not nodes:
-                            health['issues'].append('Нет узлов в графе знаний')
-                        
-                        # Проверка сирот
-                        orphan_count = 0
-                        for node in nodes:
-                            edges = kg.get_edges(node.id) if hasattr(kg, 'get_edges') else []
-                            if not edges:
-                                orphan_count += 1
-                        if orphan_count > len(nodes) * 0.5:
-                            health['issues'].append(f'Много сиротских узлов: {orphan_count}')
+                    total_nodes = 0
                     
-                    # Проверка памяти
+                    # Только FractalGraphV2
                     if fg and hasattr(fg, 'get_stats'):
-                        fg_stats = fg.get_stats()
-                        if fg_stats.get('total_nodes', 0) == 0:
-                            health['issues'].append('Фрактальная память пуста')
+                        try:
+                            fg_stats = fg.get_stats()
+                            total_nodes = fg_stats.get('total_nodes', 0)
+                        except Exception as e:
+                            logger.debug(f"FractalGraph stats error: {e}")
+                    
+                    if total_nodes == 0:
+                        health['issues'].append('Фрактальная память пуста')
                     
                     # Проверка куратора
                     if gc and hasattr(gc, 'get_state'):
                         gc_state = gc.get_state()
                         if gc_state.get('state') == 'error':
+                            health['issues'].append('GraphCurator в состоянии ошибки')
                             health['issues'].append('GraphCurator в состоянии ошибки')
                     
                     if health['issues']:
