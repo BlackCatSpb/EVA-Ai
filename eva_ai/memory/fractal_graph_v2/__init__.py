@@ -15,6 +15,7 @@ from .gguf_parser import parse_gguf_model, extract_to_graph
 from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
 from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
 from .hybrid_tokenizer import HybridTokenizer, create_hybrid_tokenizer
+from .eva_generator import EVAGenerator, create_eva_generator, GenerationRequest, GenerationResult
 from .tokenizer import GraphTokenizer, create_graph_tokenizer
 
 logger = logging.getLogger("eva_ai.fractal_graph_v2")
@@ -45,6 +46,12 @@ __all__ = [
     # Hybrid Tokenizer (для EVA контейнера)
     'HybridTokenizer',
     'create_hybrid_tokenizer',
+    
+    # EVA Generator (единый генератор с виртуальными токенами)
+    'EVAGenerator',
+    'create_eva_generator',
+    'GenerationRequest',
+    'GenerationResult',
     
     # Tokenizer
     'GraphTokenizer',
