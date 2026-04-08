@@ -41,21 +41,9 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                     <span>Чат</span>
                 </button>
-                <button class="nav-item" data-view="memory">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-                    <span>Память</span>
-                </button>
                 <button class="nav-item" data-view="analytics">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
                     <span>Аналитика</span>
-                </button>
-                <button class="nav-item" data-view="learning">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-                    <span>Обучение</span>
-                </button>
-                <button class="nav-item" data-view="knowledge">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                    <span>Знания</span>
                 </button>
                 <button class="nav-item" data-view="wikipedia">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -101,32 +89,6 @@
                         <button class="send-btn" id="sendBtn" title="Отправить">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                         </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Memory View -->
-            <div class="view" id="memoryView" style="display:none">
-                <div class="view-header">
-                    <h2>Память</h2>
-                    <button class="refresh-btn" id="refreshMemory">Обновить</button>
-                </div>
-                <div class="memory-stats">
-                    <div class="stat"><span class="stat-val" id="totalNodes">0</span><span class="stat-lbl">Узлов</span></div>
-                    <div class="stat"><span class="stat-val" id="totalEdges">0</span><span class="stat-lbl">Связей</span></div>
-                    <div class="stat"><span class="stat-val" id="totalDocs">0</span><span class="stat-lbl">Документов</span></div>
-                </div>
-                <div class="memory-grid">
-                    <div class="memory-card">
-                        <h3>Граф знаний</h3>
-                        <div class="memory-graph" id="memoryGraph"></div>
-                        <div class="knowledge-graph" id="knowledgeGraph"></div>
-                    </div>
-                    <div class="memory-card">
-                        <h3>Документы</h3>
-                        <div class="document-list" id="documentList">
-                            <div class="empty-state">Нет загруженных документов</div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -200,58 +162,6 @@
                         <h3>История активности</h3>
                         <div class="activity-list" id="activityList"></div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Learning View -->
-            <div class="view" id="learningView" style="display:none">
-                <div class="view-header">
-                    <h2>Обучение</h2>
-                    <button class="refresh-btn" id="refreshLearning">Обновить</button>
-                </div>
-                <div class="learning-grid">
-                    <div class="learning-card">
-                        <h3>Возможности обучения</h3>
-                        <div class="opportunities-list" id="opportunitiesList">
-                            <div class="empty-state">Загрузка...</div>
-                        </div>
-                    </div>
-                    <div class="learning-card">
-                        <h3>Статистика обучения</h3>
-                        <div class="learning-stats">
-                            <div class="stat"><span class="stat-val" id="learnTotal">0</span><span class="stat-lbl">Всего</span></div>
-                            <div class="stat"><span class="stat-val" id="learnSuccess">0</span><span class="stat-lbl">Успешно</span></div>
-                            <div class="stat"><span class="stat-val" id="learnPending">0</span><span class="stat-lbl">В ожидании</span></div>
-                        </div>
-                    </div>
-                    <div class="learning-card full-width">
-                        <h3>Недавние диалоги</h3>
-                        <div class="dialogs-list" id="dialogsList">
-                            <div class="empty-state">Загрузка...</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Knowledge View -->
-            <div class="view" id="knowledgeView" style="display:none">
-                <div class="view-header">
-                    <h2>База знаний</h2>
-                    <button class="refresh-btn" id="refreshKnowledge">Обновить</button>
-                </div>
-                <div class="knowledge-stats">
-                    <div class="stat"><span class="stat-val" id="kgEntities">0</span><span class="stat-lbl">Сущностей</span></div>
-                    <div class="stat"><span class="stat-val" id="kgRelations">0</span><span class="stat-lbl">Связей</span></div>
-                    <div class="stat"><span class="stat-val" id="kgSessionEntities">0</span><span class="stat-lbl">В сессии</span></div>
-                </div>
-                <div class="knowledge-search">
-                    <input type="text" id="knowledgeSearchInput" placeholder="Поиск по базе знаний...">
-                    <button class="search-btn" id="knowledgeSearchBtn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    </button>
-                </div>
-                <div class="knowledge-results" id="knowledgeResults">
-                    <div class="empty-state">Введите запрос для поиска</div>
                 </div>
             </div>
 

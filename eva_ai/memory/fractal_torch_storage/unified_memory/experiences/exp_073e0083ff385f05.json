@@ -1,0 +1,12 @@
+{
+  "id": "exp_073e0083ff385f05",
+  "query": "Перегенерируй последний ответ",
+  "response": "Понял, давайте перезагрузим разговор по теме искусственного интеллекта (ИИ).",
+  "model_used": "model_b",
+  "quality_score": 0.0,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775589046.7069268,
+  "usage_count": 0,
+  "related_experiences": []
+}

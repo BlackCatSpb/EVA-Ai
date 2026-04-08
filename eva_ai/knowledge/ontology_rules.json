@@ -1,0 +1,25 @@
+{
+  "rules": [
+    {
+      "id": "hierarchy_violation",
+      "description": "Запрет нарушения иерархии is_a → part_of → attribute_of",
+      "validation": "check_hierarchy",
+      "severity": "high"
+    },
+    {
+      "id": "node_type_combination",
+      "description": "Контроль допустимых сочетаний типов узлов",
+      "validation": "check_node_types",
+      "severity": "medium"
+    },
+    {
+      "id": "semantic_density",
+      "description": "Валидация семантической плотности (минимум 3 значимых связи)",
+      "validation": "check_semantic_density",
+      "min_connections": 3,
+      "severity": "medium"
+    }
+  ],
+  "version": "1.0",
+  "last_updated": "2026-04-08"
+}

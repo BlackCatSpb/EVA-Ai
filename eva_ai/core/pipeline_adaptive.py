@@ -16,12 +16,13 @@ class AdaptiveParameterController:
     Анализирует причины провалов + семантическую схожесть ответов через эмбеддер.
     """
     
+    # Базовые параметры по спецификации из документа
     DEFAULT_PARAMS = {
-        'temperature': 0.25,
-        'top_p': 0.9,
-        'top_k': 40,
+        'temperature': 0.45,  # Model B: 0.45-0.50
+        'top_p': 0.90,        # Model B: 0.90
+        'top_k': 60,          # Model B: 60
         'repeat_penalty': 2.0,
-        'max_tokens': 512,
+        'max_tokens': 768,   # Model B: 768
     }
     
     PARAM_RANGES = {
@@ -32,7 +33,7 @@ class AdaptiveParameterController:
         'max_tokens': (64, 2048),
     }
     
-    SEMANTIC_STUCK_THRESHOLD = 0.85
+    SEMANTIC_STUCK_THRESHOLD = 0.82  # Обновлено по спецификации
     
     def __init__(self, base_params: Dict[str, float] = None):
         self.base_params = base_params or dict(self.DEFAULT_PARAMS)

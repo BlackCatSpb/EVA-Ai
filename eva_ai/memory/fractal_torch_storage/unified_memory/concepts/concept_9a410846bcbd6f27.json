@@ -1,13 +1,13 @@
 {
   "id": "concept_9a410846bcbd6f27",
   "title": "Привет, Ева!",
-  "description": "Здравствуйте! Очень рада встрече с Вами снова. Как дела?",
+  "description": "Здравствуйте! Очень рада вашему привете.",
   "experience_ids": [
-    "exp_302cd0035ec04d0d",
-    "exp_40d67a06abc6b54e"
+    "exp_f8e35f1f774e9ca6",
+    "exp_5ba482f257e9c59f"
   ],
   "embedding": [],
-  "confidence": 0.775,
-  "created_at": 1775574032.6159546,
-  "updated_at": 1775574032.6159554
+  "confidence": 0.8,
+  "created_at": 1775618977.387035,
+  "updated_at": 1775618977.3870354
 }

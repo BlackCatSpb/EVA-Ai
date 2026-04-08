@@ -1,6 +1,176 @@
 {
   "solutions": [
     {
+      "key": "c7f383fb6daf0e1e25913eb469b55235",
+      "timestamp": 1775639122.8752868,
+      "context_summary": "Запрос: Давай порассуждаем:\n\nДруг всем – ничей друг",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "37a8a4b14bbb2d83729f53bf95178598",
+      "timestamp": 1775632592.2874408,
+      "context_summary": "Запрос: Расскажи о себе",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "37a8a4b14bbb2d83729f53bf95178598",
+      "timestamp": 1775627850.05162,
+      "context_summary": "Запрос: Расскажи о себе",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "62c9df46332e43076e503475c8494d89",
+      "timestamp": 1775618952.3622148,
+      "context_summary": "Запрос: Привет, Ева!",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "5b8ec1cfdd02b71ef6af6bc691708060",
+      "timestamp": 1775618200.879909,
+      "context_summary": "Запрос: Расскажи все, что знаешь о Конфуции",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "37a8a4b14bbb2d83729f53bf95178598",
+      "timestamp": 1775602947.8160324,
+      "context_summary": "Запрос: Расскажи о себе",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "5b8ec1cfdd02b71ef6af6bc691708060",
+      "timestamp": 1775602634.494245,
+      "context_summary": "Запрос: Расскажи все, что знаешь о Конфуции",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "1b8cbc4db6a0e1617d673e4f5e51bba2",
+      "timestamp": 1775600474.4300914,
+      "context_summary": "Запрос: Привет, Ева!\nДавай поговорим о Конфуции",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "6b7bd05b35430357b5e3282801669651",
+      "timestamp": 1775588826.9901109,
+      "context_summary": "Запрос: Перегенерируй последний ответ",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "88e06ee0998e3517cbfd18d19909ffbb",
+      "timestamp": 1775587402.940338,
+      "context_summary": "Запрос: Еще раз - давай поговорим о Конфуции. Ты дала не релевантный ответ",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
       "key": "9ff316c7c6f84951e9fc190425649d95",
       "timestamp": 1775586181.3672204,
       "context_summary": "Запрос: Давай поговорим о Конфуции",

@@ -1,0 +1,12 @@
+{
+  "id": "exp_b4643714ca1ef82e",
+  "query": "Расскажи о себе",
+  "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775603019.1846814,
+  "usage_count": 0,
+  "related_experiences": []
+}

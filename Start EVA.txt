@@ -21,3 +21,5 @@ gunicorn -c gunicorn_config.py wsgi:app
 ## Доступ
 - Web UI: http://127.0.0.1:5555
 - Login: admin / cogniflex
+
+OpenCogniFlex

@@ -956,15 +956,8 @@
             $$('.view').forEach(v => v.style.display = 'none');
             $(`#${view}View`).style.display = 'flex';
             
-            if (view === 'memory') {
-                loadMemory();
-                loadKnowledgeGraph();
-            } else if (view === 'analytics') {
+            if (view === 'analytics') {
                 loadAnalytics();
-            } else if (view === 'learning') {
-                loadLearning();
-            } else if (view === 'knowledge') {
-                loadKnowledge();
             } else if (view === 'wikipedia' || view === 'search') {
                 loadWikipedia();
             } else if (view === 'settings') {
@@ -978,10 +971,7 @@
     
     // Load initial data after login
     function loadInitialData() {
-        loadMemory();
-        loadKnowledgeGraph();
         loadAnalytics();
-        loadLearning();
         loadKnowledge();
     }
 

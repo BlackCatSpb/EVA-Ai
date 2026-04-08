@@ -179,15 +179,6 @@ def check_russian_quality(text: str) -> Dict[str, Any]:
         reasons.append('Нет законченных предложений')
         score -= 0.5
     
-    has_proper_punctuation = False
-    for sent in sentences:
-        if sent.endswith(('.', '!', '?', '...')):
-            has_proper_punctuation = True
-            break
-    if not has_proper_punctuation and len(sentences) > 1:
-        reasons.append('Предложения не заканчиваются знаками препинания')
-        score -= 0.3
-    
     words = text.split()
     if words:
         first_word = words[0]
@@ -262,8 +253,7 @@ def check_russian_quality(text: str) -> Dict[str, Any]:
         'is_valid': score >= 0.5,
         'score': score,
         'reasons': reasons if reasons else ['OK'],
-        'sentences_count': len(sentences),
-        'has_proper_punctuation': has_proper_punctuation
+        'sentences_count': len(sentences)
     }
 
 
