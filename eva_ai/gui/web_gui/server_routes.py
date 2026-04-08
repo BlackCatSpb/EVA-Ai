@@ -648,7 +648,11 @@ def register_routes(app, web_gui_instance):
             'cpu_usage': 0.0,
             'memory_usage': 0.0,
             'cache_hit_rate': 0.0,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'graph': {},
+            'contradictions': {},
+            'concepts': {},
+            'health': {}
         }
 
         try:
@@ -661,6 +665,111 @@ def register_routes(app, web_gui_instance):
                 if hasattr(web_gui_instance.brain, 'get_cache_stats'):
                     cache = web_gui_instance.brain.get_cache_stats()
                     metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
+                
+                # === Graph Metrics ===
+                kg = getattr(web_gui_instance.brain, 'knowledge_graph', None)
+                if kg and hasattr(kg, 'get_stats'):
+                    try:
+                        stats = kg.get_stats()
+                        metrics['graph']['knowledge_graph'] = stats if isinstance(stats, dict) else {}
+                    except Exception as e:
+                        logger.debug(f"KG stats error: {e}")
+                
+                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg and hasattr(fg, 'get_stats'):
+                    try:
+                        fg_stats = fg.get_stats()
+                        metrics['graph']['fractal_graph_v2'] = fg_stats if isinstance(fg_stats, dict) else {}
+                    except Exception as e:
+                        logger.debug(f"FractalGraph stats error: {e}")
+                
+                # === Graph Curator Metrics ===
+                gc = getattr(web_gui_instance.brain, 'graph_curator', None)
+                if gc and hasattr(gc, 'get_metrics'):
+                    try:
+                        gc_metrics = gc.get_metrics()
+                        metrics['graph']['curator'] = gc_metrics
+                    except Exception as e:
+                        logger.debug(f"GraphCurator metrics error: {e}")
+                
+                # === Contradictions ===
+                cm = getattr(web_gui_instance.brain, 'contradiction_manager', None)
+                if cm:
+                    try:
+                        if hasattr(cm, 'get_stats'):
+                            metrics['contradictions'] = cm.get_stats()
+                        elif hasattr(cm, 'contradictions'):
+                            metrics['contradictions'] = {
+                                'total': len(getattr(cm, 'contradictions', [])),
+                                'active': sum(1 for c in getattr(cm, 'contradictions', []) if c.get('status') != 'resolved')
+                            }
+                    except Exception as e:
+                        logger.debug(f"Contradictions error: {e}")
+                
+                # === Concepts (ConceptMiner) ===
+                concept_miner = getattr(web_gui_instance.brain, 'concept_miner', None)
+                if concept_miner:
+                    try:
+                        if hasattr(concept_miner, 'get_metrics'):
+                            cm_metrics = concept_miner.get_metrics()
+                            # Подсчитываем по статусам
+                            candidates = concept_miner.get_candidates() if hasattr(concept_miner, 'get_candidates') else []
+                            provisional = sum(1 for c in candidates if c.get('status') == 'provisional')
+                            confirmed = sum(1 for c in candidates if c.get('status') == 'confirmed')
+                            archived = sum(1 for c in candidates if c.get('status') == 'archived')
+                            metrics['concepts'] = {
+                                'provisional': provisional,
+                                'confirmed': confirmed,
+                                'archived': archived,
+                                'total': len(candidates),
+                                'hypothesis_confirmation_ratio': cm_metrics.get('hypothesis_confirmation_ratio', 0),
+                                'status': cm_metrics.get('status', 'unknown')
+                            }
+                    except Exception as e:
+                        logger.debug(f"ConceptMiner metrics error: {e}")
+                
+                # === Health Check ===
+                try:
+                    health = {
+                        'status': 'healthy',
+                        'issues': []
+                    }
+                    
+                    # Проверка узлов
+                    if kg and hasattr(kg, 'get_all_nodes'):
+                        nodes = kg.get_all_nodes()
+                        if not nodes:
+                            health['issues'].append('Нет узлов в графе знаний')
+                        
+                        # Проверка сирот
+                        orphan_count = 0
+                        for node in nodes:
+                            edges = kg.get_edges(node.id) if hasattr(kg, 'get_edges') else []
+                            if not edges:
+                                orphan_count += 1
+                        if orphan_count > len(nodes) * 0.5:
+                            health['issues'].append(f'Много сиротских узлов: {orphan_count}')
+                    
+                    # Проверка памяти
+                    if fg and hasattr(fg, 'get_stats'):
+                        fg_stats = fg.get_stats()
+                        if fg_stats.get('total_nodes', 0) == 0:
+                            health['issues'].append('Фрактальная память пуста')
+                    
+                    # Проверка куратора
+                    if gc and hasattr(gc, 'get_state'):
+                        gc_state = gc.get_state()
+                        if gc_state.get('state') == 'error':
+                            health['issues'].append('GraphCurator в состоянии ошибки')
+                    
+                    if health['issues']:
+                        health['status'] = 'degraded'
+                    
+                    metrics['health'] = health
+                except Exception as e:
+                    logger.debug(f"Health check error: {e}")
+                    metrics['health'] = {'status': 'error', 'error': str(e)}
+                    
         except Exception as e:
             logger.error(f"Error getting metrics: {e}")
 

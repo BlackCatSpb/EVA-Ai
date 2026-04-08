@@ -1036,6 +1036,60 @@ body {
     text-align: center;
 }
 
+/* System Health */
+.system-health {
+    padding: 10px;
+}
+
+.health-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.health-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ccc;
+}
+
+.health-dot.healthy {
+    background: #4caf50;
+}
+
+.health-dot.degraded {
+    background: #ff9800;
+}
+
+.health-dot.error {
+    background: #f44336;
+}
+
+.health-text {
+    font-weight: 600;
+    color: var(--text1);
+}
+
+.health-issues {
+    font-size: 13px;
+    color: var(--text2);
+}
+
+.health-issues li {
+    margin: 5px 0;
+    padding-left: 20px;
+    position: relative;
+}
+
+.health-issues li::before {
+    content: "⚠";
+    position: absolute;
+    left: 0;
+    color: #ff9800;
+}
+
 .activity-list {
     max-height: 300px;
     overflow-y: auto;

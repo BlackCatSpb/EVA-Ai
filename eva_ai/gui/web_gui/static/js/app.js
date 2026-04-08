@@ -1225,26 +1225,70 @@
 
     /* ── Analytics ── */
     function loadAnalytics() {
-        api('/analytics').then(data => {
-            if (data.error) {
+        Promise.all([api('/analytics'), api('/metrics')]).then(([analytics, metrics]) => {
+            if (analytics.error) {
                 toast('Ошибка загрузки аналитики', 'error');
                 return;
             }
             
-            $('#analyticsQueries').textContent = data.queries || 0;
-            $('#analyticsAvgTime').textContent = (data.avg_time || 0).toFixed(0) + 'ms';
-            $('#analyticsSuccess').textContent = ((data.success_rate || 0) * 100).toFixed(0) + '%';
-            $('#analyticsCPU').textContent = (data.cpu || 0).toFixed(1) + '%';
-            $('#analyticsMemory').textContent = (data.memory || 0).toFixed(1) + '%';
-            $('#analyticsVRAM').textContent = (data.vram || 0).toFixed(1) + '%';
-            $('#analyticsDialogs').textContent = data.dialogs || 0;
-            $('#analyticsGaps').textContent = data.gaps || 0;
-            $('#analyticsLearned').textContent = data.learned || 0;
+            // Basic analytics
+            $('#analyticsQueries').textContent = analytics.queries || 0;
+            $('#analyticsAvgTime').textContent = (analytics.avg_time || 0).toFixed(0) + 'ms';
+            $('#analyticsSuccess').textContent = ((analytics.success_rate || 0) * 100).toFixed(0) + '%';
+            $('#analyticsCPU').textContent = (analytics.cpu || 0).toFixed(1) + '%';
+            $('#analyticsMemory').textContent = (analytics.memory || 0).toFixed(1) + '%';
+            $('#analyticsVRAM').textContent = (analytics.vram || 0).toFixed(1) + '%';
+            $('#analyticsDialogs').textContent = analytics.dialogs || 0;
+            $('#analyticsGaps').textContent = analytics.gaps || 0;
+            $('#analyticsLearned').textContent = analytics.learned || 0;
+            
+            // Graph metrics
+            const graphData = metrics.graph || {};
+            let kgStats = {}, fgStats = {};
+            if (graphData.knowledge_graph) kgStats = graphData.knowledge_graph;
+            if (graphData.fractal_graph_v2) fgStats = graphData.fractal_graph_v2;
+            
+            const totalNodes = kgStats.total_nodes || fgStats.total_nodes || 0;
+            const totalEdges = kgStats.total_edges || fgStats.total_edges || 0;
+            const totalGroups = fgStats.total_groups || 0;
+            
+            $('#graphNodes').textContent = totalNodes;
+            $('#graphEdges').textContent = totalEdges;
+            $('#graphGroups').textContent = totalGroups;
+            
+            // Contradictions
+            const contrad = metrics.contradictions || {};
+            $('#contradTotal').textContent = contrad.total || 0;
+            $('#contradActive').textContent = contrad.active || 0;
+            $('#contradResolved').textContent = (contrad.total || 0) - (contrad.active || 0);
+            
+            // Concepts (ConceptMiner)
+            const concepts = metrics.concepts || {};
+            $('#conceptProvisional').textContent = concepts.provisional || 0;
+            $('#conceptConfirmed').textContent = concepts.confirmed || 0;
+            $('#conceptArchived').textContent = concepts.archived || 0;
+            
+            // System Health
+            const health = metrics.health || { status: 'unknown', issues: [] };
+            const healthStatus = $('#healthStatus');
+            const healthDot = healthStatus.querySelector('.health-dot');
+            const healthText = healthStatus.querySelector('.health-text');
+            const healthIssues = $('#healthIssues');
+            
+            healthDot.className = 'health-dot ' + (health.status || 'unknown');
+            healthText.textContent = health.status === 'healthy' ? 'Здоров' : 
+                                    health.status === 'degraded' ? 'Деградация' : 'Ошибка';
+            
+            if (health.issues && health.issues.length > 0) {
+                healthIssues.innerHTML = '<ul>' + health.issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>';
+            } else {
+                healthIssues.innerHTML = '<span style="color: #4caf50">Проблем не обнаружено</span>';
+            }
             
             // Render activities
             const activityList = $('#activityList');
-            if (data.activities && data.activities.length > 0) {
-                activityList.innerHTML = data.activities.map(a => `
+            if (analytics.activities && analytics.activities.length > 0) {
+                activityList.innerHTML = analytics.activities.map(a => `
                     <div class="activity-item">
                         <div class="activity-icon">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
