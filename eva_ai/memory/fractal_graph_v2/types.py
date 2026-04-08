@@ -57,6 +57,15 @@ class NodeType(Enum):
     MODEL_A = "model_a"
     MODEL_B = "model_b"
     MODEL_C = "model_c"
+    MODEL_ROOT = "model_root"      # L0 - GGUF модель метаданные
+    
+    # GGUF Shadow (гибридная интеграция)
+    DOMAIN_PROFILE = "domain_profile"           # L1 - доменная специализация
+    ACTIVATION_FINGERPRINT = "activation_fingerprint"  # L1 - профиль активаций
+    ROUTING_RULE = "routing_rule"               # L2 - правило маршрутизации
+    QUANTIZATION_PROFILE = "quantization_profile"  # L2 - профиль квантования
+    LAYER_STATS = "layer_stats"                 # L3 - статистика слоёв
+    PARAMETER_TUNING_RECORD = "parameter_tuning_record"  # L3 - запись настройки
     
     # Семантическая группа (образ)
     SEMANTIC_GROUP = "semantic_group"
@@ -75,6 +84,13 @@ class RelationType(Enum):
     SIMILAR_TO = "similar_to"
     CONTRADICTS = "contradicts"
     RELATED_TO = "related_to"
+    
+    # GGUF Shadow связи
+    ROUTES_TO = "routes_to"           # fingerprint -> routing_rule
+    BELONGS_TO_DOMAIN = "belongs_to_domain"  # activation -> domain
+    HAS_PROFILE = "has_profile"        # model_root -> quantization_profile
+    HAS_STATS = "has_stats"           # model_root -> layer_stats
+    APPLIES_TO = "applies_to"         # routing_rule -> query
 
 
 class MemoryTier(Enum):

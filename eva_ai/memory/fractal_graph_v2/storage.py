@@ -274,7 +274,9 @@ class FractalGraphV2:
         metadata: Optional[Dict] = None,
         parent_group_id: Optional[str] = None,
         auto_cluster: bool = True,
-        cluster_threshold: float = 0.6
+        cluster_threshold: float = 0.6,
+        is_static: bool = False,
+        is_contradiction: bool = False
     ) -> FractalNode:
         """Добавить узел в граф с опциональной инкрементальной кластеризацией."""
         node_id = create_node_id(content, node_type)
@@ -297,7 +299,9 @@ class FractalGraphV2:
             last_accessed=now,
             metadata=metadata or {},
             access_count=0,
-            version=1
+            version=1,
+            is_static=is_static,
+            is_contradiction=is_contradiction
         )
         
         # Инкрементальная кластеризация

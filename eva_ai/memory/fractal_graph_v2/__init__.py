@@ -13,6 +13,7 @@ from .storage import FractalGraphV2, create_fractal_graph
 from .embeddings import EmbeddingsManager, create_embeddings_manager
 from .gguf_parser import parse_gguf_model, extract_to_graph
 from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
+from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
 from .tokenizer import GraphTokenizer, create_graph_tokenizer
 
 logger = logging.getLogger("eva_ai.fractal_graph_v2")
@@ -35,6 +36,10 @@ __all__ = [
     'extract_to_graph',
     'create_extractor',
     'GGUFKnowledgeExtractor',
+    
+    # GGUF Shadow (гибридная интеграция)
+    'GGUFShadowProfiler',
+    'create_gguf_shadow_profiler',
     
     # Tokenizer
     'GraphTokenizer',
