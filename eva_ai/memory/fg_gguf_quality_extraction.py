@@ -195,7 +195,7 @@ class GGUFToFGIntegrator:
        b. Генерация через GGUF (родной токенизатор)
        c. Контроль качества ответа
        d. Извлечение фраз (2-4 слова) с валидацией
-       e. Сохранение в FG
+       e. Сохранение в FG через стандартные методы FG (add_node, add_knowledge)
     """
     
     def __init__(self, brain=None, fractal_graph=None):
