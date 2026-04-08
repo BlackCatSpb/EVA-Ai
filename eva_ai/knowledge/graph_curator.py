@@ -110,6 +110,21 @@ class GraphCurator:
     - Поддержание порядка в графе
     """
     
+    TEMPLATE_PATTERNS = [
+        'продолжим разговор о перспективах',
+        'давайте продолжим разговор',
+        'перспективы развития искусственного интеллекта',
+        'развитие машинного обучения и нейронных сетей',
+        '### перспективы разработка',
+        'настоящее развитие технологий в области',
+    ]
+    
+    LOW_QUALITY_INDICATORS = [
+        'q:', 'a:', 'вопрос:', 'ответ:',
+        'пример:', 'обратите внимание',
+        'особенности данного предложения',
+    ]
+    
     SEMANTIC_ASSOCIATIONS = {
         'снег': ['белый', 'холодный', 'зимний', 'искрящийся', 'пушистый', 'первый', 'сугроб'],
         'дождь': ['мокрый', 'холодный', 'ливень', 'капли', 'зонт', 'облака'],
@@ -532,6 +547,9 @@ class GraphCurator:
         if self.config.cleanup_duplicates:
             self._cleanup_duplicates(knowledge_graph)
         
+        # 5. Чистка мусора (шаблоны, низкое качество)
+        self._cleanup_garbage(knowledge_graph)
+        
         # 5. Ре-кластеризация
         if self.config.recluster_threshold > 0:
             self._recluster_if_needed(knowledge_graph)
@@ -676,6 +694,58 @@ class GraphCurator:
                 
         except Exception as e:
             logger.debug(f"Ошибка чистки дубликатов: {e}")
+    
+    def _cleanup_garbage(self, kg):
+        """Удалить мусорные узлы (шаблоны, низкое качество, повторы)."""
+        try:
+            nodes = self._get_all_nodes(kg)
+            removed = 0
+            
+            for node in nodes:
+                content = getattr(node, 'content', '') or getattr(node, 'name', '') or ''
+                if not content:
+                    continue
+                
+                content_lower = content.lower()
+                is_garbage = False
+                
+                # 1. Проверка на шаблоны
+                for pattern in self.TEMPLATE_PATTERNS:
+                    if pattern.lower() in content_lower:
+                        is_garbage = True
+                        break
+                
+                # 2. Проверка на индикаторы низкого качества
+                if not is_garbage:
+                    indicator_count = sum(1 for ind in self.LOW_QUALITY_INDICATORS if ind in content_lower)
+                    if indicator_count >= 3:
+                        is_garbage = True
+                
+                # 3. Проверка на очень короткий контент с ссылками
+                if not is_garbage and len(content) < 50 and ('http' in content_lower or 'www' in content_lower):
+                    is_garbage = True
+                
+                # 4. Проверка на повторяющиеся символы
+                if not is_garbage:
+                    if '###' in content or '##' in content:
+                        if content.count('###') > 3 or content.count('##') > 5:
+                            is_garbage = True
+                
+                if is_garbage:
+                    self._remove_node(kg, node)
+                    removed += 1
+                    
+                    if removed >= 20:
+                        break
+            
+            if removed > 0:
+                logger.info(f"Удалено мусора: {removed}")
+                with self._metrics_lock:
+                    self.metrics.links_removed += removed
+                self._publish_event(CuratorEventType.CLEANUP_COMPLETE, {"garbage_removed": removed})
+                
+        except Exception as e:
+            logger.debug(f"Ошибка чистки мусора: {e}")
     
     def _recluster_if_needed(self, kg):
         """Пере кластеризация при необходимости."""

@@ -40,6 +40,14 @@ def _init_managers(brain):
     except ImportError:
         brain.config_manager = None
         query_logger.warning("Менеджер конфигурации недоступен")
+    
+    # Инициализация прогнозной деградации (P0)
+    try:
+        if hasattr(brain, '_init_proactive_fallback'):
+            brain._init_proactive_fallback()
+            query_logger.info("Proactive fallback initialized in _init_managers")
+    except Exception as e:
+        query_logger.warning(f"Proactive fallback init error: {e}")
 
     try:
         from .system_state import SystemStateManager, SystemState

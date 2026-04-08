@@ -8,6 +8,17 @@ import random
 import threading
 from typing import Dict, Any, Optional, List
 
+try:
+    from eva_ai.core.proactive_fallback import (
+        ProactiveDegradationMonitor, StatePreservingFallback, 
+        FallbackErrorMapper, create_proactive_fallback
+    )
+except ImportError:
+    ProactiveDegradationMonitor = None
+    StatePreservingFallback = None
+    FallbackErrorMapper = None
+    create_proactive_fallback = None
+
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 logger = logging.getLogger("eva_ai.core_brain")
 
@@ -20,14 +31,121 @@ FALLBACK_RESPONSES = {
 }
 FALLBACK_RESPONSE_DEFAULT = "Я получила ваш запрос, но из-за временных ограничений системы не могу обработать его в полной мере. Попробуйте позже или переформулируйте запрос."
 
+# === Кэширование запросов ===
+_query_cache: Dict[str, Dict[str, Any]] = {}
+_query_cache_lock = threading.Lock()
+_CACHE_TTL_SECONDS = 300  # 5 минут
+_CACHE_MAX_SIZE = 100
+
+# Быстрые ответы на приветствия (без LLM)
+GREETING_RESPONSES = {
+    'привет': "Привет! Рада видеть вас. Чем могу помочь?",
+    'приветик': "Приветик! Как дела? Чем могу помочь?",
+    'приветики': "Приветики! Рада вас видеть! Чем могу помочь?",
+    'здравствуй': "Здравствуйте! Чем могу быть полезна?",
+    'здравствуйте': "Здравствуйте! Рада вас видеть. Чем помогу?",
+    'прив': "Привет! Чем могу помочь?",
+    'ку': "Привет! Что хотите обсудить?",
+    'здорово': "Здорово! Рад вас видеть. Чем могу помочь?",
+    'hi': "Hi! Ready to help. What would you like to discuss?",
+    'hello': "Hello! How can I assist you today?",
+    'hey': "Hey! What's on your mind?",
+}
+
+
+def _get_cached_response(query: str) -> Optional[Dict[str, Any]]:
+    """Получить кэшированный ответ если есть"""
+    cache_key = query.strip().lower()
+    with _query_cache_lock:
+        if cache_key in _query_cache:
+            entry = _query_cache[cache_key]
+            if time.time() - entry['timestamp'] < _CACHE_TTL_SECONDS:
+                query_logger.info(f"Кэш-хит для запроса: {query[:30]}...")
+                return entry['response']
+            else:
+                del _query_cache[cache_key]
+    return None
+
+
+def _cache_response(query: str, response: Dict[str, Any]) -> None:
+    """Кэшировать ответ"""
+    cache_key = query.strip().lower()
+    with _query_cache_lock:
+        if len(_query_cache) >= _CACHE_MAX_SIZE:
+            oldest_key = min(_query_cache.keys(), key=lambda k: _query_cache[k]['timestamp'])
+            del _query_cache[oldest_key]
+        _query_cache[cache_key] = {
+            'response': response,
+            'timestamp': time.time()
+        }
+
+
+def _is_greeting_query(query: str) -> Optional[str]:
+    """Проверить является ли запрос приветствием и вернуть быстрый ответ"""
+    q = query.strip().lower()
+    for greeting, response in GREETING_RESPONSES.items():
+        if q == greeting or q.startswith(greeting + ' ') or q.startswith(greeting + ','):
+            return response
+    return None
+
 
 class QueryMixin:
     """Mixin providing query processing methods to CoreBrain."""
+    
+    def _init_proactive_fallback(self):
+        """Инициализировать прогнозную деградацию."""
+        if create_proactive_fallback:
+            self._degradation_monitor, self._state_preserving = create_proactive_fallback()
+            query_logger.info("Proactive fallback initialized")
+        else:
+            self._degradation_monitor = None
+            self._state_preserving = None
+    
+    def _check_proactive_fallback(self, response: str, latency: float = 0.0) -> bool:
+        """Проверить метрики и решить, нужен ли превентивный fallback."""
+        if not self._degradation_monitor:
+            return False
+        metrics = self._degradation_monitor.analyze_response(response, latency)
+        should_degrade = self._degradation_monitor.should_trigger_fallback(metrics)
+        if should_degrade:
+            reason = metrics.get_degradation_reason()
+            query_logger.info(f"Proactive fallback triggered: {reason} (variance={metrics.token_variance:.2f}, repeat={metrics.repeat_rate:.2f})")
+        return should_degrade
+    
+    def _update_fallback_state(self, query: str, user_context: Optional[Dict], 
+                                partial_response: str = None, embeddings: Any = None):
+        """Обновить состояние для передачи между уровнями fallback."""
+        if self._state_preserving:
+            self._state_preserving.set_state("query", query)
+            self._state_preserving.set_state("user_context", user_context)
+            if partial_response:
+                self._state_preserving.set_state("partial_response", partial_response)
+            if embeddings is not None:
+                self._state_preserving.set_artifact("embeddings", embeddings)
 
     def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
         """Processes user query via unified generation coordinator with multi-level fallback."""
         start_time = time.time()
         query_logger.info(f"Processing query: {query[:50]}...")
+        
+        # Проверка: быстрый ответ на приветствие (без LLM)
+        greeting_response = _is_greeting_query(query)
+        if greeting_response:
+            query_logger.info(f"Быстрый ответ на приветствие")
+            return {
+                "response": greeting_response,
+                "text": greeting_response,
+                "status": "ok",
+                "source": "greeting_cache",
+                "processing_time": time.time() - start_time,
+                "timestamp": time.time()
+            }
+        
+        # Проверка: кэшированный ответ
+        cached = _get_cached_response(query)
+        if cached:
+            cached['processing_time'] = time.time() - start_time
+            return cached
         
         # Фиксируем активность для таймера автовыгрузки
         if hasattr(self, 'record_query_activity'):
@@ -82,6 +200,9 @@ class QueryMixin:
             temperature, top_p, repetition_penalty, disable_pytorch, qwen_only_mode)
 
         if result is not None:
+            # Кэшируем успешный ответ
+            if result.get('response') and result.get('status') != 'error':
+                _cache_response(query, result)
             return result
 
         return {
@@ -194,11 +315,24 @@ class QueryMixin:
                 try:
                     relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
                     if relevant:
+                        # Фильтрация мусора
+                        garbage_patterns = ['продолжим разговор', 'перспективы развития', '###', 'q:', 'a:', 'пример:']
                         knowledge_context = "\n\nИз памяти системы:\n"
+                        count = 0
                         for node in relevant:
                             name = getattr(node, 'name', '') or ''
-                            content = getattr(node, 'content', '') or ''
-                            knowledge_context += f"- {content}\n" if content else f"- {name}\n"
+                            content = getattr(node, 'content', '') or getattr(node, 'description', '') or ''
+                            
+                            # Пропускаем мусор
+                            if any(p in (content.lower() + name.lower()) for p in garbage_patterns):
+                                continue
+                            if len(content) < 30:
+                                continue
+                                
+                            knowledge_context += f"- {content[:200]}\n" if content else f"- {name}\n"
+                            count += 1
+                            if count >= 3:
+                                break
                 except Exception as e:
                     query_logger.debug(f"Knowledge graph context error: {e}")
 

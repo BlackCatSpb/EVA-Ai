@@ -392,7 +392,7 @@ class FractalGraphV2:
                     break
                 # Или ближайший узел
                 best_node_sim = sim
-                best_node = node.parent_group_id
+                best_node = node_id
         
         return best_node
     
@@ -542,7 +542,7 @@ class FractalGraphV2:
                     group_vec = self._group_embeddings[group_id]
                     similarity = float(np.dot(query_vec, group_vec))
                     
-                    if similarity > 0.2:
+                    if similarity > 0.5:
                         results.append((group_id, similarity, group.parent_group_id))
         
         # Ищем в узлах
@@ -552,7 +552,7 @@ class FractalGraphV2:
                     node_vec = self._normalized_embeddings[node_id]
                     similarity = float(np.dot(query_vec, node_vec))
                     
-                    if similarity > 0.2:
+                    if similarity > 0.5:
                         results.append((node_id, similarity, node.parent_group_id))
         
         # Сортируем

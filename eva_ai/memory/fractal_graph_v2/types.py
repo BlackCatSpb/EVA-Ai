@@ -101,6 +101,11 @@ class FractalNode:
     # Уверенность (0-1), накапливается из подтверждений
     confidence: float = 0.5
     
+    # Временной вес для Confidence Decay (P2)
+    # w(t) = w₀ * e^(-λ*Δt), где λ зависит от домена
+    temporal_weight: float = 1.0
+    domain_lambda: float = 0.01  # λ для временного распада (по умолчанию 1%/день)
+    
     # Временные метки
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
@@ -116,6 +121,18 @@ class FractalNode:
     # Флаги
     is_static: bool = False          # Статичные узлы (модели) не удаляются
     is_contradiction: bool = False   # Помечен как противоречие
+    
+    def get_effective_confidence(self) -> float:
+        """
+        Вычислить эффективную уверенность с учётом временного распада.
+        Формула: w(t) = w₀ * e^(-λ*Δt)
+        """
+        import math
+        delta_t = time.time() - self.last_accessed
+        # Δt в днях (86400 секунд в дне)
+        delta_days = delta_t / 86400
+        decay_factor = math.exp(-self.domain_lambda * delta_days)
+        return self.confidence * self.temporal_weight * decay_factor
     
     def to_dict(self) -> Dict:
         d = asdict(self)

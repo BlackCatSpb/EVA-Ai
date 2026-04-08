@@ -220,7 +220,7 @@ class FractalMemoryGraph:
         query: str,
         top_k: int = 5,
         min_level: int = 2,
-        min_similarity: float = 0.3
+        min_similarity: float = 0.5
     ) -> List[Dict[str, Any]]:
         """
         Семантический поиск по запросу.
@@ -229,7 +229,7 @@ class FractalMemoryGraph:
             query: Текстовый запрос
             top_k: Количество результатов
             min_level: Минимальный уровень для поиска
-            min_similarity: Минимальная схожесть (по умолчанию 0.3)
+            min_similarity: Минимальная схожесть (по умолчанию 0.5 - повышено)
             
         Returns:
             List of {node, similarity, group}
@@ -708,7 +708,7 @@ class FractalMemoryGraph:
         
         return query_node.id
     
-    def get_context_for_query(self, query: str, max_length: int = 512, min_similarity: float = 0.3) -> str:
+    def get_context_for_query(self, query: str, max_length: int = 512, min_similarity: float = 0.5) -> str:
         """
         Получить контекст для запроса.
         Аналог UnifiedFractalMemory.get_context_for_query()
@@ -727,12 +727,30 @@ class FractalMemoryGraph:
         if not results:
             return ""
         
-        # Формируем контекст
+        # Фильтрация мусора и формирование контекста
         context_parts = []
+        template_patterns = [
+            'продолжим разговор', 'перспективы развития',
+            '###', '##', 'особенности данного',
+            'q:', 'a:', 'пример:'
+        ]
+        
         for r in results:
             content = r.get('content', '')
-            if content:
-                context_parts.append(content)
+            if not content:
+                continue
+            
+            # Проверка на мусор
+            content_lower = content.lower()
+            is_garbage = any(p in content_lower for p in template_patterns)
+            if is_garbage:
+                continue
+            
+            # Проверка минимальной длины
+            if len(content) < 30:
+                continue
+            
+            context_parts.append(content)
         
         context = "\n".join(context_parts)
         
@@ -742,7 +760,7 @@ class FractalMemoryGraph:
         
         return context
     
-    def retrieve_knowledge(self, query: str, top_k: int = 5, min_similarity: float = 0.3) -> List[Dict[str, Any]]:
+    def retrieve_knowledge(self, query: str, top_k: int = 5, min_similarity: float = 0.5) -> List[Dict[str, Any]]:
         """
         Извлечь знания по запросу.
         Аналог UnifiedFractalMemory.retrieve_knowledge()
@@ -758,10 +776,26 @@ class FractalMemoryGraph:
         results = self.semantic_search(query, top_k=top_k, min_level=1, min_similarity=min_similarity)
         
         knowledge = []
+        template_patterns = [
+            'продолжим разговор', 'перспективы развития',
+            '###', '##', 'особенности данного',
+            'q:', 'a:', 'пример:'
+        ]
+        
         for r in results:
+            content = r.get('content', '')
+            if not content:
+                continue
+            
+            content_lower = content.lower()
+            if any(p in content_lower for p in template_patterns):
+                continue
+            if len(content) < 30:
+                continue
+            
             knowledge.append({
                 "node_id": r.get("id"),
-                "content": r.get("content"),
+                "content": content,
                 "similarity": r.get("similarity"),
                 "level": r.get("level")
             })

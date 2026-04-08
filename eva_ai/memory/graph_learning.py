@@ -190,16 +190,29 @@ class DynamicContextBuilder:
         
         parts = []
         
+        # Шаблоны мусора для фильтрации
+        garbage_patterns = ['продолжим разговор', 'перспективы развития', '###', 'q:', 'a:', 'пример:']
+        
         # Сначала концепты (обобщённые знания)
         if concepts:
             parts.append("Общие знания по теме:")
             for c in concepts:
-                parts.append(f"- {c.title}: {c.description}")
+                desc_lower = c.description.lower() if c.description else ''
+                if any(p in desc_lower for p in garbage_patterns):
+                    continue
+                parts.append(f"- {c.title}: {c.description[:200]}")
         
         # Затем конкретные опыты
         if experiences:
             parts.append("\nПредыдущий опыт:")
             for exp in experiences:
+                # Фильтр мусора
+                resp_lower = exp.response.lower() if exp.response else ''
+                if any(p in resp_lower for p in garbage_patterns):
+                    continue
+                if len(exp.response) < 30:
+                    continue
+                    
                 # Только если качество высокое
                 if exp.quality_score > 0.6:
                     parts.append(f"- Q: {exp.query[:100]}")

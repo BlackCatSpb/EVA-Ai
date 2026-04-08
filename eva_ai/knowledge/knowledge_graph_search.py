@@ -13,11 +13,21 @@ class KnowledgeGraphSearch:
         results = []
         query_lower = query.lower()
         
+        # Шаблоны мусора для фильтрации
+        garbage_patterns = ['продолжим разговор', 'перспективы развития', '###', 'q:', 'a:', 'пример:', 'особенности данного']
+        
         for node in self.nodes.values():
             score = 0
-            if query_lower in node.name.lower():
+            node_name = node.name.lower() if node.name else ''
+            node_desc = node.description.lower() if node.description else ''
+            
+            # Пропускаем мусор
+            if any(p in node_name or p in node_desc for p in garbage_patterns):
+                continue
+            
+            if query_lower in node_name:
                 score += 10
-            if query_lower in node.description.lower():
+            if query_lower in node_desc:
                 score += 5
             if hasattr(node, 'keyword_index') and node.keyword_index:
                 for kw in node.keyword_index:
