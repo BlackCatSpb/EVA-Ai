@@ -16,6 +16,7 @@ from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
 from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
 from .hybrid_tokenizer import HybridTokenizer, create_hybrid_tokenizer
 from .eva_generator import EVAGenerator, create_eva_generator, GenerationRequest, GenerationResult
+from .semantic_context_cache import SemanticContextCache, create_semantic_context_cache
 from .tokenizer import GraphTokenizer, create_graph_tokenizer
 
 logger = logging.getLogger("eva_ai.fractal_graph_v2")
@@ -52,6 +53,10 @@ __all__ = [
     'create_eva_generator',
     'GenerationRequest',
     'GenerationResult',
+    
+    # Semantic Context Cache (CPU-based semantic search)
+    'SemanticContextCache',
+    'create_semantic_context_cache',
     
     # Tokenizer
     'GraphTokenizer',
