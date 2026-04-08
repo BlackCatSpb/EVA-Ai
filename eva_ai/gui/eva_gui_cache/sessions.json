@@ -2362,6 +2362,16 @@
         }
       ],
       "entities": []
+    },
+    "bce10dac-3046-493d-b533-da5ff5af7e4d": {
+      "id": "bce10dac-3046-493d-b533-da5ff5af7e4d",
+      "user_id": "2c10c924-35db-4f3c-b298-9bfbb2d50dc0",
+      "name": "Сессия admin",
+      "created_at": "2026-04-08T12:34:40.170193",
+      "last_active": "2026-04-08T12:34:40.170198",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }
