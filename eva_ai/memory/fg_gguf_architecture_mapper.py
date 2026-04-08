@@ -159,8 +159,8 @@ class GGUFToFGArchitectureMapper:
         try:
             from eva_ai.memory.fractal_graph_v2.gguf_parser import GGUFModelParser
             
-            parser = GGUFModelParser()
-            model_info = parser.parse(model_path)
+            parser = GGUFModelParser(model_path)
+            model_info = parser.parse()
             
             # 1. Сохраняем config модели
             self._create_model_config_node(model_info)

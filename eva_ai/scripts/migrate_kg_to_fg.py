@@ -18,53 +18,51 @@ def main():
     
     try:
         # Импорт модулей
-        from eva_ai.core.component_initializer import ComponentInitializer
+        from eva_ai.core.core_brain import CoreBrain
         
-        logger.info("Инициализация системы...")
-        initializer = ComponentInitializer()
+        logger.info("Создание CoreBrain...")
+        brain = CoreBrain()
         
-        # Инициализировать brain
-        if not initializer.initialize():
-            logger.error("Ошибка инициализации")
-            return
+        logger.info("Brain создан, ищем компоненты...")
         
-        brain = initializer.core_brain
-        if not brain:
-            logger.error("Brain не инициализирован")
-            return
+        # Выводим все атрибуты brain
+        all_attrs = [a for a in dir(brain) if not a.startswith('_') and 'graph' in a.lower()]
+        logger.info(f"Graph-related attributes: {all_attrs}")
         
-        logger.info("Brain инициализирован")
-        
-        # Проверить наличие компонентов
-        kg = getattr(brain, 'knowledge_graph', None)
-        fg = getattr(brain, 'fractal_graph_v2', None)
-        
-        logger.info(f"KnowledgeGraph: {'да' if kg else 'нет'}")
-        logger.info(f"FractalGraphV2: {'да' if fg else 'нет'}")
-        
-        if not kg:
-            logger.warning("KnowledgeGraph не найден")
-            return
+        # Пробуем напрямую создать FG
+        try:
+            from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
+            logger.info("Создаём FractalMemoryGraph напрямую...")
+            fg = FractalMemoryGraph()
+            logger.info(f"FractalGraphV2 создан напрямую: {'да'}")
             
-        if not fg:
-            logger.warning("FractalGraphV2 не найден")
-            return
-        
-        # Запустить миграцию
-        from eva_ai.knowledge.kg_to_fg_migration import migrate_knowledge_graph
-        
-        logger.info("Запуск миграции...")
-        result = migrate_knowledge_graph(brain)
-        
-        logger.info(f"Результат: {result}")
-        
-        if result.get('status') == 'complete':
-            logger.info("✅ Миграция завершена успешно!")
-        else:
-            logger.warning(f"⚠️ Миграция завершена с проблемами: {result}")
+            # Ищем KnowledgeGraph
+            kg = brain.components.get('knowledge_graph')
+            logger.info(f"KnowledgeGraph из components: {'да' if kg else 'нет'}")
+            
+            if not kg:
+                # Пробуем через knowledge_manager
+                km = getattr(brain, 'knowledge_manager', None)
+                if km and hasattr(km, 'knowledge_graph'):
+                    kg = km.knowledge_graph
+                    logger.info(f"KnowledgeGraph из km: {'да' if kg else 'нет'}")
+            
+            if kg and fg:
+                logger.info("Запуск миграции...")
+                from eva_ai.knowledge.kg_to_fg_migration import migrate_knowledge_graph
+                result = migrate_knowledge_graph(brain)
+                logger.info(f"Результат: {result}")
+            elif not kg:
+                logger.warning("⚠️ KnowledgeGraph не найден - проверяем что есть в components")
+                logger.info(f"Все components: {list(brain.components.keys())}")
+                
+        except Exception as e:
+            logger.error(f"Ошибка создания FG: {e}")
+            import traceback
+            traceback.print_exc()
             
     except Exception as e:
-        logger.error(f"Ошибка миграции: {e}")
+        logger.error(f"Ошибка: {e}")
         import traceback
         traceback.print_exc()
 
