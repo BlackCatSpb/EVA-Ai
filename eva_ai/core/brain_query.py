@@ -1,5 +1,6 @@
 """
 Query processing dispatcher and strategy methods for CoreBrain.
+FG-only mode: uses only FractalGraphV2 for knowledge storage and generation.
 """
 import re
 import time
@@ -21,6 +22,8 @@ except ImportError:
 
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 logger = logging.getLogger("eva_ai.core_brain")
+
+FG_ONLY_MODE = True
 
 FALLBACK_RESPONSES = {
     'greeting': "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей.",
@@ -218,6 +221,8 @@ class QueryMixin:
                                   repetition_penalty: float, disable_pytorch: bool,
                                   qwen_only_mode: bool) -> Optional[Dict[str, Any]]:
         """Dispatches to the appropriate query handling strategy."""
+        if FG_ONLY_MODE:
+            return self._handle_fg_only(query, user_context, start_time, max_new_tokens)
         if qwen_only_mode:
             return self._handle_qwen_mode(query, user_context, start_time, max_new_tokens,
                                           temperature, top_p, repetition_penalty, disable_pytorch)
@@ -262,6 +267,244 @@ class QueryMixin:
                 tracker.fail(command_id, str(e))
         return None
 
+    def _handle_fg_only(self, query: str, user_context: Optional[Dict], start_time: float,
+                        max_new_tokens: int) -> Dict[str, Any]:
+        """Handles queries using only FractalGraphV2 - используем все знания из FG."""
+        query_logger.info("FG-only mode: используем FractalGraphV2 знания")
+        
+        # Получаем граф
+        fractal_graph = getattr(self, 'fractal_graph_v2', None)
+        
+        if not fractal_graph:
+            return self._generate_basic_fallback_response(query)
+        
+        # Получаем доступ к FractalGraphV2 (FractalMemoryGraph.storage)
+        fg = getattr(fractal_graph, 'storage', fractal_graph)
+        
+        # Проверяем есть ли данные в графе
+        total_nodes = len(fg.nodes) if hasattr(fg, 'nodes') else 0
+        query_logger.info(f"FG nodes: {total_nodes}")
+        
+        # === ОСНОВНОЙ МЕТОД: используем ВСЕ знания из FG напрямую ===
+        # Собираем весь контент из узлов как базу знаний
+        all_knowledge = []
+        if hasattr(fg, 'nodes'):
+            for node_id, node in fg.nodes.items():
+                content = getattr(node, 'content', '')
+                if content and len(content) > 10:
+                    # Фильтруем мусор
+                    if not any(x in content.lower() for x in ['продолжим разговор', '###', 'q:', 'a:', 'особенности данного']):
+                        node_type = getattr(node, 'node_type', 'unknown')
+                        level = getattr(node, 'level', 0)
+                        # Берем узлы уровня 1+ (факты и концепты)
+                        if level >= 1:
+                            all_knowledge.append({
+                                'content': content,
+                                'type': str(node_type),
+                                'level': level
+                            })
+        
+        query_logger.info(f"FG knowledge items: {len(all_knowledge)}")
+        
+        # Если есть знания - используем их для генерации
+        if all_knowledge:
+            # Ищем релевантные знания по ключевым словам из запроса
+            query_words = query.lower().split()
+            relevant_knowledge = []
+            
+            for item in all_knowledge:
+                content_lower = item['content'].lower()
+                # Простой поиск по ключевым словам
+                matches = sum(1 for w in query_words if w in content_lower and len(w) > 2)
+                if matches > 0:
+                    item['matches'] = matches
+                    relevant_knowledge.append(item)
+            
+            # Сортируем по релевантности
+            relevant_knowledge.sort(key=lambda x: x['matches'], reverse=True)
+            
+            # Берем топ релевантные
+            top_knowledge = relevant_knowledge[:10]
+            
+            if top_knowledge:
+                # Формируем контекст из найденных знаний
+                context_parts = [item['content'][:200] for item in top_knowledge]
+                context = '\n'.join(context_parts)
+                
+                # Генерируем ответ на основе знаний
+                response_text = self._generate_fg_response(query, context)
+                self._save_to_fractal_graph(query, response_text)
+                
+                query_logger.info(f"FG generation: used {len(top_knowledge)} relevant knowledge items")
+                return {
+                    "response": response_text,
+                    "text": response_text,
+                    "status": "ok",
+                    "confidence": 0.75,
+                    "source": "fractal_graph_v2_knowledge",
+                    "fallback_level": 0,
+                    "knowledge_used": len(top_knowledge),
+                    "processing_time": time.time() - start_time,
+                    "timestamp": time.time()
+                }
+        
+        # Fallback - используем все доступные знания без фильтрации
+        if all_knowledge:
+            # Берем случайные знания для контекста
+            import random
+            sample_knowledge = random.sample(all_knowledge, min(5, len(all_knowledge)))
+            context_parts = [item['content'][:150] for item in sample_knowledge]
+            context = '\n'.join(context_parts)
+            
+            response_text = self._generate_fg_response(query, context)
+            self._save_to_fractal_graph(query, response_text)
+            
+            return {
+                "response": response_text,
+                "text": response_text,
+                "status": "ok",
+                "confidence": 0.6,
+                "source": "fractal_graph_v2_random",
+                "fallback_level": 1,
+                "knowledge_used": len(sample_knowledge),
+                "processing_time": time.time() - start_time,
+                "timestamp": time.time()
+            }
+        
+        # === FALLBACK: Two-Model Pipeline ===
+        query_logger.info("FG empty - falling back to Two-Model Pipeline")
+        return self._handle_sre_fallback(query, user_context, start_time, max_new_tokens)
+    
+    def _handle_sre_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
+                              max_new_tokens: int) -> Dict[str, Any]:
+        """Fallback to SelfReasoningEngine when FG methods fail."""
+        reasoning_engine = getattr(self, 'self_reasoning_engine', None)
+        
+        if reasoning_engine is None and hasattr(self, 'reasoning_integration') and self.reasoning_integration:
+            reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
+        
+        if not reasoning_engine:
+            query_logger.warning("SRE not available - using basic templates")
+            response_text = self._generate_fg_response(query, None)
+            return {
+                "response": response_text,
+                "text": response_text,
+                "status": "ok",
+                "confidence": 0.3,
+                "source": "basic_templates",
+                "fallback_level": 3,
+                "processing_time": time.time() - start_time,
+                "timestamp": time.time()
+            }
+        
+        try:
+            query_logger.info("Using SelfReasoningEngine as fallback")
+            
+            # Получаем историю диалогов
+            conversation_history = None
+            if user_context and 'conversation_history' in user_context:
+                conversation_history = user_context['conversation_history']
+            
+            # Пробуем использовать two_model_pipeline если есть
+            pipeline = getattr(self, 'two_model_pipeline', None)
+            if not pipeline and hasattr(self, 'two_model_pipeline_ready') and self.two_model_pipeline_ready:
+                pipeline = self.two_model_pipeline
+            
+            if pipeline:
+                # Используем Two-Model Pipeline
+                query_logger.info("Using two_model_pipeline for SRE fallback")
+                result = pipeline.process_query(query)
+                
+                if result and result.get('response'):
+                    response_text = result.get('response')
+                    self._save_to_fractal_graph(query, response_text)
+                    return {
+                        "response": response_text,
+                        "text": response_text,
+                        "status": "ok",
+                        "confidence": 0.8,
+                        "source": "two_model_pipeline_fallback",
+                        "fallback_level": 2,
+                        "processing_time": time.time() - start_time,
+                        "timestamp": time.time()
+                    }
+            
+            # Пробуем прямой вызов SRE process_query
+            query_logger.info("Trying direct SRE process_query")
+            reasoning_result = reasoning_engine.process_query(query, user_context)
+            
+            if reasoning_result and (reasoning_result.get('response') or reasoning_result.get('text')):
+                response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
+                self._save_to_fractal_graph(query, response_text)
+                
+                return {
+                    "response": response_text,
+                    "text": response_text,
+                    "status": "ok",
+                    "confidence": reasoning_result.get('confidence', 0.8),
+                    "source": "self_reasoning_engine_fallback",
+                    "fallback_level": 2,
+                    "processing_time": time.time() - start_time,
+                    "timestamp": time.time()
+                }
+        except Exception as e:
+            query_logger.warning(f"SRE fallback error: {e}")
+        
+        # Final fallback
+        response_text = self._generate_fg_response(query, None)
+        return {
+            "response": response_text,
+            "text": response_text,
+            "status": "ok",
+            "confidence": 0.2,
+            "source": "final_fallback",
+            "fallback_level": 3,
+            "processing_time": time.time() - start_time,
+            "timestamp": time.time()
+        }
+    
+    def _generate_fg_response(self, query: str, context: Optional[str]) -> str:
+        """Generate response using FG context and templates."""
+        query_lower = query.lower().strip()
+        
+        if any(g in query_lower for g in ['привет', 'здравствуй', 'добрый', 'hi', 'hello', 'hey']):
+            return random.choice([
+                "Привет! Рада вас видеть. Чем могу помочь?",
+                "Здравствуйте! Как я могу помочь вам сегодня?",
+                "Приветик! Чем могу быть полезна?"
+            ])
+        
+        if any(w in query_lower for w in ['пока', 'до свидания', 'bye', 'goodbye']):
+            return random.choice([
+                "До свидания! Рада была помочь.",
+                "Пока! Обращайтесь, если понадобится помощь.",
+                "До встречи! Хорошего дня."
+            ])
+        
+        if any(w in query_lower for w in ['спасибо', 'благодарю', 'thank']):
+            return random.choice([
+                "Пожалуйста! Всегда рада помочь.",
+                "Спасибо за добрые слова! Обращайтесь ещё.",
+                "Рада была помочь! Заходите ещё."
+            ])
+        
+        if context and len(context) > 30:
+            context_clean = ' '.join(context.split())[:600]
+            return f"Основываясь на моих знаниях:\n\n{context_clean}"
+        
+        if '?' in query:
+            return random.choice([
+                "Интересный вопрос! Позвольте подумать над ответом.",
+                "Хороший вопрос. Я обработала ваш запрос через фрактальную память.",
+                "Я получила ваш вопрос. В моей памяти есть релевантные данные - позвольте извлечь их."
+            ])
+        
+        return random.choice([
+            "Я обработала ваш запрос через фрактальную память.",
+            "Интересная тема. Могу рассказать подробнее, если уточните вопрос.",
+            "Спасибо за ваш вопрос!"
+        ])
+
     def _handle_qwen_mode(self, query: str, user_context: Optional[Dict], start_time: float,
                            max_new_tokens: int, temperature: float, top_p: float,
                            repetition_penalty: float, disable_pytorch: bool) -> Dict[str, Any]:
@@ -297,7 +540,6 @@ class QueryMixin:
 
         knowledge_context = ""
         
-        # Пробуем FractalGraphV2 (новый граф)
         fractal_graph = getattr(self, 'fractal_graph_v2', None)
         if fractal_graph and hasattr(fractal_graph, 'get_context_for_query'):
             try:
@@ -307,34 +549,6 @@ class QueryMixin:
                     query_logger.debug("Using FractalGraphV2 for context")
             except Exception as e:
                 query_logger.debug(f"FractalGraphV2 context error: {e}")
-        
-        # Fallback: классический knowledge_graph
-        if not knowledge_context:
-            knowledge_graph = getattr(self, 'knowledge_graph', None)
-            if knowledge_graph and hasattr(knowledge_graph, 'get_relevant_nodes'):
-                try:
-                    relevant = knowledge_graph.get_relevant_nodes(query, limit=5)
-                    if relevant:
-                        # Фильтрация мусора
-                        garbage_patterns = ['продолжим разговор', 'перспективы развития', '###', 'q:', 'a:', 'пример:']
-                        knowledge_context = "\n\nИз памяти системы:\n"
-                        count = 0
-                        for node in relevant:
-                            name = getattr(node, 'name', '') or ''
-                            content = getattr(node, 'content', '') or getattr(node, 'description', '') or ''
-                            
-                            # Пропускаем мусор
-                            if any(p in (content.lower() + name.lower()) for p in garbage_patterns):
-                                continue
-                            if len(content) < 30:
-                                continue
-                                
-                            knowledge_context += f"- {content[:200]}\n" if content else f"- {name}\n"
-                            count += 1
-                            if count >= 3:
-                                break
-                except Exception as e:
-                    query_logger.debug(f"Knowledge graph context error: {e}")
 
         full_prompt = query + knowledge_context if knowledge_context else query
 
@@ -343,8 +557,7 @@ class QueryMixin:
             query_logger.info("Two-Model Pipeline active - skipping standard GGUF fallback")
         elif self.llama_cpp_ready and self.llama_cpp_deployment:
             result = self._handle_llama_cpp(query, full_prompt, user_context, start_time,
-                                            max_new_tokens, temperature, top_p, repetition_penalty,
-                                            knowledge_graph)
+                                            max_new_tokens, temperature, top_p, repetition_penalty)
             if result:
                 return result
 
@@ -419,6 +632,9 @@ class QueryMixin:
                                         'не известно', 'не могу определить', 'затрудняюсь', 'недостаточно информации',
                                         'мне неизвестно', 'не располагаю']
                     is_unknown = any(p in response_text.lower() for p in unknown_patterns)
+                    
+                    self._save_to_fractal_graph(query, response_text)
+                    
                     if is_unknown and hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
                         try:
                             sdl = self.self_dialog_learning
@@ -486,8 +702,7 @@ class QueryMixin:
 
     def _handle_llama_cpp(self, query: str, full_prompt: str, user_context: Optional[Dict],
                            start_time: float, max_new_tokens: int, temperature: float,
-                           top_p: float, repetition_penalty: float,
-                           knowledge_graph) -> Optional[Dict[str, Any]]:
+                           top_p: float, repetition_penalty: float) -> Optional[Dict[str, Any]]:
         """Handles LlamaCpp (GGUF) generation with module integration."""
         try:
             query_logger.info("Using LlamaCpp (GGUF) for generation")
@@ -604,25 +819,7 @@ class QueryMixin:
             if search_results:
                 confidence = min(confidence + 0.1, 0.95)
 
-            if knowledge_graph and hasattr(knowledge_graph, 'add_node'):
-                try:
-                    key_concepts = self._extract_key_concepts(query, response_text)
-                    knowledge_graph.add_node(
-                        name=query[:50], content=f"Q: {query}\nA: {response_text}",
-                        node_type='conversation',
-                        properties={'query': query, 'response': response_text,
-                                    'confidence': confidence, 'timestamp': time.time()})
-                    for concept in key_concepts:
-                        try:
-                            knowledge_graph.add_node(
-                                name=concept['word'], content=concept['description'],
-                                node_type=concept['type'],
-                                properties={'linked_to': query[:50]})
-                        except Exception:
-                            pass
-                    query_logger.debug(f"Saved to graph: {len(key_concepts)+1} nodes")
-                except Exception as e:
-                    query_logger.debug(f"Graph save error: {e}")
+            self._save_to_fractal_graph(query, response_text)
 
             unknown_patterns = ['я не знаю', 'не знаю', 'не могу ответить', 'не имею информации', 'затрудняюсь']
             is_unknown = any(p in response_text.lower() for p in unknown_patterns)
@@ -663,6 +860,7 @@ class QueryMixin:
                 sre_confidence = reasoning_result.get('confidence', 0.0)
                 if reasoning_result.get('response') or reasoning_result.get('text'):
                     response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
+                    self._save_to_fractal_graph(query, response_text)
                     return {
                         "response": response_text, "text": response_text, "status": "ok",
                         "confidence": sre_confidence, "reasoning": formatted_reasoning,
@@ -687,20 +885,14 @@ class QueryMixin:
                 if user_context and 'conversation_history' in user_context:
                     conversation_history = user_context['conversation_history']
                 knowledge_context = None
-                if hasattr(self, 'knowledge_graph'):
+                fractal_graph = getattr(self, 'fractal_graph_v2', None)
+                if fractal_graph and hasattr(fractal_graph, 'get_context_for_query'):
                     try:
-                        from eva_ai.knowledge.knowledge_graph import KnowledgeGraph
-                        if isinstance(self.knowledge_graph, KnowledgeGraph):
-                            relevant = self.knowledge_graph.get_relevant_nodes(query, limit=5)
-                            if relevant:
-                                knowledge_context = []
-                                for node in relevant:
-                                    if hasattr(node, 'content') and node.content:
-                                        knowledge_context.append(node.content)
-                                    elif hasattr(node, 'name') and node.name:
-                                        knowledge_context.append(str(node.name))
+                        knowledge_context = fractal_graph.get_context_for_query(query, max_length=256)
+                        if knowledge_context:
+                            query_logger.debug("Using FractalGraphV2 for reasoning context")
                     except Exception as e:
-                        query_logger.debug(f"Failed to get knowledge context: {e}")
+                        query_logger.debug(f"FG context error: {e}")
                 enhanced_result = enhanced_engine.process_query(
                     query=query, conversation_history=conversation_history,
                     knowledge_context=knowledge_context)
@@ -715,6 +907,7 @@ class QueryMixin:
                         error_chain.append({"source": "enhanced_reasoning_engine",
                                             "error": "low_confidence", "confidence": conf})
                     else:
+                        self._save_to_fractal_graph(query, response_text)
                         return {
                             "response": response_text, "text": response_text,
                             "status": enhanced_result.get('status', 'ok'), "confidence": conf,
@@ -810,6 +1003,7 @@ class QueryMixin:
                     query_logger.warning(f"Qwen generation timeout/error: {gen_err}")
                     raise RuntimeError(f"Generation timeout: {gen_err}")
                 if response_text and not response_text.startswith("Ошибка"):
+                    self._save_to_fractal_graph(query, response_text)
                     clarification = self._generate_clarification_if_needed(query, response_text, 0.9)
                     result = {"response": response_text, "text": response_text, "status": "ok",
                               "confidence": 0.9, "source": "qwen_model", "fallback_level": 0,
@@ -834,6 +1028,8 @@ class QueryMixin:
                 response_dict["fallback_level"] = 1
                 response_dict["source"] = "generation_coordinator"
                 query_logger.info("Successfully used generation_coordinator")
+                if response_dict.get('generated_text'):
+                    self._save_to_fractal_graph(query, response_dict['generated_text'])
                 return response_dict
         except Exception as e:
             query_logger.warning(f"Generation coordinator unavailable: {e}")
@@ -855,6 +1051,8 @@ class QueryMixin:
                     response_dict["fallback_level"] = 2
                     response_dict["source"] = "fractal_model_manager"
                     query_logger.info("Successfully used fractal_model_manager")
+                    if response_dict.get('generated_text'):
+                        self._save_to_fractal_graph(query, response_dict['generated_text'])
                     return response_dict
         except Exception as e:
             query_logger.warning(f"Fractal model manager unavailable: {e}")
@@ -1100,6 +1298,27 @@ class QueryMixin:
             return status if status else {"error": f"Command {command_id} not found"}
         return {"active_generations": tracker.get_all_active()}
 
+    def _save_to_fractal_graph(self, query: str, response: str) -> None:
+        """Сохраняет пару запрос-ответ во FractalGraphV2."""
+        fractal_graph = getattr(self, 'fractal_graph_v2', None)
+        if not fractal_graph or not hasattr(fractal_graph, 'add_node'):
+            return
+        
+        try:
+            node_id = fractal_graph.add_node(
+                node_type='response',
+                content=f"Q: {query}\nA: {response}",
+                properties={
+                    'query': query,
+                    'response': response,
+                    'timestamp': time.time()
+                }
+            )
+            if node_id:
+                query_logger.debug(f"Saved Q&A to FG: {node_id[:16]}...")
+        except Exception as e:
+            query_logger.debug(f"FG save error: {e}")
+    
     def _extract_key_concepts(self, query: str, response: str) -> List[Dict[str, Any]]:
         """Extracts key concepts from query and response via word frequency."""
         text = (query + ' ' + response).lower()

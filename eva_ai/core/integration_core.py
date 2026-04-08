@@ -23,7 +23,7 @@ try:
 except ImportError:
     from eva_ai.generation.generation_coordinator import UnifiedGenerationCoordinator as GenerationCoordinator
 from eva_ai.memory.memory_manager import MemoryManager
-from eva_ai.knowledge.knowledge_graph import KnowledgeGraph
+from eva_ai.memory.fractal_graph_v2 import FractalGraphV2
 from .integration_adapters import (
     _handle_query_received,
     _handle_tokenize_request,
@@ -65,7 +65,7 @@ class ЕВАIntegrator:
         self.response_generator = None
         self.generation_coordinator = None
         self.memory_manager = None
-        self.knowledge_graph = None
+        self.fractal_graph_v2 = None
         self.fractal_attention = None
 
         self.initialized = False
@@ -151,12 +151,9 @@ class ЕВАIntegrator:
                 )
             logger.info("MemoryManager готов")
 
-            if hasattr(self.core_brain, 'knowledge_graph'):
-                self.knowledge_graph = self.core_brain.knowledge_graph
-            else:
-                from eva_ai.knowledge.knowledge_graph import KnowledgeGraph
-                self.knowledge_graph = KnowledgeGraph(self.core_brain)
-            logger.info("KnowledgeGraph готов")
+            if hasattr(self.core_brain, 'fractal_graph_v2'):
+                self.fractal_graph_v2 = self.core_brain.fractal_graph_v2
+            logger.info("FractalGraphV2 готов")
 
             reasoning_config = self.config.get('reasoning', {})
             self.reasoning_engine = ReasoningEngine(
@@ -300,7 +297,7 @@ class ЕВАIntegrator:
                 'response_generator': self.response_generator is not None,
                 'generation_coordinator': self.generation_coordinator is not None,
                 'memory_manager': self.memory_manager is not None,
-                'knowledge_graph': self.knowledge_graph is not None,
+                'fractal_graph_v2': self.fractal_graph_v2 is not None,
                 'fractal_attention': self.fractal_attention is not None,
                 'event_bus': self.event_bus is not None
             }

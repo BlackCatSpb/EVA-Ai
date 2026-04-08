@@ -95,7 +95,8 @@ class GraphTokenizer:
     
     def _build_ngram_indexes(self):
         """Построение n-gram индексов для быстрого поиска."""
-        for node_id, node in self.graph.storage.nodes.items():
+        nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
+        for node_id, node in nodes.items():
             content = node.content.lower()
             words = content.split()
             
@@ -117,7 +118,9 @@ class GraphTokenizer:
     
     def _build_word_index(self):
         """Построение индекса слов -> узлы для быстрого поиска."""
-        for node_id, node in self.graph.storage.nodes.items():
+        # FractalGraphV2 имеет .nodes напрямую, FractalMemoryGraph имеет .storage.nodes
+        nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
+        for node_id, node in nodes.items():
             words = self._tokenize_text(node.content)
             for word in words:
                 if len(word) > 2:
@@ -180,8 +183,9 @@ class GraphTokenizer:
                     # Выбираем узел с наивысшей уверенностью
                     best_node = None
                     best_conf = 0
+                    nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
                     for nid in node_ids:
-                        if nid in self.graph.storage.nodes:
+                        if nid in nodes:
                             node = self.graph.storage.nodes[nid]
                             if node.confidence > best_conf:
                                 best_conf = node.confidence
@@ -210,8 +214,9 @@ class GraphTokenizer:
                     # Проверяем, есть ли это слово в индексе
                     if word in self._word_to_nodes:
                         node_ids = self._word_to_nodes[word]
-                        if node_ids and node_ids[0] in self.graph.storage.nodes:
-                            node = self.graph.storage.nodes[node_ids[0]]
+                        nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
+                        if node_ids and node_ids[0] in nodes:
+                            node = nodes[node_ids[0]]
                             tokens.append(Token(
                                 text=word,
                                 token_type='node_ref',
@@ -320,12 +325,13 @@ class GraphTokenizer:
         
         # Ищем релевантные узлы
         relevant_nodes = []
+        nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
         
         for kw in keywords:
             if kw in self._word_to_nodes:
                 node_ids = self._word_to_nodes[kw]
                 for nid in node_ids:
-                    if nid in self.graph.storage.nodes:
+                    if nid in nodes:
                         node = self.graph.storage.nodes[nid]
                         if node.level >= 1:  # Только факты и выше
                             relevant_nodes.append(node)
@@ -355,7 +361,8 @@ class GraphTokenizer:
     
     def get_vocab_size(self) -> int:
         """Получить размер словаря (узлы + специальные токены)."""
-        return len(self.graph.storage.nodes) + len(self.SPECIAL_TOKENS)
+        nodes = getattr(self.graph, 'nodes', None) or getattr(self.graph.storage, 'nodes', {})
+        return len(nodes) + len(self.SPECIAL_TOKENS)
     
     def get_token_id(self, token: Token, token_to_id: Dict[str, int]) -> int:
         """Получить ID токена."""

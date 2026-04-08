@@ -181,28 +181,6 @@ def create_hybrid_cache(initializer):
         return None
 
 
-def create_knowledge_graph(initializer):
-    try:
-        _ensure_eva_path()
-        from eva_ai.knowledge.knowledge_graph_integrated import IntegratedKnowledgeGraph
-        event_bus = getattr(initializer.core_brain, 'event_bus', None)
-        knowledge_graph = IntegratedKnowledgeGraph(
-            brain=initializer.core_brain,
-            event_bus=event_bus,
-            name="knowledge_graph"
-        )
-        if hasattr(knowledge_graph, 'initialize'):
-            knowledge_graph.initialize()
-        initializer.knowledge_graph = knowledge_graph
-        initializer.core_brain.knowledge_graph = knowledge_graph
-        initializer.logger.info("[OK] KnowledgeGraph создан")
-        return knowledge_graph
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания knowledge_graph: {e}", exc_info=True)
-        initializer.failed_components.add('knowledge_graph')
-        return None
-
-
 def create_qwen_api_enhancer(initializer):
     """Создает QwenAPIEnhancer для обогащения знаний"""
     try:
@@ -602,7 +580,6 @@ def register_all_factories(initializer):
         'config_manager': lambda: create_config_manager(initializer),
         'memory_manager': lambda: create_memory_manager(initializer),
         'hybrid_cache': lambda: create_hybrid_cache(initializer),
-        'knowledge_graph': lambda: create_knowledge_graph(initializer),
         'qwen_api_enhancer': lambda: create_qwen_api_enhancer(initializer),
         'text_processor': lambda: create_text_processor(initializer),
         'ml_unit': lambda: create_ml_unit(initializer),

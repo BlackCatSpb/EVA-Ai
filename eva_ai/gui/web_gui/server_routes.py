@@ -676,6 +676,11 @@ def register_routes(app, web_gui_instance):
                         logger.debug(f"KG stats error: {e}")
                 
                 fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg is None:
+                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
+                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
+                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
+                
                 if fg and hasattr(fg, 'get_stats'):
                     try:
                         fg_stats = fg.get_stats()
@@ -730,10 +735,16 @@ def register_routes(app, web_gui_instance):
                 
                 # === Graph Metrics (только FractalGraphV2) ===
                 fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg is None:
+                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
+                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
+                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
+                
                 if fg and hasattr(fg, 'get_stats'):
                     try:
                         fg_stats = fg.get_stats()
-                        metrics['graph'] = fg_stats if isinstance(fg_stats, dict) else {}
+                        if isinstance(fg_stats, dict):
+                            metrics['graph'].update(fg_stats)
                     except Exception as e:
                         logger.debug(f"FractalGraph stats error: {e}")
                 
@@ -877,14 +888,18 @@ def register_routes(app, web_gui_instance):
                         logger.debug(f"self_dialog_learning error: {e}")
 
                 # FractalGraphV2 метрики
-                if hasattr(web_gui_instance.brain, 'fractal_graph_v2') and web_gui_instance.brain.fractal_graph_v2:
+                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg is None:
+                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
+                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
+                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
+                
+                if fg and hasattr(fg, 'get_stats'):
                     try:
-                        fg = web_gui_instance.brain.fractal_graph_v2
-                        if hasattr(fg, 'get_stats'):
-                            fg_stats = fg.get_stats()
-                            analytics['fractal_nodes'] = fg_stats.get('total_nodes', 0)
-                            analytics['fractal_edges'] = fg_stats.get('total_edges', 0)
-                            analytics['fractal_groups'] = fg_stats.get('total_groups', 0)
+                        fg_stats = fg.get_stats()
+                        analytics['fractal_nodes'] = fg_stats.get('total_nodes', 0)
+                        analytics['fractal_edges'] = fg_stats.get('total_edges', 0)
+                        analytics['fractal_groups'] = fg_stats.get('total_groups', 0)
                     except Exception as e:
                         logger.debug(f"FractalGraphV2 stats error: {e}")
 

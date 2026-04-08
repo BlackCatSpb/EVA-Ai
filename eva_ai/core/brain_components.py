@@ -653,8 +653,7 @@ class ComponentMixin:
         """Получить инструменты для работы с графом знаний."""
         return {
             "curator": self._get_curator_tools(),
-            "fractal_graph_v2": self._get_fractal_graph_tools(),
-            "knowledge_graph": self._get_kg_tools()
+            "fractal_graph_v2": self._get_fractal_graph_tools()
         }
     
     def _get_curator_tools(self) -> Dict[str, Any]:
@@ -701,25 +700,6 @@ class ComponentMixin:
                 "auto_cluster": fg.auto_cluster
             }
         }
-    
-    def _get_kg_tools(self) -> Dict[str, Any]:
-        """Инструменты классического Knowledge Graph."""
-        kg = getattr(self, 'knowledge_graph', None)
-        if not kg:
-            return {"available": False, "reason": "KnowledgeGraph not initialized"}
-        
-        tools = {"available": True}
-        
-        if hasattr(kg, 'add_node'):
-            tools['add_node'] = kg.add_node
-        if hasattr(kg, 'add_edge'):
-            tools['add_edge'] = kg.add_edge
-        if hasattr(kg, 'get_relevant_nodes'):
-            tools['search'] = kg.get_relevant_nodes
-        if hasattr(kg, 'get_stats'):
-            tools['stats'] = kg.get_stats
-        
-        return tools
     
     def execute_graph_command(self, command: str, **kwargs) -> Any:
         """Выполнить команду управления графом."""

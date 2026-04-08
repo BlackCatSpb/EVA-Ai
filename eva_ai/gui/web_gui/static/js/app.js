@@ -1258,6 +1258,17 @@
             $('#conceptConfirmed').textContent = concepts.confirmed || 0;
             $('#conceptArchived').textContent = concepts.archived || 0;
             
+            // Curator metrics
+            $('#curatorCycles').textContent = analytics.curator_cycles || 0;
+            $('#curatorState').textContent = analytics.curator_state || 'idle';
+            const nextRun = analytics.curator_next_run;
+            if (nextRun && nextRun > 0) {
+                const date = new Date(nextRun * 1000);
+                $('#curatorNextRun').textContent = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            } else {
+                $('#curatorNextRun').textContent = '—';
+            }
+            
             // System Health
             const health = metrics.health || { status: 'unknown', issues: [] };
             const healthStatus = $('#healthStatus');

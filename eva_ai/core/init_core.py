@@ -47,7 +47,6 @@ class ComponentInitializer:
         'config_manager',
         'memory_manager',
         'hybrid_cache',
-        'knowledge_graph',
         'text_processor',
         'ml_unit',
         'model_manager',

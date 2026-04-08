@@ -512,7 +512,15 @@ class FractalGraphV2:
         if not query_embedding:
             return []
         
-        query_vec = np.array(query_embedding)
+        # Ensure query_embedding is a proper list of floats
+        if isinstance(query_embedding, str):
+            return []
+        
+        try:
+            query_vec = np.array(query_embedding, dtype=np.float64)
+        except (ValueError, TypeError):
+            return []
+        
         query_vec = query_vec / (np.linalg.norm(query_vec) + 1e-8)
         
         results = []
