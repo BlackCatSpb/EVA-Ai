@@ -981,6 +981,278 @@ class FractalGraphV2:
             "groups_with_embeddings": sum(1 for g in self.semantic_groups.values() if g.embedding),
             "contradictions": sum(1 for n in self.nodes.values() if n.is_contradiction)
         }
+    
+    # === EVA CONTAINER: Graph Serialization ===
+    
+    def save_to_blob(self, compression: str = "zstd") -> bytes:
+        """
+        Сериализовать граф в сжатый BLOB для хранения в .eva файле.
+        
+        Args:
+            compression: Тип сжатия ('zstd', 'gzip', 'none')
+            
+        Returns:
+            Сжатый бинарный блоб с графом
+        """
+        import gzip
+        try:
+            import zstandard as zstd
+            HAS_ZSTD = True
+        except ImportError:
+            HAS_ZSTD = False
+        
+        data = {
+            "version": 2,
+            "graph_version": "fractal_graph_v2",
+            "created_at": time.time(),
+            "node_count": len(self.nodes),
+            "edge_count": len(self.edges),
+            "group_count": len(self.semantic_groups),
+            "nodes": {},
+            "edges": {},
+            "semantic_groups": {}
+        }
+        
+        for node_id, node in self.nodes.items():
+            node_dict = {
+                "id": node.id,
+                "content": node.content,
+                "node_type": node.node_type,
+                "level": node.level,
+                "parent_group_id": node.parent_group_id,
+                "embedding": node.embedding,
+                "confidence": node.confidence,
+                "temporal_weight": node.temporal_weight,
+                "domain_lambda": node.domain_lambda,
+                "created_at": node.created_at,
+                "updated_at": node.updated_at,
+                "last_accessed": node.last_accessed,
+                "metadata": node.metadata,
+                "access_count": node.access_count,
+                "version": node.version,
+                "is_static": node.is_static,
+                "is_contradiction": node.is_contradiction
+            }
+            data["nodes"][node_id] = node_dict
+        
+        for edge_id, edge in self.edges.items():
+            edge_dict = {
+                "id": edge.id,
+                "source_id": edge.source_id,
+                "target_id": edge.target_id,
+                "relation_type": edge.relation_type,
+                "weight": edge.weight,
+                "created_at": edge.created_at,
+                "updated_at": edge.updated_at,
+                "contradiction_flag": edge.contradiction_flag,
+                "metadata": edge.metadata
+            }
+            data["edges"][edge_id] = edge_dict
+        
+        for group_id, group in self.semantic_groups.items():
+            group_dict = {
+                "id": group.id,
+                "name": group.name,
+                "node_type": group.node_type,
+                "level": group.level,
+                "embedding": group.embedding,
+                "member_count": group.member_count,
+                "avg_confidence": group.avg_confidence,
+                "parent_group_id": group.parent_group_id,
+                "created_at": group.created_at,
+                "updated_at": group.updated_at,
+                "cluster_coherence": group.cluster_coherence,
+                "needs_recluster": group.needs_recluster,
+                "metadata": group.metadata
+            }
+            data["semantic_groups"][group_id] = group_dict
+        
+        json_data = json.dumps(data, ensure_ascii=False)
+        json_bytes = json_data.encode('utf-8')
+        
+        if compression == "zstd" and HAS_ZSTD:
+            compressed = zstd.ZSTD_compress(json_bytes, level=3)
+        elif compression == "gzip":
+            compressed = gzip.compress(json_bytes, compresslevel=6)
+        else:
+            compressed = json_bytes
+        
+        return compressed
+    
+    def load_from_blob(self, blob: bytes, compression: str = "zstd") -> bool:
+        """
+        Загрузить граф из сжатого BLOB.
+        
+        Args:
+            blob: Сжатый бинарный блоб
+            compression: Тип сжатия ('zstd', 'gzip', 'none')
+            
+        Returns:
+            True если успешно, False иначе
+        """
+        import gzip
+        try:
+            import zstandard as zstd
+            HAS_ZSTD = True
+        except ImportError:
+            HAS_ZSTD = False
+        
+        try:
+            if compression == "zstd" and HAS_ZSTD:
+                json_bytes = zstd.ZSTD_decompress(blob)
+            elif compression == "gzip":
+                json_bytes = gzip.decompress(blob)
+            else:
+                json_bytes = blob
+            
+            data = json.loads(json_bytes.decode('utf-8'))
+            
+            if data.get("graph_version") != "fractal_graph_v2":
+                logger.warning(f"Unknown graph version: {data.get('graph_version')}")
+                return False
+            
+            self.nodes.clear()
+            self.edges.clear()
+            self.semantic_groups.clear()
+            
+            for node_id, node_dict in data.get("nodes", {}).items():
+                node = FractalNode(
+                    id=node_dict["id"],
+                    content=node_dict["content"],
+                    node_type=node_dict["node_type"],
+                    level=node_dict.get("level", 0),
+                    parent_group_id=node_dict.get("parent_group_id"),
+                    embedding=node_dict.get("embedding"),
+                    confidence=node_dict.get("confidence", 0.5),
+                    temporal_weight=node_dict.get("temporal_weight", 1.0),
+                    domain_lambda=node_dict.get("domain_lambda", 0.01),
+                    created_at=node_dict.get("created_at", time.time()),
+                    updated_at=node_dict.get("updated_at", time.time()),
+                    last_accessed=node_dict.get("last_accessed", time.time()),
+                    metadata=node_dict.get("metadata", {}),
+                    access_count=node_dict.get("access_count", 0),
+                    version=node_dict.get("version", 1),
+                    is_static=node_dict.get("is_static", False),
+                    is_contradiction=node_dict.get("is_contradiction", False)
+                )
+                self.nodes[node_id] = node
+            
+            for edge_id, edge_dict in data.get("edges", {}).items():
+                edge = FractalEdge(
+                    id=edge_dict["id"],
+                    source_id=edge_dict["source_id"],
+                    target_id=edge_dict["target_id"],
+                    relation_type=edge_dict["relation_type"],
+                    weight=edge_dict.get("weight", 0.5),
+                    created_at=edge_dict.get("created_at", time.time()),
+                    updated_at=edge_dict.get("updated_at", time.time()),
+                    contradiction_flag=edge_dict.get("contradiction_flag", False),
+                    metadata=edge_dict.get("metadata", {})
+                )
+                self.edges[edge_id] = edge
+            
+            for group_id, group_dict in data.get("semantic_groups", {}).items():
+                group = SemanticGroup(
+                    id=group_dict["id"],
+                    name=group_dict["name"],
+                    node_type=group_dict.get("node_type", "semantic_group"),
+                    level=group_dict.get("level", 2),
+                    embedding=group_dict.get("embedding"),
+                    member_count=group_dict.get("member_count", 0),
+                    avg_confidence=group_dict.get("avg_confidence", 0.5),
+                    parent_group_id=group_dict.get("parent_group_id"),
+                    created_at=group_dict.get("created_at", time.time()),
+                    updated_at=group_dict.get("updated_at", time.time()),
+                    cluster_coherence=group_dict.get("cluster_coherence", 0.0),
+                    needs_recluster=group_dict.get("needs_recluster", False),
+                    metadata=group_dict.get("metadata", {})
+                )
+                self.semantic_groups[group_id] = group
+            
+            self._build_indexes()
+            
+            logger.info(f"Loaded graph from blob: {len(self.nodes)} nodes, {len(self.edges)} edges")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load graph from blob: {e}")
+            return False
+    
+    def save_to_file(self, path: str, compression: str = "zstd") -> bool:
+        """
+        Сохранить граф в файл.
+        
+        Args:
+            path: Путь к файлу
+            compression: Тип сжатия
+            
+        Returns:
+            True если успешно
+        """
+        try:
+            blob = self.save_to_blob(compression)
+            
+            header = {
+                "format": "eva_graph_v2",
+                "version": 2,
+                "compression": compression,
+                "size": len(blob),
+                "checksum": hashlib.sha256(blob).hexdigest(),
+                "created_at": time.time()
+            }
+            
+            with open(path, 'wb') as f:
+                header_bytes = json.dumps(header).encode('utf-8')
+                header_len = len(header_bytes)
+                f.write(header_len.to_bytes(4, 'little'))
+                f.write(header_bytes)
+                f.write(blob)
+            
+            logger.info(f"Saved graph to {path}: {len(blob)} bytes")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save graph to file: {e}")
+            return False
+    
+    @classmethod
+    def load_from_file(cls, path: str, storage_dir: str = None) -> Optional['FractalGraphV2']:
+        """
+        Загрузить граф из файла.
+        
+        Args:
+            path: Путь к файлу
+            storage_dir: Директория для хранения
+            
+        Returns:
+            FractalGraphV2 instance или None
+        """
+        try:
+            with open(path, 'rb') as f:
+                header_len = int.from_bytes(f.read(4), 'little')
+                header_bytes = f.read(header_len)
+                header = json.loads(header_bytes.decode('utf-8'))
+                
+                if header.get("format") != "eva_graph_v2":
+                    logger.error(f"Unknown file format: {header.get('format')}")
+                    return None
+                
+                compression = header.get("compression", "zstd")
+                blob = f.read()
+                
+                expected_checksum = header.get("checksum")
+                actual_checksum = hashlib.sha256(blob).hexdigest()
+                if expected_checksum and expected_checksum != actual_checksum:
+                    logger.error(f"Checksum mismatch: expected {expected_checksum}, got {actual_checksum}")
+                    return None
+            
+            graph = cls(storage_dir=storage_dir)
+            if graph.load_from_blob(blob, compression):
+                logger.info(f"Loaded graph from {path}")
+                return graph
+            return None
+        except Exception as e:
+            logger.error(f"Failed to load graph from file: {e}")
+            return None
 
 
 def create_fractal_graph(
