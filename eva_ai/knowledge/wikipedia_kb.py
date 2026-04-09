@@ -276,6 +276,111 @@ class WikipediaKnowledgeBase:
                 conn.commit()
             logger.info("WikipediaKnowledgeBase очищена")
 
+    def add_to_fractal_graph(self, fractal_graph, top_k: int = 100, node_type: str = "wikipedia") -> Dict[str, Any]:
+        """
+        Добавляет все статьи из Wikipedia KB в FractalGraph v2.
+
+        Args:
+            fractal_graph: Экземпляр FractalMemoryGraph
+            top_k: Максимальное число статей для добавления
+            node_type: Тип узла в графе
+
+        Returns:
+            {added_count, article_ids, errors}
+        """
+        if fractal_graph is None:
+            return {"added_count": 0, "article_ids": [], "errors": ["fractal_graph is None"]}
+
+        added_count = 0
+        article_ids = []
+        errors = []
+
+        try:
+            with self._lock:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.execute(
+                        "SELECT id, title, text, url, category FROM articles LIMIT ?",
+                        (top_k,)
+                    )
+                    articles = cursor.fetchall()
+
+            for article_id, title, text, url, category in articles:
+                try:
+                    if not text:
+                        continue
+
+                    node = fractal_graph.add_node(
+                        content=f"{title}\n\n{text[:1000]}",
+                        node_type=node_type,
+                        level=1,
+                        confidence=0.7,
+                        metadata={
+                            "title": title,
+                            "url": url,
+                            "category": category,
+                            "source": "wikipedia"
+                        }
+                    )
+                    article_ids.append(article_id)
+                    added_count += 1
+
+                except Exception as e:
+                    errors.append(f"{article_id}: {str(e)}")
+                    logger.error(f"Ошибка добавления статьи {article_id} в FG: {e}")
+
+            logger.info(f"Добавлено {added_count} статей из Wikipedia в FractalGraph")
+            return {"added_count": added_count, "article_ids": article_ids, "errors": errors}
+
+        except Exception as e:
+            logger.error(f"Ошибка экспорта Wikipedia в FractalGraph: {e}")
+            return {"added_count": 0, "article_ids": [], "errors": [str(e)]}
+
+    def search_and_add_to_graph(self, query: str, fractal_graph, top_k: int = 10) -> Dict[str, Any]:
+        """
+        Находит релевантные статьи и добавляет их в FractalGraph v2.
+
+        Args:
+            query: Поисковый запрос
+            fractal_graph: Экземпляр FractalMemoryGraph
+            top_k: Число результатов
+
+        Returns:
+            {search_results, graph_results}
+        """
+        search_results = self.search(query, limit=top_k)
+        if not search_results:
+            return {"search_results": [], "graph_results": {"added_count": 0}}
+
+        if fractal_graph is None:
+            return {"search_results": search_results, "graph_results": {"error": "fractal_graph is None"}}
+
+        added_count = 0
+        node_ids = []
+
+        for item in search_results:
+            try:
+                node = fractal_graph.add_node(
+                    content=item.get("text", ""),
+                    node_type="wikipedia",
+                    level=2,
+                    confidence=item.get("similarity", 0.5),
+                    metadata={
+                        "title": item.get("title"),
+                        "url": item.get("url"),
+                        "source": "wikipedia_search",
+                        "query": query
+                    }
+                )
+                node_ids.append(node.id)
+                added_count += 1
+            except Exception as e:
+                logger.error(f"Ошибка добавления в FG: {e}")
+
+        return {
+            "search_results": search_results,
+            "graph_results": {"added_count": added_count, "node_ids": node_ids}
+        }
+
 
 # Singleton
 _wikipedia_kb = None

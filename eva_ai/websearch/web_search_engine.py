@@ -635,6 +635,66 @@ class WebSearchEngine:
         except Exception as e:
             logger.error(f"Ошибка web_search_and_learn('{concept}'): {e}", exc_info=True)
             return []
+
+    def add_to_fractal_graph(self, knowledge: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Добавляет результаты веб-поиска в FractalGraph v2.
+
+        Args:
+            knowledge: Список знаний от web_search_and_learn()
+
+        Returns:
+            {added_count, node_ids, errors}
+        """
+        if not knowledge:
+            return {"added_count": 0, "node_ids": [], "errors": []}
+
+        fractal_graph = getattr(self.brain, 'fractal_graph_v2', None)
+        if fractal_graph is None:
+            logger.warning("FractalGraph v2 не доступен в brain")
+            return {"added_count": 0, "node_ids": [], "errors": ["fractal_graph_v2 not available"]}
+
+        added_count = 0
+        node_ids = []
+        errors = []
+
+        for item in knowledge:
+            try:
+                node = fractal_graph.add_node(
+                    content=item.get("content", ""),
+                    node_type="web_knowledge",
+                    level=2,
+                    confidence=item.get("relevance", 0.5),
+                    metadata={
+                        "source": item.get("source", "web"),
+                        "url": item.get("metadata", {}).get("url"),
+                        "domain": item.get("domain", "general"),
+                        "concept": item.get("concept", "")
+                    }
+                )
+                node_ids.append(node.id)
+                added_count += 1
+            except Exception as e:
+                errors.append(str(e))
+                logger.error(f"Ошибка добавления в FG: {e}")
+
+        logger.info(f"Добавлено {added_count} узлов в FractalGraph из веб-поиска")
+        return {"added_count": added_count, "node_ids": node_ids, "errors": errors}
+
+    def search_and_add_to_graph(self, concept: str, num_results: int = 3) -> Dict[str, Any]:
+        """
+        Выполняет поиск и сразу добавляет результаты в FractalGraph v2.
+
+        Args:
+            concept: Концепт для поиска
+            num_results: Число результатов
+
+        Returns:
+            {search_results, graph_results}
+        """
+        search_results = self.web_search_and_learn(concept, num_results)
+        graph_results = self.add_to_fractal_graph(search_results)
+        return {"search_results": search_results, "graph_results": graph_results}
     
     def __del__(self):
         """Деструктор - останавливает фоновые процессы."""
