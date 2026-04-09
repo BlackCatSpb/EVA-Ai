@@ -340,7 +340,7 @@ class EventBus:
             for subscription_id, weak_handler in subscribers:
                 handler = weak_handler()
                 if handler is not None:
-                    active_subscribers.append((subscription_id, handler))
+                    active_subscribers.append((subscription_id, weak_handler))
                 else:
                     dead_subscribers += 1
             
@@ -355,8 +355,8 @@ class EventBus:
             # Вызываем обработчики
             for subscription_id, weak_handler in active_subscribers:
                 try:
-                    raw_handler = weak_handler
                     handler = weak_handler()
+                    if handler is None:
                     if handler is None:
                         logger.debug("  Handler {} is dead, skipping".format(subscription_id))
                         continue
