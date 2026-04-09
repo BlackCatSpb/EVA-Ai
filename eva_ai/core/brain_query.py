@@ -23,7 +23,7 @@ except ImportError:
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 logger = logging.getLogger("eva_ai.core_brain")
 
-FG_ONLY_MODE = True
+FG_ONLY_MODE = False  # Disabled - using HybridPipelineAdapter instead
 
 FALLBACK_RESPONSES = {
     'greeting': "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей.",

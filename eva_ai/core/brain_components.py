@@ -226,31 +226,49 @@ def _init_llama_cpp(brain):
 
 
 def _init_two_model_pipeline(brain):
+    """Инициализация Two-Model Pipeline с поддержкой гибридного режима."""
     brain.two_model_pipeline = None
     brain.two_model_pipeline_ready = False
     brain.fractal_memory = None
+    
     try:
         model_config = brain.config.get('model', {})
+        
+        # Получаем режим работы
+        # 'dual' - DualGenerator с 2 физическими моделями (БЫСТРО, рекомендуется)
+        # 'fractal' - FractalPipeline (новый)
+        # 'recursive' - RecursiveModelPipeline (старый)
+        # 'hybrid' - FractalPipeline + fallback на RecursiveModelPipeline
+        pipeline_mode = model_config.get('pipeline_mode', 'dual')
+        
+        # Проверяем нужен ли pipeline
         if not model_config.get('use_two_model_pipeline', False):
+            query_logger.info("Two-Model Pipeline отключён в конфигурации")
             return
 
+        # Инициализируем fractal_memory
         try:
             from eva_ai.memory.unified_fractal_memory import UnifiedFractalMemory
-            fractal_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "memory", "fractal_torch_storage", "unified_memory")
-            brain.fractal_memory = UnifiedFractalMemory(storage_dir=fractal_dir, config=brain.config.get('fractal_memory', {}))
-        except Exception:
+            fractal_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "memory", "fractal_torch_storage", "unified_memory"
+            )
+            brain.fractal_memory = UnifiedFractalMemory(
+                storage_dir=fractal_dir,
+                config=brain.config.get('fractal_memory', {})
+            )
+        except Exception as e:
+            query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
             brain.fractal_memory = None
 
+        # Получаем пути к моделям
         model_a_path = model_config.get('model_a_gguf_path', '')
         model_b_path = model_config.get('model_b_gguf_path', '')
         model_c_path = model_config.get('model_c_gguf_path', '')
         n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
         n_threads = model_config.get('llama_cpp_threads', 8)
 
-        if not model_a_path or not model_b_path:
-            query_logger.warning("Two-Model Pipeline: не указаны пути к моделям")
-            return
-
+        # Проверяем пути
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if not os.path.isabs(model_a_path):
             model_a_path = os.path.join(project_root, model_a_path)
@@ -265,28 +283,185 @@ def _init_two_model_pipeline(brain):
         if not os.path.exists(model_b_path):
             model_b_path = model_a_path
 
-        pipeline_kwargs = {'model_a_path': model_a_path, 'model_b_path': model_b_path, 'n_ctx': n_ctx, 'n_threads': n_threads}
-        if model_c_path:
-            pipeline_kwargs['model_c_path'] = model_c_path
-        if brain.fractal_memory:
-            pipeline_kwargs['fractal_memory'] = brain.fractal_memory
-        event_bus = getattr(brain, '_new_event_bus', None) or (brain.events.event_bus if getattr(brain, 'events', None) else None)
-        if event_bus:
-            pipeline_kwargs['event_bus'] = event_bus
-        if brain.resource_manager:
-            pipeline_kwargs['resource_manager'] = brain.resource_manager
-        from eva_ai.core.recursive_model_pipeline import RecursiveModelPipeline
-        brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
-        brain.two_model_pipeline.load_models()
-        brain.two_model_pipeline_ready = True
-        query_logger.info("Two-Model Pipeline готов к работе!")
+        # Создаём HybridPipelineAdapter
+        try:
+            from eva_ai.core.hybrid_pipeline_adapter import HybridPipelineAdapter
+            
+            adapter_kwargs = {
+                'model_a_path': model_a_path,
+                'model_b_path': model_b_path,
+                'model_c_path': model_c_path if model_c_path and os.path.exists(model_c_path) else None,
+                'n_ctx': n_ctx,
+                'n_threads': n_threads,
+                'mode': pipeline_mode,
+                'load_models': True
+            }
+            
+            if brain.fractal_memory:
+                adapter_kwargs['fractal_graph'] = brain.fractal_memory
+            
+            brain.two_model_pipeline = HybridPipelineAdapter(**adapter_kwargs)
+            brain.two_model_pipeline_ready = True
+            
+            query_logger.info(f"HybridPipelineAdapter инициализирован: mode={pipeline_mode}")
+            
+        except Exception as e:
+            query_logger.error(f"Ошибка инициализации HybridPipelineAdapter: {e}")
+            # Fallback на старый RecursiveModelPipeline
+            try:
+                from eva_ai.core.recursive_model_pipeline import RecursiveModelPipeline
+                pipeline_kwargs = {
+                    'model_a_path': model_a_path,
+                    'model_b_path': model_b_path,
+                    'n_ctx': n_ctx,
+                    'n_threads': n_threads
+                }
+                if model_c_path and os.path.exists(model_c_path):
+                    pipeline_kwargs['model_c_path'] = model_c_path
+                if brain.fractal_memory:
+                    pipeline_kwargs['fractal_memory'] = brain.fractal_memory
+                brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                brain.two_model_pipeline.load_models()
+                brain.two_model_pipeline_ready = True
+                query_logger.info("Fallback на RecursiveModelPipeline")
+            except Exception as e2:
+                query_logger.error(f"Fallback тоже не работает: {e2}")
+                return
+
+        query_logger.info(f"Two-Model Pipeline готов к работе! (mode={pipeline_mode})")
 
         try:
             from eva_ai.core.event_bus import Event, EventTypes
             if brain.events:
                 brain.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
-                    "component": "TwoModelPipeline", "model_a": model_a_path,
-                    "model_b": model_b_path, "n_ctx": n_ctx, "n_threads": n_threads, "ready": True
+                    "component": "TwoModelPipeline",
+                    "model_a": model_a_path,
+                    "model_b": model_b_path,
+                    "n_ctx": n_ctx,
+                    "n_threads": n_threads,
+                    "mode": pipeline_mode,
+                    "ready": True
+                })
+        except Exception:
+            pass
+    except Exception as e:
+        query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
+        brain.two_model_pipeline = None
+    brain.two_model_pipeline_ready = False
+    brain.fractal_memory = None
+    
+    try:
+        model_config = brain.config.get('model', {})
+        
+        # Получаем режим работы
+        # 'fractal' - только FractalPipeline (новый)
+        # 'recursive' - только RecursiveModelPipeline (старый)
+        # 'hybrid' - FractalPipeline + fallback на RecursiveModelPipeline
+        pipeline_mode = model_config.get('pipeline_mode', 'fractal')
+        
+        # Проверяем нужен ли pipeline
+        if not model_config.get('use_two_model_pipeline', False):
+            query_logger.info("Two-Model Pipeline отключён в конфигурации")
+            return
+
+        # Инициализируем fractal_memory
+        try:
+            from eva_ai.memory.unified_fractal_memory import UnifiedFractalMemory
+            fractal_dir = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "memory", "fractal_torch_storage", "unified_memory"
+            )
+            brain.fractal_memory = UnifiedFractalMemory(
+                storage_dir=fractal_dir,
+                config=brain.config.get('fractal_memory', {})
+            )
+        except Exception as e:
+            query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
+            brain.fractal_memory = None
+
+        # Получаем пути к моделям
+        model_a_path = model_config.get('model_a_gguf_path', '')
+        model_b_path = model_config.get('model_b_gguf_path', '')
+        model_c_path = model_config.get('model_c_gguf_path', '')
+        n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
+        n_threads = model_config.get('llama_cpp_threads', 8)
+
+        # Проверяем пути
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if not os.path.isabs(model_a_path):
+            model_a_path = os.path.join(project_root, model_a_path)
+        if not os.path.isabs(model_b_path):
+            model_b_path = os.path.join(project_root, model_b_path)
+        if model_c_path and not os.path.isabs(model_c_path):
+            model_c_path = os.path.join(project_root, model_c_path)
+
+        if not os.path.exists(model_a_path):
+            query_logger.error(f"Model A file not found: {model_a_path}")
+            return
+        if not os.path.exists(model_b_path):
+            model_b_path = model_a_path
+
+        # Создаём HybridPipelineAdapter
+        try:
+            from eva_ai.core.hybrid_pipeline_adapter import HybridPipelineAdapter
+            
+            adapter_kwargs = {
+                'model_a_path': model_a_path,
+                'model_b_path': model_b_path,
+                'model_c_path': model_c_path if model_c_path and os.path.exists(model_c_path) else None,
+                'n_ctx': n_ctx,
+                'n_threads': n_threads,
+                'mode': pipeline_mode
+            }
+            
+            if brain.fractal_memory:
+                adapter_kwargs['fractal_graph'] = brain.fractal_memory
+            
+            brain.two_model_pipeline = HybridPipelineAdapter(**adapter_kwargs)
+            brain.two_model_pipeline_ready = True
+            
+            # Загружаем модели если нужен RecursiveModelPipeline
+            if pipeline_mode in ['recursive', 'hybrid']:
+                brain.two_model_pipeline.recursive_pipeline.load_models()
+            
+            query_logger.info(f"HybridPipelineAdapter инициализирован: mode={pipeline_mode}")
+            
+        except Exception as e:
+            query_logger.error(f"Ошибка инициализации HybridPipelineAdapter: {e}")
+            # Fallback на старый RecursiveModelPipeline
+            try:
+                from eva_ai.core.recursive_model_pipeline import RecursiveModelPipeline
+                pipeline_kwargs = {
+                    'model_a_path': model_a_path,
+                    'model_b_path': model_b_path,
+                    'n_ctx': n_ctx,
+                    'n_threads': n_threads
+                }
+                if model_c_path and os.path.exists(model_c_path):
+                    pipeline_kwargs['model_c_path'] = model_c_path
+                if brain.fractal_memory:
+                    pipeline_kwargs['fractal_memory'] = brain.fractal_memory
+                brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
+                brain.two_model_pipeline.load_models()
+                brain.two_model_pipeline_ready = True
+                query_logger.info("Fallback на RecursiveModelPipeline")
+            except Exception as e2:
+                query_logger.error(f"Fallback тоже не работает: {e2}")
+                return
+
+        query_logger.info(f"Two-Model Pipeline готов к работе! (mode={pipeline_mode})")
+
+        try:
+            from eva_ai.core.event_bus import Event, EventTypes
+            if brain.events:
+                brain.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
+                    "component": "TwoModelPipeline",
+                    "model_a": model_a_path,
+                    "model_b": model_b_path,
+                    "n_ctx": n_ctx,
+                    "n_threads": n_threads,
+                    "mode": pipeline_mode,
+                    "ready": True
                 })
         except Exception:
             pass
