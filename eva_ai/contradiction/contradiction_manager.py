@@ -338,8 +338,7 @@ class ContradictionManager(BaseComponent):
             
             parts.append(f"   Важность: {contr.get('weight', 0.5):.2f}")
         
-        prompt = """Обнаружены противоречия в ответе:
-"
+        prompt = "Обнаружены противоречия в ответе:\n"
         prompt += "\n".join(parts)
         prompt += "\n\nПереформулируй ответ, устранив противоречия. Сохрани основную информацию."
 
