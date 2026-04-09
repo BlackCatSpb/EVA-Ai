@@ -751,3 +751,102 @@ class ContradictionCore(StorageMixin, CoreDetectionMixin, ResolutionMixin, Track
         except Exception as e:
             logger.error(f"Ошибка добавления концепта в FG: {e}")
             return None
+
+    def check_virtual_token_injection(
+        self,
+        node_content: str,
+        dialogue_context: str = "",
+        snapshot: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Специализированная проверка для инъекции виртуального токена.
+        Учитывает диалоговый контекст и другие узлы в снимке.
+        
+        Args:
+            node_content: Содержимое узла для проверки
+            dialogue_context: Контекст диалога
+            snapshot: Снимок с другими узлами {node_id: content}
+            
+        Returns:
+            {score, reason, details, should_block}
+        """
+        try:
+            score = 0.0
+            reasons = []
+            details = {}
+            
+            if not node_content:
+                return {"score": 0.0, "reason": "empty content", "details": {}, "should_block": False}
+            
+            if dialogue_context:
+                base_check = self.check_fractal_graph_contradiction(node_content)
+                if base_check.get("is_contradiction"):
+                    score = max(score, 0.6)
+                    reasons.append("contradiction_with_dialogue")
+                    details["dialogue_contradiction"] = True
+            
+            if snapshot:
+                for other_id, other_content in snapshot.items():
+                    if not other_content or other_content == node_content:
+                        continue
+                    
+                    similarity = self._calculate_similarity(node_content, other_content)
+                    if similarity > 0.95:
+                        score = max(score, 0.3)
+                        reasons.append("high_redundancy")
+                        details[f"redundant_with_{other_id[:8]}"] = similarity
+                    elif similarity < 0.3:
+                        score = max(score, 0.4)
+                        reasons.append(f"contradiction_with_{other_id[:8]}")
+                        details[f"contradiction_with_{other_id[:8]}"] = similarity
+            
+            redundancy_check = self._check_redundancy(node_content, dialogue_context)
+            if redundancy_check["is_redundant"]:
+                score = max(score, redundancy_check.get("score", 0.2))
+                reasons.append("redundant_with_context")
+            
+            should_block = score > 0.7
+            
+            return {
+                "score": score,
+                "reason": "; ".join(reasons) if reasons else "no_issues",
+                "details": details,
+                "should_block": should_block
+            }
+            
+        except Exception as e:
+            logger.error(f"Ошибка проверки виртуального токена: {e}")
+            return {"score": 0.0, "reason": str(e), "details": {}, "should_block": False}
+    
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Вычисляет сходство двух текстов."""
+        try:
+            if not text1 or not text2:
+                return 0.0
+            
+            words1 = set(text1.lower().split())
+            words2 = set(text2.lower().split())
+            
+            if not words1 or not words2:
+                return 0.0
+            
+            intersection = words1 & words2
+            union = words1 | words2
+            
+            return len(intersection) / len(union) if union else 0.0
+        except Exception:
+            return 0.0
+    
+    def _check_redundancy(self, content: str, context: str) -> Dict[str, Any]:
+        """Проверяет избыточность контента относительно контекста."""
+        if not context:
+            return {"is_redundant": False, "score": 0.0}
+        
+        similarity = self._calculate_similarity(content, context)
+        
+        if similarity > 0.95:
+            return {"is_redundant": True, "score": 0.95}
+        elif similarity > 0.8:
+            return {"is_redundant": True, "score": 0.6}
+        
+        return {"is_redundant": False, "score": 0.0}

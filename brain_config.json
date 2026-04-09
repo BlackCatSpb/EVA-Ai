@@ -125,7 +125,37 @@
     "embedding_dim": 384,
     "extended_max_tokens": 4096,
     "extended_temperature": 0.35,
-    "extended_repeat_penalty": 1.8
+    "extended_repeat_penalty": 1.8,
+    "snapshot_manager": {
+      "enabled": true,
+      "ttl_seconds": 300,
+      "max_active_snapshots": 20
+    },
+    "contradiction_check": {
+      "enabled": true,
+      "similarity_threshold": 0.7,
+      "redundancy_threshold": 0.95,
+      "cross_check_enabled": true
+    }
+  },
+  "snapshot": {
+    "enabled": true,
+    "ttl_seconds": 300,
+    "max_active_snapshots": 20,
+    "cleanup_interval_seconds": 30
+  },
+  "generation_callback": {
+    "enabled": true,
+    "callback_timeout_seconds": 5,
+    "fallback_on_error": true,
+    "log_injections": true,
+    "virtual_tokens": {
+      "enabled": false,
+      "start_id": 32000,
+      "count": 5000,
+      "max_recursion_depth": 3,
+      "max_injected_tokens": 256
+    }
   },
   "graph_curator": {
     "enabled": true,
