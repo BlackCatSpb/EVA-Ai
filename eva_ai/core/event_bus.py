@@ -358,7 +358,7 @@ class EventBus:
                     raw_handler = weak_handler
                     handler = weak_handler()
                     if handler is None:
-                        logger.info("  Handler {} is dead, skipping".format(subscription_id))
+                        logger.debug("  Handler {} is dead, skipping".format(subscription_id))
                         continue
                     
                     handler_name = getattr(handler, '__name__', str(handler))

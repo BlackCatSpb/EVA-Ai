@@ -448,14 +448,17 @@ def create_web_search_engine(initializer):
 def create_fractal_graph_v2(initializer):
     """Получает или создаёт fractal_graph_v2."""
     try:
-        # Проверяем, не создан ли уже
         existing = getattr(initializer.core_brain, 'fractal_graph_v2', None)
         if existing is not None:
             initializer.logger.info(f"Используем существующий fractal_graph_v2: {id(existing)}")
             return existing
         
-        from eva_ai.memory.fractal_graph_v2 import FractalGraphV2
-        fg = FractalGraphV2()
+        from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
+        config = initializer.core_brain.config.get('fractal_graph_v2', {}) if hasattr(initializer.core_brain, 'config') else {}
+        fg = FractalMemoryGraph(
+            storage_dir=config.get('storage_dir'),
+            embedding_device=config.get('embedding_device', 'cpu')
+        )
         initializer.core_brain.fractal_graph_v2 = fg
         
         if hasattr(initializer.core_brain, 'components'):

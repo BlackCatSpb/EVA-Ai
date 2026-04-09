@@ -133,7 +133,8 @@ class LlamaCppHotDeployment(HotDeploymentManager):
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             possible_paths = [
                 os.path.join(project_root, "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
-                os.path.join(project_root, "eva", "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "eva_ai", "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "eva_ai", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
                 model_path,
             ]
             

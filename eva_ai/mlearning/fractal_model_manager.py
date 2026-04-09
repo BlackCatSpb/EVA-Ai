@@ -104,8 +104,8 @@ class FractalModelManager:
             
             # Проверяем несколько путей для GGUF
             possible_paths = [
-                os.path.join(project_root, "eva", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
-                os.path.join(project_root, "eva", "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "eva_ai", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
+                os.path.join(project_root, "eva_ai", "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
                 os.path.join(project_root, "models", "qwen2.5-0.5b-instruct-q4_0.gguf"),
             ]
             
@@ -140,7 +140,7 @@ class FractalModelManager:
         """Инициализирует модель - теперь через Qwen3.5-2B"""
         try:
             project_root = _get_project_root()
-            qwen_path = os.path.join(project_root, "eva", "mlearning", "eva_models", "qwen2.5-0.5b")
+            qwen_path = os.path.join(project_root, "eva_ai", "mlearning", "eva_models", "qwen2.5-0.5b")
             
             logger.info(f"Qwen3.5-2B path: {qwen_path}")
             logger.info("Текстовая генерация теперь через Qwen3.5-2B (lazy loading)")

@@ -76,23 +76,7 @@ def _start_post_init_services(brain):
         except Exception as e:
             query_logger.warning(f"Failed to start SelfDialogLearningSystem: {e}")
 
-    # Инициализация Fractal Graph V2 если включен
-    if brain.config.get('fractal_graph_v2', {}).get('enabled', True):
-        try:
-            import sys
-            import os
-            _eva_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            if _eva_root not in sys.path:
-                sys.path.insert(0, _eva_root)
-            from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
-            brain.fractal_graph_v2 = FractalMemoryGraph(
-                storage_dir=brain.config.get('fractal_graph_v2', {}).get('storage_dir'),
-                embedding_device=brain.config.get('fractal_graph_v2', {}).get('embedding_device', 'cuda')
-            )
-            query_logger.info("FractalGraphV2 инициализирован")
-        except Exception as e:
-            query_logger.warning(f"Не удалось инициализировать FractalGraphV2: {e}")
-            brain.fractal_graph_v2 = None
+    # FractalGraphV2 теперь инициализируется через ComponentInitializer
 
     # GraphCurator
     try:
