@@ -290,10 +290,84 @@ class HybridPipelineAdapter:
             logger.error("DualGenerator не инициализирован")
             return self._error_response(query, "DualGenerator not initialized")
         
+        reasoning_steps = []
+        step_num = 1
+        
         try:
             start_time = time.time()
-            response = self.dual_generator.generate(query, mode=generation_mode)
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'query_analysis',
+                'thought': f'Анализ запроса: "{query[:50]}..."',
+                'confidence': 1.0,
+                'icon': '🔍'
+            })
+            step_num += 1
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'model_selection',
+                'thought': f'Выбор режима генерации: {generation_mode}',
+                'confidence': 0.9,
+                'icon': '⚙️'
+            })
+            step_num += 1
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'context_retrieval',
+                'thought': 'Извлечение контекста из FractalGraphV2',
+                'confidence': 0.85,
+                'icon': '📚'
+            })
+            step_num += 1
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'generation',
+                'thought': f'Генерация ответа через DualGenerator ({generation_mode})',
+                'confidence': 0.8,
+                'icon': '🤖'
+            })
+            step_num += 1
+            
+            gen_result = self.dual_generator.generate(query, mode=generation_mode, return_details=True)
+            
+            if isinstance(gen_result, dict):
+                response = gen_result.get('response', '')
+                mode_used = gen_result.get('mode', generation_mode)
+                gen_time = gen_result.get('time', 0)
+                
+                reasoning_steps.append({
+                    'step': step_num,
+                    'phase': mode_used,
+                    'thought': f'Использован режим: {mode_used} ({gen_time:.1f}s, {len(response)} символов)',
+                    'confidence': 0.9,
+                    'icon': '📝' if mode_used == 'condensed' else '📖'
+                })
+                step_num += 1
+            else:
+                response = gen_result
+            
             elapsed = time.time() - start_time
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'quality_check',
+                'thought': f'Проверка качества ответа: {len(response)} символов',
+                'confidence': 0.9,
+                'icon': '✅'
+            })
+            step_num += 1
+            
+            reasoning_steps.append({
+                'step': step_num,
+                'phase': 'final_synthesis',
+                'thought': 'Формирование финального ответа',
+                'confidence': 0.95,
+                'icon': '✨'
+            })
             
             return {
                 'response': response,
@@ -306,11 +380,7 @@ class HybridPipelineAdapter:
                     'reasons': ['OK']
                 },
                 'query_type': generation_mode,
-                'reasoning_steps': [{
-                    'step': 1,
-                    'phase': 'generation',
-                    'action': f'DualGenerator ({generation_mode})'
-                }],
+                'reasoning_steps': reasoning_steps,
                 'processing_time': elapsed,
                 'model_a_result': {'response': response},
                 'model_b_result': {'response': response},

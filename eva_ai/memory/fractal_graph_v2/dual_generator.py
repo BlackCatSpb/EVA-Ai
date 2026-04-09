@@ -236,19 +236,40 @@ class DualGenerator:
         self.graph = graph
         logger.info("DualGenerator инициализирован с двумя физическими моделями")
     
-    def generate_condensed(self, query: str) -> str:
+    def generate_condensed(self, query: str) -> Dict[str, Any]:
         """Генерация краткого ответа."""
-        return self.condensed.generate(query)
+        start = time.time()
+        response = self.condensed.generate(query)
+        elapsed = time.time() - start
+        
+        return {
+            'response': response,
+            'mode': 'condensed',
+            'time': elapsed,
+            'length': len(response),
+            'tokens_estimate': len(response.split())
+        }
     
-    def generate_extended(self, query: str) -> str:
+    def generate_extended(self, query: str) -> Dict[str, Any]:
         """Генерация развёрнутого ответа."""
-        return self.extended.generate(query)
+        start = time.time()
+        response = self.extended.generate(query)
+        elapsed = time.time() - start
+        
+        return {
+            'response': response,
+            'mode': 'extended',
+            'time': elapsed,
+            'length': len(response),
+            'tokens_estimate': len(response.split())
+        }
     
     def generate(
         self,
         query: str,
-        mode: str = "auto"
-    ) -> str:
+        mode: str = "auto",
+        return_details: bool = False
+    ) -> Any:
         """
         Умная генерация.
         
@@ -258,24 +279,33 @@ class DualGenerator:
                 - 'condensed': всегда краткий
                 - 'extended': всегда развёрнутый
                 - 'auto': определяет по ключевым словам
+            return_details: возвращать детали (Dict) или только response (str)
         """
         if mode == "condensed":
-            return self.generate_condensed(query)
+            result = self.generate_condensed(query)
         elif mode == "extended":
-            return self.generate_extended(query)
+            result = self.generate_extended(query)
         else:
-            return self._auto_generate(query)
+            result = self._auto_generate(query)
+        
+        if return_details:
+            return result
+        return result.get('response', result) if isinstance(result, dict) else result
     
-    def _auto_generate(self, query: str) -> str:
+    def _auto_generate(self, query: str) -> Dict[str, Any]:
         """Автоматическое определение режима."""
         query_lower = query.lower()
         
         brief_keywords = ['кратко', 'вкратце', 'суть', 'кто такой', 'перечисли', 'назови']
         for kw in brief_keywords:
             if kw in query_lower:
-                return self.generate_condensed(query)
+                result = self.generate_condensed(query)
+                result['auto_selected'] = True
+                return result
         
-        return self.generate_extended(query)
+        result = self.generate_extended(query)
+        result['auto_selected'] = True
+        return result
     
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику обоих генераторов."""

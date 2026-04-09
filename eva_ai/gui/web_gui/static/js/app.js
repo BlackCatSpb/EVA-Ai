@@ -568,15 +568,21 @@
                         'model_a_generation': '🧠',
                         'model_b_generation': '💡',
                         'query_analysis': '🔍',
+                        'model_selection': '⚙️',
+                        'context_retrieval': '📚',
+                        'condensed': '📝',
+                        'extended': '📖',
+                        'quality_check': '✅',
                         'quality_check_a': '✅',
                         'quality_check_b': '✅',
                         'final_synthesis': '📝',
                         'contradiction_check': '⚖️',
                         'ethics_check': '🛡️',
                         'web_search': '🌐',
-                        'refinement': '✨'
+                        'refinement': '✨',
+                        'self_dialog': '💬'
                     };
-                    const icon = icons[phase] || '🔹';
+                    const icon = step.icon || icons[phase] || '🔹';
                     return `
                         <div class="reasoning-step">
                             <span class="step-icon">${icon}</span>
