@@ -18,6 +18,13 @@ from .hybrid_tokenizer import HybridTokenizer, create_hybrid_tokenizer
 from .eva_generator import EVAGenerator, create_eva_generator, GenerationRequest, GenerationResult
 from .semantic_context_cache import SemanticContextCache, create_semantic_context_cache
 from .snapshot_manager import SnapshotManager, MemorySnapshot, create_snapshot_manager
+from .virtual_token_handler import (
+    VirtualTokenManager,
+    VirtualTokenLogitsProcessor,
+    StreamingVirtualTokenHandler,
+    VirtualTokenInfo,
+    create_virtual_token_manager
+)
 from .eva_container import EVAContainer, create_eva_container, load_eva_container
 from .tokenizer import GraphTokenizer, create_graph_tokenizer
 
@@ -64,6 +71,13 @@ __all__ = [
     'SnapshotManager',
     'MemorySnapshot',
     'create_snapshot_manager',
+    
+    # Virtual Token Handler (LogitsProcessor + Streaming replacement)
+    'VirtualTokenManager',
+    'VirtualTokenLogitsProcessor',
+    'StreamingVirtualTokenHandler',
+    'VirtualTokenInfo',
+    'create_virtual_token_manager',
     
     # EVA Container (unified .eva format)
     'EVAContainer',

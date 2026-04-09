@@ -150,11 +150,15 @@
     "fallback_on_error": true,
     "log_injections": true,
     "virtual_tokens": {
-      "enabled": false,
+      "enabled": true,
       "start_id": 32000,
       "count": 5000,
       "max_recursion_depth": 3,
-      "max_injected_tokens": 256
+      "max_injected_tokens": 256,
+      "boost_factor": 50.0,
+      "block_used_tokens": true,
+      "virtual_prefix": "<|node_",
+      "virtual_suffix": "|>"
     }
   },
   "graph_curator": {

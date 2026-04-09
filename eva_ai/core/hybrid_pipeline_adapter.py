@@ -510,3 +510,208 @@ class HybridPipelineAdapter:
         
         # FractalPipeline использует переданные модели,
         # поэтому не выгружаем их здесь
+    
+    def generate_with_virtual_tokens(
+        self,
+        query: str,
+        session_id: str = "default",
+        max_tokens: int = 1024,
+        use_streaming: bool = True,
+        generation_mode: str = "extended"
+    ) -> Dict[str, Any]:
+        """
+        Генерация с использованием виртуальных токенов.
+        
+        Использует SnapshotManager для создания неизменяемого снимка
+        и VirtualTokenManager для замены токенов на контент из памяти.
+        
+        Args:
+            query: Запрос пользователя
+            session_id: ID сессии
+            max_tokens: Максимальное число токенов
+            use_streaming: Использовать streaming для замены токенов
+            generation_mode: 'extended' или 'condensed'
+            
+        Returns:
+            {response, virtual_token_stats, context_stats}
+        """
+        try:
+            from eva_ai.memory.fractal_graph_v2 import (
+                create_snapshot_manager,
+                create_virtual_token_manager
+            )
+        except ImportError as e:
+            logger.warning(f"Virtual tokens not available: {e}")
+            return {
+                "response": None,
+                "error": "virtual_tokens_module_not_available",
+                "fallback": True
+            }
+        
+        if not self.fractal_graph:
+            return {
+                "response": None,
+                "error": "fractal_graph_not_available",
+                "fallback": True
+            }
+        
+        try:
+            snapshot_mgr = create_snapshot_manager(
+                fractal_graph=self.fractal_graph,
+                ttl_seconds=300.0,
+                max_active_snapshots=20
+            )
+            
+            relevant_nodes = self._find_relevant_nodes(query, top_k=10)
+            node_ids = [n.get('id', n.get('node_id')) for n in relevant_nodes if n]
+            node_ids = [n for n in node_ids if n]
+            
+            snapshot = snapshot_mgr.create_snapshot(
+                session_id=session_id,
+                node_ids=node_ids,
+                dialogue_context=""
+            )
+            
+            virtual_token_mgr = create_virtual_token_manager(
+                snapshot_or_contents=snapshot,
+                llama_model=self.model_a or self.model_b,
+                config=self._kwargs.get('virtual_tokens', {})
+            )
+            
+            prompt = self._build_prompt_for_mode(query, generation_mode)
+            
+            if use_streaming and virtual_token_mgr._streaming_handler:
+                response = self._generate_with_streaming(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    virtual_token_mgr=virtual_token_mgr,
+                    snapshot=snapshot
+                )
+            else:
+                response = self._generate_without_streaming(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    virtual_token_mgr=virtual_token_mgr,
+                    snapshot=snapshot
+                )
+            
+            return {
+                "response": response,
+                "virtual_token_stats": virtual_token_mgr.get_stats(),
+                "context_stats": snapshot_mgr.get_stats(),
+                "nodes_used": len(node_ids),
+                "session_id": session_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Virtual token generation error: {e}")
+            return {
+                "response": None,
+                "error": str(e),
+                "fallback": True
+            }
+    
+    def _find_relevant_nodes(self, query: str, top_k: int = 10) -> List[Dict]:
+        """Находит релевантные узлы в графе."""
+        if not self.fractal_graph:
+            return []
+        
+        try:
+            if hasattr(self.fractal_graph, 'semantic_search'):
+                return self.fractal_graph.semantic_search(query, top_k=top_k)
+            elif hasattr(self.fractal_graph, 'retrieve_knowledge'):
+                return self.fractal_graph.retrieve_knowledge(query, top_k=top_k)
+        except Exception as e:
+            logger.warning(f"Error finding relevant nodes: {e}")
+        
+        return []
+    
+    def _build_prompt_for_mode(self, query: str, mode: str) -> str:
+        """Строит промт в зависимости от режима."""
+        if mode == "condensed":
+            return f"""Ты — краткий ассистент. Дай ответ в 1-2 предложениях.
+
+Вопрос: {query}
+
+Ответ:"""
+        else:
+            return f"""Дай развёрнутый и подробный ответ на вопрос.
+
+Вопрос: {query}
+
+Ответ:"""
+    
+    def _generate_with_streaming(
+        self,
+        prompt: str,
+        max_tokens: int,
+        virtual_token_mgr,
+        snapshot
+    ) -> str:
+        """Генерация с использованием streaming."""
+        from llama_cpp import LogitsProcessorList
+        
+        logits_processor = None
+        lp = virtual_token_mgr.get_logits_processor()
+        if lp:
+            logits_processor = LogitsProcessorList([lp])
+        
+        model = self.model_a or self.model_b
+        if not model:
+            return ""
+        
+        try:
+            stream = model.create_completion(
+                prompt=prompt,
+                max_tokens=max_tokens,
+                temperature=0.35,
+                repeat_penalty=1.8,
+                stream=True,
+                logits_processor=logits_processor
+            )
+            
+            streaming_handler = virtual_token_mgr.create_streaming_handler(snapshot)
+            if not streaming_handler:
+                return ""
+            
+            full_response = ""
+            for chunk in streaming_handler.process_stream(stream):
+                full_response += chunk
+            
+            return full_response
+            
+        except Exception as e:
+            logger.error(f"Streaming generation error: {e}")
+            return ""
+    
+    def _generate_without_streaming(
+        self,
+        prompt: str,
+        max_tokens: int,
+        virtual_token_mgr,
+        snapshot
+    ) -> str:
+        """Генерация без streaming (fallback)."""
+        model = self.model_a or self.model_b
+        if not model:
+            return ""
+        
+        try:
+            response = model(
+                prompt,
+                max_tokens=max_tokens,
+                temperature=0.35,
+                repeat_penalty=1.8,
+                echo=False
+            )
+            
+            if isinstance(response, dict):
+                text = response.get('choices', [{}])[0].get('text', '')
+            else:
+                text = str(response)
+            
+            return text
+            
+        except Exception as e:
+            logger.error(f"Non-streaming generation error: {e}")
+            return ""
