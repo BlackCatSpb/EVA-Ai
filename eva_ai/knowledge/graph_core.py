@@ -158,7 +158,7 @@ class KnowledgeGraphCore:
         if self.text_processor is None and UnifiedTextProcessor:
             try:
                 config = {
-                    'model_name': "paraphrase-multilingual-MiniLM-L12-v2",
+                    'model_name': "eva_ai/core/hf_cache/multilingual-e5-base",
                     'use_async': True
                 }
                 self.text_processor = UnifiedTextProcessor(

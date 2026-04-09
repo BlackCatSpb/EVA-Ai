@@ -48,13 +48,13 @@ def _encode_with_cache(text: str, model) -> Optional[List[float]]:
         return emb.tolist() if hasattr(emb, 'tolist') else list(emb)
 
 
-def get_sentence_transformer(model_name: str = "paraphrase-multilingual-MiniLM-L12-v2", device: str = "auto") -> Optional[object]:
+def get_sentence_transformer(model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[object]:
     """
     Возвращает кэшированную модель sentence-transformers.
     Если модель уже загружена - возвращает кэш, иначе загружает и кэширует.
     
     Args:
-        model_name: Имя модели (по умолчанию paraphrase-multilingual-MiniLM-L12-v2 - быстрая, мультиязычная)
+        model_name: Путь к локальной модели или имя HF модели
         device: Устройство ('cpu', 'cuda', 'auto')
     
     Returns:
@@ -83,13 +83,13 @@ def get_sentence_transformer(model_name: str = "paraphrase-multilingual-MiniLM-L
         return None
 
 
-def encode_text(text: str, model_name: str = "paraphrase-multilingual-MiniLM-L12-v2", device: str = "auto") -> Optional[List[float]]:
+def encode_text(text: str, model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[List[float]]:
     """
     Вычисляет эмбеддинг текста с автоматическим кешированием.
 
     Args:
         text: Текст для эмбеддинга
-        model_name: Модель эмбеддинга (paraphrase-multilingual-MiniLM-L12-v2)
+        model_name: Путь к локальной модели
         device: Устройство
     
     Returns:
@@ -102,7 +102,7 @@ def encode_text(text: str, model_name: str = "paraphrase-multilingual-MiniLM-L12
     return _encode_with_cache(text, model)
 
 
-def encode_batch(texts: List[str], model_name: str = "paraphrase-multilingual-MiniLM-L12-v2", device: str = "auto") -> Optional[List[List[float]]]:
+def encode_batch(texts: List[str], model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[List[List[float]]]:
     """
     Вычисляет эмбеддинги батча текстов с кешированием.
 

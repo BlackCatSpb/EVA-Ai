@@ -120,9 +120,9 @@
   "fractal_graph_v2": {
     "enabled": true,
     "storage_dir": "eva_ai/memory/fractal_graph_v2/data",
-    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "embedding_model": "eva_ai/core/hf_cache/multilingual-e5-base",
     "embedding_device": "cpu",
-    "embedding_dim": 384,
+    "embedding_dim": 768,
     "extended_max_tokens": 4096,
     "extended_temperature": 0.35,
     "extended_repeat_penalty": 1.8,

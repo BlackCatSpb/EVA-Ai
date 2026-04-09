@@ -108,7 +108,7 @@ class MemoryGraphML:
         self._hybrid_cache = None
         
         self._st_model = None
-        self._st_model_name = self.config.get('st_model', 'paraphrase-multilingual-MiniLM-L12-v2')
+        self._st_model_name = self.config.get('st_model', 'eva_ai/core/hf_cache/multilingual-e5-base')
         self._init_st_model()
         
         self._graph = self.embeddings

@@ -28,7 +28,7 @@ class EmbeddingsManager:
     
     def __init__(
         self,
-        model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
+model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base",
         device: str = "cuda",
         cache_dir: str = None,
         batch_size: int = 32,
