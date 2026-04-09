@@ -204,9 +204,17 @@ class IntegratedWebSearchEngine(BaseComponent):
                 
                 return cached_result
             
-            # Используем оригинальный движок если доступен
-            if self._original_engine and hasattr(self._original_engine, 'search'):
-                # Передаем параметры в оригинальный движок
+            # Используем Tavily API с приоритетом
+            tavily_result = tavily_search(query, max_results=max_results or 5)
+            
+            if "error" not in tavily_result and tavily_result.get("results"):
+                result = {
+                    "status": "completed",
+                    "results": tavily_result.get("results", []),
+                    "source": "tavily"
+                }
+            elif self._original_engine and hasattr(self._original_engine, 'search'):
+                # Fallback на оригинальный движок
                 if max_results is not None:
                     result = self._original_engine.search(query, max_results=max_results)
                 else:

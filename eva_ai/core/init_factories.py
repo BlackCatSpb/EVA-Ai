@@ -434,10 +434,10 @@ def create_ethics_framework(initializer):
 
 def create_web_search_engine(initializer):
     try:
-        from eva_ai.websearch.web_search_engine import WebSearchEngine
-        web_search = WebSearchEngine(brain=initializer.core_brain)
+        from eva_ai.websearch.web_search_integrated import IntegratedWebSearchEngine
+        web_search = IntegratedWebSearchEngine(brain=initializer.core_brain)
         initializer.core_brain.web_search_engine = web_search
-        initializer.logger.info("[OK] WebSearchEngine создан")
+        initializer.logger.info("[OK] WebSearchEngine с Tavily создан")
         return web_search
     except Exception as e:
         initializer.logger.error(f"[FAIL] Ошибка создания web_search_engine: {e}", exc_info=True)
