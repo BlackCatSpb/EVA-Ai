@@ -104,6 +104,11 @@ class CondensedGenerator:
         """Очистка ответа."""
         text = text.strip()
         
+        system_patterns = ['Модель B:', 'Модель A:', 'Модель C:', 'Model B:', 'Model A:']
+        for pattern in system_patterns:
+            if text.startswith(pattern):
+                text = text[len(pattern):].strip()
+        
         fillers = ['хорошо,', 'конечно,', 'вот,', 'отлично,']
         for f in fillers:
             if text.lower().startswith(f):
@@ -250,6 +255,11 @@ class ExtendedGenerator:
     def _clean_response(self, text: str) -> str:
         """Очистка ответа."""
         text = text.strip()
+        
+        system_patterns = ['Модель B:', 'Модель A:', 'Модель C:', 'Model B:', 'Model A:']
+        for pattern in system_patterns:
+            if text.startswith(pattern):
+                text = text[len(pattern):].strip()
         
         lines = text.split('\n')
         lines = [l.strip() for l in lines if l.strip()]
