@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ЕВА AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <!-- Login -->
+    <div class="login-screen" id="loginScreen">
+        <div class="login-box">
+            <div class="login-logo">ЕВА</div>
+            <div class="login-sub">EVA</div>
+            <form class="login-form" id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Пользователь" autocomplete="username">
+                <input type="password" id="loginPassword" placeholder="Пароль" autocomplete="current-password">
+                <button type="submit" class="login-btn">Войти</button>
+            </form>
+            <div class="login-error" id="loginError"></div>
+            <div class="login-hint">admin / cogniflex</div>
+        </div>
+    </div>
+
+    <!-- App -->
+    <div class="app" id="appContainer" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <button class="new-chat-btn" id="newChatBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Новый чат</span>
+                </button>
+            </div>
+            <div class="sidebar-sessions" id="sessionList"></div>
+            <div class="sidebar-nav">
+                <button class="nav-item active" data-view="chat">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Чат</span>
+                </button>
+                <button class="nav-item" data-view="analytics">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+                    <span>Аналитика</span>
+                </button>
+                <button class="nav-item" data-view="wikipedia">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                    <span>Поиск</span>
+                </button>
+                <button class="nav-item" data-view="settings">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                    <span>Настройки</span>
+                </button>
+                <button class="nav-item" data-view="monitor">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    <span>Монитор</span>
+                </button>
+            </div>
+            <div class="sidebar-user">
+                <div class="status-indicator" id="systemStatus" title="Статус системы">
+                    <span class="status-dot"></span>
+                    <span class="status-text">Ожидание</span>
+                </div>
+                <span class="user-name" id="userName">—</span>
+                <button class="logout-btn" id="logoutBtn" title="Выход">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="main">
+            <!-- Chat View -->
+            <div class="view active" id="chatView">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-wrap">
+                    <div class="chat-input-box">
+                        <button class="attach-btn" id="attachBtn" title="Прикрепить файл">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                        </button>
+                        <input type="file" id="fileInput" style="display:none" accept=".txt,.pdf,.docx,.py,.js,.ts,.java,.cpp,.c,.h,.html,.css,.json,.xml,.yaml,.yml,.md,.jpg,.jpeg,.png,.gif,.bmp">
+                        <div id="filePreview" class="file-preview" style="display:none">
+                            <span id="fileName"></span>
+                            <button id="removeFile" class="remove-file">&times;</button>
+                        </div>
+                        <textarea id="chatInput" placeholder="Сообщение..." rows="1" autocomplete="off"></textarea>
+                        <button class="send-btn" id="sendBtn" title="Отправить">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics View -->
+            <div class="view" id="analyticsView" style="display:none">
+                <div class="view-header">
+                    <h2>Аналитика</h2>
+                    <button class="refresh-btn" id="refreshAnalytics">Обновить</button>
+                </div>
+                <div class="analytics-grid">
+                    <div class="analytics-card">
+                        <h3>Производительность</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsQueries">0</span><span class="stat-lbl">Запросов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsAvgTime">0ms</span><span class="stat-lbl">Среднее время</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsSuccess">0%</span><span class="stat-lbl">Успешных</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Система</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsCPU">0%</span><span class="stat-lbl">CPU</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsMemory">0%</span><span class="stat-lbl">RAM</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsVRAM">0%</span><span class="stat-lbl">VRAM</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Обучение</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="analyticsDialogs">0</span><span class="stat-lbl">Диалогов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsGaps">0</span><span class="stat-lbl">Пробелов</span></div>
+                            <div class="stat"><span class="stat-val" id="analyticsLearned">0</span><span class="stat-lbl">Изучено</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Граф знаний</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="graphNodes">0</span><span class="stat-lbl">Узлы</span></div>
+                            <div class="stat"><span class="stat-val" id="graphEdges">0</span><span class="stat-lbl">Связи</span></div>
+                            <div class="stat"><span class="stat-val" id="graphGroups">0</span><span class="stat-lbl">Группы</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Противоречия</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="contradTotal">0</span><span class="stat-lbl">Всего</span></div>
+                            <div class="stat"><span class="stat-val" id="contradActive">0</span><span class="stat-lbl">Активных</span></div>
+                            <div class="stat"><span class="stat-val" id="contradResolved">0</span><span class="stat-lbl">Разрешено</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>ConceptMiner</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="conceptProvisional">0</span><span class="stat-lbl">Временные</span></div>
+                            <div class="stat"><span class="stat-val" id="conceptConfirmed">0</span><span class="stat-lbl">Подтвержд.</span></div>
+                            <div class="stat"><span class="stat-val" id="conceptArchived">0</span><span class="stat-lbl">Архив</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card">
+                        <h3>Куратор графа</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="curatorCycles">0</span><span class="stat-lbl">Циклов</span></div>
+                            <div class="stat"><span class="stat-val" id="curatorState">—</span><span class="stat-lbl">Состояние</span></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card full-width">
+                        <h3>Здоровье системы</h3>
+                        <div class="system-health" id="systemHealth">
+                            <div class="health-status" id="healthStatus">
+                                <span class="health-dot"></span>
+                                <span class="health-text">Проверка...</span>
+                            </div>
+                            <div class="health-issues" id="healthIssues"></div>
+                        </div>
+                    </div>
+                    <div class="analytics-card full-width">
+                        <h3>История активности</h3>
+                        <div class="activity-list" id="activityList"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wikipedia View -->
+            <div class="view" id="wikipediaView" style="display:none">
+                <div class="view-header">
+                    <h2>Поиск</h2>
+                    <button class="refresh-btn" id="refreshWikipedia">Обновить</button>
+                </div>
+                <div class="wiki-stats" id="wikiStats">
+                    <div class="stat"><span class="stat-val" id="wikiArticles">0</span><span class="stat-lbl">Статей в БД</span></div>
+                    <div class="stat"><span class="stat-val" id="wikiChunks">0</span><span class="stat-lbl">Чанков</span></div>
+                    <div class="stat"><span class="stat-val" id="wikiQuota">1000</span><span class="stat-lbl">Запросов осталось</span></div>
+                </div>
+                <div class="wiki-search">
+                    <input type="text" id="wikiSearchInput" placeholder="Целевой запрос для поиска...">
+                    <button class="search-btn" id="wikiSearchBtn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </button>
+                </div>
+                <div class="wiki-results" id="wikiResults">
+                    <div class="empty-state">Введите запрос для поиска</div>
+                </div>
+            </div>
+
+            <!-- Health View -->
+            <div class="view" id="healthView" style="display:none">
+                <div class="view-header">
+                    <h2>Здоровье системы</h2>
+                    <button class="refresh-btn" id="refreshHealth">Обновить</button>
+                </div>
+                <div class="health-grid" id="healthGrid">
+                    <div class="health-card">
+                        <h3>Ресурсы</h3>
+                        <div class="health-stats">
+                            <div class="health-stat">
+                                <span class="health-stat-val" id="healthCPU">—</span>
+                                <span class="health-stat-lbl">CPU</span>
+                                <div class="health-bar"><div class="health-bar-fill" id="healthCPUBar"></div></div>
+                            </div>
+                            <div class="health-stat">
+                                <span class="health-stat-val" id="healthMemory">—</span>
+                                <span class="health-stat-lbl">RAM</span>
+                                <div class="health-bar"><div class="health-bar-fill" id="healthMemoryBar"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="health-card">
+                        <h3>GPU</h3>
+                        <div class="health-stats">
+                            <div class="health-stat">
+                                <span class="health-stat-val" id="healthGPU">—</span>
+                                <span class="health-stat-lbl">Доступен</span>
+                            </div>
+                            <div class="health-stat">
+                                <span class="health-stat-val" id="healthVRAM">—</span>
+                                <span class="health-stat-lbl">VRAM</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="health-card full-width">
+                        <h3>Компоненты</h3>
+                        <div class="component-list" id="componentList">
+                            <div class="empty-state">Загрузка...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div class="view" id="settingsView" style="display:none">
+                <div class="view-header">
+                    <h2>Настройки</h2>
+                </div>
+                <div class="settings-body">
+                    <div class="setting-group">
+                        <h3>Аккаунт</h3>
+                        <div class="setting-row">
+                            <label>Пользователь</label>
+                            <span id="settingsUser">—</span>
+                        </div>
+                        <div class="setting-row">
+                            <label>Сессия</label>
+                            <span id="settingsSession">—</span>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Система</h3>
+                        <div class="setting-row">
+                            <label>Автообучение</label>
+                            <div class="toggle-switch active" id="toggleAutoLearn"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>Память</label>
+                            <div class="toggle-switch active" id="toggleMemory"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>SRE (Reasoning)</label>
+                            <div class="toggle-switch active" id="toggleSRE"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Данные</h3>
+                        <div class="setting-row data-actions">
+                            <button class="data-btn" id="exportSessionBtn" title="Экспорт сессии">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Экспорт сессии
+                            </button>
+                            <button class="data-btn" id="importSessionBtn" title="Импорт сессии">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                                Импорт сессии
+                            </button>
+                            <input type="file" id="importFileInput" accept=".json" style="display:none">
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Интерфейс</h3>
+                        <div class="setting-row">
+                            <label>Тёмная тема</label>
+                            <div class="toggle-switch active" id="toggleTheme"></div>
+                        </div>
+                        <div class="setting-row">
+                            <label>Звуковые уведомления</label>
+                            <div class="toggle-switch" id="toggleSound"></div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>Модели</h3>
+                        <div class="collapsible-panel" id="modelStatusPanel">
+                            <button class="panel-toggle" id="modelStatusToggle">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                                Статус моделей
+                            </button>
+                            <div class="panel-body" id="modelStatusBody">
+                                <div id="modelStatusList">
+                                    <div class="empty-state">Загрузка...</div>
+                                </div>
+                                <div class="gpu-info" id="gpuInfo"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setting-group">
+                        <h3>О системе</h3>
+                        <div class="setting-row">
+                            <label>Версия</label>
+                            <span>1.0.0</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monitor View -->
+            <div class="view" id="monitorView" style="display:none">
+                <div class="view-header">
+                    <h2>Монитор системы</h2>
+                    <button class="refresh-btn" id="clearMonitor">Очистить</button>
+                    <button class="refresh-btn" id="toggleStream">Стрим: Вкл</button>
+                </div>
+                <div class="monitor-container">
+                    <div class="monitor-tabs">
+                        <button class="monitor-tab active" data-tab="all">Все</button>
+                        <button class="monitor-tab" data-tab="selfdialog">Самодиалог</button>
+                        <button class="monitor-tab" data-tab="learning">Обучение</button>
+                        <button class="monitor-tab" data-tab="curator">Куратор</button>
+                        <button class="monitor-tab" data-tab="generation">Генерация</button>
+                    </div>
+                    <div class="monitor-output" id="monitorOutput">
+                        <div class="monitor-empty">Ожидание данных...</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <!-- Emoji functionality disabled -->
+</body>
+</html>

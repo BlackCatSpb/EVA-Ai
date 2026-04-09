@@ -68,18 +68,17 @@ class GGUFShadowProfiler:
             self.model_meta = {
                 'architecture': info.architecture,
                 'model_type': info.model_type,
-                'param_count': info.param_count,
-                'quantization': info.quantization,
                 'vocab_size': info.vocab_size,
                 'hidden_size': info.hidden_size,
                 'num_layers': info.num_layers,
                 'num_attention_heads': info.num_attention_heads,
                 'max_position_embeddings': info.max_position_embeddings,
                 'rope_theta': getattr(info, 'rope_theta', 0),
+                'quantization_version': getattr(info, 'quantization_version', 'unknown'),
                 'file_size': os.path.getsize(self.model_path) if os.path.exists(self.model_path) else 0,
                 'model_path': self.model_path
             }
-            logger.info(f"Loaded GGUF metadata: {info.architecture}, {info.param_count} params")
+            logger.info(f"Loaded GGUF metadata: {info.architecture}, layers={info.num_layers}, hidden={info.hidden_size}")
         except Exception as e:
             logger.warning(f"Failed to parse GGUF metadata: {e}")
             self.model_meta = {'model_path': self.model_path, 'error': str(e)}
@@ -101,10 +100,10 @@ class GGUFShadowProfiler:
         
         # Формируем content из метаданных
         arch = self.model_meta.get('architecture', 'unknown')
-        params = self.model_meta.get('param_count', 0)
-        quant = self.model_meta.get('quantization', 'unknown')
+        layers = self.model_meta.get('num_layers', 0)
+        hidden = self.model_meta.get('hidden_size', 0)
         
-        content = f"GGUF Model: {model_name} | {arch} | {params/1e9:.1f}B params | {quant}"
+        content = f"GGUF Model: {model_name} | {arch} | {layers} layers | hidden={hidden}"
         
         try:
             result = self.graph.add_node(

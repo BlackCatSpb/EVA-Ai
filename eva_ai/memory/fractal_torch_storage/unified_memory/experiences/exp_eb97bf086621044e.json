@@ -1,0 +1,12 @@
+{
+  "id": "exp_eb97bf086621044e",
+  "query": "Что ты знаешь о ИИ?",
+  "response": "Я обработала ваш запрос, но для детального ответа мне нужно изучить эту тему глубже.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775649676.4915514,
+  "usage_count": 0,
+  "related_experiences": []
+}

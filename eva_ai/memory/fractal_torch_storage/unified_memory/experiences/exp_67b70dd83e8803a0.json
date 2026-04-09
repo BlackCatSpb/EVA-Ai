@@ -1,0 +1,12 @@
+{
+  "id": "exp_67b70dd83e8803a0",
+  "query": "Расскажи о себе",
+  "response": "Спасибо за ваш вопрос! Я обработала его с помощью фрактальной памяти.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775649560.232952,
+  "usage_count": 0,
+  "related_experiences": []
+}

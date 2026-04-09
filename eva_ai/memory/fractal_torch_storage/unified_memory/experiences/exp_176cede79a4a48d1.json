@@ -1,0 +1,12 @@
+{
+  "id": "exp_176cede79a4a48d1",
+  "query": "Как у тебя дела?",
+  "response": "Хороший вопрос. Я обработала ваш запрос через фрактальную память.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775671561.8771455,
+  "usage_count": 0,
+  "related_experiences": []
+}

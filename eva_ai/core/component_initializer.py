@@ -13,7 +13,7 @@ from eva_ai.core.init_core import ComponentInitializer, create_component_initial
 from eva_ai.core.init_factories import (
     create_event_bus, create_resource_manager, create_config_manager,
     create_memory_manager, create_hybrid_cache,
-    create_qwen_api_enhancer, create_text_processor,
+    create_fractal_graph_v2, create_qwen_api_enhancer, create_text_processor,
     create_ml_unit, create_model_manager,
     create_query_processor, create_response_generator, create_reasoning_engine,
     create_analytics_manager, create_system_monitor, create_metrics_collector,
@@ -37,7 +37,7 @@ __all__ = [
     'create_component_initializer',
     'create_event_bus', 'create_resource_manager', 'create_config_manager',
     'create_memory_manager', 'create_hybrid_cache',
-    'create_knowledge_graph', 'create_qwen_api_enhancer', 'create_text_processor',
+    'create_fractal_graph_v2', 'create_knowledge_graph', 'create_qwen_api_enhancer', 'create_text_processor',
     'create_ml_unit', 'create_model_manager',
     'create_query_processor', 'create_response_generator', 'create_reasoning_engine',
     'create_analytics_manager', 'create_system_monitor', 'create_metrics_collector',

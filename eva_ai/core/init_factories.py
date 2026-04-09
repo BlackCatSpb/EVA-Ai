@@ -445,6 +445,30 @@ def create_web_search_engine(initializer):
         return None
 
 
+def create_fractal_graph_v2(initializer):
+    """Получает или создаёт fractal_graph_v2."""
+    try:
+        # Проверяем, не создан ли уже
+        existing = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+        if existing is not None:
+            initializer.logger.info(f"Используем существующий fractal_graph_v2: {id(existing)}")
+            return existing
+        
+        from eva_ai.memory.fractal_graph_v2 import FractalGraphV2
+        fg = FractalGraphV2()
+        initializer.core_brain.fractal_graph_v2 = fg
+        
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['fractal_graph_v2'] = fg
+        
+        initializer.logger.info("[OK] FractalGraphV2 создан")
+        return fg
+    except Exception as e:
+        initializer.logger.error(f"[FAIL] Ошибка создания fractal_graph_v2: {e}")
+        initializer.failed_components.add('fractal_graph_v2')
+        return None
+
+
 def create_fractal_storage(initializer):
     """Создает FractalStorage для хранения цепочек рассуждений."""
     try:
@@ -580,6 +604,7 @@ def register_all_factories(initializer):
         'config_manager': lambda: create_config_manager(initializer),
         'memory_manager': lambda: create_memory_manager(initializer),
         'hybrid_cache': lambda: create_hybrid_cache(initializer),
+        'fractal_graph_v2': lambda: create_fractal_graph_v2(initializer),
         'qwen_api_enhancer': lambda: create_qwen_api_enhancer(initializer),
         'text_processor': lambda: create_text_processor(initializer),
         'ml_unit': lambda: create_ml_unit(initializer),

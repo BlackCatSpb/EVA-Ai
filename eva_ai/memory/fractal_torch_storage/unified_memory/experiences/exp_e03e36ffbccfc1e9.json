@@ -1,0 +1,12 @@
+{
+  "id": "exp_e03e36ffbccfc1e9",
+  "query": "Расскажи о себе",
+  "response": "Интересная тема. Могу рассказать подробнее, если уточните вопрос.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775716222.345306,
+  "usage_count": 0,
+  "related_experiences": []
+}

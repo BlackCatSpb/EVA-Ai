@@ -1,0 +1,12 @@
+{
+  "id": "exp_89c9262d92d6941f",
+  "query": "Расскажи о себе",
+  "response": "system_state",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775654515.1286228,
+  "usage_count": 0,
+  "related_experiences": []
+}

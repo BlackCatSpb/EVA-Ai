@@ -1071,7 +1071,7 @@ class FractalGraphV2:
         json_bytes = json_data.encode('utf-8')
         
         if compression == "zstd" and HAS_ZSTD:
-            compressed = zstd.ZSTD_compress(json_bytes, level=3)
+            compressed = zstd.compress(json_bytes, level=3)
         elif compression == "gzip":
             compressed = gzip.compress(json_bytes, compresslevel=6)
         else:
@@ -1099,7 +1099,7 @@ class FractalGraphV2:
         
         try:
             if compression == "zstd" and HAS_ZSTD:
-                json_bytes = zstd.ZSTD_decompress(blob)
+                json_bytes = zstd.decompress(blob)
             elif compression == "gzip":
                 json_bytes = gzip.decompress(blob)
             else:
@@ -1264,3 +1264,30 @@ def create_fractal_graph(
         storage_dir=storage_dir,
         embedding_dim=embedding_dim
     )
+
+
+# === УПРАВЛЕНИЕ LLAMA ИНСТАНСАМИ ===
+
+def register_model_instance(self, model_type: str, llama_instance):
+    """
+    Зарегистрировать Llama инстанс модели.
+    
+    Args:
+        model_type: Тип модели (model_a, model_b, model_c)
+        llama_instance: Llama инстанс из llama_cpp
+    """
+    if not hasattr(self, '_model_instances'):
+        self._model_instances = {}
+    
+    self._model_instances[model_type] = llama_instance
+    logger.info(f"Зарегистрирован Llama инстанс: {model_type}")
+
+def get_model_instance(self, model_type: str):
+    """Получить Llama инстанс модели."""
+    if hasattr(self, '_model_instances'):
+        return self._model_instances.get(model_type)
+    return None
+
+# Добавляем методы к классу
+FractalGraphV2.register_model_instance = register_model_instance
+FractalGraphV2.get_model_instance = get_model_instance

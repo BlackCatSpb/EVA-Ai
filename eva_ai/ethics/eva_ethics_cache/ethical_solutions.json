@@ -1,6 +1,142 @@
 {
   "solutions": [
     {
+      "key": "ad907416a460e8a8ddf1e7ed9a4d5086",
+      "timestamp": 1775707019.0020657,
+      "context_summary": "Запрос: Что такое attention mechanism?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "30ddb155e5da899704759d8917b9619f",
+      "timestamp": 1775706838.4560452,
+      "context_summary": "Запрос: Объясни разницу между ML и DL",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "46a3b906c2cd6ea6880b2aae02d278b7",
+      "timestamp": 1775706784.1213727,
+      "context_summary": "Запрос: Что такое Python?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "671099fe418518834ed909eec2b9c3e1",
+      "timestamp": 1775706394.368722,
+      "context_summary": "Запрос: Опиши как мог бы работать идеальный AI ассистент через 10 лет",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "feb4d92766f8f57a53984dab98bac37d",
+      "timestamp": 1775706319.7466626,
+      "context_summary": "Запрос: Сравни подходы RAG и fine-tuning для адаптации языковых моделей",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "e4850f9db43749cc3e98fa0f46d21192",
+      "timestamp": 1775706241.7676094,
+      "context_summary": "Запрос: Проанализируй преимущества и недостатки квантизированных языковых моделей",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "df3d2b917ec2db8cc7ee6b4e3d71d8f1",
+      "timestamp": 1775706130.5538838,
+      "context_summary": "Запрос: Что такое трансформеры в нейронных сетях и как они работают?",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
+      "key": "633ca0cf7140fec7826e7888b3f904a0",
+      "timestamp": 1775705818.498817,
+      "context_summary": "Запрос: Объясни разницу между машинным обучением и глубоким обучением, включая их применение в современных A...",
+      "relevant_principles": [
+        "no_violence",
+        "honesty",
+        "fact_verification",
+        "safe_code",
+        "risk_blocking",
+        "output_control"
+      ],
+      "decision": "proceed",
+      "justification": "Действие соответствует этическим стандартам",
+      "confidence": 0.6,
+      "requires_human_review": false
+    },
+    {
       "key": "c7f383fb6daf0e1e25913eb469b55235",
       "timestamp": 1775639122.8752868,
       "context_summary": "Запрос: Давай порассуждаем:\n\nДруг всем – ничей друг",

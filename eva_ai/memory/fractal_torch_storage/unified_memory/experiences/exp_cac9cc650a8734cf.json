@@ -1,0 +1,12 @@
+{
+  "id": "exp_cac9cc650a8734cf",
+  "query": "Ева, привет!",
+  "response": "system_state",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775654515.1331685,
+  "usage_count": 0,
+  "related_experiences": []
+}

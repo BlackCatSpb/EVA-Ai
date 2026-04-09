@@ -313,3 +313,23 @@ class MemoryManager:
         except Exception as e:
             logger.error(f"Ошибка верификации знания: {e}")
             return {"confirmed": False, "error": str(e)}
+
+    def clear_cache(self):
+        """Очистка кэша памяти."""
+        try:
+            self.working_memory = {}
+            self.episodic_memory = []
+            logger.info("Memory cache cleared")
+        except Exception as e:
+            logger.error(f"Ошибка очистки кэша: {e}")
+
+    def optimize(self):
+        """Оптимизация памяти."""
+        try:
+            if len(self.working_memory) > self.max_working_memory:
+                keys_to_remove = list(self.working_memory.keys())[:-self.max_working_memory]
+                for key in keys_to_remove:
+                    del self.working_memory[key]
+            logger.info("Memory optimized")
+        except Exception as e:
+            logger.error(f"Ошибка оптимизации: {e}")
