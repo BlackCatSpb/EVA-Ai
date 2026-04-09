@@ -29,7 +29,7 @@ CONDENSED_PROMPT = """Ты — краткий ассистент. Дай отв�
 
 Ответ:"""
 
-EXTENDED_PROMPT = """Дай развёрнутый и подробный ответ на вопрос. НЕ повторяй уже написанное.
+EXTENDED_PROMPT = """Дай развёрнутый и подробный ответ на вопрос. НЕ повторяй уже написанное. Каждый факт упоминай только ОДИН раз.
 
 Вопрос: {query}
 
@@ -126,15 +126,22 @@ class ExtendedGenerator:
         self,
         llama_model,
         graph=None,
-        max_tokens: int = 2048,
-        temperature: float = 0.4
+        max_tokens: int = 4096,
+        temperature: float = 0.35,
+        repeat_penalty: float = 1.8,
+        frequency_penalty: float = 0.3,
+        presence_penalty: float = 0.2
     ):
         self.llama = llama_model
         self.graph = graph
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.repeat_penalty = repeat_penalty
+        self.frequency_penalty = frequency_penalty
+        self.presence_penalty = presence_penalty
         self.stats = GeneratorStats()
-        logger.info(f"ExtendedGenerator инициализирован: max_tokens={max_tokens}")
+        self._seen_ngrams = set()
+        logger.info(f"ExtendedGenerator инициализирован: max_tokens={max_tokens}, repeat_penalty={repeat_penalty}")
     
     def generate(self, query: str, context: str = "") -> str:
         """Генерация развёрнутого ответа."""
@@ -149,8 +156,10 @@ class ExtendedGenerator:
                 prompt,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                repeat_penalty=1.3,
-                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:"],
+                repeat_penalty=self.repeat_penalty,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
+                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Повтор:", "повтор"],
                 echo=False
             )
             
@@ -160,7 +169,7 @@ class ExtendedGenerator:
             else:
                 response = str(output)
             
-            response = self._clean_response(response)
+            response = self._remove_repetitions(response)
             
         except Exception as e:
             logger.error(f"ExtendedGenerator error: {e}")
@@ -172,6 +181,54 @@ class ExtendedGenerator:
         self.stats.total_tokens += len(response.split())
         
         return response
+    
+    def _remove_repetitions(self, text: str) -> str:
+        """Удаление повторяющихся фрагментов из текста."""
+        if not text:
+            return text
+        
+        text = text.strip()
+        lines = text.split('\n')
+        unique_lines = []
+        seen_sentences = set()
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            normalized = line.lower()[:100]
+            if normalized in seen_sentences:
+                continue
+            
+            sentence_set = set()
+            for sentence in line.split('.')[:2]:
+                s = sentence.strip().lower()[:80]
+                if s and s not in sentence_set:
+                    sentence_set.add(s)
+                    
+                    if len(sentence_set) > 1:
+                        break
+            
+            is_duplicate = False
+            for prev_line in unique_lines[-3:]:
+                common_words = set(line.lower().split()) & set(prev_line.lower().split())
+                if len(common_words) >= 5 and len(line) < 150:
+                    overlap_ratio = len(common_words) / max(len(set(line.lower().split())), 1)
+                    if overlap_ratio > 0.6:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                seen_sentences.add(normalized)
+                unique_lines.append(line)
+        
+        result = '\n'.join(unique_lines[:15])
+        
+        if len(result) < 50 and len(unique_lines) > 0:
+            result = '. '.join([l.rstrip('.') for l in unique_lines[:5] if l])
+        
+        return result
     
     def _get_context(self, query: str) -> str:
         """Получить релевантный контекст из графа."""
@@ -219,7 +276,9 @@ class DualGenerator:
         llama_extended: Any,
         graph=None,
         condensed_max_tokens: int = 512,
-        extended_max_tokens: int = 2048
+        extended_max_tokens: int = 4096,
+        extended_temperature: float = 0.35,
+        extended_repeat_penalty: float = 1.8
     ):
         self.condensed = CondensedGenerator(
             llama_model=llama_condensed,
@@ -230,11 +289,13 @@ class DualGenerator:
         self.extended = ExtendedGenerator(
             llama_model=llama_extended,
             graph=graph,
-            max_tokens=extended_max_tokens
+            max_tokens=extended_max_tokens,
+            temperature=extended_temperature,
+            repeat_penalty=extended_repeat_penalty
         )
         
         self.graph = graph
-        logger.info("DualGenerator инициализирован с двумя физическими моделями")
+        logger.info(f"DualGenerator инициализирован: condensed={condensed_max_tokens}, extended={extended_max_tokens}")
     
     def generate_condensed(self, query: str) -> Dict[str, Any]:
         """Генерация краткого ответа."""

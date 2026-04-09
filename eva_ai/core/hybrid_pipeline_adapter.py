@@ -180,12 +180,21 @@ class HybridPipelineAdapter:
                 logger.error("DualGenerator требует 2 модели (model_a и model_b)")
                 return
             
+            extended_config = self._kwargs.get('fractal_graph_v2', {})
+            extended_max_tokens = extended_config.get('extended_max_tokens', 4096)
+            extended_temperature = extended_config.get('extended_temperature', 0.35)
+            extended_repeat_penalty = extended_config.get('extended_repeat_penalty', 1.8)
+            
             self.dual_generator = DualGenerator(
                 llama_condensed=self.model_a,
                 llama_extended=self.model_b,
-                graph=self.fractal_graph
+                graph=self.fractal_graph,
+                condensed_max_tokens=512,
+                extended_max_tokens=extended_max_tokens,
+                extended_temperature=extended_temperature,
+                extended_repeat_penalty=extended_repeat_penalty
             )
-            logger.info("DualGenerator инициализирован (2 физических модели)")
+            logger.info(f"DualGenerator инициализирован: extended_max_tokens={extended_max_tokens}")
         except Exception as e:
             logger.error(f"Ошибка инициализации DualGenerator: {e}")
             self.dual_generator = None

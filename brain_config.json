@@ -32,7 +32,7 @@
     "use_llama_cpp": false,
     "gguf_model_path": "eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-0.5b-instruct-q4_0.gguf",
     "llama_cpp_threads": 8,
-    "llama_cpp_n_ctx": 2048,
+    "llama_cpp_n_ctx": 4096,
     "disable_pytorch": true,
     "use_two_model_pipeline": true,
     "pipeline_mode": "dual",
@@ -41,12 +41,14 @@
     "model_c_gguf_path": "eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-coder-1.5b-instruct/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
   },
   "generation": {
-    "temperature": 0.6,
-    "top_p": 0.85,
-    "top_k": 50,
-    "max_new_tokens": 2048,
+    "temperature": 0.5,
+    "top_p": 0.9,
+    "top_k": 40,
+    "max_new_tokens": 4096,
     "do_sample": true,
-    "repetition_penalty": 1.3,
+    "repetition_penalty": 1.8,
+    "frequency_penalty": 0.3,
+    "presence_penalty": 0.2,
     "pad_token_id": 151643
   },
   "optimization": {
@@ -118,9 +120,12 @@
   "fractal_graph_v2": {
     "enabled": true,
     "storage_dir": "eva_ai/memory/fractal_graph_v2/data",
-    "embedding_model": "intfloat/multilingual-e5-base",
-    "embedding_device": "cuda",
-    "embedding_dim": 768
+    "embedding_model": "paraphrase-multilingual-MiniLM-L12-v2",
+    "embedding_device": "cpu",
+    "embedding_dim": 384,
+    "extended_max_tokens": 4096,
+    "extended_temperature": 0.35,
+    "extended_repeat_penalty": 1.8
   },
   "graph_curator": {
     "enabled": true,
