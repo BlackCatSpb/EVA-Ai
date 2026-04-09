@@ -290,10 +290,15 @@ class ExtendedGenerator:
             if stop_processing:
                 break
             
+            should_skip_line = False
             for pattern in system_patterns:
-                if line.startswith(pattern):
-                    continue
+                if line.startswith(pattern) or f'\n{pattern}' in line:
+                    should_skip_line = True
+                    break
                 line = line.replace(pattern, '')
+            
+            if should_skip_line:
+                continue
             
             if line.strip():
                 cleaned_lines.append(line.strip())
