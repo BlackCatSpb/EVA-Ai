@@ -25,6 +25,68 @@ logger = logging.getLogger("eva_ai.core_brain")
 
 FG_ONLY_MODE = False  # Disabled - using HybridPipelineAdapter instead
 
+
+def needs_web_search(query: str) -> tuple[bool, str]:
+    """
+    Определяет нужен ли веб-поиск для данного запроса.
+    
+    Returns:
+        (нужен_поиск, причина)
+    """
+    query_lower = query.lower().strip()
+    words = query_lower.split()
+    
+    # Приветствия - не нужен поиск
+    greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello',
+                'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания', 'добрый']
+    if query_lower in greetings or len(words) <= 2 and query_lower in ['ку', 'прив', 'hi', 'yo']:
+        return False, "приветствие"
+    
+    # Запросы о себе - не нужен поиск
+    self_patterns = ['кто ты', 'что ты', 'твоё имя', 'как тебя', 'ты кто', 'что умеешь',
+                    'что можешь', 'твои способности', 'расскажи о себе']
+    if any(p in query_lower for p in self_patterns):
+        return False, "запрос о себе"
+    
+    # Математика/код - не нужен поиск
+    math_patterns = ['посчитай', 'вычисли', 'реши уравнение', 'интеграл', 'производная',
+                     'напиши код', 'код на', 'программа']
+    if any(p in query_lower for p in math_patterns):
+        return False, "математика/код"
+    
+    # Нужет поиск если содержит:
+    # Актуальные события
+    current_patterns = ['2024', '2025', '2026', 'последние новости', 'что нового',
+                       'последнее время', 'недавно', 'сейчас происходит']
+    if any(p in query_lower for p in current_patterns):
+        return True, "актуальные события"
+    
+    # Конкретные факты о людях/компаниях
+    fact_patterns = ['кто такой', 'кто такая', 'что такое', 'что такое',
+                     'родился', 'умер', 'генеральный директор', 'основатель',
+                     'владелец', 'главный']
+    if any(p in query_lower for p in fact_patterns):
+        return True, "конкретный факт"
+    
+    # Места и организации
+    place_patterns = ['столица', 'расположен', 'находится в', 'город', 'страна',
+                      'компания', 'организация']
+    if any(p in query_lower for p in place_patterns):
+        return True, "место/организация"
+    
+    # Технические вопросы с версиями
+    version_patterns = ['последняя версия', 'latest', 'version', 'v', '.']
+    if any(p in query_lower for p in version_patterns):
+        return True, "версия/релиз"
+    
+    # Сложные вопросы (много слов с вопросительными)
+    question_words = ['кто', 'что', 'где', 'когда', 'почему', 'зачем', 'как', 'какой']
+    if any(q in query_lower for q in question_words) and len(words) > 5:
+        return True, "сложный вопрос"
+    
+    # По умолчанию - поиск не нужен для простых запросов
+    return False, "простой запрос"
+
 FALLBACK_RESPONSES = {
     'greeting': "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей.",
     'status': "Спасибо за интерес! Система работает в ограниченном режиме из-за технических трудностей. Я стараюсь помочь в рамках доступных возможностей.",
@@ -749,7 +811,9 @@ class QueryMixin:
             elif "Пользователь прикрепил файл" in query:
                 is_greeting = True
 
-            if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500:
+            need_search, search_reason = needs_web_search(search_query)
+            
+            if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500 and need_search:
                 try:
                     search_query = search_query[:200]
                     query_hash = str(abs(hash(search_query)))
@@ -788,9 +852,12 @@ class QueryMixin:
                         except Exception:
                             search_results.append({'title': str(sr), 'url': '', 'snippet': '', 'source': ''})
                     if search_results:
-                        query_logger.info(f"Web search found {len(search_results)} results")
+                        query_logger.info(f"Web search [{search_reason}] found {len(search_results)} results")
                 except Exception as e:
                     query_logger.debug(f"Web search error: {e}")
+            else:
+                if need_search:
+                    query_logger.info(f"Web search skipped for query: {search_reason}")
 
             needs_refinement = False
             if contr_result and contr_result.get('significant_count', 0) > 0:
