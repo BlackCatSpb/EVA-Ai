@@ -353,13 +353,44 @@ class EventBus:
             logger.debug("  Active subscribers: {}".format(len(active_subscribers)))
             
             # Вызываем обработчики
-            for subscription_id, handler in active_subscribers:
+            for subscription_id, weak_handler in active_subscribers:
                 try:
+                    raw_handler = weak_handler
+                    handler = weak_handler()
+                    if handler is None:
+                        logger.info("  Handler {} is dead, skipping".format(subscription_id))
+                        continue
+                    
                     handler_name = getattr(handler, '__name__', str(handler))
-                    logger.debug("  Calling handler: {} for event {}".format(handler_name, event.event_type))
-                    handler(event)
+                    handler_type = type(handler)
+                    logger.info("  Calling handler: {} (type: {}) for event {}".format(handler_name, handler_type, event.event_type))
+                    logger.info("  Handler is bound method: {}".format(hasattr(handler, '__self__')))
+                    if hasattr(handler, '__self__'):
+                        logger.info("  Handler self: {}".format(handler.__self__))
+                    
+                    # Проверяем тип handler для отладки
+                    if callable(handler):
+                        logger.info("  Handler {} is callable, calling with event={}".format(handler_name, event))
+                        # ЯВНЫЙ вызов для отладки
+                        try:
+                            result = handler(event)
+                            logger.info("  Handler {} returned: {}".format(handler_name, result))
+                        except TypeError as te:
+                            logger.error("  TypeError when calling handler: {}".format(te))
+                            raise
+                    else:
+                        logger.warning("  Handler {} is not callable: {}".format(handler_name, type(handler)))
+                        continue
+                        
                     processed += 1
-                    logger.debug("  Handler {} processed successfully".format(handler_name))
+                    logger.info("  Handler {} processed successfully".format(handler_name))
+                except TypeError as te:
+                    self._stats['events_failed'] += 1
+                    logger.error("Ошибка вызова обработчика {} для события {}: {}".format(
+                        subscription_id, event.event_type, te))
+                    logger.error("  Handler type: {}, Handler: {}".format(type(handler) if 'handler' in dir() else 'N/A', handler if 'handler' in dir() else 'N/A'))
+                    import traceback
+                    logger.error("  Traceback: {}".format(traceback.format_exc()))
                 except Exception as e:
                     self._stats['events_failed'] += 1
                     logger.error("Ошибка в обработчике {} для события {}: {}".format(
@@ -394,6 +425,8 @@ class EventBus:
                 
             except Exception as e:
                 logger.error(f"Ошибка в worker loop EventBus: {e}")
+                import traceback
+                logger.error(f"  Traceback: {traceback.format_exc()}")
         
         logger.info("EventBus worker loop остановлен")
     

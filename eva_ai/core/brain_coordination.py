@@ -177,8 +177,11 @@ class EventSubscriptionMixin:
         logger.warning(f"Component error: {component}, attempting recovery")
         self._issue_command("recover_component", {"component": component}, priority=0)
 
-    def _on_component_ready(self, event):
+    def _on_component_ready(self, event=None):
         """Log component readiness."""
+        if event is None:
+            logger.debug("Component ready (no event data)")
+            return
         data = event.data if hasattr(event, 'data') else {}
         component = data.get("component", "unknown")
         logger.debug(f"Component initialized: {component}")

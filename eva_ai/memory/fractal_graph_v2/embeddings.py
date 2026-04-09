@@ -28,7 +28,7 @@ class EmbeddingsManager:
     
     def __init__(
         self,
-        model_name: str = "intfloat/multilingual-e5-base",
+        model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
         device: str = "cuda",
         cache_dir: str = None,
         batch_size: int = 32,
@@ -253,7 +253,7 @@ class EmbeddingsManager:
 
 
 def create_embeddings_manager(
-    model_name: str = "intfloat/multilingual-e5-base",
+    model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
     device: str = "cuda"
 ) -> EmbeddingsManager:
     """Фабричная функция."""

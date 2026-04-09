@@ -50,7 +50,7 @@ class AdaptiveParameterController:
         if self._embedder is None:
             try:
                 from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
-                self._embedder = get_sentence_transformer('intfloat/multilingual-e5-base', device='cpu')
+                self._embedder = get_sentence_transformer('paraphrase-multilingual-MiniLM-L12-v2', device='cpu')
                 if self._embedder is not None:
                     logger.debug("AdaptiveController: эмбеддер загружен для семантического анализа")
             except Exception as e:

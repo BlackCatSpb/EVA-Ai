@@ -48,7 +48,7 @@ class FractalGraphV2:
     def __init__(
         self,
         storage_dir: str = None,
-        embedding_dim: int = 768,  # multilingual-e5-base
+        embedding_dim: int = 384,  # paraphrase-multilingual-MiniLM-L12-v2
         vector_index_type: str = "simple"  # simple, hnsw, ivf
     ):
         self.storage_dir = storage_dir or os.path.join(

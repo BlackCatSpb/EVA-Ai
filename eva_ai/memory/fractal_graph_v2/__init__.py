@@ -86,9 +86,9 @@ class FractalMemoryGraph:
     def __init__(
         self,
         storage_dir: str = None,
-        embedding_model: str = "intfloat/multilingual-e5-base",
+        embedding_model: str = "paraphrase-multilingual-MiniLM-L12-v2",
         embedding_device: str = "cuda",
-        embedding_dim: int = 768
+        embedding_dim: int = 384
     ):
         self.storage_dir = storage_dir or os.path.join(
             os.path.dirname(__file__), "fractal_graph_v2_data"

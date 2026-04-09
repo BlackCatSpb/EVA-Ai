@@ -105,7 +105,7 @@ class UnifiedTextProcessor(BaseComponent):
         # Устанавливаем конфигурацию по умолчанию
         self.config = config or {}
         self.use_gpu = self.config.get('use_gpu', True)
-        self.model_name = self.config.get('model_name', 'intfloat/multilingual-e5-base')
+        self.model_name = self.config.get('model_name', 'paraphrase-multilingual-MiniLM-L12-v2')
         self.use_async = self.config.get('use_async', True)
         self.max_workers = self.config.get('max_workers', 4)
         

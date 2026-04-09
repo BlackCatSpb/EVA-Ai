@@ -32,6 +32,13 @@ if project_root not in sys.path:
 # Важно: задаём конфигурацию аллокатора CUDA до импорта torch/transformers
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
+# Локальный кэш для HuggingFace моделей (избегаем HTTP 429 ошибок)
+hf_cache_dir = os.path.join(project_root, 'eva_ai', 'core', 'hf_cache')
+os.makedirs(hf_cache_dir, exist_ok=True)
+os.environ.setdefault("HF_HOME", hf_cache_dir)
+os.environ.setdefault("TRANSFORMERS_CACHE", hf_cache_dir)
+os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", os.path.join(hf_cache_dir, 'sentence-transformers'))
+
 # Настраиваем логирование СРАЗУ, перед любыми импортами
 log_dir = os.path.join(project_root, 'logs')
 os.makedirs(log_dir, exist_ok=True)

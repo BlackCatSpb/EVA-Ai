@@ -80,7 +80,7 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
         try:
             logger.info("Инициализация NLP-модели для обнаружения противоречий...")
             if get_sentence_transformer is not None:
-                model = get_sentence_transformer('intfloat/multilingual-e5-base')
+                model = get_sentence_transformer('paraphrase-multilingual-MiniLM-L12-v2')
                 if model is not None:
                     logger.info("NLP-модель загружена через singleton")
                     return model
