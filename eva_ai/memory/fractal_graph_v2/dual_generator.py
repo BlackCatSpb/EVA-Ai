@@ -104,10 +104,15 @@ class CondensedGenerator:
         """Очистка ответа."""
         text = text.strip()
         
-        system_patterns = ['Модель B:', 'Модель A:', 'Модель C:', 'Model B:', 'Model A:']
+        system_patterns = [
+            'Модель B:', 'Модель A:', 'Модель C:', 
+            'Model B:', 'Model A:', 'Model C:',
+            'Ответ модели B:', 'Ответ модели A:', 'Ответ модели C:',
+            'модель B:', 'модель A:'
+        ]
+        
         for pattern in system_patterns:
-            if text.startswith(pattern):
-                text = text[len(pattern):].strip()
+            text = text.replace(pattern, '')
         
         fillers = ['хорошо,', 'конечно,', 'вот,', 'отлично,']
         for f in fillers:
@@ -256,15 +261,45 @@ class ExtendedGenerator:
         """Очистка ответа."""
         text = text.strip()
         
-        system_patterns = ['Модель B:', 'Модель A:', 'Модель C:', 'Model B:', 'Model A:']
-        for pattern in system_patterns:
-            if text.startswith(pattern):
-                text = text[len(pattern):].strip()
+        system_patterns = [
+            'Модель B:', 'Модель A:', 'Модель C:', 
+            'Model B:', 'Model A:', 'Model C:',
+            'модель B:', 'модель A:', 'модель C:'
+        ]
+        
+        answer_patterns = [
+            'Ответ модели B:', 'Ответ модели A:', 'Ответ модели C:',
+            'ответ модели B:', 'ответ модели A:', 'ответ модели C:',
+            'ответ модели:', 'Ответ модели:'
+        ]
         
         lines = text.split('\n')
-        lines = [l.strip() for l in lines if l.strip()]
+        cleaned_lines = []
+        stop_processing = False
         
-        return '\n'.join(lines[:10])
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            for pattern in answer_patterns:
+                if pattern in line:
+                    stop_processing = True
+                    break
+            
+            if stop_processing:
+                break
+            
+            for pattern in system_patterns:
+                if line.startswith(pattern):
+                    continue
+                line = line.replace(pattern, '')
+            
+            if line.strip():
+                cleaned_lines.append(line.strip())
+        
+        result = '\n'.join(cleaned_lines[:10])
+        return result
 
 
 class DualGenerator:
