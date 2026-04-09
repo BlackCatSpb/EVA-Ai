@@ -620,15 +620,22 @@ class StorageMixin:
 class ContradictionCore(StorageMixin, CoreDetectionMixin, ResolutionMixin, TrackingMixin):
     """Main class for contradiction management in EVA system."""
     
-    def __init__(self, knowledge_graph=None, brain=None, cache_dir: Optional[str] = None):
+    def __init__(self, knowledge_graph=None, brain=None, cache_dir: Optional[str] = None, fractal_graph_v2=None):
         self.knowledge_graph = knowledge_graph
         self.brain = brain
         self.cache_dir = cache_dir
+        self.fractal_graph_v2 = fractal_graph_v2
         self.initialized = False
         self.contradictions: Dict[str, Contradiction] = {}
         self.storage_path: Optional[str] = None
         self._entity_extractor = EntityExtractor() if EntityExtractor else None
         self._init_storage()
+        
+        if self.fractal_graph_v2 is not None:
+            logger.info("ContradictionCore: FractalGraph v2 подключён")
+        else:
+            logger.warning("ContradictionCore: FractalGraph v2 не подключён")
+        
         self.initialized = True
         logger.info("ContradictionCore инициализирован")
     
@@ -660,3 +667,87 @@ class ContradictionCore(StorageMixin, CoreDetectionMixin, ResolutionMixin, Track
             logger.error(f"Error in find_contradictions: {e}", exc_info=True)
         
         return contradictions_found
+    
+    def check_fractal_graph_contradiction(self, knowledge: str) -> Dict[str, Any]:
+        """
+        Проверяет знание на противоречия через FractalGraph v2.
+        
+        Использует встроенные методы FG для семантической проверки противоречий.
+        
+        Args:
+            knowledge: Знание для проверки
+            
+        Returns:
+            {is_contradiction, distance, group_id, confirmed, action, reasoning, new_nodes}
+        """
+        if self.fractal_graph_v2 is None:
+            return {"error": "fractal_graph_v2 not available", "is_contradiction": False}
+        
+        try:
+            check_result = self.fractal_graph_v2.check_contradiction(knowledge)
+            is_contr = check_result.get("is_contradiction", False)
+            
+            if is_contr:
+                logger.debug(f"Противоречие через FG: distance={check_result.get('distance')}")
+            else:
+                logger.debug(f"FG: противоречие не обнаружено")
+            
+            return {
+                "is_contradiction": is_contr,
+                "distance": check_result.get("distance"),
+                "group_id": check_result.get("group_id"),
+            }
+        except Exception as e:
+            logger.error(f"Ошибка проверки FG противоречий: {e}")
+            return {"error": str(e), "is_contradiction": False}
+    
+    def verify_with_self_dialogue(self, knowledge: str) -> Dict[str, Any]:
+        """
+        Верифицирует знание через самодиалог FractalGraph.
+        
+        Args:
+            knowledge: Знание для проверки
+            
+        Returns:
+            {confirmed, action, reasoning, new_nodes}
+        """
+        if self.fractal_graph_v2 is None:
+            return {"error": "fractal_graph_v2 not available"}
+        
+        try:
+            return self.fractal_graph_v2.self_dialogue(knowledge)
+        except Exception as e:
+            logger.error(f"Ошибка FG self_dialogue: {e}")
+            return {"error": str(e)}
+    
+    def add_concept_to_graph(self, concept: str, description: str = "", 
+                            node_type: str = "concept", 
+                            confidence: float = 0.7) -> Optional[str]:
+        """
+        Добавляет концепт напрямую в FractalGraph v2.
+        
+        Args:
+            concept: Текст концепта
+            description: Описание
+            node_type: Тип узла
+            confidence: Уверенность
+            
+        Returns:
+            ID узла или None
+        """
+        if self.fractal_graph_v2 is None:
+            logger.warning("FractalGraph v2 не доступен для добавления концепта")
+            return None
+        
+        try:
+            node = self.fractal_graph_v2.add_node(
+                content=concept,
+                node_type=node_type,
+                confidence=confidence,
+                metadata={"description": description, "source": "contradiction_manager"}
+            )
+            logger.debug(f"Концепт добавлен в FG: {concept[:30]}... -> {node.id}")
+            return node.id
+        except Exception as e:
+            logger.error(f"Ошибка добавления концепта в FG: {e}")
+            return None

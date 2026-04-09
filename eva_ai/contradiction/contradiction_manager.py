@@ -52,6 +52,7 @@ class ContradictionManager(BaseComponent):
         try:
             self.detector = OptimizedContradictionDetector(
                 knowledge_graph=self.brain.knowledge_graph if hasattr(self.brain, 'knowledge_graph') else None,
+                fractal_graph_v2=getattr(self.brain, 'fractal_graph_v2', None),
                 brain=self.brain,
                 cache_dir=self.cache_dir
             )
@@ -340,6 +341,65 @@ class ContradictionManager(BaseComponent):
         prompt = """Обнаружены противоречия в ответе:
 "
         prompt += "\n".join(parts)
-        prompt += "\n\nПереформулируй ответ, устранив противоречия. Сохрани основную информацию."""
+        prompt += "\n\nПереформулируй ответ, устранив противоречия. Сохрани основную информацию."
 
         return prompt
+
+    def check_fractal_graph_contradictions(self, knowledge: str) -> Dict[str, Any]:
+        """
+        Проверяет знание на противоречия через FractalGraph v2.
+        
+        Использует self_dialogue метод FG для автоматической верификации.
+        
+        Args:
+            knowledge: Знание для проверки
+            
+        Returns:
+            {confirmed, action, reasoning, new_nodes, is_contradiction}
+        """
+        if self.detector is None:
+            return {"error": "detector not initialized", "is_contradiction": False}
+        
+        fg = getattr(self.detector, 'fractal_graph_v2', None)
+        if fg is None:
+            logger.warning("FractalGraph v2 не доступен в детекторе противоречий")
+            return {"error": "fractal_graph_v2 not available", "is_contradiction": False}
+        
+        try:
+            result = fg.self_dialogue(knowledge)
+            is_contr = result.get("confirmed", True) is False
+            
+            if is_contr:
+                logger.info(f"Противоречие обнаружено в FG: {knowledge[:50]}...")
+            else:
+                logger.debug(f"Знание подтверждено FG: {knowledge[:50]}...")
+            
+            return {
+                "is_contradiction": is_contr,
+                "confirmed": result.get("confirmed", False),
+                "action": result.get("action"),
+                "reasoning": result.get("reasoning"),
+                "new_nodes": result.get("new_nodes", [])
+            }
+        except Exception as e:
+            logger.error(f"Ошибка проверки FG противоречий: {e}")
+            return {"error": str(e), "is_contradiction": False}
+
+    def get_fractal_graph_stats(self) -> Dict[str, Any]:
+        """
+        Получить статистику FractalGraph v2.
+        
+        Returns:
+            Статистика FG или ошибка
+        """
+        if self.detector is None:
+            return {"error": "detector not initialized"}
+        
+        fg = getattr(self.detector, 'fractal_graph_v2', None)
+        if fg is None:
+            return {"available": False, "error": "fractal_graph_v2 not available"}
+        
+        try:
+            return fg.get_graph_stats()
+        except Exception as e:
+            return {"available": False, "error": str(e)}
