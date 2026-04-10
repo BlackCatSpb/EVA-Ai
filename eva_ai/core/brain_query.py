@@ -252,14 +252,34 @@ class QueryMixin:
             else:
                 self._track_query_failure()
             
+            query_logger.info(f"Query processed successfully via {result.get('source', 'unknown')}")
             return result
+        else:
+            query_logger.error(f"Primary strategy returned None, trying fallback...")
+            query_logger.error(f"  - disable_pytorch: {disable_pytorch}")
+            query_logger.error(f"  - two_model_pipeline_ready: {getattr(self, 'two_model_pipeline_ready', False)}")
+            query_logger.error(f"  - two_model_pipeline: {self.two_model_pipeline is not None if hasattr(self, 'two_model_pipeline') else 'N/A'}")
+
+        # Try fallback strategy if primary failed
+        if disable_pytorch and self.two_model_pipeline:
+            query_logger.info("Attempting fallback with direct pipeline call...")
+            try:
+                result = self.two_model_pipeline.process_query(query)
+                if result and result.get('response'):
+                    elapsed = time.time() - start_time
+                    self._track_query_success(elapsed)
+                    query_logger.info("Fallback pipeline call succeeded")
+                    return result
+            except Exception as e:
+                query_logger.error(f"Fallback pipeline error: {e}")
 
         # Final fallback - track as failure
         self._track_query_failure()
+        query_logger.error("All strategies failed, returning final fallback")
         return {
             "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
             "status": "error", "fallback_level": 7, "source": "final_fallback",
-            "error": "All strategies returned a result", "processing_time": time.time() - start_time,
+            "error": "All strategies returned None", "processing_time": time.time() - start_time,
             "timestamp": time.time(),
             "metadata": {"original_query_length": len(query), "system_status": "critical_degradation"}
         }
@@ -284,8 +304,19 @@ class QueryMixin:
                                max_new_tokens: int, temperature: float, top_p: float,
                                repetition_penalty: float) -> Optional[Dict[str, Any]]:
         """Handles GGUF Two-Model Pipeline queries."""
-        if not self.two_model_pipeline_ready or not self.two_model_pipeline:
+        # Проверяем доступность pipeline
+        if not self.two_model_pipeline_ready:
+            query_logger.error(f"[PIPELINE_CHECK] two_model_pipeline_ready=False")
+        if not self.two_model_pipeline:
+            query_logger.error(f"[PIPELINE_CHECK] two_model_pipeline=None")
+        
+        # Пробуем использовать pipeline даже если флаги не установлены
+        pipeline = getattr(self, 'two_model_pipeline', None)
+        if not pipeline:
+            query_logger.error("[PIPELINE_FAIL] No pipeline available")
             return None
+        
+        query_logger.info(f"[PIPELINE_OK] Using two_model_pipeline: {type(pipeline).__name__}")
 
         # === WEB SEARCH для Two-Model Pipeline ===
         web_search = getattr(self, 'web_search_engine', None)
@@ -319,7 +350,7 @@ class QueryMixin:
             query_logger.info(f"Query enhanced with {len(search_results)} web results")
         
         try:
-            result = self.two_model_pipeline.process_query(enhanced_query)
+            result = pipeline.process_query(enhanced_query)
             
             # Добавляем результаты поиска к результату
             if result and search_results:
