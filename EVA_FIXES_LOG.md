@@ -236,17 +236,16 @@ Get-Content -Tail 100 logs/cogniflex.log
 ## ТЕКУЩЕЕ СОСТОЯНИЕ:
 
 ### Tavily
-- Tavily РАБОТАЕТ в standalone Python
-- Tavily НЕ РАБОТАЕТ через API (tavily_requests=0)
-- Возможно: server использует другой brain_config.json
-- Tavily возвращает 401 Unauthorized через curl, но работает через Python
+- Tavily теперь ИСКЛЮЧИТЕЛЬНЫЙ источник поиска (fallback убран)
+- Добавлено логирование в brain_query для отладки
+- Tavily API key: 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
 
 ### API
-- queries=0 (ProcessTrackerMixin не обновляется - сервер запущен со старым кодом)
+- queries=0 (сервер запущен со старым кодом)
 - Tavily счётчики = 0 (сервер запущен со старым кодом)
 
 ## ОСТАЛОСЬ:
 
-1. ❌ Tavily API key - проверить key на сервере
-2. ❌ Перезапустить сервер для применения изменений
-3. ❌ GPU/VRAM метрики - добавить GPU мониторинг
+1. ❌ Перезапустить сервер для применения изменений
+2. ❌ GPU/VRAM метрики - добавить GPU мониторинг
+3. ❌ проверить логи после перезапуска
