@@ -55,12 +55,14 @@ class CondensedGenerator:
         llama_model,
         graph=None,
         max_tokens: int = 512,
-        temperature: float = 0.1
+        temperature: float = 0.1,
+        repeat_penalty: float = 1.8
     ):
         self.llama = llama_model
         self.graph = graph
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.repeat_penalty = repeat_penalty
         self.stats = GeneratorStats()
         logger.info(f"CondensedGenerator инициализирован: max_tokens={max_tokens}")
     
@@ -77,7 +79,7 @@ class CondensedGenerator:
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 repeat_penalty=self.repeat_penalty,
-                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Модель", "модель"],
+                stop=["</s>", "User:", "user:", "Human:", "Assistant:", "System:"],
                 echo=False
             )
             
@@ -186,7 +188,7 @@ class ExtendedGenerator:
                 repeat_penalty=self.repeat_penalty,
                 frequency_penalty=self.frequency_penalty,
                 presence_penalty=self.presence_penalty,
-                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Модель", "модель"],
+                stop=["</s>", "User:", "user:", "Human:", "Assistant:", "System:"],
                 echo=False
             )
             
@@ -472,7 +474,8 @@ class DualGenerator:
         self.condensed = CondensedGenerator(
             llama_model=llama_condensed,
             graph=graph,
-            max_tokens=condensed_max_tokens
+            max_tokens=condensed_max_tokens,
+            repeat_penalty=1.8
         )
         
         self.extended = ExtendedGenerator(
