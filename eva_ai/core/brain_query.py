@@ -273,6 +273,20 @@ class QueryMixin:
         if not self.two_model_pipeline_ready or not self.two_model_pipeline:
             return None
 
+        # === WEB SEARCH для Two-Model Pipeline ===
+        web_search = getattr(self, 'web_search_engine', None)
+        search_results = []
+        if web_search and hasattr(web_search, 'search'):
+            need_search, search_reason = needs_web_search(query)
+            if need_search:
+                try:
+                    query_logger.info(f"Tavily: searching for '{query[:50]}...'")
+                    web_result = web_search.search(query, max_results=5)
+                    search_results = web_result.get('results', []) if web_result else []
+                    query_logger.info(f"Tavily: got {len(search_results)} results")
+                except Exception as e:
+                    query_logger.warning(f"Tavily search error: {e}")
+
         command_id = None
         tracker = getattr(self, 'generation_tracker', None)
         if tracker:
@@ -281,6 +295,11 @@ class QueryMixin:
 
         try:
             result = self.two_model_pipeline.process_query(query)
+            
+            # Добавляем результаты поиска к результату
+            if result and search_results:
+                result['search_results'] = search_results
+                result['web_search_info'] = {'source': 'tavily', 'results_count': len(search_results)}
             if tracker and command_id:
                 tracker.update_progress(command_id, "pipeline_complete", 90)
             if result and result.get('response'):
