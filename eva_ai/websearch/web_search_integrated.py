@@ -1,6 +1,7 @@
 """
 Интегрированный поисковый движок ЕВА
 Поддерживает BaseComponent и EventBus
+Оптимизирован: асинхронные запросы, connection pooling
 """
 
 import logging
@@ -9,8 +10,11 @@ import os
 import re
 import json
 import requests
+import asyncio
+import aiohttp
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime
+from functools import wraps
 
 logger = logging.getLogger("eva_ai.websearch")
 
@@ -35,7 +39,7 @@ def load_brain_config() -> Dict:
 
 
 def tavily_search(query: str, api_key: str = None, max_results: int = 5) -> Dict[str, Any]:
-    """Выполняет поиск через Tavily API"""
+    """Выполняет поиск через Tavily API (синхронная версия)"""
     if not api_key:
         config = load_brain_config()
         api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
@@ -73,6 +77,182 @@ def tavily_search(query: str, api_key: str = None, max_results: int = 5) -> Dict
         return {"error": str(e), "results": []}
 
 
+async def tavily_search_async(
+    query: str, 
+    api_key: str = None, 
+    max_results: int = 5,
+    session: Optional[aiohttp.ClientSession] = None
+) -> Dict[str, Any]:
+    """
+    Асинхронный поиск через Tavily API с connection pooling.
+    
+    Args:
+        query: Поисковый запрос
+        api_key: API ключ Tavily
+        max_results: Максимальное количество результатов
+        session: aiohttp сессия (опционально, для reuse)
+        
+    Returns:
+        Результаты поиска
+    """
+    if not api_key:
+        config = load_brain_config()
+        api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+    
+    if not api_key:
+        logger.warning("Tavily API key не найден")
+        return {"error": "API key не найден", "results": []}
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    
+    data = {"query": query, "max_results": max_results}
+    
+    # Создаем сессию если не передана
+    close_session = False
+    if session is None:
+        session = aiohttp.ClientSession(
+            connector=aiohttp.TCPConnector(limit=10, limit_per_host=5),
+            timeout=aiohttp.ClientTimeout(total=10)
+        )
+        close_session = True
+    
+    try:
+        async with session.post(
+            "https://api.tavily.com/search",
+            headers=headers,
+            json=data
+        ) as response:
+            if response.status == 200:
+                return await response.json()
+            else:
+                logger.error(f"Tavily API error: {response.status}")
+                return {"error": f"API error: {response.status}", "results": []}
+                
+    except asyncio.TimeoutError:
+        logger.error("Tavily API timeout")
+        return {"error": "API timeout", "results": []}
+    except Exception as e:
+        logger.error(f"Tavily API exception: {e}")
+        return {"error": str(e), "results": []}
+    finally:
+        if close_session:
+            await session.close()
+
+
+class AsyncWebSearchClient:
+    """
+    Асинхронный клиент для веб-поиска с connection pooling.
+    Оптимизирован для высокой производительности.
+    """
+    
+    def __init__(self, max_connections: int = 10, max_connections_per_host: int = 5):
+        self.max_connections = max_connections
+        self.max_connections_per_host = max_connections_per_host
+        self._session: Optional[aiohttp.ClientSession] = None
+        self._lock = asyncio.Lock()
+        
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Получить или создать aiohttp сессию."""
+        async with self._lock:
+            if self._session is None or self._session.closed:
+                self._session = aiohttp.ClientSession(
+                    connector=aiohttp.TCPConnector(
+                        limit=self.max_connections,
+                        limit_per_host=self.max_connections_per_host,
+                        enable_cleanup_closed=True,
+                        force_close=False,
+                    ),
+                    timeout=aiohttp.ClientTimeout(total=15, connect=5),
+                    headers={"User-Agent": "EVA-AI/1.0"}
+                )
+                logger.debug(f"AsyncWebSearchClient: создана новая сессия")
+            return self._session
+    
+    async def search(
+        self, 
+        query: str, 
+        max_results: int = 5,
+        api_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Выполнить асинхронный поиск.
+        
+        Args:
+            query: Поисковый запрос
+            max_results: Максимальное количество результатов
+            api_key: API ключ Tavily
+            
+        Returns:
+            Результаты поиска
+        """
+        session = await self._get_session()
+        return await tavily_search_async(
+            query=query,
+            api_key=api_key,
+            max_results=max_results,
+            session=session
+        )
+    
+    async def search_batch(
+        self, 
+        queries: List[str], 
+        max_results: int = 5,
+        api_key: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Выполнить batch поиск для нескольких запросов параллельно.
+        
+        Args:
+            queries: Список поисковых запросов
+            max_results: Максимальное количество результатов на запрос
+            api_key: API ключ Tavily
+            
+        Returns:
+            Список результатов поиска
+        """
+        session = await self._get_session()
+        
+        tasks = [
+            tavily_search_async(
+                query=q,
+                api_key=api_key,
+                max_results=max_results,
+                session=session
+            )
+            for q in queries
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Обработка ошибок
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Search error for query '{queries[i]}': {result}")
+                processed_results.append({"error": str(result), "results": []})
+            else:
+                processed_results.append(result)
+        
+        return processed_results
+    
+    async def close(self):
+        """Закрыть сессию и освободить ресурсы."""
+        async with self._lock:
+            if self._session and not self._session.closed:
+                await self._session.close()
+                self._session = None
+                logger.debug("AsyncWebSearchClient: сессия закрыта")
+    
+    async def __aenter__(self):
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+
 class IntegratedWebSearchEngine(BaseComponent):
     """Интегрированный поисковый движок с поддержкой событий"""
     
@@ -106,7 +286,19 @@ class IntegratedWebSearchEngine(BaseComponent):
         # Кэш результатов поиска
         self.search_cache = {}
         
+        # Асинхронный клиент для оптимизации производительности
+        self._async_client: Optional[AsyncWebSearchClient] = None
+        
         logger.info(f"IntegratedWebSearchEngine {self.name} инициализирован")
+    
+    async def _get_async_client(self) -> AsyncWebSearchClient:
+        """Получить или создать асинхронный клиент."""
+        if self._async_client is None:
+            self._async_client = AsyncWebSearchClient(
+                max_connections=10,
+                max_connections_per_host=5
+            )
+        return self._async_client
     
     def _do_initialize(self) -> bool:
         """Инициализация компонента"""
@@ -164,6 +356,24 @@ class IntegratedWebSearchEngine(BaseComponent):
             # Останавливаем оригинальный движок
             if self._original_engine and hasattr(self._original_engine, 'stop'):
                 self._original_engine.stop()
+            
+            # Закрываем асинхронный клиент
+            if self._async_client:
+                try:
+                    # Создаем новый event loop если нужно
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_closed():
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                    except RuntimeError:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                    
+                    loop.run_until_complete(self._async_client.close())
+                    logger.info("Асинхронный клиент поиска закрыт")
+                except Exception as e:
+                    logger.warning(f"Ошибка закрытия асинхронного клиента: {e}")
             
             # Сохраняем кэш поиска
             self._save_search_cache()
@@ -315,6 +525,180 @@ class IntegratedWebSearchEngine(BaseComponent):
             "search_time": time.time(),
             "source": "integrated_web_search_fallback"
         }
+    
+    async def search_async(
+        self, 
+        query: str, 
+        search_config: Optional[Dict] = None, 
+        max_results: Optional[int] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Асинхронный поиск в интернете с оптимизацией производительности.
+        
+        Использует connection pooling и не блокирует event loop.
+        
+        Args:
+            query: Поисковый запрос
+            search_config: Конфигурация поиска
+            max_results: Максимальное количество результатов
+            
+        Returns:
+            Результаты поиска
+        """
+        start_time = time.time()
+        
+        try:
+            # Обрабатываем max_results параметр
+            if max_results is not None:
+                if search_config is None:
+                    search_config = {}
+                search_config["max_results"] = max_results
+            elif search_config is None:
+                search_config = {}
+            
+            # Проверяем кэш
+            cache_key = self._generate_cache_key(query, search_config)
+            if cache_key in self.search_cache:
+                self.stats["cache_hits"] += 1
+                cached_result = self.search_cache[cache_key].copy()
+                cached_result["from_cache"] = True
+                cached_result["search_time_ms"] = (time.time() - start_time) * 1000
+                logger.debug(f"Cache hit для запроса: {query[:50]}...")
+                return cached_result
+            
+            self.stats["active_requests"] += 1
+            
+            # Выполняем асинхронный поиск через Tavily
+            max_results_val = search_config.get("max_results", 10)
+            
+            try:
+                client = await self._get_async_client()
+                tavily_result = await client.search(
+                    query=query,
+                    max_results=max_results_val
+                )
+                
+                self.stats["tavily_requests"] += 1
+                
+                if "error" not in tavily_result:
+                    self.stats["tavily_responses"] += 1
+                    results = tavily_result.get("results", [])
+                    
+                    formatted_results = []
+                    for r in results:
+                        formatted_results.append({
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "snippet": r.get("content", r.get("snippet", "")),
+                            "relevance_score": r.get("score", 0.9),
+                            "source": "tavily",
+                            "timestamp": datetime.now().isoformat()
+                        })
+                    
+                    formatted_results = self._filter_results(formatted_results)
+                    
+                    result = {
+                        "success": True,
+                        "query": query,
+                        "results": formatted_results,
+                        "total_results": len(formatted_results),
+                        "search_time": time.time(),
+                        "search_time_ms": (time.time() - start_time) * 1000,
+                        "source": "tavily_async",
+                        "from_cache": False
+                    }
+                    
+                    # Сохраняем в кэш
+                    self.search_cache[cache_key] = result.copy()
+                    self._save_search_cache_async()
+                    
+                    return result
+                    
+                else:
+                    self.stats["tavily_errors"] += 1
+                    logger.warning(f"Tavily error: {tavily_result.get('error')}")
+                    # Fallback на синхронный метод
+                    return self._basic_web_search(query, search_config)
+                    
+            except Exception as e:
+                logger.error(f"Ошибка асинхронного поиска: {e}")
+                # Fallback на синхронный метод
+                return self._basic_web_search(query, search_config)
+            
+        except Exception as e:
+            logger.error(f"Ошибка в search_async: {e}")
+            self.stats["errors"] += 1
+            return {"success": False, "error": str(e)}
+        finally:
+            self.stats["active_requests"] -= 1
+    
+    async def search_batch_async(
+        self, 
+        queries: List[str], 
+        search_config: Optional[Dict] = None,
+        max_results: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Параллельный поиск для нескольких запросов.
+        
+        Args:
+            queries: Список поисковых запросов
+            search_config: Конфигурация поиска
+            max_results: Максимальное количество результатов на запрос
+            
+        Returns:
+            Список результатов поиска
+        """
+        tasks = [
+            self.search_async(q, search_config, max_results)
+            for q in queries
+        ]
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Обработка ошибок
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                logger.error(f"Batch search error for query '{queries[i]}': {result}")
+                processed_results.append({
+                    "success": False,
+                    "error": str(result),
+                    "query": queries[i]
+                })
+            else:
+                processed_results.append(result)
+        
+        return processed_results
+    
+    def _save_search_cache_async(self):
+        """Асинхронное сохранение кэша (non-blocking)."""
+        try:
+            # Сохраняем только последние 100 результатов
+            if len(self.search_cache) > 100:
+                # Удаляем старые записи
+                sorted_cache = sorted(
+                    self.search_cache.items(),
+                    key=lambda x: x[1].get("search_time", 0),
+                    reverse=True
+                )
+                self.search_cache = dict(sorted_cache[:100])
+            
+            # Сохранение в файл в отдельном потоке
+            import threading
+            def save():
+                try:
+                    cache_file = os.path.join(self.cache_dir, "search_cache.json")
+                    with open(cache_file, "w", encoding="utf-8") as f:
+                        json.dump(self.search_cache, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    logger.debug(f"Ошибка сохранения кэша: {e}")
+            
+            threading.Thread(target=save, daemon=True).start()
+            
+        except Exception as e:
+            logger.debug(f"Ошибка подготовки кэша: {e}")
     
     def search_with_filters(self, query: str, filters: Dict[str, Any]) -> Dict[str, Any]:
         """Поиск с фильтрами"""
