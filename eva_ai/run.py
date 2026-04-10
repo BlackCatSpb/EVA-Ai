@@ -191,11 +191,18 @@ def launch_gui(brain):
             while not _shutdown_event.is_set():
                 _shutdown_event.wait(timeout=1)
         except KeyboardInterrupt:
-            pass
+            logger.info("Получен KeyboardInterrupt, быстрое завершение...")
+            # Быстрый выход без cleanup - сигнал обработчик сделает cleanup
+            os._exit(0)
         
         logger.info("Завершение работы...")
-        gui.stop()
-        _cleanup_brain()
+        # Быстрая остановка с таймаутами
+        try:
+            gui.stop()
+        except:
+            pass
+        # Не ждем cleanup - просто выходим
+        os._exit(0)
         
     except Exception as e:
         logger.error(f"Ошибка при запуске веб-интерфейса: {e}", exc_info=True)
@@ -243,4 +250,8 @@ if __name__ == "__main__":
     if threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGINT, _signal_handler)
         signal.signal(signal.SIGTERM, _signal_handler)
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt в main, быстрое завершение...")
+        os._exit(0)
