@@ -527,7 +527,14 @@ class WebGUI:
             import click
             click.echo = lambda *args, **kwargs: None
             try:
-                app.run(host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True)
+                from werkzeug.serving import make_server
+                server = make_server(self.host, self.port, app, threaded=True)
+                logger.info(f"Flask server created on {self.host}:{self.port}")
+                # Serve until shutdown
+                while self.running and not self.shutting_down:
+                    server.handle_request()
+                server.shutdown()
+                logger.info("Flask server shut down")
             except Exception as e:
                 if not getattr(self, 'shutting_down', False):
                     logger.error(f"Flask error: {e}")
