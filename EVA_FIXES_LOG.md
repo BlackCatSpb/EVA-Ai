@@ -259,9 +259,18 @@ Get-Content -Tail 100 logs/cogniflex.log
 
 ## ОСТАЛОСЬ:
 
-1. ❌ Исправить queries, avg_time, success_rate - ProcessTrackerMixin
-2. ❌ GPU/VRAM метрики  
-3. ❌ Dialogs - SelfDialogLearning tracking
+1. ✅ **queries, avg_time, success_rate** - добавлен трекинг в process_query
+2. ✅ **GPU/VRAM метрики** - добавлен get_gpu_metrics() в resource_manager  
+3. ⏳ **Dialogs** - SelfDialogLearning инициализирован, но диалоги не создаются (требует глубокого анализа)
+
+## ГОТОВО К ПРОВЕРКЕ (после перезапуска):
+
+| Метрика | Ожидаемый результат |
+|---------|---------------------|
+| queries | > 0 при запросах |
+| avg_time | > 0 при запросах |
+| success_rate | % успешных запросов |
+| vram | GPU memory % |
 
 ## ОЧИСТКА КОДА (2026-04-10):
 
