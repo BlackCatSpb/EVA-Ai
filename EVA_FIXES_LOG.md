@@ -108,11 +108,31 @@ generation_coordinator, reasoning_integration
 ## TODO ЛИСТ
 
 ### После перезапуска сервера:
-- [ ] Проверить /api/metrics - cpu_usage, memory_usage должны быть > 0
-- [ ] Проверить /api/analytics - concepts должны показывать данные из FGv2
+- [x] Проверить /api/metrics - cpu_usage: 37.0%, memory_usage: 79.7% ✅ РАБОТАЕТ
+- [x] Проверить /api/analytics - concepts: 32 (concept_nodes: 30, aci_concepts: 2) ✅ РАБОТАЕТ
 - [ ] Протестировать Tavily поиск - сделать запрос и проверить счётчики
-- [ ] Проверить SelfDialogLearning - должен быть инициализирован
-- [ ] Проверить ContradictionManager - должен показывать статистику
+- [ ] SelfDialogLearning - initialized в brain, но dialogs=0 (нужны запросы)
+- [ ] ContradictionManager - state=running, но operations_count=0 (система idle)
+
+### Результаты тестирования (2026-04-10 10:43):
+| Метрика | Значение | Статус |
+|---------|----------|--------|
+| cpu_usage | 37.0% | ✅ |
+| memory_usage | 79.7% | ✅ |
+| disk_usage | 51.6% | ✅ |
+| concepts | 32 | ✅ |
+| contradictions.state | running | ✅ |
+| fractal_nodes | 519 | ✅ |
+| curator_state | running ✅ (циклы растут: 2→3) |
+| tavily_requests | 0 | ⚠️ не триггерится |
+| dialogs | 0 | ⚠️ не работает |
+| queries | 0 | ⚠️ analytics не получает |
+| web_searches | 0 | ⚠️ не триггерится |
+
+### Проблемы для след. исправления:
+1. **Tavily не триггерится** - brain_query не вызывает веб-поиск
+2. **queries=0** - analytics endpoint не получает данные о запросах
+3. **dialogs=0** - SelfDialogLearning не получает события
 
 ### Долгосрочные улучшения:
 - [ ] Изменить ConceptMiner dry_run: True на False
@@ -183,3 +203,5 @@ Get-Content -Tail 100 logs/cogniflex.log
 | 2026-04-10 | 09:00 | Запуск агентов анализа | Собран полный анализ системы |
 | 2026-04-10 | 09:30 | Создание md блокнота | Файл создан |
 | 2026-04-10 | 10:00 | Запуск сервера | (ожидает) |
+| 2026-04-10 | 10:43 | Перезапуск сервера | CPU/RAM/Concepts работают! |
+| 2026-04-10 | 10:45 | Тест Tavily | Ожидает тестового запроса |
