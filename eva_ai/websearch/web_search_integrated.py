@@ -394,16 +394,60 @@ class IntegratedWebSearchEngine(BaseComponent):
     
     def _get_most_common_queries(self) -> List[str]:
         """Возвращает наиболее частые запросы"""
-        # Анализируем кэш для поиска частых запросов
         query_counts = {}
         for cache_key, result in self.search_cache.items():
             query = result.get("query", "")
             if query:
                 query_counts[query] = query_counts.get(query, 0) + 1
         
-        # Сортируем по частоте
         sorted_queries = sorted(query_counts.items(), key=lambda x: x[1], reverse=True)
         return [q[0] for q in sorted_queries[:5]]
+    
+    def web_search_and_learn(self, concept: str, num_results: int = 3) -> List[Dict[str, Any]]:
+        """
+        Выполняет веб-поиск по концепту и преобразует выдачу в формат знаний.
+        
+        Args:
+            concept: Концепт или запрос для поиска
+            num_results: Число результатов
+            
+        Returns:
+            List[Dict]: Список знаний в формате для обучения
+        """
+        try:
+            response = self.search(concept, max_results=num_results)
+            
+            knowledge = []
+            results = response.get("results", []) if isinstance(response, dict) else []
+            
+            for r in results[:num_results]:
+                if isinstance(r, dict):
+                    knowledge.append({
+                        "concept": concept,
+                        "content": r.get("snippet", r.get("title", "")),
+                        "domain": "general",
+                        "source": f"web:{r.get('source', 'tavily')}",
+                        "relevance": 1.0,
+                        "metadata": {
+                            "url": r.get("url", ""),
+                            "engine": r.get("source", "tavily"),
+                            "timestamp": time.time()
+                        }
+                    })
+                else:
+                    knowledge.append({
+                        "concept": concept,
+                        "content": str(r),
+                        "domain": "general",
+                        "source": "web:tavily",
+                        "relevance": 1.0,
+                        "metadata": {"timestamp": time.time()}
+                    })
+            
+            return knowledge
+        except Exception as e:
+            logger.error(f"Ошибка web_search_and_learn('{concept}'): {e}")
+            return []
     
     def _generate_cache_key(self, query: str, search_config: Optional[Dict] = None) -> str:
         """Генерирует ключ для кэша"""

@@ -38,6 +38,7 @@ class ContradictionManager(BaseComponent):
         self.contradictions = []
         self.known_concepts = set()
         self.detector = None
+        self.web_search = getattr(brain, 'web_search_engine', None) if brain else None
         self._initialize_components()
     
     def _setup_component(self) -> None:
@@ -60,6 +61,51 @@ class ContradictionManager(BaseComponent):
         except Exception as e:
             logger.error(f"Ошибка при инициализации детектора противоречий: {e}")
             self.detector = None
+    
+    def verify_fact_with_web_search(self, fact: str) -> Optional[Dict[str, Any]]:
+        """
+        Верифицирует факт через веб-поиск.
+        
+        Args:
+            fact: Факт для верификации
+            
+        Returns:
+            Результат поиска или None
+        """
+        if not self.web_search or not hasattr(self.web_search, 'search'):
+            return None
+        
+        try:
+            result = self.web_search.search(fact, max_results=3)
+            return result if result else None
+        except Exception as e:
+            logger.debug(f"Верификация факта через веб-поиск не удалась: {e}")
+            return None
+    
+    def check_concept_with_web_search(self, concept: str) -> Dict[str, Any]:
+        """
+        Проверяет концепцию через веб-поиск для обогащения знаний.
+        
+        Args:
+            concept: Концепция для проверки
+            
+        Returns:
+            Результат с верификацией
+        """
+        if not self.web_search:
+            return {'verified': False, 'reason': 'web_search_unavailable'}
+        
+        search_result = self.verify_fact_with_web_search(concept)
+        
+        if search_result and search_result.get('results'):
+            return {
+                'verified': True,
+                'concept': concept,
+                'sources': len(search_result.get('results', [])),
+                'has_web_evidence': True
+            }
+        
+        return {'verified': False, 'reason': 'no_results'}
 
     def get_known_concepts(self) -> List[str]:
         """Возвращает список известных концепций"""
@@ -239,6 +285,17 @@ class ContradictionManager(BaseComponent):
         base_result = self.detect_contradictions(text)
         contradictions = base_result.get('contradictions', [])
         
+        # Верификация через веб-поиск для ключевых концепций
+        web_verified = False
+        if self.web_search and contradictions:
+            for contr in contradictions:
+                concept = contr.get('concept', '')
+                if concept:
+                    web_check = self.check_concept_with_web_search(concept)
+                    if web_check.get('verified'):
+                        contr['web_verified'] = True
+                        web_verified = True
+        
         # Рассчитываем веса противоречий
         weighted_contradictions = []
         for contr in contradictions:
@@ -258,7 +315,8 @@ class ContradictionManager(BaseComponent):
             'minor_contradictions': minor,
             'total_count': len(weighted_contradictions),
             'significant_count': len(significant),
-            'has_conflicts': len(significant) > 0
+            'has_conflicts': len(significant) > 0,
+            'web_verified': web_verified
         }
     
     def _calculate_contradiction_weight(
