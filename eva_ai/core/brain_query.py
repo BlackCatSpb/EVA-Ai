@@ -54,38 +54,9 @@ def needs_web_search(query: str) -> tuple[bool, str]:
     if any(p in query_lower for p in math_patterns):
         return False, "математика/код"
     
-    # Нужет поиск если содержит:
-    # Актуальные события
-    current_patterns = ['2024', '2025', '2026', 'последние новости', 'что нового',
-                       'последнее время', 'недавно', 'сейчас происходит']
-    if any(p in query_lower for p in current_patterns):
-        return True, "актуальные события"
-    
-    # Конкретные факты о людях/компаниях
-    fact_patterns = ['кто такой', 'кто такая', 'что такое', 'что такое',
-                     'родился', 'умер', 'генеральный директор', 'основатель',
-                     'владелец', 'главный']
-    if any(p in query_lower for p in fact_patterns):
-        return True, "конкретный факт"
-    
-    # Места и организации
-    place_patterns = ['столица', 'расположен', 'находится в', 'город', 'страна',
-                      'компания', 'организация']
-    if any(p in query_lower for p in place_patterns):
-        return True, "место/организация"
-    
-    # Технические вопросы с версиями
-    version_patterns = ['последняя версия', 'latest', 'version', 'v', '.']
-    if any(p in query_lower for p in version_patterns):
-        return True, "версия/релиз"
-    
-    # Сложные вопросы (много слов с вопросительными)
-    question_words = ['кто', 'что', 'где', 'когда', 'почему', 'зачем', 'как', 'какой']
-    if any(q in query_lower for q in question_words) and len(words) > 5:
-        return True, "сложный вопрос"
-    
-    # По умолчанию - поиск не нужен для простых запросов
-    return False, "простой запрос"
+    # Обычные ответы - нужен поиск для обогащения
+    return True, "обогащение контекста"
+
 
 FALLBACK_RESPONSES = {
     'greeting': "Здравствуйте! Я система ЕВА. К сожалению, мои основные компоненты временно недоступны, но я рада вам помочь в рамках своих ограниченных возможностей.",
