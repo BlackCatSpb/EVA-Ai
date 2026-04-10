@@ -1575,6 +1575,38 @@ def register_routes(app, web_gui_instance):
 
             return jsonify({'error': 'Failed to create snapshot'}), 500
 
+    @app.route('/api/websearch_stats')
+    def api_websearch_stats():
+        """Get web search statistics including Tavily metrics."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован', 'stats': {}}), 500
+        
+        stats = {
+            'searches_performed': 0,
+            'results_found': 0,
+            'cache_hits': 0,
+            'errors': 0,
+            'tavily_requests': 0,
+            'tavily_responses': 0,
+            'tavily_errors': 0,
+            'active_requests': 0
+        }
+        
+        try:
+            if web_gui_instance.brain:
+                web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
+                if web_search:
+                    if hasattr(web_search, 'stats'):
+                        stats.update(web_search.stats)
+                    elif hasattr(web_search, 'get_search_statistics'):
+                        search_stats = web_search.get_search_statistics()
+                        if search_stats:
+                            stats.update(search_stats)
+        except Exception as e:
+            logger.debug(f"WebSearch stats error: {e}")
+        
+        return jsonify({'stats': stats})
+
 
 def extract_text_from_file(filepath, ext):
     """Извлекает текст из файла в зависимости от типа. Всегда возвращает строку."""
@@ -1677,36 +1709,3 @@ def extract_text_from_file(filepath, ext):
     except Exception as e:
         logger.error(f"Ошибка извлечения текста: {e}")
         return f"[Ошибка чтения файла: {str(e)}"
-
-
-@app.route('/api/websearch_stats')
-def api_websearch_stats():
-    """Get web search statistics including Tavily metrics."""
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован', 'stats': {}}), 500
-    
-    stats = {
-        'searches_performed': 0,
-        'results_found': 0,
-        'cache_hits': 0,
-        'errors': 0,
-        'tavily_requests': 0,
-        'tavily_responses': 0,
-        'tavily_errors': 0,
-        'active_requests': 0
-    }
-    
-    try:
-        if web_gui_instance.brain:
-            web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
-            if web_search:
-                if hasattr(web_search, 'stats'):
-                    stats.update(web_search.stats)
-                elif hasattr(web_search, 'get_search_statistics'):
-                    search_stats = web_search.get_search_statistics()
-                    if search_stats:
-                        stats.update(search_stats)
-    except Exception as e:
-        logger.debug(f"WebSearch stats error: {e}")
-    
-    return jsonify({'stats': stats})
