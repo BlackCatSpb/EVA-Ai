@@ -666,15 +666,7 @@ def register_routes(app, web_gui_instance):
                     cache = web_gui_instance.brain.get_cache_stats()
                     metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
                 
-                # === Graph Metrics ===
-                kg = getattr(web_gui_instance.brain, 'knowledge_graph', None)
-                if kg and hasattr(kg, 'get_stats'):
-                    try:
-                        stats = kg.get_stats()
-                        metrics['graph']['knowledge_graph'] = stats if isinstance(stats, dict) else {}
-                    except Exception as e:
-                        logger.debug(f"KG stats error: {e}")
-                
+                # === Graph Metrics (FGv2 only) ===
                 fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
                 if fg is None:
                     fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
