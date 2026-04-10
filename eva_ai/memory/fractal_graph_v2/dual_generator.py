@@ -211,6 +211,164 @@ class ExtendedGenerator:
         
         return response
     
+    def generate_chunked(
+        self,
+        query: str,
+        context: str = "",
+        max_total_tokens: int = 4096,
+        chunk_size: int = 1024,
+        max_chunks: int = 4
+    ) -> Dict[str, Any]:
+        """
+        Генерация большого ответа блоками с использованием стоп-токенов.
+        
+        Args:
+            query: Запрос пользователя
+            context: Контекст для генерации
+            max_total_tokens: Максимальное количество токенов всего
+            chunk_size: Размер одного блока (токенов)
+            max_chunks: Максимальное количество блоков
+            
+        Returns:
+            Dict с полями:
+                - text: полный текст ответа
+                - chunks: список отдельных блоков
+                - total_tokens: общее количество токенов
+                - chunk_count: количество блоков
+                - generation_time: время генерации
+        """
+        start_time = time.time()
+        chunks = []
+        total_tokens = 0
+        
+        # Подготавливаем начальный промпт
+        graph_context = self._get_context(query) if self.graph else context
+        base_prompt = EXTENDED_PROMPT.format(query=query, graph_context=graph_context)
+        
+        # Первый блок с маркером начала
+        current_prompt = f"{base_prompt}\n\n[CHUNK_START]"
+        
+        logger.info(f"Начата chunked генерация: max_total={max_total_tokens}, chunk_size={chunk_size}")
+        
+        for chunk_num in range(max_chunks):
+            try:
+                # Генерируем блок до стоп-токена
+                output = self.llama(
+                    current_prompt,
+                    max_tokens=min(chunk_size, max_total_tokens - total_tokens),
+                    temperature=self.temperature,
+                    repeat_penalty=self.repeat_penalty,
+                    frequency_penalty=self.frequency_penalty,
+                    presence_penalty=self.presence_penalty,
+                    stop=["[CHUNK_BREAK]", "[CHUNK_END]", "</s>"],
+                    echo=False
+                )
+                
+                # Извлекаем текст
+                chunk_text = ""
+                if isinstance(output, dict):
+                    chunk_text = output.get('choices', [{}])[0].get('text', '')
+                else:
+                    chunk_text = str(output)
+                
+                # Очищаем от маркеров
+                chunk_text = chunk_text.replace("[CHUNK_START]", "").replace("[CHUNK_BREAK]", "").strip()
+                
+                if not chunk_text or len(chunk_text) < 20:
+                    logger.info(f"Блок {chunk_num+1} пустой, завершаем генерацию")
+                    break
+                
+                # Удаляем повторы с предыдущими блоками
+                chunk_text = self._deduplicate_chunk(chunk_text, chunks)
+                
+                chunks.append(chunk_text)
+                total_tokens += len(chunk_text.split())
+                
+                logger.info(f"Сгенерирован блок {chunk_num+1}: {len(chunk_text)} символов, {len(chunk_text.split())} токенов")
+                
+                # Проверяем условия остановки
+                if total_tokens >= max_total_tokens:
+                    logger.info(f"Достигнут лимит токенов: {total_tokens}")
+                    break
+                
+                # Проверяем на естественное завершение
+                if any(marker in chunk_text.lower() for marker in 
+                       ["в заключение", "итак,", "таким образом", "подведем итог", "вывод:"]):
+                    logger.info(f"Обнаружено естественное завершение в блоке {chunk_num+1}")
+                    break
+                
+                # Готовим промпт для следующего блока
+                context_summary = self._create_context_summary(chunks)
+                current_prompt = (
+                    f"Продолжи развёрнутый ответ на вопрос, сохраняя связность с предыдущим текстом.\n\n"
+                    f"Вопрос: {query}\n\n"
+                    f"Уже написано ({len(context_summary)} символов):\n{context_summary}\n\n"
+                    f"[CHUNK_CONTINUE]"
+                )
+                
+            except Exception as e:
+                logger.error(f"Ошибка генерации блока {chunk_num+1}: {e}")
+                break
+        
+        # Собираем полный текст
+        full_text = "\n\n".join(chunks)
+        
+        elapsed = time.time() - start_time
+        
+        result = {
+            'text': full_text,
+            'chunks': chunks,
+            'total_tokens': total_tokens,
+            'chunk_count': len(chunks),
+            'generation_time': elapsed,
+            'tokens_per_second': total_tokens / elapsed if elapsed > 0 else 0
+        }
+        
+        logger.info(f"Chunked генерация завершена: {len(chunks)} блоков, {total_tokens} токенов, {elapsed:.2f}с")
+        
+        return result
+    
+    def _deduplicate_chunk(self, chunk: str, previous_chunks: List[str]) -> str:
+        """Удаляет дублирующийся контент с предыдущими блоками."""
+        if not previous_chunks:
+            return chunk
+        
+        # Берём последние 200 символов предыдущего блока
+        prev_end = previous_chunks[-1][-200:].lower()
+        chunk_start = chunk[:200].lower()
+        
+        # Ищем пересечение
+        for length in range(min(len(chunk_start), 100), 20, -1):
+            if prev_end.endswith(chunk_start[:length]):
+                # Нашли пересечение, удаляем его из начала текущего блока
+                logger.debug(f"Удалено пересечение длиной {length} символов")
+                return chunk[length:].strip()
+        
+        return chunk
+    
+    def _create_context_summary(self, chunks: List[str], max_length: int = 500) -> str:
+        """Создаёт краткое резюме предыдущих блоков для контекста."""
+        if not chunks:
+            return ""
+        
+        # Берём последние 2 блока
+        recent = chunks[-2:]
+        summary_parts = []
+        
+        for i, chunk in enumerate(recent):
+            # Извлекаем первое и последнее предложение
+            sentences = chunk.split('.')
+            if len(sentences) >= 2:
+                summary_parts.append(f"[Блок {len(chunks)-len(recent)+i+1}] {sentences[0]}. ... {sentences[-2]}.")
+            else:
+                summary_parts.append(f"[Блок {len(chunks)-len(recent)+i+1}] {chunk[:150]}...")
+        
+        summary = " ".join(summary_parts)
+        if len(summary) > max_length:
+            summary = summary[:max_length] + "..."
+        
+        return summary
+    
     def _remove_repetitions(self, text: str) -> str:
         """Удаление повторяющихся фрагментов из текста."""
         if not text:
@@ -536,9 +694,10 @@ class DualGenerator:
         
         Args:
             query: Текст запроса
-            mode: 'condensed', 'extended', 'auto'
-                - 'condensed': всегда краткий
-                - 'extended': всегда развёрнутый
+            mode: 'condensed', 'extended', 'large', 'auto'
+                - 'condensed': всегда краткий (до 1024 токенов)
+                - 'extended': всегда развёрнутый (до 4096 токенов)
+                - 'large': большой ответ блоками (до 4096+ токенов)
                 - 'auto': определяет по ключевым словам
             return_details: возвращать детали (Dict) или только response (str)
         """
@@ -546,12 +705,47 @@ class DualGenerator:
             result = self.generate_condensed(query)
         elif mode == "extended":
             result = self.generate_extended(query)
+        elif mode == "large":
+            result = self.generate_large(query)
         else:
             result = self._auto_generate(query)
         
         if return_details:
             return result
         return result.get('response', result) if isinstance(result, dict) else result
+    
+    def generate_large(self, query: str, context: str = "") -> Dict[str, Any]:
+        """
+        Генерация большого ответа с использованием chunked generation.
+        
+        Args:
+            query: Запрос пользователя
+            context: Дополнительный контекст
+            
+        Returns:
+            Dict с полями:
+                - response: полный текст ответа
+                - chunks: список блоков
+                - total_tokens: общее количество токенов
+                - generation_time: время генерации
+                - mode: 'large'
+        """
+        logger.info(f"Начата large генерация для: {query[:50]}...")
+        
+        # Используем chunked генерацию из ExtendedGenerator
+        result = self.extended.generate_chunked(
+            query=query,
+            context=context,
+            max_total_tokens=4096,
+            chunk_size=1024,
+            max_chunks=4
+        )
+        
+        # Добавляем поле response для совместимости
+        result['response'] = result['text']
+        result['mode'] = 'large'
+        
+        return result
     
     def _auto_generate(self, query: str) -> Dict[str, Any]:
         """Автоматическое определение режима."""
