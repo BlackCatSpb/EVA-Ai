@@ -521,18 +521,25 @@ class WebGUI:
             return
 
         self.running = True
+        self.shutting_down = False
 
         def run():
             import click
             click.echo = lambda *args, **kwargs: None
-            app.run(host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True)
+            try:
+                app.run(host=self.host, port=self.port, debug=False, use_reloader=False, threaded=True)
+            except Exception as e:
+                if not getattr(self, 'shutting_down', False):
+                    logger.error(f"Flask error: {e}")
 
         self.thread = threading.Thread(target=run, daemon=True)
+        self.thread.daemon = True
         self.thread.start()
 
         logger.info(f"WebGUI сервер запущен на http://{self.host}:{self.port}")
 
     def stop(self):
+        self.shutting_down = True
         self.running = False
         logger.info("WebGUI сервер остановлен")
 
