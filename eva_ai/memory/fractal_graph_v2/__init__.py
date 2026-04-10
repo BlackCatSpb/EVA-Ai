@@ -269,6 +269,91 @@ class FractalMemoryGraph:
         
         return node
     
+    def add_nodes_batch(
+        self,
+        contents: List[str],
+        node_type: str = "concept",
+        level: int = 1,
+        confidence: float = 0.5,
+        auto_vectorize: bool = True,
+        auto_cluster: bool = True,
+        cluster_threshold: float = 0.6,
+        batch_size: int = 32
+    ) -> List[FractalNode]:
+        """
+        Batch добавление узлов с оптимизированной векторизацией.
+        
+        Этот метод значительно быстрее чем add_node() в цикле,
+        так как использует batch processing для эмбеддингов.
+        
+        Args:
+            contents: Список текстовых содержаний
+            node_type: Тип узла
+            level: Фрактальный уровень
+            confidence: Уверенность
+            auto_vectorize: Автоматически вычислить эмбеддинги
+            auto_cluster: Автоматически присоединить к группам
+            cluster_threshold: Порог similarity для кластеризации
+            batch_size: Размер батча для векторизации
+            
+        Returns:
+            Список созданных узлов
+        """
+        start_time = time.time()
+        
+        # Создаем узлы без векторизации
+        nodes = []
+        contents_to_vectorize = []
+        node_indices = []
+        
+        for i, content in enumerate(contents):
+            node = self.storage.add_node(
+                content=content,
+                node_type=node_type,
+                level=level,
+                confidence=confidence,
+                auto_cluster=False
+            )
+            nodes.append(node)
+            
+            if auto_vectorize and node.embedding is None:
+                contents_to_vectorize.append(content)
+                node_indices.append(i)
+        
+        # Batch векторизация
+        if contents_to_vectorize and auto_vectorize:
+            logger.info(f"Batch векторизация {len(contents_to_vectorize)} узлов (batch_size={batch_size})...")
+            
+            # Разбиваем на батчи
+            all_embeddings = []
+            for i in range(0, len(contents_to_vectorize), batch_size):
+                batch = contents_to_vectorize[i:i + batch_size]
+                batch_embeddings = self.embeddings.encode(batch, normalize=True, show_progress=False)
+                all_embeddings.extend(batch_embeddings)
+            
+            # Присваиваем эмбеддинги узлам
+            for idx, emb in zip(node_indices, all_embeddings):
+                nodes[idx].embedding = emb.tolist()
+                self.storage._save_node(nodes[idx])
+        
+        # Инкрементальная кластеризация
+        if auto_cluster:
+            for node in nodes:
+                if node.embedding:
+                    best_group = self.storage._find_nearest_group(
+                        node.embedding, level, cluster_threshold
+                    )
+                    if best_group:
+                        node.parent_group_id = best_group
+                        self.storage._save_node(node)
+                        if best_group in self.storage.semantic_groups:
+                            self.storage.semantic_groups[best_group].member_count += 1
+        
+        elapsed = time.time() - start_time
+        logger.info(f"Batch добавление завершено: {len(nodes)} узлов за {elapsed:.2f}s")
+        
+        return nodes
+    
     def add_knowledge(
         self,
         subject: str,
@@ -428,6 +513,107 @@ class FractalMemoryGraph:
             self._search_cache.put(cache_key, formatted)
         
         return formatted
+    
+    def semantic_search_batch(
+        self,
+        queries: List[str],
+        top_k: int = 5,
+        min_level: int = 2,
+        min_similarity: float = 0.5,
+        use_cache: bool = True
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Batch семантический поиск для нескольких запросов.
+        
+        Этот метод эффективнее чем semantic_search() в цикле,
+        так как использует batch encoding для запросов.
+        
+        Args:
+            queries: Список текстовых запросов
+            top_k: Количество результатов на запрос
+            min_level: Минимальный уровень для поиска
+            min_similarity: Минимальная схожесть
+            use_cache: Использовать кэш
+            
+        Returns:
+            Dict {query: results}
+        """
+        start_time = time.time()
+        
+        # Проверяем кэш для всех запросов
+        results = {}
+        queries_to_process = []
+        
+        if use_cache:
+            for query in queries:
+                cache_key = f"{query}:{top_k}:{min_level}:{min_similarity}"
+                cached = self._search_cache.get(cache_key)
+                if cached is not None:
+                    results[query] = cached
+                else:
+                    queries_to_process.append(query)
+        else:
+            queries_to_process = queries
+        
+        if not queries_to_process:
+            logger.debug(f"Batch search: все {len(queries)} запросов из кэша")
+            return results
+        
+        # Batch encoding для оставшихся запросов
+        logger.debug(f"Batch encoding для {len(queries_to_process)} запросов...")
+        query_embeddings = self.embeddings.encode(queries_to_process, normalize=True)
+        
+        # Поиск для каждого запроса
+        for query, query_emb in zip(queries_to_process, query_embeddings):
+            # Поиск в графе
+            search_results = self.storage.semantic_search(
+                query_embedding=query_emb.tolist(),
+                top_k=min(top_k * 3, 30),
+                min_level=min_level
+            )
+            
+            # Форматируем и фильтруем
+            formatted = []
+            for node_id_or_group_id, similarity, group_id in search_results:
+                if similarity < min_similarity:
+                    continue
+                    
+                if node_id_or_group_id in self.storage.nodes:
+                    node = self.storage.nodes[node_id_or_group_id]
+                    formatted.append({
+                        "type": "node",
+                        "id": node.id,
+                        "content": node.content,
+                        "node_type": node.node_type,
+                        "level": node.level,
+                        "confidence": node.confidence,
+                        "similarity": similarity,
+                        "group_id": group_id
+                    })
+                elif node_id_or_group_id in self.storage.semantic_groups:
+                    group = self.storage.semantic_groups[node_id_or_group_id]
+                    members = self.storage.get_group_members(group.id)
+                    formatted.append({
+                        "type": "group",
+                        "id": group.id,
+                        "name": group.name,
+                        "member_count": len(members),
+                        "avg_confidence": group.avg_confidence,
+                        "similarity": similarity,
+                        "members": [m.content[:50] for m in members[:5]]
+                    })
+            
+            results[query] = formatted
+            
+            # Сохраняем в кэш
+            if use_cache:
+                cache_key = f"{query}:{top_k}:{min_level}:{min_similarity}"
+                self._search_cache.put(cache_key, formatted)
+        
+        elapsed = time.time() - start_time
+        logger.debug(f"Batch search завершен: {len(queries)} запросов за {elapsed:.3f}s")
+        
+        return results
     
     def keyword_search(
         self,
