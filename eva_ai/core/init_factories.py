@@ -436,6 +436,15 @@ def create_web_search_engine(initializer):
     try:
         from eva_ai.websearch.web_search_integrated import IntegratedWebSearchEngine
         web_search = IntegratedWebSearchEngine(brain=initializer.core_brain)
+        
+        # Принудительная инициализация
+        if hasattr(web_search, 'initialize') and not web_search.is_initialized:
+            try:
+                web_search.initialize()
+                initializer.logger.info("[OK] IntegratedWebSearchEngine инициализирован")
+            except Exception as init_err:
+                initializer.logger.warning(f"[WARN] Не удалось инициализировать web_search_engine: {init_err}")
+        
         initializer.core_brain.web_search_engine = web_search
         initializer.logger.info("[OK] WebSearchEngine с Tavily создан")
         return web_search
