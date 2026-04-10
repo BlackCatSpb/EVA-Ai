@@ -659,9 +659,23 @@ def register_routes(app, web_gui_instance):
             logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
 
             if web_gui_instance.brain:
-                if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
+                rm = getattr(web_gui_instance.brain, 'resource_manager', None)
+                if rm:
+                    try:
+                        metrics['cpu_usage'] = rm.get_cpu_usage() * 100
+                        metrics['memory_usage'] = rm.get_memory_usage() * 100
+                        current = rm.get_current_metrics()
+                        if isinstance(current, dict):
+                            metrics['cpu_usage'] = current.get('cpu_percent', metrics['cpu_usage'])
+                            metrics['memory_usage'] = current.get('memory_percent', metrics['memory_usage'])
+                            metrics['disk_usage'] = current.get('disk_usage_percent', 0)
+                            metrics['io_tokens'] = current.get('io_tokens', 0)
+                    except Exception as e:
+                        logger.debug(f"resource_manager error: {e}")
+                elif hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
                     snapshot = web_gui_instance.brain.get_resource_snapshot()
-                    metrics.update(snapshot)
+                    if snapshot:
+                        metrics.update(snapshot)
                 if hasattr(web_gui_instance.brain, 'get_cache_stats'):
                     cache = web_gui_instance.brain.get_cache_stats()
                     metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
@@ -703,27 +717,36 @@ def register_routes(app, web_gui_instance):
                     except Exception as e:
                         logger.debug(f"Contradictions error: {e}")
                 
-                # === Concepts (ConceptMiner) ===
-                concept_miner = getattr(web_gui_instance.brain, 'concept_miner', None)
-                if concept_miner:
-                    try:
-                        if hasattr(concept_miner, 'get_metrics'):
-                            cm_metrics = concept_miner.get_metrics()
-                            # Подсчитываем по статусам
-                            candidates = concept_miner.get_candidates() if hasattr(concept_miner, 'get_candidates') else []
-                            provisional = sum(1 for c in candidates if c.get('status') == 'provisional')
-                            confirmed = sum(1 for c in candidates if c.get('status') == 'confirmed')
-                            archived = sum(1 for c in candidates if c.get('status') == 'archived')
-                            metrics['concepts'] = {
-                                'provisional': provisional,
-                                'confirmed': confirmed,
-                                'archived': archived,
-                                'total': len(candidates),
-                                'hypothesis_confirmation_ratio': cm_metrics.get('hypothesis_confirmation_ratio', 0),
-                                'status': cm_metrics.get('status', 'unknown')
-                            }
-                    except Exception as e:
-                        logger.debug(f"ConceptMiner metrics error: {e}")
+                # === Concepts (from FractalGraphV2) ===
+                if metrics.get('graph', {}).get('fractal_graph_v2', {}):
+                    fg_stats = metrics['graph']['fractal_graph_v2']
+                    nodes_by_type = fg_stats.get('nodes_by_type', {})
+                    concept_miner = getattr(web_gui_instance.brain, 'concept_miner', None)
+                    if concept_miner:
+                        try:
+                            if hasattr(concept_miner, 'get_metrics'):
+                                cm_metrics = concept_miner.get_metrics()
+                                candidates = concept_miner.get_candidates() if hasattr(concept_miner, 'get_candidates') else []
+                                provisional = sum(1 for c in candidates if c.get('status') == 'provisional')
+                                confirmed = sum(1 for c in candidates if c.get('status') == 'confirmed')
+                                archived = sum(1 for c in candidates if c.get('status') == 'archived')
+                                metrics['concepts'] = {
+                                    'provisional': provisional,
+                                    'confirmed': confirmed,
+                                    'archived': archived,
+                                    'total': len(candidates),
+                                    'hypothesis_confirmation_ratio': cm_metrics.get('hypothesis_confirmation_ratio', 0),
+                                    'status': cm_metrics.get('status', 'unknown')
+                                }
+                        except Exception as e:
+                            logger.debug(f"ConceptMiner metrics error: {e}")
+                    else:
+                        metrics['concepts'] = {
+                            'concept_nodes': nodes_by_type.get('concept', 0),
+                            'aci_concepts': nodes_by_type.get('aci_concept', 0),
+                            'total': nodes_by_type.get('concept', 0) + nodes_by_type.get('aci_concept', 0),
+                            'status': 'active'
+                        }
                 
                 # === Graph Metrics (только FractalGraphV2) ===
                 fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
@@ -789,6 +812,15 @@ def register_routes(app, web_gui_instance):
                     
         except Exception as e:
             logger.error(f"Error getting metrics: {e}")
+        
+        if metrics.get('cpu_usage', 0) == 0 or metrics.get('memory_usage', 0) == 0:
+            try:
+                import psutil
+                metrics['cpu_usage'] = psutil.cpu_percent(interval=0.1)
+                metrics['memory_usage'] = psutil.virtual_memory().percent
+                metrics['disk_usage'] = psutil.disk_usage('C:\\' if os.name == 'nt' else '/').percent
+            except Exception:
+                pass
 
         return jsonify(metrics)
 
@@ -850,7 +882,19 @@ def register_routes(app, web_gui_instance):
             logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
 
             if web_gui_instance.brain:
-                if hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
+                rm = getattr(web_gui_instance.brain, 'resource_manager', None)
+                if rm:
+                    try:
+                        analytics['cpu'] = rm.get_cpu_usage() * 100
+                        analytics['memory'] = rm.get_memory_usage() * 100
+                        current = rm.get_current_metrics()
+                        if isinstance(current, dict):
+                            analytics['cpu'] = current.get('cpu_percent', analytics['cpu'])
+                            analytics['memory'] = current.get('memory_percent', analytics['memory'])
+                            analytics['vram'] = current.get('gpu_memory', 0)
+                    except Exception as e:
+                        logger.debug(f"resource_manager error: {e}")
+                elif hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
                     try:
                         snapshot = web_gui_instance.brain.get_resource_snapshot()
                         if snapshot:
@@ -988,6 +1032,14 @@ def register_routes(app, web_gui_instance):
             analytics['dialogs'] = 0
             analytics['gaps'] = 0
             analytics['learned'] = 0
+        
+        if analytics.get('cpu', 0) == 0 or analytics.get('memory', 0) == 0:
+            try:
+                import psutil
+                analytics['cpu'] = psutil.cpu_percent(interval=0.1)
+                analytics['memory'] = psutil.virtual_memory().percent
+            except Exception:
+                pass
 
         return jsonify(analytics)
 
