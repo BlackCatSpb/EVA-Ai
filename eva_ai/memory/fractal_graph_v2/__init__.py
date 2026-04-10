@@ -87,13 +87,6 @@ __all__ = [
     # Tokenizer
     'GraphTokenizer',
     'create_graph_tokenizer',
-    
-    # Test Generation
-    'GraphMemorySystem',
-    'GraphBasedGenerator',
-    'GenerationResult',
-    'QueryContext',
-    'create_graph_memory_system',
 ]
 
 
@@ -919,17 +912,6 @@ def create_fractal_memory_graph(
     )
 
 
-# ============================================================================
-# Test Generation System (separate module)
-# ============================================================================
-
-# Lazy import to avoid circular dependencies
-def get_graph_memory_system_class():
-    """Get GraphMemorySystem class without circular import."""
-    from .test_generation import create_graph_memory_system as _create
-    return _create()
-
-
 # === ЭКСПОРТ ТИПОВ ===
 __all__ = [
     # Main
@@ -952,7 +934,4 @@ __all__ = [
     # Tokenizer
     'GraphTokenizer',
     'create_graph_tokenizer',
-    
-    # Test System (lazy)
-    'get_graph_memory_system_class',
 ]
