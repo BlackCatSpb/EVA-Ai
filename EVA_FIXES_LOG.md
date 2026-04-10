@@ -224,4 +224,29 @@ Get-Content -Tail 100 logs/cogniflex.log
 | 2026-04-10 | 09:30 | Создание md блокнота | Файл создан |
 | 2026-04-10 | 10:00 | Запуск сервера | (ожидает) |
 | 2026-04-10 | 10:43 | Перезапуск сервера | CPU/RAM/Concepts работают! |
-| 2026-04-10 | 10:45 | Тест Tavily | Ожидает тестового запроса |
+| 2026-04-10 | 10:45 | Тест Tavily | API key невалидный (401) |
+| 2026-04-10 | 11:00 | Исправления | ProcessTrackerMixin в analytics, Tavily error tracking |
+| 2026-04-10 | 11:05 | Пуш | Коммит 0c86a042 |
+
+## ИСПРАВЛЕНО (нужен перезапуск):
+
+1. ✅ **ProcessTrackerMixin** - добавлен в `/api/analytics` для queries, avg_time, success_rate
+2. ✅ **Tavily errors** - добавлен счётчик tavily_errors, логирование ошибок
+
+## ТЕКУЩЕЕ СОСТОЯНИЕ:
+
+### Tavily
+- Tavily РАБОТАЕТ в standalone Python
+- Tavily НЕ РАБОТАЕТ через API (tavily_requests=0)
+- Возможно: server использует другой brain_config.json
+- Tavily возвращает 401 Unauthorized через curl, но работает через Python
+
+### API
+- queries=0 (ProcessTrackerMixin не обновляется - сервер запущен со старым кодом)
+- Tavily счётчики = 0 (сервер запущен со старым кодом)
+
+## ОСТАЛОСЬ:
+
+1. ❌ Tavily API key - проверить key на сервере
+2. ❌ Перезапустить сервер для применения изменений
+3. ❌ GPU/VRAM метрики - добавить GPU мониторинг
