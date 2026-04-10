@@ -260,11 +260,32 @@ Get-Content -Tail 100 logs/cogniflex.log
 ## ОСТАЛОСЬ:
 
 1. ❌ Исправить queries, avg_time, success_rate - ProcessTrackerMixin
-2. ❌ GPU/VRAM метрики
+2. ❌ GPU/VRAM метрики  
 3. ❌ Dialogs - SelfDialogLearning tracking
-4. ⏳ Привести в порядок код (удалить deprecated)
+
+## ОЧИСТКА КОДА (2026-04-10):
+
+### ✅ Перенесено в deprecated_modules:
+| Папка/Файл | Количество | Причина |
+|------------|------------|---------|
+| knowledge_old/ | 50 файлов | Заменено FractalGraph v2 |
+| test_generation.py | 1 файл | Не используется |
+| scripts/test_*.py | 4 файла | Тестовые скрипты |
+| hot_deployment/test_*.py | 2 файла | Тестовые файлы |
+| adapters/kg_adapter.py | 1 файл | Дубликат |
+| **ИТОГО** | **58+ файлов** | **~15,000 строк кода** |
+
+### Что оставлено (активно используется):
+- eva_ai/core/ (102 файла) - ядро системы
+- eva_ai/memory/ (72 файла) - память (FractalGraph v2)
+- eva_ai/mlearning/ (73 файла) - ML компоненты
+- eva_ai/websearch/ (9 файлов) - Tavily
+- eva_ai/contradiction/ (24 файла) - противоречия
+- eva_ai/learning/ (32 файла) - обучение
+- eva_ai/gui/ (50 файлов) - веб-интерфейс
 
 ## ИСПРАВЛЕНО:
 
-1. ✅ **Ctrl+C** - добавлен shutdown flag, daemon thread для Flask
-2. ✅ **Tavily** - только Tavily, без fallback
+1. ✅ **Ctrl+C** - добавлен shutdown flag, werkzeug make_server
+2. ✅ **Tavily** - только Tavily, без fallback, работает в Two-Model Pipeline
+3. ✅ **Очистка кода** - 58+ файлов в deprecated_modules
