@@ -76,8 +76,8 @@ class CondensedGenerator:
                 prompt,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
-                repeat_penalty=1.3,
-                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:"],
+                repeat_penalty=self.repeat_penalty,
+                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Модель", "модель"],
                 echo=False
             )
             
@@ -108,14 +108,28 @@ class CondensedGenerator:
             'Модель B:', 'Модель A:', 'Модель C:', 
             'Model B:', 'Model A:', 'Model C:',
             'Ответ модели B:', 'Ответ модели A:', 'Ответ модели C:',
-            'модель B:', 'модель A:',
+            'модель B:', 'модель A:', 'модель C:',
             '(Model B)', '(Model A)', '(Model C)',
             'модель B развивает', 'ответ модели B развивает',
             'В контексте развития мысли (Model B)',
+            'Это позволяет мне', 'Это позволяет',
         ]
         
         for pattern in system_patterns:
             text = text.replace(pattern, '')
+        
+        # Remove repetition patterns
+        lines = text.split('\n')
+        unique_lines = []
+        seen = set()
+        for line in lines:
+            line_lower = line.lower().strip()
+            if line_lower and line_lower not in seen:
+                seen.add(line_lower)
+                unique_lines.append(line)
+            elif not line.strip():
+                unique_lines.append(line)
+        text = '\n'.join(unique_lines)
         
         fillers = ['хорошо,', 'конечно,', 'вот,', 'отлично,']
         for f in fillers:
@@ -172,7 +186,7 @@ class ExtendedGenerator:
                 repeat_penalty=self.repeat_penalty,
                 frequency_penalty=self.frequency_penalty,
                 presence_penalty=self.presence_penalty,
-                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Повтор:", "повтор"],
+                stop=["</s>", "User:", "user:", "Human:", "Вопрос:", "Контекст:", "Модель", "модель"],
                 echo=False
             )
             
@@ -270,6 +284,7 @@ class ExtendedGenerator:
             'модель B:', 'модель A:', 'модель C:',
             '(Model B)', '(Model A)', '(Model C)',
             'модель B развивает', 'ответ модели B развивает',
+            'Это позволяет мне', 'Это позволяет',
         ]
         
         answer_patterns = [
@@ -279,6 +294,7 @@ class ExtendedGenerator:
             'В контексте развития мысли (Model B)',
             'модель B действительно', 'ответ модели B действительно',
             'ответ модели B', 'Ответ модели B',
+            'Это позволяет мне', 'Это позволяет',
         ]
         
         lines = text.split('\n')
@@ -311,7 +327,15 @@ class ExtendedGenerator:
             if line.strip():
                 cleaned_lines.append(line.strip())
         
-        result = '\n'.join(cleaned_lines[:10])
+        # Remove duplicate consecutive lines
+        result_lines = []
+        prev_line = None
+        for line in cleaned_lines[:10]:
+            if line != prev_line:
+                result_lines.append(line)
+                prev_line = line
+        
+        result = '\n'.join(result_lines)
         return result
 
 
