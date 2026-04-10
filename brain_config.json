@@ -119,7 +119,7 @@
   },
   "fractal_graph_v2": {
     "enabled": true,
-    "storage_dir": "eva_ai/memory/fractal_graph_v2/data",
+    "storage_dir": "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data",
     "embedding_model": "eva_ai/core/hf_cache/multilingual-e5-base",
     "embedding_device": "cpu",
     "embedding_dim": 768,
