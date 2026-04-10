@@ -66,6 +66,11 @@ class WebGUI:
         self.session_manager = SessionManager()
         self.entity_extractor = EntityExtractor()
         self.ethics_checker = EthicsChecker()
+        
+        # Хранилище документов для сессий (session_id -> {document_id: metadata})
+        self._session_documents: Dict[str, Dict[str, Any]] = {}
+        # Порог для использования DocumentVirtualMemory (токенов)
+        self._document_memory_threshold = 1000
 
         admin_user = os.environ.get('COGNIFLEX_ADMIN_USER', 'admin')
         admin_pass = os.environ.get('COGNIFLEX_ADMIN_PASS')
@@ -144,19 +149,98 @@ class WebGUI:
 
         logger.info("WebGUI initialized on {}:{}".format(host, port))
 
-    def process_message(self, query: str, session_id: str, user_id: str, file_data: Dict = None) -> Dict[str, Any]:
+    def _get_document_manager(self):
+        """Получить доступ к DocumentVirtualMemory через dual_generator."""
+        try:
+            if (self.brain and 
+                hasattr(self.brain, 'two_model_pipeline') and 
+                self.brain.two_model_pipeline and
+                hasattr(self.brain.two_model_pipeline, 'dual_generator') and
+                self.brain.two_model_pipeline.dual_generator):
+                
+                dg = self.brain.two_model_pipeline.dual_generator
+                if hasattr(dg, 'document_manager') and dg.document_manager:
+                    return dg
+        except Exception as e:
+            logger.debug(f"DocumentManager недоступен: {e}")
+        return None
+    
+    def _ingest_document_to_memory(self, content: str, title: str, session_id: str) -> Optional[str]:
+        """Загрузить документ в DocumentVirtualMemory."""
+        dg = self._get_document_manager()
+        if not dg:
+            return None
+        
+        try:
+            doc_id = dg.load_document(content, title)
+            if doc_id and session_id:
+                # Сохраняем информацию о документе в сессии
+                if session_id not in self._session_documents:
+                    self._session_documents[session_id] = {}
+                self._session_documents[session_id][doc_id] = {
+                    'title': title,
+                    'loaded_at': datetime.now().isoformat(),
+                    'size': len(content)
+                }
+                logger.info(f"Документ '{title}' загружен в память (ID: {doc_id})")
+            return doc_id
+        except Exception as e:
+            logger.error(f"Ошибка загрузки документа в память: {e}")
+            return None
+    
+    def _estimate_tokens(self, text: str) -> int:
+        """Оценка количества токенов в тексте."""
+        # Простая эвристика: ~1.3 токена на слово
+        return int(len(text.split()) * 1.3)
 
+    def process_message(self, query: str, session_id: str, user_id: str, file_data: Dict = None) -> Dict[str, Any]:
+        # Проверяем, есть ли активные документы для этой сессии
+        has_active_documents = (
+            session_id and 
+            session_id in self._session_documents and 
+            self._session_documents[session_id]
+        )
+        
+        # Если есть file_data, проверяем размер и решаем как обрабатывать
+        document_id = None
         if file_data and file_data.get('extracted_text'):
             filename = file_data.get('filename', 'file')
             extracted = file_data['extracted_text']
-            enhanced_query = f"""Пользователь прикрепил файл "{filename}".
+            estimated_tokens = self._estimate_tokens(extracted)
+            
+            # Если документ большой - используем DocumentVirtualMemory
+            if estimated_tokens > self._document_memory_threshold:
+                logger.info(f"Документ '{filename}' большой ({estimated_tokens} токенов), используем виртуальную память")
+                document_id = self._ingest_document_to_memory(extracted, filename, session_id)
+                
+                if document_id:
+                    # Не добавляем полный текст к запросу, используем виртуальную память
+                    enhanced_query = f"""Пользователь прикрепил документ "{filename}" ({estimated_tokens} токенов).
+Документ загружен в виртуальную память (ID: {document_id}).
+
+Запрос пользователя: {query}"""
+                    query = enhanced_query
+                else:
+                    # Fallback: добавляем текст как обычно
+                    logger.warning(f"Не удалось загрузить документ в память, используем обычный режим")
+                    enhanced_query = f"""Пользователь прикрепил файл "{filename}".
+Содержимое файла:
+---
+{extracted[:8000]}  # Ограничиваем размер
+---
+
+Запрос пользователя: {query}"""
+                    query = enhanced_query
+            else:
+                # Маленький документ - обычная обработка
+                enhanced_query = f"""Пользователь прикрепил файл "{filename}".
 Содержимое файла:
 ---
 {extracted}
 ---
 
 Запрос пользователя: {query}"""
-            query = enhanced_query
+                query = enhanced_query
 
         ethics_result = self.ethics_checker.check_message(query)
         if not ethics_result['allowed']:
@@ -201,7 +285,74 @@ class WebGUI:
         }
 
         result = None
-        if self.brain and hasattr(self.brain, 'process_query'):
+        document_mode = False
+        document_context_info = None
+        
+        # Проверяем, нужно ли использовать DocumentVirtualMemory
+        if (has_active_documents or document_id) and self._get_document_manager():
+            dg = self._get_document_manager()
+            # Используем самый свежий документ
+            if document_id:
+                active_doc_id = document_id
+            elif session_id and session_id in self._session_documents:
+                active_doc_id = max(
+                    self._session_documents[session_id].keys(),
+                    key=lambda k: self._session_documents[session_id][k].get('loaded_at', '')
+                )
+            else:
+                active_doc_id = None
+            
+            if active_doc_id:
+                try:
+                    logger.info(f"Используем DocumentVirtualMemory для документа {active_doc_id}")
+                    # Используем generate_with_document для генерации с контекстом из документа
+                    gen_result = dg.generate_with_document(
+                        query=query,
+                        document_id=active_doc_id,
+                        mode="extended"  # Используем extended для лучшего качества
+                    )
+                    
+                    if gen_result and isinstance(gen_result, dict):
+                        response_text = gen_result.get('response', gen_result.get('text', response_text))
+                        document_context_info = gen_result.get('document_context', {})
+                        document_mode = True
+                        
+                        # Формируем reasoning steps для документного режима
+                        reasoning_steps = [
+                            {
+                                'step': 1,
+                                'phase': 'document_query',
+                                'thought': f'Запрос к документу с использованием виртуальной памяти',
+                                'confidence': 0.95
+                            },
+                            {
+                                'step': 2,
+                                'phase': 'page_retrieval',
+                                'thought': f'Загружены релевантные страницы: {document_context_info.get("relevant_pages", [])}',
+                                'confidence': 0.9
+                            },
+                            {
+                                'step': 3,
+                                'phase': 'generation',
+                                'thought': f'Генерация ответа на основе контекста документа',
+                                'confidence': 0.85
+                            }
+                        ]
+                        
+                        result = {
+                            'response': response_text,
+                            'source': 'document_virtual_memory',
+                            'document_context': document_context_info,
+                            'reasoning_steps': reasoning_steps
+                        }
+                        
+                        logger.info(f"Ответ сгенерирован с использованием DocumentVirtualMemory")
+                except Exception as e:
+                    logger.error(f"Ошибка при использовании DocumentVirtualMemory: {e}")
+                    # Fallback на обычную генерацию
+        
+        # Обычная генерация если не использовали DocumentVirtualMemory
+        if not document_mode and self.brain and hasattr(self.brain, 'process_query'):
             debug_info["has_process_query"] = True
             debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
             debug_info["enhanced_reasoning_loaded"] = self.brain is not None and hasattr(self.brain, 'enhanced_reasoning_engine') and self.brain.enhanced_reasoning_engine is not None
@@ -212,7 +363,7 @@ class WebGUI:
             logger.debug(f"brain result: source={result.get('source') if result and isinstance(result, dict) else 'None'}")
             if result and isinstance(result, dict):
                 response_text = result.get('response', result.get('text', response_text))
-        else:
+        elif not document_mode:
             debug_info["reason"] = "no brain or no process_query"
 
         brain_reasoning = None
@@ -250,7 +401,53 @@ class WebGUI:
                     url = sr.get('url', '')[:50]
                     web_search_info += f"\n{i+1}. {title}... ({url})"
 
-            if source == 'llama_cpp_with_modules' or (file_data and file_data.get('extracted_text')):
+            if source == 'document_virtual_memory':
+                # Обработка для DocumentVirtualMemory
+                doc_context = result.get('document_context', {})
+                doc_title = doc_context.get('document_title', 'Unknown')
+                relevant_pages = doc_context.get('relevant_pages', [])
+                
+                reasoning_steps = [
+                    {
+                        'step': 1,
+                        'phase': 'document_analysis',
+                        'thought': f'Документ "{doc_title}" загружен в виртуальную память',
+                        'confidence': 0.95
+                    },
+                    {
+                        'step': 2,
+                        'phase': 'page_retrieval',
+                        'thought': f'Извлечены релевантные страницы: {relevant_pages}',
+                        'confidence': 0.9
+                    },
+                    {
+                        'step': 3,
+                        'phase': 'context_building',
+                        'thought': 'Построение контекста из страниц документа',
+                        'confidence': 0.9
+                    },
+                    {
+                        'step': 4,
+                        'phase': 'generation',
+                        'thought': 'Генерация ответа на основе контекста документа',
+                        'confidence': 0.85
+                    },
+                    {
+                        'step': 5,
+                        'phase': 'final_synthesis',
+                        'thought': 'Финальный ответ с учетом документа',
+                        'confidence': result.get('confidence', 0.9)
+                    }
+                ]
+                
+                reasoning_data = f"📚 Анализ документа:\n\n"
+                reasoning_data += f"Документ: {doc_title}\n"
+                reasoning_data += f"Использованы страницы: {', '.join(map(str, relevant_pages))}\n\n"
+                reasoning_data += "Шаги:\n"
+                for s in reasoning_steps:
+                    reasoning_data += f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})\n"
+            
+            elif source == 'llama_cpp_with_modules' or (file_data and file_data.get('extracted_text')):
                 reasoning_steps = []
 
                 if file_data and file_data.get('extracted_text'):
@@ -516,6 +713,30 @@ class WebGUI:
         }
 
         return return_data
+
+    def get_session_documents(self, session_id: str) -> Dict[str, Any]:
+        """Получить список документов для сессии."""
+        if not session_id or session_id not in self._session_documents:
+            return {}
+        return self._session_documents[session_id].copy()
+    
+    def get_document_stats(self, session_id: str, document_id: str) -> Optional[Dict[str, Any]]:
+        """Получить статистику по документу."""
+        dg = self._get_document_manager()
+        if not dg:
+            return None
+        
+        try:
+            return dg.get_document_stats(document_id)
+        except Exception as e:
+            logger.error(f"Ошибка получения статистики документа: {e}")
+            return None
+    
+    def clear_session_documents(self, session_id: str):
+        """Очистить документы сессии."""
+        if session_id and session_id in self._session_documents:
+            logger.info(f"Очистка документов сессии {session_id}")
+            del self._session_documents[session_id]
 
     def start(self):
         if self.running:

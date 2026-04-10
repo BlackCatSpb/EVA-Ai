@@ -1344,6 +1344,72 @@ def register_routes(app, web_gui_instance):
             'message': f'Удалено {removed} документов' if removed > 0 else 'Документ не найден'
         })
 
+    @app.route('/api/documents/memory', methods=['GET'])
+    def api_documents_memory():
+        """Получить список документов из DocumentVirtualMemory для сессии."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        session_id = request.args.get('session_id')
+        if not session_id:
+            return jsonify({'error': 'session_id required'}), 400
+
+        try:
+            documents = web_gui_instance.get_session_documents(session_id)
+            
+            # Добавляем статистику для каждого документа
+            enriched_docs = {}
+            for doc_id, doc_meta in documents.items():
+                stats = web_gui_instance.get_document_stats(session_id, doc_id)
+                enriched_docs[doc_id] = {
+                    **doc_meta,
+                    'stats': stats
+                }
+            
+            return jsonify({
+                'documents': enriched_docs,
+                'count': len(enriched_docs)
+            })
+        except Exception as e:
+            logger.error(f"Error getting documents from memory: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/documents/memory/<document_id>', methods=['GET', 'DELETE'])
+    def api_document_memory_detail(document_id):
+        """Получить детали документа или удалить его из памяти."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        session_id = request.args.get('session_id')
+        if not session_id:
+            return jsonify({'error': 'session_id required'}), 400
+
+        if request.method == 'GET':
+            try:
+                stats = web_gui_instance.get_document_stats(session_id, document_id)
+                if stats:
+                    return jsonify({
+                        'document_id': document_id,
+                        'stats': stats
+                    })
+                else:
+                    return jsonify({'error': 'Документ не найден'}), 404
+            except Exception as e:
+                logger.error(f"Error getting document stats: {e}")
+                return jsonify({'error': str(e)}), 500
+        
+        elif request.method == 'DELETE':
+            # Очистка документов сессии
+            try:
+                web_gui_instance.clear_session_documents(session_id)
+                return jsonify({
+                    'status': 'ok',
+                    'message': 'Документы сессии очищены'
+                })
+            except Exception as e:
+                logger.error(f"Error clearing documents: {e}")
+                return jsonify({'error': str(e)}), 500
+
     @app.route('/api/knowledge-graph', methods=['GET', 'POST'])
     def api_knowledge_graph():
         """Операции с графом знаний."""

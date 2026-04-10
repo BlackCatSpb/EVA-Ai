@@ -745,27 +745,75 @@
     function loadDocuments() {
         if (!activeSessionId) return;
         
+        // Загружаем обычные документы
         api('/documents', { params: { session_id: activeSessionId } }).then(data => {
             if (data.error) return;
             
             const docs = data.documents || [];
-            const docEl = $('#documentList');
             
-            if (docEl) {
-                if (docs.length > 0) {
-                    docEl.innerHTML = docs.map(d => `
-                        <div class="doc-item">
-                            <div class="doc-icon">📄</div>
-                            <div class="doc-info">
-                                <div class="doc-name">${esc(d.filename || 'Unknown')}</div>
-                                <div class="doc-meta">${d.doc_type || 'file'} · ${esc(d.file_id?.substring(0, 8) || '')}</div>
+            // Также загружаем документы из DocumentVirtualMemory
+            api('/documents/memory', { params: { session_id: activeSessionId } }).then(memData => {
+                const memDocs = memData.documents || {};
+                const docEl = $('#documentList');
+                
+                if (docEl) {
+                    let html = '';
+                    
+                    // Обычные документы
+                    if (docs.length > 0) {
+                        html += docs.map(d => `
+                            <div class="doc-item">
+                                <div class="doc-icon">📄</div>
+                                <div class="doc-info">
+                                    <div class="doc-name">${esc(d.filename || 'Unknown')}</div>
+                                    <div class="doc-meta">${d.doc_type || 'file'} · ${esc(d.file_id?.substring(0, 8) || '')}</div>
+                                </div>
                             </div>
-                        </div>
-                    `).join('');
-                } else {
-                    docEl.innerHTML = '<div class="empty-state">Нет загруженных документов</div>';
+                        `).join('');
+                    }
+                    
+                    // Документы в виртуальной памяти
+                    const memDocEntries = Object.entries(memDocs);
+                    if (memDocEntries.length > 0) {
+                        html += '<div class="doc-section-title">📚 В виртуальной памяти:</div>';
+                        html += memDocEntries.map(([docId, d]) => {
+                            const stats = d.stats || {};
+                            const totalPages = stats.total_pages || '?';
+                            return `
+                            <div class="doc-item doc-item-memory">
+                                <div class="doc-icon">📖</div>
+                                <div class="doc-info">
+                                    <div class="doc-name">${esc(d.title || 'Unknown')}</div>
+                                    <div class="doc-meta">${totalPages} стр. · ID: ${esc(docId.substring(0, 8))}</div>
+                                </div>
+                            </div>
+                        `}).join('');
+                    }
+                    
+                    if (html === '') {
+                        html = '<div class="empty-state">Нет загруженных документов</div>';
+                    }
+                    
+                    docEl.innerHTML = html;
                 }
-            }
+            }).catch(() => {
+                // Fallback: показываем только обычные документы
+                if (docEl) {
+                    if (docs.length > 0) {
+                        docEl.innerHTML = docs.map(d => `
+                            <div class="doc-item">
+                                <div class="doc-icon">📄</div>
+                                <div class="doc-info">
+                                    <div class="doc-name">${esc(d.filename || 'Unknown')}</div>
+                                    <div class="doc-meta">${d.doc_type || 'file'} · ${esc(d.file_id?.substring(0, 8) || '')}</div>
+                                </div>
+                            </div>
+                        `).join('');
+                    } else {
+                        docEl.innerHTML = '<div class="empty-state">Нет загруженных документов</div>';
+                    }
+                }
+            });
         }).catch(() => {});
     }
     
