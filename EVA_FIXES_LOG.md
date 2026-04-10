@@ -228,27 +228,41 @@ Get-Content -Tail 100 logs/cogniflex.log
 | 2026-04-10 | 11:00 | Исправления | ProcessTrackerMixin в analytics, Tavily error tracking |
 | 2026-04-10 | 11:05 | Пуш | Коммит 0c86a042 |
 
-## ИСПРАВЛЕНО (нужен перезапуск):
+## ИСПРАВЛЕНО:
 
-1. ✅ **ProcessTrackerMixin** - добавлен в `/api/analytics` для queries, avg_time, success_rate
-2. ✅ **Tavily errors** - добавлен счётчик tavily_errors, логирование ошибок
+1. ✅ **Tavily** - теперь работает! (tavily_requests: 1, tavily_responses: 1)
+2. ✅ **Ctrl+C** - работает корректно (werkzeug make_server)
+3. ✅ **WebSearch инициализация** - принудительная инициализация в create function
 
-## ТЕКУЩЕЕ СОСТОЯНИЕ:
+## ТЕКУЩЕЕ СОСТОЯНИЕ (2026-04-10 12:25):
 
-### Tavily
-- Tavily теперь ИСКЛЮЧИТЕЛЬНЫЙ источник поиска (fallback убран)
-- Добавлено логирование в brain_query для отладки
-- Tavily API key: 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
+### ✅ Работает:
+| Метрика | Значение | Статус |
+|---------|----------|--------|
+| CPU | 82.1% | ✅ |
+| Tavily requests | 1 | ✅ |
+| Tavily responses | 1 | ✅ |
+| web_searches | 1 | ✅ |
+| results_found | 5 | ✅ |
+| fractal_nodes | 519 | ✅ |
+| concepts | 32 | ✅ |
+| curator_state | running | ✅ |
 
-### API
-- queries=0 (сервер запущен со старым кодом)
-- Tavily счётчики = 0 (сервер запущен со старым кодом)
+### ⚠️ Не работает:
+| Метрика | Проблема |
+|---------|----------|
+| queries | 0 - ProcessTrackerMixin не читается |
+| dialogs | 0 - SelfDialogLearning не отслеживается |
+| avg_time | 0 |
+| success_rate | 0 |
+| vram | 0 |
 
 ## ОСТАЛОСЬ:
 
-1. ❌ Перезапустить сервер для применения изменений (Ctrl+C исправлен)
-2. ❌ GPU/VRAM метрики - добавить GPU мониторинг
-3. ❌ проверить логи после перезапуска
+1. ❌ Исправить queries, avg_time, success_rate - ProcessTrackerMixin
+2. ❌ GPU/VRAM метрики
+3. ❌ Dialogs - SelfDialogLearning tracking
+4. ⏳ Привести в порядок код (удалить deprecated)
 
 ## ИСПРАВЛЕНО:
 
