@@ -129,6 +129,10 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         _init_mode_controller(self)
         self._init_memory_manager()
         _set_global_brain(self)
+        
+        # Initialize ProcessTrackerMixin
+        ProcessTrackerMixin.__init__(self)
+        
         query_logger.debug("ЕВАCore инициализирован")
 
     @property
