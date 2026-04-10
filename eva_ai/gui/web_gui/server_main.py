@@ -194,12 +194,30 @@ class WebGUI:
         return int(len(text.split()) * 1.3)
 
     def process_message(self, query: str, session_id: str, user_id: str, file_data: Dict = None) -> Dict[str, Any]:
+        # Начинаем измерение времени
+        request_start = time.time()
+        
         # Проверяем, есть ли активные документы для этой сессии
         has_active_documents = (
             session_id and 
             session_id in self._session_documents and 
             self._session_documents[session_id]
         )
+        
+        # Собираем метрики в конце
+        def record_metrics(success: bool = True, error: str = None):
+            """Записать метрики запроса."""
+            try:
+                from eva_ai.core.metrics import get_eva_metrics
+                eva_metrics = get_eva_metrics()
+                
+                duration = time.time() - request_start
+                eva_metrics.record_request(duration, endpoint='process_message')
+                
+                if not success:
+                    eva_metrics.record_error(error_type=error or 'unknown')
+            except Exception as e:
+                logger.debug(f"Ошибка записи метрик: {e}")
         
         # Если есть file_data, проверяем размер и решаем как обрабатывать
         document_id = None
@@ -244,6 +262,7 @@ class WebGUI:
 
         ethics_result = self.ethics_checker.check_message(query)
         if not ethics_result['allowed']:
+            record_metrics(success=False, error='ethics_blocked')
             return {
                 'response': 'Извините, это сообщение заблокировано.',
                 'status': 'blocked',
@@ -711,7 +730,10 @@ class WebGUI:
             'search_results': search_results if search_results else None,
             'web_search_info': web_search_info
         }
-
+        
+        # Записываем метрики успешного запроса
+        record_metrics(success=True)
+        
         return return_data
 
     def get_session_documents(self, session_id: str) -> Dict[str, Any]:

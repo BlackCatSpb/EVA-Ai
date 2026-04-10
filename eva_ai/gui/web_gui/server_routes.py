@@ -1850,6 +1850,143 @@ def register_routes(app, web_gui_instance):
         
         return jsonify({'stats': stats})
 
+    @app.route('/api/metrics')
+    def api_metrics():
+        """Получить все метрики производительности (Prometheus format)."""
+        try:
+            from eva_ai.core.metrics import get_metrics_registry
+            
+            registry = get_metrics_registry()
+            
+            # JSON format
+            if request.args.get('format') == 'json':
+                return jsonify(registry.get_all_metrics())
+            
+            # Prometheus format (default)
+            prometheus_data = registry.export_prometheus()
+            return Response(prometheus_data, mimetype='text/plain')
+            
+        except Exception as e:
+            logger.error(f"Error exporting metrics: {e}")
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/health')
+    def api_health():
+        """Health check endpoint."""
+        health_status = {
+            'status': 'healthy',
+            'timestamp': time.time(),
+            'components': {}
+        }
+        
+        # Проверяем компоненты
+        if web_gui_instance:
+            health_status['components']['web_gui'] = 'ok'
+            
+            if web_gui_instance.brain:
+                health_status['components']['brain'] = 'ok'
+                
+                # Проверяем pipeline
+                if hasattr(web_gui_instance.brain, 'two_model_pipeline'):
+                    health_status['components']['pipeline'] = 'ok'
+                
+                # Проверяем graph
+                if hasattr(web_gui_instance.brain, 'fractal_graph_v2'):
+                    fg = web_gui_instance.brain.fractal_graph_v2
+                    cache_stats = fg.get_search_cache_stats()
+                    health_status['components']['fractal_graph'] = {
+                        'status': 'ok',
+                        'nodes_count': len(fg.storage.nodes),
+                        'cache_hit_rate': cache_stats.get('hit_rate', 0)
+                    }
+        else:
+            health_status['status'] = 'unhealthy'
+            health_status['components']['web_gui'] = 'error'
+        
+        status_code = 200 if health_status['status'] == 'healthy' else 503
+        return jsonify(health_status), status_code
+
+    @app.route('/api/health/detailed')
+    def api_health_detailed():
+        """Детальная проверка здоровья системы с метриками."""
+        try:
+            from eva_ai.core.metrics import get_metrics_registry, get_eva_metrics
+            import psutil
+            
+            registry = get_metrics_registry()
+            eva_metrics = get_eva_metrics()
+            
+            # Системные метрики
+            system_metrics = {
+                'cpu_percent': psutil.cpu_percent(interval=0.1),
+                'memory': {
+                    'percent': psutil.virtual_memory().percent,
+                    'used_gb': psutil.virtual_memory().used / (1024**3),
+                    'available_gb': psutil.virtual_memory().available / (1024**3)
+                },
+                'disk': {
+                    'percent': psutil.disk_usage('/').percent,
+                    'used_gb': psutil.disk_usage('/').used / (1024**3)
+                }
+            }
+            
+            # Метрики EVA
+            eva_stats = {
+                'cache_hit_rate': eva_metrics.get_cache_hit_rate(),
+                'generation_stats': eva_metrics.get_generation_stats(),
+                'all_metrics': registry.get_all_metrics()
+            }
+            
+            return jsonify({
+                'status': 'healthy',
+                'timestamp': time.time(),
+                'system': system_metrics,
+                'eva': eva_stats
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in detailed health check: {e}")
+            return jsonify({'status': 'error', 'error': str(e)}), 500
+
+    @app.route('/api/dashboard')
+    def api_dashboard():
+        """Performance dashboard data."""
+        try:
+            from eva_ai.core.metrics import get_eva_metrics, get_metrics_registry
+            
+            eva_metrics = get_eva_metrics()
+            registry = get_metrics_registry()
+            
+            # Ключевые метрики для дашборда
+            dashboard_data = {
+                'summary': {
+                    'cache_hit_rate': eva_metrics.get_cache_hit_rate(),
+                    'generation_stats': eva_metrics.get_generation_stats(),
+                },
+                'charts': {
+                    'request_duration': registry.histogram('eva_request_duration_seconds').get_stats(),
+                    'generation_duration': registry.histogram('eva_generation_duration_seconds').get_stats(),
+                    'search_duration': registry.histogram('eva_search_duration_seconds').get_stats(),
+                },
+                'counters': {
+                    'requests_total': registry.counter('eva_requests_total').get(),
+                    'generations_total': registry.counter('eva_generations_total').get(),
+                    'errors_total': registry.counter('eva_errors_total').get(),
+                    'cache_hits': registry.counter('eva_cache_hits_total').get(),
+                    'cache_misses': registry.counter('eva_cache_misses_total').get(),
+                },
+                'gauges': {
+                    'cpu_percent': registry.gauge('system_cpu_percent').get(),
+                    'memory_percent': registry.gauge('system_memory_percent').get(),
+                }
+            }
+            
+            return jsonify(dashboard_data)
+            
+        except Exception as e:
+            logger.error(f"Error getting dashboard data: {e}")
+            return jsonify({'error': str(e)}), 500
+
 
 def extract_text_from_file(filepath, ext):
     """Извлекает текст из файла в зависимости от типа. Всегда возвращает строку."""
