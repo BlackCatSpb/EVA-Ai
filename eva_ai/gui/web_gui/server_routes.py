@@ -963,6 +963,14 @@ def register_routes(app, web_gui_instance):
                         analytics['avg_time'] = pm.get('avg_generation_time', 0) * 1000  # ms
                     except Exception as e:
                         logger.debug(f"ProcessTrackerMixin error: {e}")
+                    
+                    # GPU метрики
+                    try:
+                        if hasattr(rm, 'get_gpu_metrics'):
+                            gpu_metrics = rm.get_gpu_metrics()
+                            analytics['vram'] = gpu_metrics.get('vram_percent', 0.0)
+                    except Exception as gpu_e:
+                        logger.debug(f"GPU metrics error: {gpu_e}")
 
                 if hasattr(web_gui_instance.brain, 'performance_analyzer') and web_gui_instance.brain.performance_analyzer:
                     try:

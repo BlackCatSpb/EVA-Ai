@@ -362,6 +362,14 @@ class ResourceManager:
             return torch.cuda.is_available()
         except ImportError:
             return False
+    
+    def get_gpu_metrics(self) -> Dict[str, float]:
+        """Возвращает метрики GPU."""
+        return {
+            "gpu_usage": self.current_metrics.get("gpu_usage", 0.0),
+            "gpu_memory": self.current_metrics.get("gpu_memory", 0.0),
+            "vram_percent": self.current_metrics.get("gpu_memory", 0.0)
+        }
 
     def get_recommended_context_size(self) -> int:
         """Рекомендуемый размер контекста на основе загрузки."""
