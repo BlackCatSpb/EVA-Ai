@@ -45,10 +45,7 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
                     <span>Аналитика</span>
                 </button>
-                <button class="nav-item" data-view="wikipedia">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                    <span>Поиск</span>
-                </button>
+
                 <button class="nav-item" data-view="settings">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                     <span>Настройки</span>
@@ -141,11 +138,11 @@
                         </div>
                     </div>
                     <div class="analytics-card">
-                        <h3>ConceptMiner</h3>
+                        <h3>Концепты</h3>
                         <div class="analytics-stats">
-                            <div class="stat"><span class="stat-val" id="conceptProvisional">0</span><span class="stat-lbl">Временные</span></div>
-                            <div class="stat"><span class="stat-val" id="conceptConfirmed">0</span><span class="stat-lbl">Подтвержд.</span></div>
-                            <div class="stat"><span class="stat-val" id="conceptArchived">0</span><span class="stat-lbl">Архив</span></div>
+                            <div class="stat"><span class="stat-val" id="conceptExisting">0</span><span class="stat-lbl">Существующие</span></div>
+                            <div class="stat"><span class="stat-val" id="conceptProcessing">0</span><span class="stat-lbl">В процессе</span></div>
+                            <div class="stat"><span class="stat-val" id="conceptCompleted">0</span><span class="stat-lbl">Завершенные</span></div>
                         </div>
                     </div>
                     <div class="analytics-card">
@@ -164,6 +161,14 @@
                             <div class="stat"><span class="stat-val" id="webSearchesTotal">0</span><span class="stat-lbl">Всего поисков</span></div>
                         </div>
                     </div>
+                    <div class="analytics-card">
+                        <h3>Википедия</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="wikiQueries">0</span><span class="stat-lbl">Запросов</span></div>
+                            <div class="stat"><span class="stat-val" id="wikiArticles">0</span><span class="stat-lbl">Статей найдено</span></div>
+                            <div class="stat"><span class="stat-val" id="wikiCached">0</span><span class="stat-lbl">В кэше</span></div>
+                        </div>
+                    </div>
                     <div class="analytics-card full-width">
                         <h3>Здоровье системы</h3>
                         <div class="system-health" id="systemHealth">
@@ -178,29 +183,6 @@
                         <h3>История активности</h3>
                         <div class="activity-list" id="activityList"></div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Wikipedia View -->
-            <div class="view" id="wikipediaView" style="display:none">
-                <div class="view-header">
-                    <h2>Поиск</h2>
-                    <button class="refresh-btn" id="refreshWikipedia">Обновить</button>
-                </div>
-                <div class="wiki-stats" id="wikiStats">
-                    <div class="stat"><span class="stat-val" id="wikiArticles">0</span><span class="stat-lbl">Статей в БД</span></div>
-                    <div class="stat"><span class="stat-val" id="wikiChunks">0</span><span class="stat-lbl">Чанков</span></div>
-                    <div class="stat"><span class="stat-val" id="tavilyRequests">0</span><span class="stat-lbl">Tavily запросов</span></div>
-                    <div class="stat"><span class="stat-val" id="tavilyActive">0</span><span class="stat-lbl">Активных</span></div>
-                </div>
-                <div class="wiki-search">
-                    <input type="text" id="wikiSearchInput" placeholder="Целевой запрос для поиска...">
-                    <button class="search-btn" id="wikiSearchBtn">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    </button>
-                </div>
-                <div class="wiki-results" id="wikiResults">
-                    <div class="empty-state">Введите запрос для поиска</div>
                 </div>
             </div>
 

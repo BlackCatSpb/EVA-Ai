@@ -760,9 +760,13 @@ def register_routes(app, web_gui_instance):
                         except Exception as e:
                             logger.debug(f"ConceptMiner metrics error: {e}")
                     else:
+                        # Новый формат концептов для отображения
+                        fg_v2 = metrics.get('graph', {}).get('fractal_graph_v2', {})
+                        nodes_by_type = fg_v2.get('nodes_by_type', {})
                         metrics['concepts'] = {
-                            'concept_nodes': nodes_by_type.get('concept', 0),
-                            'aci_concepts': nodes_by_type.get('aci_concept', 0),
+                            'concept_nodes': nodes_by_type.get('concept', 0),  # Существующие
+                            'aci_concepts': nodes_by_type.get('aci_concept', 0),  # В процессе
+                            'response_nodes': nodes_by_type.get('response', 0),  # Завершенные (ответы)
                             'total': nodes_by_type.get('concept', 0) + nodes_by_type.get('aci_concept', 0),
                             'status': 'active'
                         }
@@ -1063,6 +1067,14 @@ def register_routes(app, web_gui_instance):
                         analytics['web_cache_hits'] = web_search.stats.get('cache_hits', 0)
                 except Exception as e:
                     logger.debug(f"WebSearch stats error: {e}")
+                
+                # Wikipedia метрики
+                try:
+                    analytics['wiki_queries'] = analytics.get('web_searches', 0)
+                    analytics['wiki_articles'] = analytics.get('fractal_nodes', 0)
+                    analytics['wiki_cached'] = analytics.get('web_cache_hits', 0)
+                except Exception as e:
+                    logger.debug(f"Wiki stats error: {e}")
 
         except Exception as e:
             logger.error(f"Error getting analytics: {e}")

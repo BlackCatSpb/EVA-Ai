@@ -986,9 +986,6 @@
         if ($('#analyticsView') && $('#analyticsView').style.display !== 'none') {
             loadAnalytics();
         }
-        if ($('#wikipediaView') && $('#wikipediaView').style.display !== 'none') {
-            loadWikipedia();
-        }
     }, 1000);
 
     /* ── Helpers ── */
@@ -1268,11 +1265,11 @@
             $('#contradActive').textContent = contrad.active || 0;
             $('#contradResolved').textContent = (contrad.total || 0) - (contrad.active || 0);
             
-            // Concepts (ConceptMiner)
+            // Concepts from FGv2
             const concepts = metrics.concepts || {};
-            $('#conceptProvisional').textContent = concepts.provisional || 0;
-            $('#conceptConfirmed').textContent = concepts.confirmed || 0;
-            $('#conceptArchived').textContent = concepts.archived || 0;
+            $('#conceptExisting').textContent = concepts.concept_nodes || concepts.total || 0;
+            $('#conceptProcessing').textContent = concepts.aci_concepts || 0;
+            $('#conceptCompleted').textContent = (metrics.graph?.fractal_graph_v2?.nodes_by_type?.response || 0);
             
             // Curator metrics
             $('#curatorCycles').textContent = analytics.curator_cycles || 0;
@@ -1306,6 +1303,11 @@
             $('#tavilyRequestsTotal').textContent = analytics.tavily_requests || 0;
             $('#tavilyResponsesTotal').textContent = analytics.tavily_responses || 0;
             $('#webSearchesTotal').textContent = analytics.web_searches || 0;
+            
+            // Wikipedia metrics
+            $('#wikiQueries').textContent = analytics.wiki_queries || 0;
+            $('#wikiArticles').textContent = analytics.wiki_articles || metrics.graph?.total_nodes || 0;
+            $('#wikiCached').textContent = analytics.wiki_cached || 0;
             
             // Render activities
             const activityList = $('#activityList');
@@ -1756,50 +1758,7 @@
     $('#createSnapshot')?.addEventListener('click', createSnapshot);
     if ($('#snapshotList')) loadSnapshots();
 
-    /* ─── Wikipedia Panel ─── */
-    function loadWikipedia() {
-        Promise.all([
-            api('/wikipedia', { params: { action: 'stats' } }),
-            api('/websearch_stats')
-        ]).then(([wikiData, searchData]) => {
-            if (!wikiData.error) {
-                $('#wikiArticles').textContent = wikiData.articles || 0;
-                $('#wikiChunks').textContent = wikiData.chunks || 0;
-            }
-            if (!searchData.error && searchData.stats) {
-                const stats = searchData.stats;
-                $('#tavilyRequests').textContent = stats.tavily_requests || 0;
-                $('#tavilyActive').textContent = stats.active_requests || 0;
-            }
-        }).catch(() => {});
-    }
 
-    function searchWikipedia(query) {
-        if (!query.trim()) {
-            $('#wikiResults').innerHTML = '<div class="empty-state">Введите запрос для поиска</div>';
-            return;
-        }
-        const trimmed = query.trim();
-        if (trimmed.length < 3) {
-            $('#wikiResults').innerHTML = '<div class="empty-state">Запрос слишком короткий. Сформулируйте точнее.</div>';
-            return;
-        }
-        const words = trimmed.split(/\s+/);
-        if (words.length > 15) {
-            $('#wikiResults').innerHTML = '<div class="empty-state">Запрос слишком длинный. Максимум 15 слов.</div>';
-            return;
-        }
-        api('/wikipedia', {
-            method: 'POST',
-            body: { action: 'search', query: trimmed, limit: 5 }
-        }).then(data => {
-            if (data.quota_exhausted) {
-                $('#wikiResults').innerHTML = `<div class="empty-state" style="color:#f87171">${esc(data.error)}</div>`;
-                return;
-            }
-            if (data.error) {
-                $('#wikiResults').innerHTML = `<div class="empty-state">${esc(data.error)}</div>`;
-                return;
             }
 
             const wikiResults = data.wikipedia_results || [];
@@ -1851,18 +1810,6 @@
             $('#wikiResults').innerHTML = '<div class="empty-state">Ошибка поиска</div>';
         });
     }
-
-    $('#wikiSearchBtn')?.addEventListener('click', () => {
-        searchWikipedia($('#wikiSearchInput').value);
-    });
-
-    $('#wikiSearchInput')?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            searchWikipedia($('#wikiSearchInput').value);
-        }
-    });
-
-    $('#refreshWikipedia')?.addEventListener('click', loadWikipedia);
 
     /* ─── Health Panel ─── */
     function loadHealth() {
@@ -2055,26 +2002,84 @@
         }
         
         const eventType = event.event_type || 'unknown';
+        const data = event.data || {};
         let type = 'generation';
         let message = '';
         
+        // Format message based on event type and data
         if (eventType.includes('selfdialog') || eventType.includes('dialog')) {
             type = 'selfdialog';
-            message = event.data?.message || event.data?.text || JSON.stringify(event.data);
+            if (data.topic) {
+                message = `Самодиалог по теме: "${data.topic}"`;
+                if (data.outcome) message += ` → ${data.outcome}`;
+                if (data.gaps?.length) message += ` (выявлено ${data.gaps.length} пробелов)`;
+            } else if (data.role) {
+                message = `Роль ${data.role}: ${data.message || data.content || 'активность'}`;
+            } else {
+                message = data.message || data.text || 'Самодиалог активен';
+            }
         } else if (eventType.includes('learning') || eventType.includes('train')) {
             type = 'learning';
-            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
+            if (data.source && data.content) {
+                message = `Изучение из ${data.source}: "${data.content.substring(0, 50)}..."`;
+            } else if (data.knowledge_gap) {
+                message = `Выявлен пробел в знаниях: ${data.knowledge_gap}`;
+            } else if (data.concept) {
+                message = `Создан концепт: "${data.concept}"`;
+            } else {
+                message = data.message || data.status || 'Процесс обучения';
+            }
         } else if (eventType.includes('generation') || eventType.includes('pipeline')) {
             type = 'generation';
-            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
+            if (data.query) {
+                message = `Генерация ответа для: "${data.query.substring(0, 40)}..."`;
+            } else if (data.model) {
+                message = `Модель ${data.model}: ${data.status || 'обработка'}`;
+            } else {
+                message = data.message || data.status || 'Генерация';
+            }
         } else if (eventType.includes('error')) {
             type = 'error';
-            message = event.data?.error || event.data?.message || JSON.stringify(event.data);
+            message = data.error || data.message || 'Ошибка системы';
         } else if (eventType.includes('curator')) {
             type = 'curator';
-            message = event.data?.message || event.data?.status || JSON.stringify(event.data);
+            if (data.nodes_curated) {
+                message = `Куратор обработал ${data.nodes_curated} узлов`;
+            } else if (data.links_created) {
+                message = `Создано ${data.links_created} новых связей`;
+            } else {
+                message = data.message || data.status || 'Куратор активен';
+            }
+        } else if (eventType.includes('contradiction')) {
+            type = 'learning';
+            if (data.contradiction_id) {
+                message = `Обнаружено противоречие #${data.contradiction_id}`;
+            } else {
+                message = data.message || 'Анализ противоречий';
+            }
+        } else if (eventType.includes('concept')) {
+            type = 'learning';
+            if (data.concept_name) {
+                message = `Концепт "${data.concept_name}" ${data.status || 'обрабатывается'}`;
+            } else {
+                message = data.message || 'Работа с концептами';
+            }
+        } else if (eventType.includes('web_search') || eventType.includes('tavily')) {
+            type = 'generation';
+            if (data.query) {
+                message = `Веб-поиск: "${data.query.substring(0, 40)}..."`;
+            } else if (data.results_count !== undefined) {
+                message = `Найдено ${data.results_count} результатов`;
+            } else {
+                message = data.message || 'Поиск в интернете';
+            }
         } else {
-            message = JSON.stringify(event.data || event);
+            // Generic formatting - try to extract meaningful info
+            if (data.query) message = `Запрос: "${data.query.substring(0, 50)}..."`;
+            else if (data.message) message = data.message;
+            else if (data.content) message = data.content.substring(0, 100);
+            else if (data.status) message = data.status;
+            else message = JSON.stringify(data).substring(0, 100);
         }
         
         if (currentMonitorTab !== 'all' && type !== currentMonitorTab) {
