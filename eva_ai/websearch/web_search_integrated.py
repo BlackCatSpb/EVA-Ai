@@ -227,16 +227,9 @@ class IntegratedWebSearchEngine(BaseComponent):
             else:
                 if "error" in tavily_result:
                     self.stats["tavily_errors"] += 1
-                    logger.warning(f"Tavily error: {tavily_result.get('error')}")
-                if self._original_engine and hasattr(self._original_engine, 'search'):
-                    # Fallback на оригинальный движок
-                    if max_results is not None:
-                        result = self._original_engine.search(query, max_results=max_results)
-                    else:
-                        result = self._original_engine.search(query, search_config)
-                else:
-                    # Базовый поиск
-                    result = self._basic_web_search(query, search_config)
+                    logger.error(f"Tavily search failed: {tavily_result.get('error')}")
+                # БЕЗ FALLBACK - только Tavily
+                result = {"status": "error", "error": tavily_result.get('error', 'Tavily failed'), "results": []}
             
             # Обновляем статистику
             self.stats["searches_performed"] += 1

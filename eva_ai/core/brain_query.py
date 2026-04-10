@@ -784,6 +784,8 @@ class QueryMixin:
 
             need_search, search_reason = needs_web_search(search_query)
             
+            query_logger.info(f"Web search check: web_search={web_search is not None}, is_greeting={is_greeting}, len={len(search_query)}, need_search={need_search}, reason={search_reason}")
+            
             if web_search and hasattr(web_search, 'search') and not is_greeting and len(search_query) < 500 and need_search:
                 try:
                     search_query = search_query[:200]
