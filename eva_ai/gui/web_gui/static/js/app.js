@@ -1758,59 +1758,6 @@
     $('#createSnapshot')?.addEventListener('click', createSnapshot);
     if ($('#snapshotList')) loadSnapshots();
 
-
-            }
-
-            const wikiResults = data.wikipedia_results || [];
-            const tavilyResults = data.tavily_results || [];
-            const quotaRemaining = data.quota_remaining ?? '—';
-
-            $('#wikiQuota').textContent = quotaRemaining;
-
-            if (wikiResults.length === 0 && tavilyResults.length === 0) {
-                $('#wikiResults').innerHTML = '<div class="empty-state">Ничего не найдено</div>';
-                return;
-            }
-
-            let html = '';
-
-            if (tavilyResults.length > 0) {
-                html += '<div class="wiki-source-label">Веб-поиск (Tavily)</div>';
-                html += tavilyResults.map(r => {
-                    const text = r.text || r.content || '';
-                    const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
-                    return `
-                        <div class="wiki-result-item wiki-result-tavily">
-                            <div class="wiki-result-title">${esc(r.title || 'Без названия')}</div>
-                            ${r.url ? `<a class="wiki-result-url" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url.substring(0, 60))}…</a>` : ''}
-                            <div class="wiki-result-text">${esc(truncated)}</div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            if (wikiResults.length > 0) {
-                html += '<div class="wiki-source-label">Локальная база Wikipedia</div>';
-                html += wikiResults.map(r => {
-                    const score = r.similarity !== undefined ? (r.similarity * 100).toFixed(1) + '%' : '—';
-                    const text = r.text || r.content || '';
-                    const truncated = text.length > 300 ? text.substring(0, 300) + '...' : text;
-                    return `
-                        <div class="wiki-result-item wiki-result-local">
-                            <div class="wiki-result-title">${esc(r.title || r.article || 'Без названия')}</div>
-                            <div class="wiki-result-score">Сходство: ${score}</div>
-                            <div class="wiki-result-text">${esc(truncated)}</div>
-                        </div>
-                    `;
-                }).join('');
-            }
-
-            $('#wikiResults').innerHTML = html;
-        }).catch(() => {
-            $('#wikiResults').innerHTML = '<div class="empty-state">Ошибка поиска</div>';
-        });
-    }
-
     /* ─── Health Panel ─── */
     function loadHealth() {
         api('/status').then(data => {
