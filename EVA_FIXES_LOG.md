@@ -129,10 +129,30 @@ generation_coordinator, reasoning_integration
 | queries | 0 | ⚠️ analytics не получает |
 | web_searches | 0 | ⚠️ не триггерится |
 
-### Проблемы для след. исправления:
-1. **Tavily не триггерится** - brain_query не вызывает веб-поиск
-2. **queries=0** - analytics endpoint не получает данные о запросах
-3. **dialogs=0** - SelfDialogLearning не получает события
+### Проблемы для исправления:
+
+#### 1. Tavily API key НЕВАЛИДНЫЙ
+**Файл**: `brain_config.json`
+**Проблема**: Tavily возвращает 401 Unauthorized
+**Статус**: Нужен валидный API key
+
+#### 2. queries=0 - нет трекинга
+**Файл**: `eva_ai/gui/web_gui/server_routes.py`
+**Проблема**: analytics не получает данные о запросах из brain
+**Решение**: Добавить ProcessTrackerMixin данные в analytics
+
+#### 3. dialogs=0
+**Файл**: `eva_ai/learning/dialog_core.py`
+**Проблема**: SelfDialogLearning.stats обнуляется, нет обновления счётчиков
+**Решение**: Интегрировать с brain events для обновления stats
+
+#### 4. contradictions=0
+**Проблема**: operations_count=0, система idle
+**Решение**: Проверить работу ContradictionManager
+
+#### 5. GPU/VRAM метрики
+**Проблема**: vram всегда 0, GPU не отображается
+**Решение**: Добавить GPU мониторинг
 
 ### Долгосрочные улучшения:
 - [ ] Изменить ConceptMiner dry_run: True на False

@@ -952,19 +952,31 @@ def register_routes(app, web_gui_instance):
                     except Exception as e:
                         logger.debug(f"GraphCurator metrics error: {e}")
 
+                # ProcessTrackerMixin - получить напрямую из _process_metrics
+                if hasattr(web_gui_instance.brain, '_process_metrics') and web_gui_instance.brain._process_metrics:
+                    try:
+                        pm = web_gui_instance.brain._process_metrics
+                        analytics['queries'] = pm.get('total_queries', 0)
+                        total = pm.get('total_queries', 1)
+                        success = pm.get('successful_queries', 0)
+                        analytics['success_rate'] = success / total if total > 0 else 0
+                        analytics['avg_time'] = pm.get('avg_generation_time', 0) * 1000  # ms
+                    except Exception as e:
+                        logger.debug(f"ProcessTrackerMixin error: {e}")
+
                 if hasattr(web_gui_instance.brain, 'performance_analyzer') and web_gui_instance.brain.performance_analyzer:
                     try:
                         pa = web_gui_instance.brain.performance_analyzer
                         if hasattr(pa, 'analyze_performance'):
                             perf_data = pa.analyze_performance()
-                            analytics['queries'] = perf_data.get('total_queries', 0)
-                            analytics['avg_time'] = perf_data.get('avg_query_time_ms', 0)
-                            analytics['success_rate'] = perf_data.get('success_rate', 0)
+                            if analytics['queries'] == 0:
+                                analytics['queries'] = perf_data.get('total_queries', 0)
+                            if analytics['avg_time'] == 0:
+                                analytics['avg_time'] = perf_data.get('avg_query_time_ms', 0)
+                            if analytics['success_rate'] == 0:
+                                analytics['success_rate'] = perf_data.get('success_rate', 0)
                     except Exception as e:
                         logger.debug(f"PerformanceAnalyzer error: {e}")
-                        analytics['queries'] = 0
-                        analytics['avg_time'] = 0
-                        analytics['success_rate'] = 0
 
                 try:
                     import psutil

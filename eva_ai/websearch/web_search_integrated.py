@@ -211,6 +211,7 @@ class IntegratedWebSearchEngine(BaseComponent):
             # Используем Tavily API с приоритетом
             self.stats["active_requests"] += 1
             self.stats["tavily_requests"] += 1
+            logger.info(f"Tavily request started: query={query[:50]}...")
             
             tavily_result = tavily_search(query, max_results=max_results or 5)
             
@@ -223,15 +224,19 @@ class IntegratedWebSearchEngine(BaseComponent):
                     "results": tavily_result.get("results", []),
                     "source": "tavily"
                 }
-            elif self._original_engine and hasattr(self._original_engine, 'search'):
-                # Fallback на оригинальный движок
-                if max_results is not None:
-                    result = self._original_engine.search(query, max_results=max_results)
-                else:
-                    result = self._original_engine.search(query, search_config)
             else:
-                # Базовый поиск
-                result = self._basic_web_search(query, search_config)
+                if "error" in tavily_result:
+                    self.stats["tavily_errors"] += 1
+                    logger.warning(f"Tavily error: {tavily_result.get('error')}")
+                if self._original_engine and hasattr(self._original_engine, 'search'):
+                    # Fallback на оригинальный движок
+                    if max_results is not None:
+                        result = self._original_engine.search(query, max_results=max_results)
+                    else:
+                        result = self._original_engine.search(query, search_config)
+                else:
+                    # Базовый поиск
+                    result = self._basic_web_search(query, search_config)
             
             # Обновляем статистику
             self.stats["searches_performed"] += 1
