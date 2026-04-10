@@ -22,6 +22,13 @@ from .semantic_context_cache import SemanticContextCache
 
 logger = logging.getLogger("eva_ai.fractal_graph_v2.dual_generator")
 
+# Оптимизированные таймауты для генерации (секунды)
+GENERATION_TIMEOUTS = {
+    'condensed': 8,      # Быстрые ответы - строгий лимит
+    'extended': 20,      # Развернутые ответы
+    'large': 45,         # Большие генерации (chunked)
+    'document': 30       # Генерация с документами
+}
 
 CONDENSED_PROMPT = """Ты — краткий ассистент. Дай ответ в 1-2 предложениях.
 

@@ -7,6 +7,8 @@ import logging
 import time
 import threading
 from typing import Dict, List, Optional, Any, Callable, Tuple
+from collections import OrderedDict
+from functools import wraps
 
 from .types import FractalNode, FractalEdge, SemanticGroup, NodeType, RelationType
 from .storage import FractalGraphV2, create_fractal_graph
@@ -91,6 +93,91 @@ __all__ = [
 
 
 # ============================================================================
+# Декоратор для тайминга производительности
+# ============================================================================
+
+def timed(logger_func=None, threshold_ms: float = 100.0):
+    """Декоратор для измерения времени выполнения функции."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                elapsed_ms = (time.perf_counter() - start) * 1000
+                log_func = logger_func or logger.debug
+                if elapsed_ms > threshold_ms:
+                    log_func(f"⏱️ {func.__name__}: {elapsed_ms:.1f}ms")
+        return wrapper
+    return decorator
+
+
+# ============================================================================
+# LRU Cache with TTL для оптимизации semantic_search
+# ============================================================================
+
+class LRUCacheWithTTL:
+    """LRU кэш с time-to-live для семантического поиска."""
+    
+    def __init__(self, maxsize: int = 100, ttl_seconds: float = 300.0):
+        self.maxsize = maxsize
+        self.ttl = ttl_seconds
+        self._cache: OrderedDict[str, Tuple[Any, float]] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
+        self._lock = threading.RLock()
+    
+    def get(self, key: str) -> Optional[Any]:
+        with self._lock:
+            if key not in self._cache:
+                self._misses += 1
+                return None
+            
+            value, timestamp = self._cache[key]
+            if time.time() - timestamp > self.ttl:
+                # TTL expired
+                del self._cache[key]
+                self._misses += 1
+                return None
+            
+            # Move to end (most recently used)
+            self._cache.move_to_end(key)
+            self._hits += 1
+            return value
+    
+    def put(self, key: str, value: Any):
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            
+            self._cache[key] = (value, time.time())
+            
+            # Evict oldest if over limit
+            while len(self._cache) > self.maxsize:
+                self._cache.popitem(last=False)
+    
+    def clear(self):
+        with self._lock:
+            self._cache.clear()
+            self._hits = 0
+            self._misses = 0
+    
+    def stats(self) -> Dict[str, Any]:
+        with self._lock:
+            total = self._hits + self._misses
+            hit_rate = self._hits / total if total > 0 else 0.0
+            return {
+                'size': len(self._cache),
+                'maxsize': self.maxsize,
+                'hits': self._hits,
+                'misses': self._misses,
+                'hit_rate': hit_rate,
+                'ttl_seconds': self.ttl
+            }
+
+
+# ============================================================================
 # Main API: FractalMemoryGraph
 # ============================================================================
 
@@ -119,10 +206,14 @@ class FractalMemoryGraph:
             device=embedding_device
         )
         
+        # LRU кэш для semantic_search (оптимизация производительности)
+        self._search_cache = LRUCacheWithTTL(maxsize=100, ttl_seconds=300.0)
+        
         self._background_thread = None
         self._running = False
         
         logger.info(f"FractalMemoryGraph инициализирован: {self.storage_dir}")
+        logger.info(f"Semantic search cache: maxsize={self._search_cache.maxsize}, ttl={self._search_cache.ttl}s")
     
     # === ОСНОВНЫЕ ОПЕРАЦИИ ===
     
@@ -256,25 +347,36 @@ class FractalMemoryGraph:
     
     # === ПОИСК ===
     
+    @timed(threshold_ms=50.0)
     def semantic_search(
         self,
         query: str,
         top_k: int = 5,
         min_level: int = 2,
-        min_similarity: float = 0.5
+        min_similarity: float = 0.5,
+        use_cache: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Семантический поиск по запросу.
+        Семантический поиск по запросу с LRU кэшированием.
         
         Args:
             query: Текстовый запрос
             top_k: Количество результатов
             min_level: Минимальный уровень для поиска
             min_similarity: Минимальная схожесть (по умолчанию 0.5 - повышено)
+            use_cache: Использовать кэш (оптимизация)
             
         Returns:
             List of {node, similarity, group}
         """
+        # Проверяем кэш
+        cache_key = f"{query}:{top_k}:{min_level}:{min_similarity}"
+        if use_cache:
+            cached_result = self._search_cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"Semantic search cache hit for query: {query[:50]}...")
+                return cached_result
+        
         # Векторизуем запрос
         query_emb = self.embeddings.encode_single(query, normalize=True)
         
@@ -320,6 +422,10 @@ class FractalMemoryGraph:
                     "similarity": similarity,
                     "members": [m.content[:50] for m in members[:5]]
                 })
+        
+        # Сохраняем в кэш
+        if use_cache:
+            self._search_cache.put(cache_key, formatted)
         
         return formatted
     
@@ -899,6 +1005,31 @@ class FractalMemoryGraph:
                 })
         
         return models
+    
+    # === УПРАВЛЕНИЕ КЭШЕМ (Оптимизация производительности) ===
+    
+    def get_search_cache_stats(self) -> Dict[str, Any]:
+        """
+        Получить статистику кэша семантического поиска.
+        
+        Returns:
+            Статистика кэша (size, hits, misses, hit_rate)
+        """
+        return self._search_cache.stats()
+    
+    def clear_search_cache(self):
+        """Очистить кэш семантического поиска."""
+        self._search_cache.clear()
+        logger.info("Semantic search cache cleared")
+    
+    def invalidate_cache_for_node(self, node_id: str):
+        """
+        Инвалидировать кэш при изменении узла.
+        Простая реализация - очищает весь кэш.
+        """
+        # TODO: Умная инвалидация по паттернам
+        self._search_cache.clear()
+        logger.debug(f"Cache invalidated for node: {node_id}")
 
 
 def create_fractal_memory_graph(
