@@ -779,6 +779,135 @@ class DualGenerator:
         result['auto_selected'] = True
         return result
     
+    # ===== STREAMING GENERATION =====
+    
+    def generate_streaming(
+        self,
+        query: str,
+        mode: str = "extended",
+        context: str = "",
+        chunk_tokens: int = 10
+    ):
+        """
+        Потоковая генерация ответа с yield'ом токенов.
+        
+        Args:
+            query: Текст запроса
+            mode: 'condensed' или 'extended'
+            context: Дополнительный контекст
+            chunk_tokens: Количество токенов между yield'ами
+            
+        Yields:
+            Dict с полями:
+                - type: 'token' | 'chunk' | 'complete'
+                - text: текст токена/чанка
+                - tokens_count: количество токенов
+                - elapsed_ms: время с начала генерации
+        """
+        import time
+        start_time = time.time()
+        
+        # Выбираем генератор
+        if mode == "condensed":
+            generator = self.condensed
+            max_tokens = generator.max_tokens
+        else:
+            generator = self.extended
+            max_tokens = generator.max_tokens
+        
+        # Получаем контекст из графа если не передан
+        if not context and self.graph:
+            context = generator._get_context(query)
+        
+        # Формируем промт
+        if mode == "condensed":
+            prompt = CONDENSED_PROMPT.format(query=query)
+        else:
+            prompt = EXTENDED_PROMPT.format(query=query, graph_context=context)
+        
+        # Создаем сообщения
+        messages = [
+            {"role": "system", "content": "Ты - полезный ассистент."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        # Параметры генерации
+        params = {
+            "temperature": generator.temperature if hasattr(generator, 'temperature') else 0.7,
+            "max_tokens": 1,  # Генерируем по одному токену для стриминга
+            "repeat_penalty": generator.repeat_penalty,
+        }
+        
+        buffer = ""
+        total_tokens = 0
+        
+        try:
+            # Генерируем токены по одному
+            for i in range(max_tokens):
+                output = generator.llama.create_chat_completion(
+                    messages=messages,
+                    **params
+                )
+                
+                if isinstance(output, dict):
+                    token_text = output.get('choices', [{}])[0].get('text', '')
+                    finish_reason = output.get('choices', [{}])[0].get('finish_reason')
+                else:
+                    token_text = str(output)
+                    finish_reason = None
+                
+                if not token_text or finish_reason == 'stop':
+                    break
+                
+                buffer += token_text
+                total_tokens += 1
+                
+                # Yield чанк когда накопилось достаточно токенов
+                if total_tokens % chunk_tokens == 0:
+                    elapsed_ms = (time.time() - start_time) * 1000
+                    yield {
+                        'type': 'chunk',
+                        'text': buffer,
+                        'tokens_count': chunk_tokens,
+                        'elapsed_ms': elapsed_ms,
+                        'total_tokens': total_tokens
+                    }
+                    buffer = ""
+                
+                # Обновляем messages для следующей итерации
+                messages.append({"role": "assistant", "content": token_text})
+            
+            # Yield остаток буфера
+            if buffer:
+                elapsed_ms = (time.time() - start_time) * 1000
+                yield {
+                    'type': 'chunk',
+                    'text': buffer,
+                    'tokens_count': len(buffer.split()),
+                    'elapsed_ms': elapsed_ms,
+                    'total_tokens': total_tokens
+                }
+            
+            # Сигнал завершения
+            elapsed_ms = (time.time() - start_time) * 1000
+            yield {
+                'type': 'complete',
+                'text': '',
+                'tokens_count': total_tokens,
+                'elapsed_ms': elapsed_ms,
+                'total_tokens': total_tokens
+            }
+            
+        except Exception as e:
+            logger.error(f"Streaming generation error: {e}")
+            yield {
+                'type': 'error',
+                'text': str(e),
+                'tokens_count': total_tokens,
+                'elapsed_ms': (time.time() - start_time) * 1000,
+                'total_tokens': total_tokens
+            }
+    
     # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ДОКУМЕНТАМИ =====
     
     def load_document(self, content: str, title: str = "Untitled") -> Optional[str]:

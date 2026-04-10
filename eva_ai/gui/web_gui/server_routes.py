@@ -484,6 +484,80 @@ def register_routes(app, web_gui_instance):
             logger.error(f"Ошибка в api_chat_v1: {e}", exc_info=True)
             return jsonify({'version': API_VERSION, 'error': str(e)}), 500
 
+    @app.route('/api/chat/stream', methods=['POST'])
+    def api_chat_stream():
+        """Streaming chat endpoint с Server-Sent Events."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        try:
+            data = request.get_json(force=True)
+            if not data:
+                return jsonify({'error': 'Invalid JSON'}), 400
+            
+            message = data.get('message', '')
+            session_id = data.get('session_id')
+            user_id = data.get('user_id')
+            mode = data.get('mode', 'extended')
+            
+            def generate_stream():
+                """Генератор для SSE."""
+                try:
+                    # Получаем dual_generator
+                    dg = None
+                    if (web_gui_instance.brain and 
+                        hasattr(web_gui_instance.brain, 'two_model_pipeline') and
+                        web_gui_instance.brain.two_model_pipeline and
+                        hasattr(web_gui_instance.brain.two_model_pipeline, 'dual_generator')):
+                        dg = web_gui_instance.brain.two_model_pipeline.dual_generator
+                    
+                    if not dg:
+                        yield f"data: {json.dumps({'type': 'error', 'text': 'Generator not available'})}\n\n"
+                        return
+                    
+                    # Отправляем начало
+                    yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
+                    
+                    # Генерируем поток токенов
+                    full_text = ""
+                    for chunk in dg.generate_streaming(message, mode=mode):
+                        chunk_data = {
+                            'type': chunk.get('type', 'chunk'),
+                            'text': chunk.get('text', ''),
+                            'tokens_count': chunk.get('tokens_count', 0),
+                            'elapsed_ms': chunk.get('elapsed_ms', 0)
+                        }
+                        full_text += chunk.get('text', '')
+                        
+                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                        
+                        if chunk.get('type') == 'complete':
+                            break
+                    
+                    # Сохраняем в историю
+                    if session_id:
+                        web_gui_instance.session_manager.add_chat_message(session_id, 'assistant', full_text)
+                    
+                    # Отправляем завершение
+                    yield f"data: {json.dumps({'type': 'done', 'full_text': full_text})}\n\n"
+                    
+                except Exception as e:
+                    logger.error(f"Streaming error: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
+            
+            return Response(
+                generate_stream(),
+                mimetype='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'X-Accel-Buffering': 'no'
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка в api_chat_stream: {e}", exc_info=True)
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/sessions', methods=['GET', 'POST', 'DELETE'])
     def api_sessions():
         if not web_gui_instance:

@@ -531,13 +531,16 @@
         } catch { /* ignore */ }
     }
 
-    function addMsg(role, text, entities, reasoning, fileData) {
+    function addMsg(role, text, entities, reasoning, fileData, msgId) {
         const c = $('#chatMessages');
         const welcome = c.querySelector('.welcome');
         if (welcome) welcome.remove();
 
         const div = document.createElement('div');
         div.className = 'msg';
+        if (msgId) {
+            div.id = msgId;
+        }
 
         let reasoningHtml = '';
         let fileHtml = '';
@@ -872,7 +875,127 @@
     });
 
     /* ── Chat ── */
+    
+    // Streaming mode toggle
+    let streamingMode = localStorage.getItem('streamingMode') === 'true';
+    
     function sendMessage() {
+        if (streamingMode) {
+            sendMessageStreaming();
+        } else {
+            sendMessageStandard();
+        }
+    }
+    
+    function sendMessageStreaming() {
+        """Отправка сообщения с streaming ответом (SSE)"""
+        const input = $('#chatInput');
+        const text = input.value.trim();
+        if ((!text && !currentFileData) || !activeSessionId) return;
+
+        let msgText = text;
+        if (currentFileData) {
+            msgText = text || `Проанализируй файл ${currentFileData.filename}`;
+        }
+
+        input.value = '';
+        input.style.height = 'auto';
+        addMsg('user', msgText, null, null, currentFileData);
+        
+        // Создаем сообщение для ассистента сразу (будем обновлять)
+        const msgId = 'msg-' + Date.now();
+        addMsg('system', '', null, null, null, msgId);
+        
+        showGenerationProgress('start');
+        
+        const body = {
+            message: text || `Проанализируй файл ${currentFileData?.filename || ''}`,
+            session_id: activeSessionId,
+            user_id: userId,
+            mode: 'extended'
+        };
+        if (currentFileData) {
+            body.file_data = currentFileData;
+        }
+        
+        // Используем EventSource для streaming
+        const xhr = new XMLHttpRequest();
+        let fullText = '';
+        let buffer = '';
+        
+        xhr.open('POST', '/api/chat/stream', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        
+        xhr.onprogress = function() {
+            const newData = xhr.responseText.substring(buffer.length);
+            buffer = xhr.responseText;
+            
+            // Парсим SSE события
+            const lines = newData.split('\n');
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const data = JSON.parse(line.substring(6));
+                        
+                        if (data.type === 'chunk') {
+                            fullText += data.text;
+                            updateMessageText(msgId, fullText);
+                            updateGenerationProgress(data.tokens_count, data.elapsed_ms);
+                        } else if (data.type === 'complete') {
+                            fullText = data.full_text || fullText;
+                            updateMessageText(msgId, fullText);
+                            hideGenerationProgress();
+                        } else if (data.type === 'error') {
+                            updateMessageText(msgId, 'Ошибка: ' + data.text);
+                            hideGenerationProgress();
+                        }
+                    } catch (e) {
+                        // Игнорируем неполные JSON
+                    }
+                }
+            }
+        };
+        
+        xhr.onload = function() {
+            hideGenerationProgress();
+            clearFile();
+        };
+        
+        xhr.onerror = function() {
+            hideGenerationProgress();
+            updateMessageText(msgId, 'Ошибка соединения');
+            clearFile();
+        };
+        
+        xhr.send(JSON.stringify(body));
+    }
+    
+    function updateMessageText(msgId, text) {
+        """Обновить текст сообщения"""
+        const msgEl = document.getElementById(msgId);
+        if (msgEl) {
+            const contentEl = msgEl.querySelector('.msg-content');
+            if (contentEl) {
+                contentEl.textContent = text;
+                // Автопрокрутка
+                const chatContainer = $('#chatMessages');
+                if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            }
+        }
+    }
+    
+    function updateGenerationProgress(tokens, elapsedMs) {
+        """Обновить индикатор генерации"""
+        const progressEl = document.querySelector('.gen-progress-text');
+        if (progressEl) {
+            progressEl.textContent = `${tokens} токенов, ${(elapsedMs/1000).toFixed(1)}s`;
+        }
+    }
+    
+    function sendMessageStandard() {
+        """Стандартная отправка сообщения (без streaming)"""
         const input = $('#chatInput');
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
