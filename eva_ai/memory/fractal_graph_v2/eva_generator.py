@@ -190,7 +190,7 @@ class EVAGenerator:
         
         semantic_results = self.semantic_cache.search(
             request.text, 
-            top_k=3, 
+            top_k=10,  # Динамически определяется в cache.search
             min_similarity=0.4,
             session_filter=getattr(request, 'session_id', None)
         )

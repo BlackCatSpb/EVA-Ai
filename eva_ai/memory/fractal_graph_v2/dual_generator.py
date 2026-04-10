@@ -258,20 +258,56 @@ class ExtendedGenerator:
         return result
     
     def _get_context(self, query: str) -> str:
-        """Получить релевантный контекст из графа."""
-        if not self.graph or not hasattr(self.graph, 'nodes'):
+        """Получить релевантный контекст из графа с динамическим размером."""
+        if not self.graph:
             return "Нет контекста"
         
-        query_lower = query.lower()
-        relevant = []
+        # Параметры контекста
+        # Qwen2.5-3B: context window = 8192 tokens, max_new_tokens обычно 2048
+        # Значит для входа доступно ~6000 tokens
+        # Средний токен ~= 4 символа, значит ~24000 символов ввода
+        # Запрос обычно ~500 символов, значит на контекст ~23000 символов
         
-        for node_id, node in list(self.graph.nodes.items())[:50]:
+        MAX_CONTEXT_CHARS = 20000  # Максимум символов для контекста
+        AVG_NODE_CHARS = 150        # Средний размер узла
+        ESTIMATED_TOKENS_PER_CHAR = 0.25  # Токенов на символ
+        
+        query_tokens = len(query) * ESTIMATED_TOKENS_PER_CHAR
+        available_tokens = min(6000 - query_tokens, MAX_CONTEXT_CHARS * ESTIMATED_TOKENS_PER_CHAR)
+        max_nodes = min(int(available_tokens / AVG_NODE_CHARS), 50)
+        max_nodes = max(max_nodes, 5)  # Минимум 5 узлов
+        
+        # Используем semantic_search если доступен
+        if hasattr(self.graph, 'semantic_search'):
+            try:
+                results = self.graph.semantic_search(query, top_k=max_nodes)
+                if results:
+                    context_parts = []
+                    current_chars = 0
+                    for r in results:
+                        content = r.get('content', '')
+                        if content and current_chars + len(content) < MAX_CONTEXT_CHARS:
+                            context_parts.append(content[:300])
+                            current_chars += len(content)
+                    if context_parts:
+                        return ' | '.join(context_parts)
+            except Exception as e:
+                logger.debug(f"Semantic search error: {e}")
+        
+        # Fallback на простой поиск
+        query_words = query.lower().split()[:5]
+        relevant = []
+        current_chars = 0
+        
+        for node_id, node in list(getattr(self.graph, 'nodes', {}).items())[:100]:
             content = getattr(node, 'content', '')
-            if content and any(kw in content.lower() for kw in query_lower.split()[:3]):
-                relevant.append(content[:200])
+            if content and current_chars < MAX_CONTEXT_CHARS:
+                if any(kw in content.lower() for kw in query_words):
+                    relevant.append(content[:250])
+                    current_chars += len(content)
         
         if relevant:
-            return ' | '.join(relevant[:3])
+            return ' | '.join(relevant[:max_nodes])
         return "Нет релевантного контекста"
     
     def _clean_response(self, text: str) -> str:

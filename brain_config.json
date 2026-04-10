@@ -123,6 +123,8 @@
     "embedding_model": "eva_ai/core/hf_cache/multilingual-e5-base",
     "embedding_device": "cpu",
     "embedding_dim": 768,
+    "max_context_nodes": 50,
+    "max_context_chars": 20000,
     "extended_max_tokens": 4096,
     "extended_temperature": 0.35,
     "extended_repeat_penalty": 1.8,
