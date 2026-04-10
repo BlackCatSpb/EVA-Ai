@@ -3573,6 +3573,127 @@
         }
       ],
       "entities": []
+    },
+    "f8cc0ed3-dae1-4d07-8749-bf9864c34988": {
+      "id": "f8cc0ed3-dae1-4d07-8749-bf9864c34988",
+      "user_id": "a98b8ad2-4a28-494f-8455-61d5e01d5700",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T09:51:54.568677",
+      "last_active": "2026-04-10T09:51:54.568682",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "6733e4bc-859d-48c1-b643-cd65ae6eb049": {
+      "id": "6733e4bc-859d-48c1-b643-cd65ae6eb049",
+      "user_id": "1473605e-7bf5-439a-9bb0-7a9bfde33999",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T11:10:34.830472",
+      "last_active": "2026-04-10T11:10:34.830480",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "3b991537-eb5a-4f26-a45b-337af9a5f4b0": {
+      "id": "3b991537-eb5a-4f26-a45b-337af9a5f4b0",
+      "user_id": "8196772c-b449-4da2-973c-81a85eadfb3d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T11:41:55.286309",
+      "last_active": "2026-04-10T11:41:55.286315",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "6dc826f1-e7b3-48ff-93dc-42d5bd40a319": {
+      "id": "6dc826f1-e7b3-48ff-93dc-42d5bd40a319",
+      "user_id": "f06bb91c-7be8-43ce-8c7b-9089d3b65577",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T11:47:09.687899",
+      "last_active": "2026-04-10T11:47:09.687905",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "1e15de48-ef67-42eb-85e6-9ef67d0455cf": {
+      "id": "1e15de48-ef67-42eb-85e6-9ef67d0455cf",
+      "user_id": "9e916061-aec0-4b8d-afc1-22c4c0920a79",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T12:27:27.795303",
+      "last_active": "2026-04-10T12:27:27.795319",
+      "chat_history": [
+        {
+          "role": "user",
+          "content": "Привет, Ева!",
+          "timestamp": "2026-04-10T12:36:29.410621"
+        },
+        {
+          "role": "assistant",
+          "content": "Привет! Рада видеть вас. Чем могу помочь?",
+          "timestamp": "2026-04-10T12:36:29.466900"
+        },
+        {
+          "role": "user",
+          "content": "Расскажи мне историю России кратко, мы ранее с тобой обсуждали ее, я тебе давал материал",
+          "timestamp": "2026-04-10T12:37:10.961504"
+        },
+        {
+          "role": "assistant",
+          "content": "Не удалось сгенерировать ответ.",
+          "timestamp": "2026-04-10T12:37:12.992548"
+        },
+        {
+          "role": "user",
+          "content": "Расскажи мне историю России кратко",
+          "timestamp": "2026-04-10T13:20:38.985826"
+        },
+        {
+          "role": "assistant",
+          "content": "Не удалось сгенерировать ответ.",
+          "timestamp": "2026-04-10T13:20:40.915340"
+        }
+      ],
+      "context_nodes": [
+        {
+          "id": "96d0c261-f08d-4fa9-88ed-364c5e518563",
+          "user_message": "Привет, Ева!",
+          "timestamp": "2026-04-10T12:36:29.448252",
+          "entities": [],
+          "file_data": null
+        },
+        {
+          "id": "8ece028c-3087-4bec-a05b-db74a9e4c533",
+          "assistant_message": "Привет! Рада видеть вас. Чем могу помочь?",
+          "timestamp": "2026-04-10T12:36:29.492022",
+          "reasoning": null
+        },
+        {
+          "id": "7d02e3b2-b288-4146-94d3-82e5bb53b944",
+          "user_message": "Расскажи мне историю России кратко, мы ранее с тобой обсуждали ее, я тебе давал материал",
+          "timestamp": "2026-04-10T12:37:10.975959",
+          "entities": [],
+          "file_data": null
+        },
+        {
+          "id": "9773bbe2-147d-4223-8510-ffa3e9f396b1",
+          "assistant_message": "Не удалось сгенерировать ответ.",
+          "timestamp": "2026-04-10T12:37:13.001917",
+          "reasoning": null
+        },
+        {
+          "id": "f5a8635b-3584-4d86-bba3-ee9a8667ea64",
+          "user_message": "Расскажи мне историю России кратко",
+          "timestamp": "2026-04-10T13:20:38.999584",
+          "entities": [],
+          "file_data": null
+        },
+        {
+          "id": "1cd238fd-ac43-4a8a-b246-22339bf7ec35",
+          "assistant_message": "Не удалось сгенерировать ответ.",
+          "timestamp": "2026-04-10T13:20:40.925552",
+          "reasoning": null
+        }
+      ],
+      "entities": []
     }
   }
 }

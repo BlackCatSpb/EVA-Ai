@@ -1,0 +1,12 @@
+{
+  "id": "exp_48809d5affe2073d",
+  "query": "Расскажи мне историю России кратко, мы ранее с тобой обсуждали ее, я тебе давал материал",
+  "response": "Не удалось сгенерировать ответ.",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775816440.9393928,
+  "usage_count": 0,
+  "related_experiences": []
+}

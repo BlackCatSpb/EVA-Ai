@@ -1,5 +1,5 @@
 """
-Metrics Monitor - мониторинг метрик системы в реальном времени
+EVA Metrics Monitor - мониторинг метрик системы в реальном времени
 Запускать в отдельном терминале параллельно с EVA
 """
 import requests
@@ -11,116 +11,183 @@ EVA_URL = "http://127.0.0.1:5555"
 REFRESH_INTERVAL = 1  # секунды
 
 
-def get_metrics():
+def get_all_metrics():
     """Получить все метрики от EVA"""
     try:
-        # Analytics
         analytics = requests.get(f"{EVA_URL}/api/analytics", timeout=2).json()
-        
-        # Metrics
         metrics = requests.get(f"{EVA_URL}/api/metrics", timeout=2).json()
-        
-        # WebSearch stats
-        websearch = requests.get(f"{EVA_URL}/api/websearch_stats", timeout=2).json()
-        
-        return analytics, metrics, websearch
+        return analytics, metrics
     except Exception as e:
-        return None, None, None
+        return None, None
 
 
-def print_metrics(analytics, metrics, websearch):
+def print_metrics(analytics, metrics):
     """Вывести метрики в консоль"""
-    print("\n" + "=" * 70)
-    print(f"  EVA Metrics Monitor - {datetime.now().strftime('%H:%M:%S')}")
-    print("=" * 70)
+    print("\n" + "=" * 80)
+    print(f"  EVA METRICS MONITOR - {datetime.now().strftime('%H:%M:%S')}")
+    print("=" * 80)
     
-    # Basic Analytics
-    print("\n[ОСНОВНЫЕ МЕТРИКИ]")
-    print(f"  Запросов:      {analytics.get('queries', 'N/A')}")
-    print(f"  Среднее время:  {analytics.get('avg_time', 0):.0f}ms")
-    print(f"  Успешность:    {analytics.get('success_rate', 0)*100:.1f}%")
+    if not analytics:
+        print("\n[ОШИБКА] Нет данных от EVA")
+        return
     
-    # Resources
-    print("\n[РЕСУРСЫ]")
-    print(f"  CPU:           {analytics.get('cpu', 0):.1f}%")
-    print(f"  RAM:           {analytics.get('memory', 0):.1f}%")
-    print(f"  VRAM:          {analytics.get('vram', 0):.1f}%")
+    # === ОСНОВНЫЕ МЕТРИКИ ===
+    print("\n+==================================================================+")
+    print("|  ОСНОВНЫЕ МЕТРИКИ                                                |")
+    print("+------------------------------------------------------------------+")
+    print("|  Запросов:     {:>8}   |  Среднее время: {:>8.0f}ms  |".format(analytics.get('queries', 0), analytics.get('avg_time', 0)))
+    print("|  Успешность:   {:>8.1f}%   |  Изучено:     {:>8}      |".format(analytics.get('success_rate', 0)*100, analytics.get('learned', 0)))
     
-    # Learning
-    print("\n[ОБУЧЕНИЕ]")
-    print(f"  Диалогов:      {analytics.get('dialogs', 0)}")
-    print(f"  Пробелов:      {analytics.get('gaps', 0)}")
-    print(f"  Изучено:       {analytics.get('learned', 0)}")
+    # === РЕСУРСЫ ===
+    print("\n+==================================================================+")
+    print("|  РЕСУРСЫ                                                        |")
+    print("+------------------------------------------------------------------+")
+    cpu = analytics.get('cpu', 0)
+    ram = analytics.get('memory', 0)
+    vram = analytics.get('vram', 0)
+    print("|  CPU: {:>6.1f}%  |  RAM: {:>6.1f}%  |  VRAM: {:>6.1f}%                   |".format(cpu, ram, vram))
     
-    # Cache
-    print("\n[КЭШ]")
-    print(f"  Hit Rate:      {analytics.get('cache_hit_rate', 0)*100:.1f}%")
-    print(f"  Utilization:   {analytics.get('cache_utilization', 0)*100:.1f}%")
+    # === FRACTAL GRAPH v2 ===
+    print("\n+==================================================================+")
+    print("|  FRACTAL GRAPH v2                                                |")
+    print("+------------------------------------------------------------------+")
+    print("|  Узлы: {:>6}   |  Связи: {:>6}   |  Группы: {:>6}    |".format(
+        analytics.get('fractal_nodes', 0),
+        analytics.get('fractal_edges', 0),
+        analytics.get('fractal_groups', 0)
+    ))
     
-    # FractalGraph
-    print("\n[FRACTAL GRAPH v2]")
-    fg_stats = metrics.get('graph', {}).get('fractal_graph_v2', {}) if isinstance(metrics.get('graph'), dict) else {}
-    print(f"  Узлы:         {analytics.get('fractal_nodes', fg_stats.get('total_nodes', 'N/A'))}")
-    print(f"  Связи:         {analytics.get('fractal_edges', fg_stats.get('total_edges', 'N/A'))}")
-    print(f"  Группы:        {analytics.get('fractal_groups', fg_stats.get('total_groups', 'N/A'))}")
+    # Детали из metrics
+    if metrics and isinstance(metrics.get('graph'), dict):
+        fg = metrics['graph'].get('fractal_graph_v2', {})
+        if fg:
+            nodes_by_level = fg.get('nodes_by_level', {})
+            nodes_by_type = fg.get('nodes_by_type', {})
+            total_emb = fg.get('nodes_with_embeddings', 0)
+            
+            # Уровни
+            levels = ""
+            for lvl, cnt in sorted(nodes_by_level.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
+                levels += "L{}:{} ".format(lvl, cnt)
+            print("|  По уровням: {:<50}    |".format(levels))
+            print("|  С эмбеддингами: {:<40}    |".format(total_emb))
+            
+            # Типы узлов (топ-5)
+            if nodes_by_type:
+                top_types = sorted(nodes_by_type.items(), key=lambda x: x[1], reverse=True)[:5]
+                types_str = ", ".join(["{}:{}".format(t, c) for t, c in top_types])
+                print("|  Типы: {:<60}    |".format(types_str[:60]))
     
-    # Knowledge Graph (deprecated)
-    kg_stats = metrics.get('graph', {}).get('knowledge_graph', {}) if isinstance(metrics.get('graph'), dict) else {}
-    print("\n[KNOWLEDGE GRAPH]")
-    print(f"  Узлы:         {kg_stats.get('total_nodes', 'N/A')} {'(adapter)' if kg_stats.get('total_nodes') else '(deprecated)'}")
-    
-    # Web Search / Tavily
-    print("\n[ВЕБ-ПОИСК (TAVILY)]")
-    if websearch and websearch.get('stats'):
-        ws = websearch['stats']
-        print(f"  Tavily запросов:   {ws.get('tavily_requests', 0)}")
-        print(f"  Tavily ответов:   {ws.get('tavily_responses', 0)}")
-        print(f"  Активных:         {ws.get('active_requests', 0)}")
-        print(f"  Ошибок:           {ws.get('tavily_errors', 0)}")
-        print(f"  Cache хитов:       {ws.get('cache_hits', 0)}")
-    else:
-        print("  (нет данных)")
-    
-    # Analytics from API
-    print("\n[ANALYTICS API]")
-    print(f"  Tavily запр.:    {analytics.get('tavily_requests', 'N/A')}")
-    print(f"  Tavily отв.:     {analytics.get('tavily_responses', 'N/A')}")
-    print(f"  Всего поисков:   {analytics.get('web_searches', 'N/A')}")
-    
-    # Curator
-    print("\n[ГРАФ КУРАТОР]")
-    print(f"  Циклов:         {analytics.get('curator_cycles', 0)}")
-    print(f"  Состояние:       {analytics.get('curator_state', 'N/A')}")
+    # === КУРАТОР ГРАФА ===
+    print("\n+==================================================================+")
+    print("|  КУРАТОР ГРАФА                                                   |")
+    print("+------------------------------------------------------------------+")
+    print("|  Циклов:   {:>6}   |  Состояние: {:<12}        |".format(
+        analytics.get('curator_cycles', 0),
+        str(analytics.get('curator_state', 'N/A'))
+    ))
     next_run = analytics.get('curator_next_run', 0)
     if next_run and next_run > 0:
-        from datetime import datetime
-        print(f"  След. запуск:    {datetime.fromtimestamp(next_run).strftime('%H:%M:%S')}")
+        next_time = datetime.fromtimestamp(next_run).strftime('%H:%M:%S')
+        print("|  След. запуск: {:<46}    |".format(next_time))
     
-    # Contradictions
-    print("\n[ПРОТИВОРЕЧИЯ]")
+    # Детали куратора из metrics
+    if metrics and isinstance(metrics.get('graph'), dict):
+        curator = metrics['graph'].get('curator', {})
+        if curator:
+            print("|  Обработано узлов: {:>6}   |  Связей создано: {:>6}     |".format(
+                curator.get('nodes_curated', 0),
+                curator.get('links_created', 0)
+            ))
+            print("|  Удалено связей: {:>6}   |  Ошибка: {:<12}    |".format(
+                curator.get('links_removed', 0),
+                str(curator.get('last_error', 'None'))
+            ))
+    
+    # === ВЕБ-ПОИСК (TAVILY) ===
+    print("\n+==================================================================+")
+    print("|  ВЕБ-ПОИСК (TAVILY)                                              |")
+    print("+------------------------------------------------------------------+")
+    print("|  Tavily запросов: {:>6}   |  Tavily ответов: {:>6}     |".format(
+        analytics.get('tavily_requests', 0),
+        analytics.get('tavily_responses', 0)
+    ))
+    print("|  Всего поисков:   {:>6}   |  Cache хит: {:>6}         |".format(
+        analytics.get('web_searches', 0),
+        analytics.get('web_cache_hits', 0)
+    ))
+    
+    # === ПРОТИВОРЕЧИЯ ===
+    print("\n+==================================================================+")
+    print("|  ПРОТИВОРЕЧИЯ                                                     |")
+    print("+------------------------------------------------------------------+")
     contrad = metrics.get('contradictions', {}) if metrics else {}
-    print(f"  Всего:           {contrad.get('total', 'N/A')}")
-    print(f"  Активных:        {contrad.get('active', 'N/A')}")
+    print("|  Всего: {:>6}   |  Активных: {:>6}   |  Разрешено: {:>6}     |".format(
+        contrad.get('total', 'N/A'),
+        contrad.get('active', 'N/A'),
+        contrad.get('total', 0) - contrad.get('active', 0)
+    ))
+    if contrad:
+        runtime = contrad.get('runtime', 0)
+        print("|  Время работы: {:.0f}s   |  Операций: {:>6}   |  Ошибок: {:>6}      |".format(
+            runtime,
+            contrad.get('operations_count', 0),
+            contrad.get('error_count', 0)
+        ))
     
-    # Concepts
-    print("\n[КОНЦЕПТЫ]")
-    concepts = metrics.get('concepts', {}) if metrics else {}
-    print(f"  Временных:        {concepts.get('provisional', 'N/A')}")
-    print(f"  Подтверждённых:  {concepts.get('confirmed', 'N/A')}")
-    print(f"  Архивных:        {concepts.get('archived', 'N/A')}")
+    # === ЗДОРОВЬЕ СИСТЕМЫ ===
+    print("\n+==================================================================+")
+    print("|  ЗДОРОВЬЕ СИСТЕМЫ                                                 |")
+    print("+------------------------------------------------------------------+")
+    health = metrics.get('health', {}) if metrics else {}
+    health_status = health.get('status', 'unknown')
+    status_icon = "[OK]" if health_status == "healthy" else ("[WARN]" if health_status == "degraded" else "[FAIL]")
+    print("|  Статус: {} {:<55}    |".format(status_icon, health_status.upper()))
+    issues = health.get('issues', [])
+    if issues:
+        for issue in issues[:3]:
+            print("|  [!] {:<70}    |".format(issue[:70]))
+    else:
+        print("|  [OK] Проблем не обнаружено{:50}    |".format(""))
+    
+    # === КЭШ ===
+    print("\n+==================================================================+")
+    print("|  КЭШ                                                             |")
+    print("+------------------------------------------------------------------+")
+    print("|  Hit Rate: {:>6.1f}%   |  Utilization: {:>6.1f}%              |".format(
+        analytics.get('cache_hit_rate', 0)*100,
+        analytics.get('cache_utilization', 0)*100
+    ))
+    
+    # === АКТИВНОСТЬ ===
+    print("\n+==================================================================+")
+    print("|  ПОСЛЕДНЯЯ АКТИВНОСТЬ                                            |")
+    print("+------------------------------------------------------------------+")
+    activities = analytics.get('activities', [])
+    if activities:
+        for act in activities[:5]:
+            title = act.get('title', 'N/A')[:50]
+            print("|  * {:<70}    |".format(title))
+    else:
+        print("|  Нет активности{:58}    |".format(""))
+    
+    print("\n" + "=" * 80)
 
 
 def main():
-    print("EVA Metrics Monitor")
-    print(f"Target: {EVA_URL}")
-    print(f"Refresh: {REFRESH_INTERVAL}s")
+    print("+==================================================================+")
+    print("|                    EVA METRICS MONITOR                            |")
+    print("+------------------------------------------------------------------+")
+    print("|  Target: {:<55}        |".format(EVA_URL))
+    print("|  Refresh: {}s{:51}        |".format(REFRESH_INTERVAL, ""))
+    print("+==================================================================+")
     print("Press Ctrl+C to stop\n")
     
     consecutive_errors = 0
     
     while True:
         try:
-            analytics, metrics, websearch = get_metrics()
+            analytics, metrics = get_all_metrics()
             
             if analytics is None:
                 consecutive_errors += 1
@@ -129,7 +196,7 @@ def main():
                 continue
             
             consecutive_errors = 0
-            print_metrics(analytics, metrics, websearch)
+            print_metrics(analytics, metrics)
             
             time.sleep(REFRESH_INTERVAL)
             
