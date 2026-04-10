@@ -168,19 +168,23 @@ class QueryMixin:
         greeting_response = _is_greeting_query(query)
         if greeting_response:
             query_logger.info(f"Быстрый ответ на приветствие")
+            elapsed = time.time() - start_time
+            self._track_query_success(elapsed)
             return {
                 "response": greeting_response,
                 "text": greeting_response,
                 "status": "ok",
                 "source": "greeting_cache",
-                "processing_time": time.time() - start_time,
+                "processing_time": elapsed,
                 "timestamp": time.time()
             }
         
         # Проверка: кэшированный ответ
         cached = _get_cached_response(query)
         if cached:
-            cached['processing_time'] = time.time() - start_time
+            elapsed = time.time() - start_time
+            cached['processing_time'] = elapsed
+            self._track_query_success(elapsed)
             return cached
         
         # Фиксируем активность для таймера автовыгрузки
@@ -240,8 +244,18 @@ class QueryMixin:
             # Кэшируем успешный ответ
             if result.get('response') and result.get('status') != 'error':
                 _cache_response(query, result)
+            
+            # Track query metrics
+            elapsed = time.time() - start_time
+            if result and result.get('status') != 'error' and result.get('response'):
+                self._track_query_success(elapsed)
+            else:
+                self._track_query_failure()
+            
             return result
 
+        # Final fallback - track as failure
+        self._track_query_failure()
         return {
             "response": "Извините, система временно недоступна. Пожалуйста, попробуйте переформулировать запрос или обратиться позже.",
             "status": "error", "fallback_level": 7, "source": "final_fallback",

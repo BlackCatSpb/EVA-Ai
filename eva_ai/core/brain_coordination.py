@@ -599,3 +599,20 @@ class ProcessTrackerMixin:
         """Track pipeline failure in metrics."""
         self._process_metrics["total_queries"] += 1
         self._process_metrics["failed_queries"] += 1
+    
+    def _track_query_success(self, elapsed: float = 0.0):
+        """Track successful query for metrics."""
+        self._process_metrics["total_queries"] += 1
+        self._process_metrics["successful_queries"] += 1
+        if elapsed > 0:
+            n = self._process_metrics["total_queries"]
+            avg = self._process_metrics["avg_generation_time"]
+            self._process_metrics["avg_generation_time"] = (avg * (n - 1) + elapsed) / n
+            self._process_metrics["max_generation_time"] = max(
+                self._process_metrics["max_generation_time"], elapsed
+            )
+    
+    def _track_query_failure(self):
+        """Track failed query for metrics."""
+        self._process_metrics["total_queries"] += 1
+        self._process_metrics["failed_queries"] += 1
