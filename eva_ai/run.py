@@ -31,17 +31,44 @@ _webgui_instance = None
 
 def _signal_handler(signum, frame):
     """Обработчик сигналов (Ctrl+C, SIGTERM)."""
+    import threading
+    import os
+    
     logger.info(f"Получен сигнал {signum}, начинаю корректное завершение...")
     _shutdown_event.set()
-    _cleanup_brain()
+    
+    # Останавливаем WebGUI
+    global _webgui_instance
+    if '_webgui_instance' in globals() and _webgui_instance is not None:
+        try:
+            _webgui_instance.stop()
+        except:
+            pass
+    
+    # Останавливаем Brain с таймаутом
+    global _brain_instance
+    if _brain_instance is not None:
+        try:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(_brain_instance.stop)
+                try:
+                    future.result(timeout=5)  # Короткий таймаут для сигнала
+                except:
+                    pass
+        except:
+            pass
+    
     _cleanup_pid()
-    # Принудительное завершение всех потоков
-    import os
+    
+    # Принудительное завершение
+    logger.info("Принудительное завершение процесса")
     os._exit(0)
 
 def _cleanup_brain():
     """Останавливает CoreBrain и все фоновые потоки."""
     global _brain_instance, _webgui_instance
+    import threading
     
     # Останавливаем WebGUI если запущен
     if '_webgui_instance' in globals() and _webgui_instance is not None:
@@ -55,11 +82,25 @@ def _cleanup_brain():
     if _brain_instance is not None:
         try:
             logger.info("Остановка CoreBrain...")
-            _brain_instance.stop()
-            logger.info("CoreBrain остановлен")
+            # Запускаем остановку в отдельном потоке с таймаутом
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(_brain_instance.stop)
+                try:
+                    future.result(timeout=10)  # Ждем максимум 10 секунд
+                    logger.info("CoreBrain остановлен")
+                except concurrent.futures.TimeoutError:
+                    logger.warning("CoreBrain не остановился за 10 сек, принудительное завершение...")
         except Exception as e:
             logger.warning(f"Ошибка при остановке CoreBrain: {e}")
         _brain_instance = None
+    
+    # Принудительно завершаем все оставшиеся потоки
+    logger.info("Завершение оставшихся потоков...")
+    for thread in threading.enumerate():
+        if thread != threading.current_thread() and thread.is_alive():
+            if not thread.daemon:
+                logger.debug(f"Найден не-daemon поток: {thread.name}")
 
 def _cleanup_pid():
     """Удаляет PID-файл при завершении."""
