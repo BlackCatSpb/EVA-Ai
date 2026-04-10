@@ -24,9 +24,21 @@ eva_ai/
 ## Что уже перенесено сюда:
 
 ### 2026-04-10
-- Модули, которые были заменены FractalGraph v2
-- Старые генераторы (test_generation.py, etc.)
-- Неиспользуемые адаптеры
+
+#### knowledge_old/ (50 файлов)
+Заменены на FractalGraph v2:
+- concept_miner.py - старый концепт-майнер
+- knowledge_graph*.py - старый Knowledge Graph
+- graph_*.py - старая графовая система
+- query_*.py - старая система запросов
+- и другие...
+
+#### Тестовые файлы
+- memory_fractal_graph_v2_test_generation.py - тестовый генератор
+- scripts_test_*.py - тестовые скрипты (4 файла)
+- hot_deployment_test_*.py - тесты hot deployment (2 файла)
+
+**Всего:** 56+ файлов перенесено в deprecated
 
 ## Критерии для переноса в deprecated:
 1. Модуль не импортируется из active кодом
