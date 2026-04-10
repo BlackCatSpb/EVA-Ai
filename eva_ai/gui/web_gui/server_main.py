@@ -8,6 +8,7 @@ import json
 import uuid
 import hashlib
 import secrets
+import socket
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -526,14 +527,24 @@ class WebGUI:
         def run():
             import click
             click.echo = lambda *args, **kwargs: None
+            self._server = None
             try:
                 from werkzeug.serving import make_server
-                server = make_server(self.host, self.port, app, threaded=True)
+                self._server = make_server(self.host, self.port, app, threaded=True)
                 logger.info(f"Flask server created on {self.host}:{self.port}")
-                # Serve until shutdown
+                # Serve until shutdown with timeout
                 while self.running and not self.shutting_down:
-                    server.handle_request()
-                server.shutdown()
+                    try:
+                        self._server.socket.settimeout(1.0)
+                        self._server.handle_request()
+                    except socket.timeout:
+                        continue
+                    except Exception as e:
+                        if not self.shutting_down:
+                            logger.error(f"Flask error: {e}")
+                        break
+                if self._server:
+                    self._server.shutdown()
                 logger.info("Flask server shut down")
             except Exception as e:
                 if not getattr(self, 'shutting_down', False):
@@ -548,6 +559,12 @@ class WebGUI:
     def stop(self):
         self.shutting_down = True
         self.running = False
+        # Force shutdown if server exists
+        if hasattr(self, '_server') and self._server:
+            try:
+                self._server.shutdown()
+            except:
+                pass
         logger.info("WebGUI сервер остановлен")
 
 
