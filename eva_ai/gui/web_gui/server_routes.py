@@ -401,7 +401,26 @@ def register_routes(app, web_gui_instance):
             return jsonify({'error': 'Сервер не инициализирован'}), 500
 
         try:
-            data = request.get_json(force=True)
+            # Получаем raw data для отладки
+            raw_data = request.get_data(as_text=True)
+            logger.debug(f"Raw request data: {raw_data[:200]}")
+            
+            # Пробуем распарсить JSON
+            try:
+                data = request.get_json(force=True)
+            except Exception as json_err:
+                logger.error(f"JSON parse error: {json_err}, raw data: {raw_data[:200]}")
+                # Пробуем исправить JSON с одинарными кавычками
+                try:
+                    import json
+                    import re
+                    # Заменяем одинарные кавычки на двойные (грубый фикс)
+                    fixed_data = raw_data.replace("'", '"')
+                    data = json.loads(fixed_data)
+                except Exception as fix_err:
+                    logger.error(f"Failed to fix JSON: {fix_err}")
+                    return jsonify({'error': 'Invalid JSON format'}), 400
+            
             if not data:
                 return jsonify({'error': 'Invalid JSON'}), 400
             message = data.get('message', '')
