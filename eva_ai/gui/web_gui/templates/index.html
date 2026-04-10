@@ -156,6 +156,14 @@
                             <div class="stat"><span class="stat-val" id="curatorNextRun">—</span><span class="stat-lbl">След. запуск</span></div>
                         </div>
                     </div>
+                    <div class="analytics-card">
+                        <h3>Веб-поиск (Tavily)</h3>
+                        <div class="analytics-stats">
+                            <div class="stat"><span class="stat-val" id="tavilyRequestsTotal">0</span><span class="stat-lbl">Запросов</span></div>
+                            <div class="stat"><span class="stat-val" id="tavilyResponsesTotal">0</span><span class="stat-lbl">Ответов</span></div>
+                            <div class="stat"><span class="stat-val" id="webSearchesTotal">0</span><span class="stat-lbl">Всего поисков</span></div>
+                        </div>
+                    </div>
                     <div class="analytics-card full-width">
                         <h3>Здоровье системы</h3>
                         <div class="system-health" id="systemHealth">
@@ -182,7 +190,8 @@
                 <div class="wiki-stats" id="wikiStats">
                     <div class="stat"><span class="stat-val" id="wikiArticles">0</span><span class="stat-lbl">Статей в БД</span></div>
                     <div class="stat"><span class="stat-val" id="wikiChunks">0</span><span class="stat-lbl">Чанков</span></div>
-                    <div class="stat"><span class="stat-val" id="wikiQuota">1000</span><span class="stat-lbl">Запросов осталось</span></div>
+                    <div class="stat"><span class="stat-val" id="tavilyRequests">0</span><span class="stat-lbl">Tavily запросов</span></div>
+                    <div class="stat"><span class="stat-val" id="tavilyActive">0</span><span class="stat-lbl">Активных</span></div>
                 </div>
                 <div class="wiki-search">
                     <input type="text" id="wikiSearchInput" placeholder="Целевой запрос для поиска...">

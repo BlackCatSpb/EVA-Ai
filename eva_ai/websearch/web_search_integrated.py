@@ -96,7 +96,11 @@ class IntegratedWebSearchEngine(BaseComponent):
             "searches_performed": 0,
             "results_found": 0,
             "cache_hits": 0,
-            "errors": 0
+            "errors": 0,
+            "tavily_requests": 0,
+            "tavily_responses": 0,
+            "tavily_errors": 0,
+            "active_requests": 0
         }
         
         # Кэш результатов поиска
@@ -205,9 +209,15 @@ class IntegratedWebSearchEngine(BaseComponent):
                 return cached_result
             
             # Используем Tavily API с приоритетом
+            self.stats["active_requests"] += 1
+            self.stats["tavily_requests"] += 1
+            
             tavily_result = tavily_search(query, max_results=max_results or 5)
             
+            self.stats["active_requests"] = max(0, self.stats["active_requests"] - 1)
+            
             if "error" not in tavily_result and tavily_result.get("results"):
+                self.stats["tavily_responses"] += 1
                 result = {
                     "status": "completed",
                     "results": tavily_result.get("results", []),
