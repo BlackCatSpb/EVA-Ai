@@ -48,6 +48,7 @@ class ComponentInitializer:
         'memory_manager',
         'hybrid_cache',
         'fractal_graph_v2',
+        'knowledge_graph',
         'text_processor',
         'ml_unit',
         'model_manager',

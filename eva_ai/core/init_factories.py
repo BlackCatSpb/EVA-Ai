@@ -472,6 +472,39 @@ def create_fractal_graph_v2(initializer):
         return None
 
 
+def create_knowledge_graph(initializer):
+    """
+    Создаёт Knowledge Graph адаптер для обратной совместимости.
+    Все вызовы перенаправляются на FractalGraph v2.
+    """
+    try:
+        from eva_ai.knowledge.kg_adapter import KnowledgeGraphAdapter
+        
+        # Получаем FGv2
+        fg = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+        if fg is None:
+            # FGv2 ещё не создан - нужно получить его
+            components = getattr(initializer.core_brain, 'components', {})
+            fg = components.get('fractal_graph_v2')
+        
+        if fg is None:
+            initializer.logger.warning("[WARN] FGv2 не найден, KG адаптер не создан")
+            return None
+        
+        # Создаём адаптер
+        kg_adapter = KnowledgeGraphAdapter(fg)
+        initializer.core_brain.knowledge_graph = kg_adapter
+        
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['knowledge_graph'] = kg_adapter
+        
+        initializer.logger.info("[OK] KnowledgeGraph адаптер (FGv2) создан")
+        return kg_adapter
+    except Exception as e:
+        initializer.logger.error(f"[FAIL] Ошибка создания KnowledgeGraph адаптера: {e}")
+        return None
+
+
 def create_fractal_storage(initializer):
     """Создает FractalStorage для хранения цепочек рассуждений."""
     try:
