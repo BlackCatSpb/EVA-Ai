@@ -774,8 +774,9 @@ def register_routes(app, web_gui_instance):
                     # Проверка куратора
                     if gc and hasattr(gc, 'get_state'):
                         gc_state = gc.get_state()
-                        if gc_state.get('state') == 'error':
+                        if isinstance(gc_state, str) and gc_state == 'error':
                             health['issues'].append('GraphCurator в состоянии ошибки')
+                        elif isinstance(gc_state, dict) and gc_state.get('state') == 'error':
                             health['issues'].append('GraphCurator в состоянии ошибки')
                     
                     if health['issues']:
@@ -1677,34 +1678,35 @@ def extract_text_from_file(filepath, ext):
         logger.error(f"Ошибка извлечения текста: {e}")
         return f"[Ошибка чтения файла: {str(e)}"
 
-    @app.route('/api/websearch_stats')
-    def api_websearch_stats():
-        """Get web search statistics including Tavily metrics."""
-        if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован', 'stats': {}}), 500
-        
-        stats = {
-            'searches_performed': 0,
-            'results_found': 0,
-            'cache_hits': 0,
-            'errors': 0,
-            'tavily_requests': 0,
-            'tavily_responses': 0,
-            'tavily_errors': 0,
-            'active_requests': 0
-        }
-        
-        try:
-            if web_gui_instance.brain:
-                web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
-                if web_search:
-                    if hasattr(web_search, 'stats'):
-                        stats.update(web_search.stats)
-                    elif hasattr(web_search, 'get_search_statistics'):
-                        search_stats = web_search.get_search_statistics()
-                        if search_stats:
-                            stats.update(search_stats)
-        except Exception as e:
-            logger.debug(f"WebSearch stats error: {e}")
-        
-        return jsonify({'stats': stats})
+
+@app.route('/api/websearch_stats')
+def api_websearch_stats():
+    """Get web search statistics including Tavily metrics."""
+    if not web_gui_instance:
+        return jsonify({'error': 'Сервер не инициализирован', 'stats': {}}), 500
+    
+    stats = {
+        'searches_performed': 0,
+        'results_found': 0,
+        'cache_hits': 0,
+        'errors': 0,
+        'tavily_requests': 0,
+        'tavily_responses': 0,
+        'tavily_errors': 0,
+        'active_requests': 0
+    }
+    
+    try:
+        if web_gui_instance.brain:
+            web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
+            if web_search:
+                if hasattr(web_search, 'stats'):
+                    stats.update(web_search.stats)
+                elif hasattr(web_search, 'get_search_statistics'):
+                    search_stats = web_search.get_search_statistics()
+                    if search_stats:
+                        stats.update(search_stats)
+    except Exception as e:
+        logger.debug(f"WebSearch stats error: {e}")
+    
+    return jsonify({'stats': stats})

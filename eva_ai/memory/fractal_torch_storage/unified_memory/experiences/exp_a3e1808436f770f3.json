@@ -1,0 +1,12 @@
+{
+  "id": "exp_a3e1808436f770f3",
+  "query": "Привет, Ева!",
+  "response": "Привет! Рада видеть вас. Чем могу помочь?",
+  "model_used": "web_ui",
+  "quality_score": 0.5,
+  "embedding": [],
+  "tags": [],
+  "timestamp": 1775793216.6574197,
+  "usage_count": 0,
+  "related_experiences": []
+}
