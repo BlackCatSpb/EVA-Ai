@@ -27,6 +27,7 @@ _PID_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # ── Graceful shutdown ──
 _shutdown_event = threading.Event()
 _brain_instance = None
+_webgui_instance = None
 
 def _signal_handler(signum, frame):
     """Обработчик сигналов (Ctrl+C, SIGTERM)."""
@@ -34,11 +35,23 @@ def _signal_handler(signum, frame):
     _shutdown_event.set()
     _cleanup_brain()
     _cleanup_pid()
-    sys.exit(0)
+    # Принудительное завершение всех потоков
+    import os
+    os._exit(0)
 
 def _cleanup_brain():
     """Останавливает CoreBrain и все фоновые потоки."""
-    global _brain_instance
+    global _brain_instance, _webgui_instance
+    
+    # Останавливаем WebGUI если запущен
+    if '_webgui_instance' in globals() and _webgui_instance is not None:
+        try:
+            logger.info("Остановка WebGUI...")
+            _webgui_instance.stop()
+            logger.info("WebGUI остановлен")
+        except Exception as e:
+            logger.warning(f"Ошибка при остановке WebGUI: {e}")
+    
     if _brain_instance is not None:
         try:
             logger.info("Остановка CoreBrain...")
@@ -118,6 +131,8 @@ def launch_gui(brain):
     global _brain_instance
     _brain_instance = brain
     
+    global _webgui_instance
+    
     try:
         logger.info("Запуск веб-интерфейса...")
         
@@ -126,6 +141,7 @@ def launch_gui(brain):
         
         import server
         gui = server.create_app(brain=brain)
+        _webgui_instance = gui
         
         # Flask уже запущен в daemon-потоке через WebGUI.start()
         # Ждём сигнал завершения в главном цикле
