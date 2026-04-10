@@ -3955,6 +3955,16 @@
         }
       ],
       "entities": []
+    },
+    "0e36a65c-1fe4-4f96-b090-2d5eb51f9763": {
+      "id": "0e36a65c-1fe4-4f96-b090-2d5eb51f9763",
+      "user_id": "cf26b729-b548-45fa-acc0-41891730be3d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T17:58:15.663117",
+      "last_active": "2026-04-10T17:58:15.663124",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

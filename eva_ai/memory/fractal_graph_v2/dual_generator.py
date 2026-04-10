@@ -627,7 +627,7 @@ class DualGenerator:
         extended_max_tokens: int = 4096,
         extended_temperature: float = 0.35,
         extended_repeat_penalty: float = 1.8,
-        brain=None  # Добавляем ссылку на brain для компактификации
+        brain=None  # Добавляем ссылку на brain для компактификации и документов
     ):
         self.condensed = CondensedGenerator(
             llama_model=llama_condensed,
@@ -646,6 +646,16 @@ class DualGenerator:
         
         self.graph = graph
         self.brain = brain  # Сохраняем ссылку на brain
+        
+        # Инициализируем DocumentManager для работы с большими документами
+        self.document_manager = None
+        if brain and hasattr(brain, 'fractal_graph_v2'):
+            try:
+                from eva_ai.memory.document_manager import DocumentVirtualMemory
+                self.document_manager = DocumentVirtualMemory(brain=brain)
+                logger.info("DocumentVirtualMemory инициализирован")
+            except Exception as e:
+                logger.debug(f"Не удалось инициализировать DocumentManager: {e}")
         
         # Передаем brain в под-генераторы для доступа к компактификации
         if hasattr(self.condensed, 'brain'):
@@ -762,9 +772,110 @@ class DualGenerator:
         result['auto_selected'] = True
         return result
     
+    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ДОКУМЕНТАМИ =====
+    
+    def load_document(self, content: str, title: str = "Untitled") -> Optional[str]:
+        """
+        Загружает документ в виртуальную память.
+        
+        Args:
+            content: Содержимое документа
+            title: Название документа
+            
+        Returns:
+            document_id или None если ошибка
+        """
+        if not self.document_manager:
+            logger.warning("DocumentManager не инициализирован")
+            return None
+        
+        try:
+            doc_id = self.document_manager.ingest_document(content, title)
+            logger.info(f"Документ '{title}' загружен (ID: {doc_id})")
+            return doc_id
+        except Exception as e:
+            logger.error(f"Ошибка загрузки документа: {e}")
+            return None
+    
+    def query_document(self, document_id: str, query: str) -> Optional[Dict[str, Any]]:
+        """
+        Выполняет запрос к загруженному документу.
+        
+        Args:
+            document_id: ID документа
+            query: Вопрос по документу
+            
+        Returns:
+            Dict с контекстом и релевантными страницами
+        """
+        if not self.document_manager:
+            logger.warning("DocumentManager не инициализирован")
+            return None
+        
+        try:
+            result = self.document_manager.query_document(document_id, query, top_k=3)
+            return result
+        except Exception as e:
+            logger.error(f"Ошибка запроса к документу: {e}")
+            return None
+    
+    def generate_with_document(self, query: str, document_id: str, mode: str = "extended") -> Dict[str, Any]:
+        """
+        Генерирует ответ с учетом контекста из документа.
+        
+        Args:
+            query: Вопрос
+            document_id: ID загруженного документа
+            mode: Режим генерации
+            
+        Returns:
+            Результат генерации
+        """
+        # Получаем контекст из документа
+        doc_context = self.query_document(document_id, query)
+        
+        if doc_context and 'context' in doc_context:
+            # Генерируем с контекстом документа
+            context = doc_context['context']
+            
+            if mode == "large":
+                result = self.extended.generate_chunked(
+                    query=query,
+                    context=context,
+                    max_total_tokens=4096,
+                    chunk_size=1024,
+                    max_chunks=4
+                )
+                result['response'] = result['text']
+            else:
+                # Стандартная генерация
+                result = {
+                    'response': self.extended.generate(query, context),
+                    'mode': mode
+                }
+            
+            # Добавляем информацию о документе
+            result['document_context'] = {
+                'document_id': document_id,
+                'document_title': doc_context.get('document_title', 'Unknown'),
+                'relevant_pages': doc_context.get('relevant_pages', [])
+            }
+            
+            return result
+        else:
+            # Fallback на обычную генерацию
+            logger.warning("Не удалось получить контекст документа, используем стандартную генерацию")
+            return self.generate(query, mode=mode, return_details=True)
+    
+    def get_document_stats(self, document_id: str) -> Optional[Dict[str, Any]]:
+        """Получить статистику по документу."""
+        if not self.document_manager:
+            return None
+        return self.document_manager.get_document_stats(document_id)
+    
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику обоих генераторов."""
-        return {
+        stats = {
             'condensed': {
                 'calls': self.condensed.stats.total_calls,
                 'avg_time': self.condensed.stats.avg_time,
@@ -776,3 +887,9 @@ class DualGenerator:
                 'total_tokens': self.extended.stats.total_tokens
             }
         }
+        
+        # Добавляем статистику документов если есть
+        if self.document_manager:
+            stats['document_manager'] = self.document_manager.cache.get_stats()
+        
+        return stats
