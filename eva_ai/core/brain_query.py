@@ -275,15 +275,17 @@ class QueryMixin:
 
         # === WEB SEARCH для Two-Model Pipeline ===
         web_search = getattr(self, 'web_search_engine', None)
+        query_logger.error(f"[TAVILY_DEBUG] web_search={web_search is not None}, has_search={hasattr(web_search, 'search') if web_search else False}")
         search_results = []
         if web_search and hasattr(web_search, 'search'):
             need_search, search_reason = needs_web_search(query)
+            query_logger.error(f"[TAVILY_DEBUG] need_search={need_search}, reason={search_reason}")
             if need_search:
                 try:
-                    query_logger.info(f"Tavily: searching for '{query[:50]}...'")
+                    query_logger.error(f"[TAVILY] Searching for: {query[:50]}...")
                     web_result = web_search.search(query, max_results=5)
                     search_results = web_result.get('results', []) if web_result else []
-                    query_logger.info(f"Tavily: got {len(search_results)} results")
+                    query_logger.error(f"[TAVILY] Got {len(search_results)} results")
                 except Exception as e:
                     query_logger.warning(f"Tavily search error: {e}")
 
