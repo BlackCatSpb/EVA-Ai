@@ -258,43 +258,113 @@ class ExtendedGenerator:
         return result
     
     def _get_context(self, query: str) -> str:
-        """Получить релевантный контекст из графа с динамическим размером."""
+        """Получить релевантный контекст из графа с динамическим размером и компактификацией."""
         if not self.graph:
             return "Нет контекста"
         
-        # Параметры контекста
-        # Qwen2.5-3B: context window = 8192 tokens, max_new_tokens обычно 2048
-        # Значит для входа доступно ~6000 tokens
-        # Средний токен ~= 4 символа, значит ~24000 символов ввода
-        # Запрос обычно ~500 символов, значит на контекст ~23000 символов
+        # Проверяем, есть ли уже скомпактированный контекст для этого запроса
+        cache_key = f"compacted_context:query_{hash(query) % 10000000}"
+        if hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'hybrid_cache'):
+            try:
+                cached = self.brain.hybrid_cache.get(cache_key)
+                if cached and cached.get('compacted_context'):
+                    logger.debug(f"Использован кэшированный компактный контекст для: {query[:50]}...")
+                    return cached['compacted_context']
+            except:
+                pass
         
-        MAX_CONTEXT_CHARS = 20000  # Максимум символов для контекста
-        AVG_NODE_CHARS = 150        # Средний размер узла
-        ESTIMATED_TOKENS_PER_CHAR = 0.25  # Токенов на символ
+        # Параметры контекста
+        MAX_CONTEXT_CHARS = 20000
+        TARGET_COMPACTED_SIZE = 2000  # Целевой размер после компактификации
+        AVG_NODE_CHARS = 150
+        ESTIMATED_TOKENS_PER_CHAR = 0.25
         
         query_tokens = len(query) * ESTIMATED_TOKENS_PER_CHAR
         available_tokens = min(6000 - query_tokens, MAX_CONTEXT_CHARS * ESTIMATED_TOKENS_PER_CHAR)
         max_nodes = min(int(available_tokens / AVG_NODE_CHARS), 50)
-        max_nodes = max(max_nodes, 5)  # Минимум 5 узлов
+        max_nodes = max(max_nodes, 5)
+        
+        # Собираем контекстные элементы
+        context_items = []
         
         # Используем semantic_search если доступен
         if hasattr(self.graph, 'semantic_search'):
             try:
                 results = self.graph.semantic_search(query, top_k=max_nodes)
                 if results:
-                    context_parts = []
-                    current_chars = 0
                     for r in results:
                         content = r.get('content', '')
-                        if content and current_chars + len(content) < MAX_CONTEXT_CHARS:
-                            context_parts.append(content[:300])
-                            current_chars += len(content)
-                    if context_parts:
-                        return ' | '.join(context_parts)
+                        if content:
+                            context_items.append({
+                                'content': content,
+                                'type': r.get('type', 'unknown'),
+                                'score': r.get('score', 0)
+                            })
             except Exception as e:
                 logger.debug(f"Semantic search error: {e}")
         
-        # Fallback на простой поиск
+        # Fallback на простой поиск если ничего не нашли
+        if not context_items:
+            query_words = query.lower().split()[:5]
+            for node_id, node in list(getattr(self.graph, 'nodes', {}).items())[:100]:
+                content = getattr(node, 'content', '')
+                if content:
+                    matches = sum(1 for w in query_words if w in content.lower())
+                    if matches > 0:
+                        context_items.append({
+                            'content': content,
+                            'type': getattr(node, 'node_type', 'unknown'),
+                            'score': matches
+                        })
+        
+        # Компактифицируем контекст если он большой
+        total_size = sum(len(str(item.get('content', ''))) for item in context_items)
+        if total_size > TARGET_COMPACTED_SIZE * 1.5 and context_items:
+            # Вызываем компактификацию через SelfDialogLearning если доступен
+            if hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'self_dialog_learning'):
+                try:
+                    sdl = self.brain.self_dialog_learning
+                    if hasattr(sdl, 'compact_context'):
+                        result = sdl.compact_context(
+                            context_items,
+                            query,
+                            target_size=TARGET_COMPACTED_SIZE,
+                            method="semantic_extraction"
+                        )
+                        compacted = result.get('compacted_context', '')
+                        
+                        # Сохраняем в кэш
+                        if hasattr(self.brain, 'hybrid_cache'):
+                            self.brain.hybrid_cache.put(cache_key, result, ttl=1800)
+                        
+                        logger.info(f"Контекст компактифицирован: {result['compression_ratio']:.1%} "
+                                   f"(сохранность {result['semantic_preserved']:.1%})")
+                        
+                        # Также сохраняем сырой контекст для фоновой обработки
+                        raw_key = f"raw_context:query_{hash(query) % 10000000}"
+                        if not self.brain.hybrid_cache.get(raw_key):
+                            self.brain.hybrid_cache.put(raw_key, {
+                                'items': context_items,
+                                'query': query,
+                                'target_size': TARGET_COMPACTED_SIZE
+                            }, ttl=3600)
+                        
+                        return compacted
+                except Exception as e:
+                    logger.warning(f"Ошибка компактификации контекста: {e}")
+        
+        # Возвращаем несжатый контекст если компактификация не удалась или не нужна
+        if context_items:
+            context_parts = []
+            current_chars = 0
+            for item in context_items:
+                content = str(item.get('content', ''))[:300]
+                if current_chars + len(content) < MAX_CONTEXT_CHARS:
+                    context_parts.append(content)
+                    current_chars += len(content)
+            return ' | '.join(context_parts)
+        
+        # Fallback на простой поиск если ничего не сработало
         query_words = query.lower().split()[:5]
         relevant = []
         current_chars = 0
@@ -396,7 +466,8 @@ class DualGenerator:
         condensed_max_tokens: int = 512,
         extended_max_tokens: int = 4096,
         extended_temperature: float = 0.35,
-        extended_repeat_penalty: float = 1.8
+        extended_repeat_penalty: float = 1.8,
+        brain=None  # Добавляем ссылку на brain для компактификации
     ):
         self.condensed = CondensedGenerator(
             llama_model=llama_condensed,
@@ -413,6 +484,14 @@ class DualGenerator:
         )
         
         self.graph = graph
+        self.brain = brain  # Сохраняем ссылку на brain
+        
+        # Передаем brain в под-генераторы для доступа к компактификации
+        if hasattr(self.condensed, 'brain'):
+            self.condensed.brain = brain
+        if hasattr(self.extended, 'brain'):
+            self.extended.brain = brain
+        
         logger.info(f"DualGenerator инициализирован: condensed={condensed_max_tokens}, extended={extended_max_tokens}")
     
     def generate_condensed(self, query: str) -> Dict[str, Any]:

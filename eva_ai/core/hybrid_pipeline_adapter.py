@@ -59,11 +59,13 @@ class HybridPipelineAdapter:
         n_ctx: int = 8192,
         n_threads: int = 8,
         load_models: bool = True,
+        brain=None,  # Добавляем brain для компактификации контекста
         **kwargs
     ):
         self.mode = mode
         self.fractal_graph = fractal_graph
         self._kwargs = kwargs
+        self.brain = brain  # Сохраняем ссылку на brain
         
         # Модели (могут быть переданы или загружены)
         self.model_a = model_a
@@ -192,7 +194,8 @@ class HybridPipelineAdapter:
                 condensed_max_tokens=512,
                 extended_max_tokens=extended_max_tokens,
                 extended_temperature=extended_temperature,
-                extended_repeat_penalty=extended_repeat_penalty
+                extended_repeat_penalty=extended_repeat_penalty,
+                brain=self.brain  # Передаем brain для компактификации
             )
             logger.info(f"DualGenerator инициализирован: extended_max_tokens={extended_max_tokens}")
         except Exception as e:

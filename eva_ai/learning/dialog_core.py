@@ -187,21 +187,36 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
     def _worker_loop(self):
         """Основной рабочий цикл системы."""
         logger.info("Рабочий цикл самообучения запущен")
+        
+        idle_counter = 0  # Счетчик простоя
+        last_activity = time.time()
 
         while not self.stop_event.is_set():
             try:
+                task_processed = False
                 try:
                     task = self.dialog_queue.get(timeout=1)
                     self._process_task(task)
+                    task_processed = True
+                    last_activity = time.time()
+                    idle_counter = 0
                 except queue.Empty:
-                    pass
+                    idle_counter += 1
 
                 if self.auto_execute_enabled:
                     self._check_and_execute_learning_opportunities()
 
                 current_time = time.time()
+                
+                # Генерация диалогов по расписанию
                 if current_time - self.last_dialog_check > 300:
                     self._generate_dialog_from_conversations()
+                    self.last_dialog_check = current_time
+
+                # Компактификация накопленного контекста в простое (каждые 60 сек без задач)
+                if idle_counter > 60 and (current_time - last_activity > 60):
+                    self._process_pending_context_compactions()
+                    idle_counter = 0  # Сброс после обработки
 
                 time.sleep(1)
 
@@ -210,6 +225,58 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                 time.sleep(5)
 
         logger.info("Рабочий цикл самообучения завершен")
+    
+    def _process_pending_context_compactions(self):
+        """Обрабатывает накопленные контексты для компактификации в простое системы."""
+        try:
+            if not self.brain:
+                return
+            
+            # Проверяем гибридный кэш на наличие необработанных контекстов
+            cache = getattr(self.brain, 'hybrid_cache', None)
+            if not cache:
+                return
+            
+            # Ищем ключи сырых контекстов
+            raw_context_keys = cache.search_keys("raw_context:*", limit=10)
+            
+            if not raw_context_keys:
+                return
+            
+            logger.info(f"Обработка {len(raw_context_keys)} контекстов в простое")
+            
+            for key in raw_context_keys:
+                try:
+                    raw_data = cache.get(key)
+                    if not raw_data:
+                        continue
+                    
+                    # Компактифицируем
+                    result = self.compact_context(
+                        raw_data.get("items", []),
+                        raw_data.get("query", ""),
+                        target_size=raw_data.get("target_size", 2000),
+                        method="semantic_extraction"
+                    )
+                    
+                    # Сохраняем компактный контекст
+                    compacted_key = key.replace("raw_context:", "compacted_context:")
+                    cache.put(compacted_key, result, ttl=7200)  # 2 часа
+                    
+                    # Удаляем сырой контекст
+                    cache.delete(key)
+                    
+                    logger.debug(f"Контекст {key} компактифицирован: {result['compression_ratio']:.1%}")
+                    
+                except Exception as e:
+                    logger.warning(f"Ошибка обработки контекста {key}: {e}")
+                    continue
+            
+            if raw_context_keys:
+                logger.info(f"Компактификация завершена для {len(raw_context_keys)} контекстов")
+                
+        except Exception as e:
+            logger.debug(f"Ошибка в _process_pending_context_compactions: {e}")
 
     def create_dialog(self, topic: str, context: Optional[Dict[str, Any]] = None):
         """
@@ -260,6 +327,31 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
             self._analyze_interaction(task.get("query"), task.get("response"), task.get("feedback"))
         elif task_type == "trigger_learning":
             self._trigger_learning(task.get("gap"))
+        elif task_type == "compact_context":
+            self._process_context_compaction(task.get("context_id"), task.get("context_data"))
+
+    def _process_context_compaction(self, context_id: str, context_data: Dict[str, Any]):
+        """Обрабатывает компактификацию контекста в фоне."""
+        try:
+            items = context_data.get("items", [])
+            query = context_data.get("query", "")
+            target_size = context_data.get("target_size", 2000)
+            
+            result = self.compact_context(
+                items, query, target_size, method="semantic_extraction"
+            )
+            
+            # Сохраняем результат для последующего использования
+            if self.brain and hasattr(self.brain, 'hybrid_cache'):
+                cache_key = f"compacted_context:{context_id}"
+                self.brain.hybrid_cache.put(cache_key, result, ttl=3600)  # TTL 1 час
+            
+            logger.info(f"Контекст {context_id} компактифицирован: "
+                       f"{result['compression_ratio']:.1%} сжатия, "
+                       f"сохранность {result['semantic_preserved']:.1%}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка компактификации контекста {context_id}: {e}")
 
     def _finalize_dialog(self, dialog: SelfDialog):
         """Финализирует диалог и выполняет действия с proper cleanup."""
@@ -351,6 +443,267 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                     "feedback": feedback
                 }
             )
+
+    # ===== МЕТОДЫ КОМПАКТИФИКАЦИИ КОНТЕКСТА =====
+    
+    def compact_context(
+        self,
+        context_items: List[Dict[str, Any]],
+        query: str,
+        target_size: int = 2000,
+        method: str = "semantic_extraction"
+    ) -> Dict[str, Any]:
+        """
+        Компактифицирует контекст для подачи в генерацию.
+        
+        Args:
+            context_items: Список элементов контекста (узлы графа, результаты поиска)
+            query: Запрос пользователя для определения релевантности
+            target_size: Целевой размер контекста в символах
+            method: Метод компактификации ("semantic_extraction" или "hierarchical_summary")
+            
+        Returns:
+            Dict с полями:
+                - compacted_context: сжатый контекст (строка)
+                - original_size: размер оригинала
+                - compacted_size: размер сжатого
+                - compression_ratio: коэффициент сжатия
+                - semantic_preserved: оценка сохранения смысла (0-1)
+                - metadata: доп. информация
+        """
+        if not context_items:
+            return {
+                "compacted_context": "",
+                "original_size": 0,
+                "compacted_size": 0,
+                "compression_ratio": 1.0,
+                "semantic_preserved": 1.0,
+                "metadata": {"method": method, "items_processed": 0}
+            }
+        
+        # Оцениваем релевантность каждого элемента
+        scored_items = self._score_context_relevance(context_items, query)
+        
+        # Сортируем по релевантности
+        scored_items.sort(key=lambda x: x["relevance_score"], reverse=True)
+        
+        # Компактифицируем согласно методу
+        if method == "semantic_extraction":
+            compacted = self._compact_by_semantic_extraction(scored_items, target_size)
+        elif method == "hierarchical_summary":
+            compacted = self._compact_hierarchically(scored_items, target_size)
+        else:
+            compacted = self._compact_by_truncation(scored_items, target_size)
+        
+        original_size = sum(len(str(item.get("content", item.get("text", "")))) for item in context_items)
+        compacted_size = len(compacted)
+        
+        # Оцениваем сохранность семантики
+        semantic_preserved = self._estimate_semantic_preservation(
+            context_items, compacted, query
+        )
+        
+        return {
+            "compacted_context": compacted,
+            "original_size": original_size,
+            "compacted_size": compacted_size,
+            "compression_ratio": compacted_size / max(original_size, 1),
+            "semantic_preserved": semantic_preserved,
+            "metadata": {
+                "method": method,
+                "items_processed": len(context_items),
+                "items_included": len(scored_items[:10])  # Топ-10
+            }
+        }
+    
+    def _score_context_relevance(
+        self,
+        items: List[Dict[str, Any]],
+        query: str
+    ) -> List[Dict[str, Any]]:
+        """Оценивает релевантность элементов контекста к запросу."""
+        import re
+        
+        query_words = set(re.findall(r"\w+", query.lower()))
+        scored = []
+        
+        for item in items:
+            content = str(item.get("content", item.get("text", item.get("snippet", ""))))
+            content_lower = content.lower()
+            
+            # Простая оценка по ключевым словам
+            word_matches = sum(1 for word in query_words if word in content_lower)
+            relevance = word_matches / max(len(query_words), 1)
+            
+            # Бонус за длину (информативность)
+            length_score = min(len(content) / 1000, 0.3)  # Макс +0.3
+            
+            # Бонус за тип контента
+            content_type = item.get("type", "unknown")
+            type_bonus = {
+                "concept": 0.2,
+                "fact": 0.15,
+                "response": 0.1,
+                "query": 0.05
+            }.get(content_type, 0)
+            
+            final_score = relevance + length_score + type_bonus
+            
+            item["relevance_score"] = min(1.0, final_score)
+            scored.append(item)
+        
+        return scored
+    
+    def _compact_by_semantic_extraction(
+        self,
+        scored_items: List[Dict[str, Any]],
+        target_size: int
+    ) -> str:
+        """Компактифицирует путем извлечения ключевых смыслов."""
+        parts = []
+        current_size = 0
+        
+        # Берем топ-результаты пока не достигнем целевого размера
+        for item in scored_items[:15]:  # Макс 15 элементов
+            content = str(item.get("content", item.get("text", item.get("snippet", ""))))
+            
+            # Если элемент слишком длинный - суммаризируем
+            if len(content) > 300:
+                content = self._extract_key_sentences(content, max_sentences=3)
+            
+            if current_size + len(content) > target_size:
+                # Берем только часть
+                remaining = target_size - current_size
+                if remaining > 100:  # Минимум 100 символов
+                    parts.append(content[:remaining])
+                break
+            
+            parts.append(content)
+            current_size += len(content) + 2  # +2 на разделитель
+        
+        return " | ".join(parts)
+    
+    def _compact_hierarchically(
+        self,
+        scored_items: List[Dict[str, Any]],
+        target_size: int
+    ) -> str:
+        """Создает иерархическое резюме контекста."""
+        # Группируем по типам
+        by_type = {}
+        for item in scored_items:
+            item_type = item.get("type", "other")
+            if item_type not in by_type:
+                by_type[item_type] = []
+            by_type[item_type].append(item)
+        
+        summary_parts = []
+        
+        # Сначала концепты (самые важные)
+        if "concept" in by_type:
+            concepts = by_type["concept"][:3]
+            concept_texts = [str(c.get("content", ""))[:150] for c in concepts]
+            summary_parts.append("Концепты: " + "; ".join(concept_texts))
+        
+        # Затем факты
+        if "fact" in by_type and sum(len(p) for p in summary_parts) < target_size * 0.7:
+            facts = by_type["fact"][:3]
+            fact_texts = [str(f.get("content", ""))[:120] for f in facts]
+            summary_parts.append("Факты: " + "; ".join(fact_texts))
+        
+        # Остальное
+        remaining_size = target_size - sum(len(p) for p in summary_parts)
+        if remaining_size > 200:
+            other_items = []
+            for item_type, items in by_type.items():
+                if item_type not in ["concept", "fact"]:
+                    other_items.extend(items[:2])
+            
+            other_texts = [str(i.get("content", ""))[:100] for i in other_items[:3]]
+            if other_texts:
+                summary_parts.append("Дополнительно: " + "; ".join(other_texts))
+        
+        return " | ".join(summary_parts)
+    
+    def _compact_by_truncation(
+        self,
+        scored_items: List[Dict[str, Any]],
+        target_size: int
+    ) -> str:
+        """Простое усечение до целевого размера."""
+        all_content = " | ".join([
+            str(item.get("content", item.get("text", "")))[:200]
+            for item in scored_items[:10]
+        ])
+        
+        if len(all_content) > target_size:
+            return all_content[:target_size] + "..."
+        return all_content
+    
+    def _extract_key_sentences(self, text: str, max_sentences: int = 3) -> str:
+        """Извлекает ключевые предложения из текста."""
+        import re
+        
+        # Разбиваем на предложения
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+        
+        if not sentences:
+            return text[:200]
+        
+        # Берем первое и последнее (обычно содержат суть) + самые длинные
+        key_sentences = [sentences[0]]
+        
+        if len(sentences) > 1:
+            # Добавляем самое длинное из середины
+            middle = sentences[1:-1] if len(sentences) > 2 else []
+            if middle:
+                longest = max(middle, key=len)
+                key_sentences.append(longest)
+            
+            if len(sentences) > 2:
+                key_sentences.append(sentences[-1])
+        
+        return ". ".join(key_sentences[:max_sentences]) + "."
+    
+    def _estimate_semantic_preservation(
+        self,
+        original_items: List[Dict[str, Any]],
+        compacted: str,
+        query: str
+    ) -> float:
+        """Оценивает, насколько хорошо сохранился смысл при компактификации."""
+        import re
+        
+        # Подсчитываем ключевые слова запроса в сжатом контексте
+        query_words = set(re.findall(r"\w+", query.lower()))
+        compacted_lower = compacted.lower()
+        
+        matches = sum(1 for word in query_words if word in compacted_lower)
+        coverage = matches / max(len(query_words), 1)
+        
+        # Оценка по длине (не слишком ли сильно сжали)
+        original_text = " ".join([str(i.get("content", "")) for i in original_items])
+        length_ratio = len(compacted) / max(len(original_text), 1)
+        
+        # Если сжали слишком сильно - штраф
+        if length_ratio < 0.1:
+            coverage *= 0.7
+        
+        return min(1.0, coverage)
+    
+    def schedule_context_compaction(self, context_id: str, context_data: Dict[str, Any]):
+        """
+        Запланирует компактификацию контекста для выполнения в простое.
+        Контекст сохраняется в очередь и обрабатывается при отсутствии запросов.
+        """
+        self.dialog_queue.put({
+            "type": "compact_context",
+            "context_id": context_id,
+            "context_data": context_data,
+            "priority": "low"  # Низкий приоритет - выполняется в простое
+        })
+        logger.debug(f"Запланирована компактификация контекста: {context_id}")
 
     def check_and_create_dialog(self, query: str, query_embedding: List[float] = None) -> bool:
         """

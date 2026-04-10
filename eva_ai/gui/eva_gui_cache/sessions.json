@@ -3832,6 +3832,26 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "d0d63c11-5544-4494-8e8f-ef82e7443d57": {
+      "id": "d0d63c11-5544-4494-8e8f-ef82e7443d57",
+      "user_id": "96f05a3b-afd6-474b-8ba9-06130d999811",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T16:09:00.742146",
+      "last_active": "2026-04-10T16:09:00.742151",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "c3f854aa-890b-420b-a563-3fc1c2394e69": {
+      "id": "c3f854aa-890b-420b-a563-3fc1c2394e69",
+      "user_id": "98508ed5-9e29-4361-a39b-01c1f6ce47e4",
+      "name": "Сессия admin",
+      "created_at": "2026-04-10T16:35:27.462287",
+      "last_active": "2026-04-10T16:35:27.462301",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

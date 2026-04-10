@@ -236,7 +236,7 @@ class IntegratedWebSearchEngine(BaseComponent):
             
             if result.get("status") == "completed":
                 results = result.get("results", [])
-                results = self._filter_results(results)
+                results = self._filter_results(results, query)
                 result["results"] = results
                 self.stats["results_found"] += len(results)
                 
@@ -519,9 +519,89 @@ class IntegratedWebSearchEngine(BaseComponent):
         
         return filtered
     
-    def _filter_results(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Filter all results to remove URLs and HTML artifacts"""
-        return [self._filter_search_result(r) for r in results]
+    def _filter_results(self, results: List[Dict[str, Any]], query: str = "") -> List[Dict[str, Any]]:
+        """
+        Filter results:
+        1. Remove video platforms (YouTube, etc.)
+        2. Apply semantic relevance scoring
+        3. Keep only most relevant results
+        """
+        # Блокируемые домены (видео-платформы)
+        blocked_domains = [
+            'youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com',
+            'tiktok.com', 'instagram.com/reel', 'facebook.com/watch',
+            'twitch.tv', 'netflix.com', 'rutube.ru', 'vk.com/video'
+        ]
+        
+        filtered = []
+        for result in results:
+            url = result.get('url', '').lower()
+            
+            # Проверяем, не из заблокированного домена
+            if any(domain in url for domain in blocked_domains):
+                logger.debug(f"Filtered out video result: {url[:60]}")
+                continue
+            
+            # Базовая фильтрация контента
+            cleaned = self._filter_search_result(result)
+            
+            # Добавляем URL обратно для семантического анализа
+            cleaned['url'] = result.get('url', '')
+            
+            filtered.append(cleaned)
+        
+        # Если есть запрос - применяем семантическое ранжирование
+        if query and len(filtered) > 1:
+            filtered = self._rank_by_relevance(filtered, query)
+        
+        # Удаляем URL перед возвратом
+        for r in filtered:
+            r.pop('url', None)
+        
+        return filtered
+    
+    def _rank_by_relevance(self, results: List[Dict[str, Any]], query: str) -> List[Dict[str, Any]]:
+        """
+        Ранжирует результаты по семантической релевантности запросу.
+        Простая реализация на основе ключевых слов + длины контента.
+        """
+        import re
+        
+        query_words = set(re.findall(r'\w+', query.lower()))
+        scored_results = []
+        
+        for result in results:
+            title = result.get('title', '').lower()
+            snippet = result.get('snippet', '').lower()
+            
+            # Считаем совпадения слов
+            title_matches = sum(1 for word in query_words if word in title)
+            snippet_matches = sum(1 for word in query_words if word in snippet)
+            
+            # Оценка релевантности (0-1)
+            relevance = (title_matches * 0.6 + snippet_matches * 0.4) / max(len(query_words), 1)
+            
+            # Бонус за длину и качество контента
+            content_length = len(snippet)
+            quality_bonus = min(content_length / 500, 0.2)  # Макс +0.2 за длинный контент
+            
+            # Штраф за короткий/бесполезный контент
+            if content_length < 50:
+                quality_bonus = -0.3
+            
+            final_score = relevance + quality_bonus
+            
+            result['_relevance_score'] = final_score
+            scored_results.append(result)
+        
+        # Сортируем по релевантности
+        scored_results.sort(key=lambda x: x['_relevance_score'], reverse=True)
+        
+        # Удаляем вспомогательные поля
+        for r in scored_results:
+            r.pop('_relevance_score', None)
+        
+        return scored_results
     
     def enrich_with_context(
         self,

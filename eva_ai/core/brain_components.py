@@ -300,6 +300,9 @@ def _init_two_model_pipeline(brain):
             if brain.fractal_memory:
                 adapter_kwargs['fractal_graph'] = brain.fractal_memory
             
+            # Передаем brain для доступа к компактификации контекста
+            adapter_kwargs['brain'] = brain
+            
             brain.two_model_pipeline = HybridPipelineAdapter(**adapter_kwargs)
             brain.two_model_pipeline_ready = True
             
