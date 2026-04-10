@@ -33,13 +33,16 @@ def needs_web_search(query: str) -> tuple[bool, str]:
     Returns:
         (нужен_поиск, причина)
     """
+    import re
+    # Очищаем от знаков препинания
+    query_clean = re.sub(r'[^\w\s]', '', query.lower().strip())
     query_lower = query.lower().strip()
-    words = query_lower.split()
+    words = query_clean.split()
     
     # Приветствия - не нужен поиск
     greetings = ['привет', 'здравствуй', 'приветик', 'здорово', 'hi', 'hello',
                 'как дела', 'как ты', 'что делаешь', 'пока', 'до свидания', 'добрый']
-    if query_lower in greetings or len(words) <= 2 and query_lower in ['ку', 'прив', 'hi', 'yo']:
+    if query_clean in greetings or len(words) <= 2 and query_clean in ['ку', 'прив', 'hi', 'yo', 'привет']:
         return False, "приветствие"
     
     # Запросы о себе - не нужен поиск
