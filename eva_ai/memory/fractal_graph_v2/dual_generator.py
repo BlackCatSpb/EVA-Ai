@@ -463,7 +463,7 @@ class DualGenerator:
         llama_condensed: Any,
         llama_extended: Any,
         graph=None,
-        condensed_max_tokens: int = 512,
+        condensed_max_tokens: int = 1024,
         extended_max_tokens: int = 4096,
         extended_temperature: float = 0.35,
         extended_repeat_penalty: float = 1.8,

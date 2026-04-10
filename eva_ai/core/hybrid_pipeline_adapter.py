@@ -191,7 +191,7 @@ class HybridPipelineAdapter:
                 llama_condensed=self.model_a,
                 llama_extended=self.model_b,
                 graph=self.fractal_graph,
-                condensed_max_tokens=512,
+                condensed_max_tokens=1024,
                 extended_max_tokens=extended_max_tokens,
                 extended_temperature=extended_temperature,
                 extended_repeat_penalty=extended_repeat_penalty,
