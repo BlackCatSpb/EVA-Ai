@@ -195,6 +195,7 @@ class QueryMixin:
 
         disable_pytorch = False
         model_cfg = self.config.get('model', {}) if hasattr(self, 'config') and self.config else {}
+        query_logger.error(f"[PROCESS_QUERY] Started: query={query[:50]}...")
         try:
             disable_pytorch = model_cfg.get('disable_pytorch', False)
         except Exception as e:
