@@ -309,8 +309,17 @@ class QueryMixin:
             command_id = tracker.start_generation(query, source="gguf_pipeline")
             tracker.update_progress(command_id, "pipeline_start", 10)
 
+        # Добавляем контекст от Tavily к запросу
+        enhanced_query = query
+        if search_results:
+            web_context = "\n\nДополнительная информация из интернета:\n"
+            for i, r in enumerate(search_results[:3], 1):
+                web_context += f"{i}. {r.get('title', '')}: {r.get('content', '')[:200]}...\n"
+            enhanced_query = query + web_context
+            query_logger.info(f"Query enhanced with {len(search_results)} web results")
+        
         try:
-            result = self.two_model_pipeline.process_query(query)
+            result = self.two_model_pipeline.process_query(enhanced_query)
             
             # Добавляем результаты поиска к результату
             if result and search_results:
