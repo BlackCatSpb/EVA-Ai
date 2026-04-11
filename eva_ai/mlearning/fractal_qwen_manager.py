@@ -91,7 +91,8 @@ class FractalQwenManager:
             )
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
-                trust_remote_code=True
+                trust_remote_code=True,
+                local_files_only=True
             )
             
             if self.tokenizer.pad_token is None:
@@ -118,7 +119,8 @@ class FractalQwenManager:
             # Загружаем токенизатор
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_path,
-                trust_remote_code=True
+                trust_remote_code=True,
+                local_files_only=True
             )
             
             if self.tokenizer.pad_token is None:

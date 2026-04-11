@@ -27,9 +27,10 @@ class FractalEmbedder:
         """Инициализация модели sentence-transformers."""
         if self._use_st:
             try:
-                from sentence_transformers import SentenceTransformer
-                self._model = SentenceTransformer('all-MiniLM-L6-v2')
-                logger.info("FractalEmbedder инициализирован с sentence-transformers")
+                from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
+                self._model = get_sentence_transformer('all-MiniLM-L6-v2', device='cpu')
+                if self._model:
+                    logger.info("FractalEmbedder инициализирован с sentence-transformers (cached)")
             except ImportError:
                 logger.warning("sentence-transformers недоступен, используем hash-based эмбеддинги")
                 self._use_st = False

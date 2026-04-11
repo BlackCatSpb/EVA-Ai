@@ -101,14 +101,15 @@ class AsyncGenerationPipeline:
     def __init__(
         self,
         dual_generator,
-        max_workers: int = 4,
+        max_workers: int = None,  # По умолчанию: все ядра CPU
         max_queue_size: int = 100,
-        default_timeout: float = 60.0
+        default_timeout: float = None  # Без таймаута
     ):
+        import os
         self.dual_generator = dual_generator
-        self.max_workers = max_workers
+        self.max_workers = max_workers or os.cpu_count() or 4
         self.max_queue_size = max_queue_size
-        self.default_timeout = default_timeout
+        self.default_timeout = default_timeout  # None = бесконечно
         
         # Очередь задач (приоритетная)
         self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=max_queue_size)

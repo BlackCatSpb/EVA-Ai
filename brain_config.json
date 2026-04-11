@@ -35,7 +35,7 @@
     "llama_cpp_n_ctx": 4096,
     "disable_pytorch": true,
     "use_two_model_pipeline": true,
-    "pipeline_mode": "dual",
+    "pipeline_mode": "fractal",
     "model_a_gguf_path": "eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-3b-instruct/qwen2.5-3b-instruct-q4_k_m.gguf",
     "model_b_gguf_path": "eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-3b-instruct/qwen2.5-3b-instruct-q4_k_m_model_b.gguf",
     "model_c_gguf_path": "eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-coder-1.5b-instruct/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"

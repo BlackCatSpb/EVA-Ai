@@ -123,7 +123,7 @@ class FractalModelManager:
             self.llama_cpp_deployment = LlamaCppHotDeployment(
                 model_path=gguf_path,
                 n_ctx=4096,
-                n_threads=8
+                n_threads=os.cpu_count() or 12
             )
             
             if self.llama_cpp_deployment.initialize(preload_root=True):

@@ -1,5 +1,13 @@
 """
 Основные маршруты Flask для Web GUI ЕВА
+
+NOTE: Многие routes были перенесены в отдельные модули:
+- server_routes_core.py: system, health, metrics, stats
+- server_routes_chat.py: login, chat, sessions
+- server_routes_analytics.py: memory-graph, analytics, dashboard
+- server_routes_knowledge.py: documents, knowledge-graph, settings, snapshots
+
+Этот файл содержит оставшиеся routes и служит агрегатором.
 """
 import os
 import logging
@@ -34,10 +42,7 @@ def register_routes(app, web_gui_instance):
     @app.route('/api/system', methods=['GET'])
     def api_system():
         """System information endpoint."""
-        logger.debug("=== /api/system CALLED ===")
-        logger.debug("  web_gui_instance is None: {}".format(web_gui_instance is None))
         if not web_gui_instance:
-            logger.error("web_gui_instance is None!")
             return jsonify({'error': 'Сервер не инициализирован'}), 500
         
         system_info = {
@@ -56,7 +61,6 @@ def register_routes(app, web_gui_instance):
         if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'components'):
             system_info['modules'] = list(web_gui_instance.brain.components.keys())
         
-        logger.debug("  Returning: {}".format(system_info))
         return jsonify(system_info)
     
     logger.info("=== ROUTES REGISTERED ===")
@@ -732,195 +736,6 @@ def register_routes(app, web_gui_instance):
             logger.error(f"Error processing feedback: {e}")
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/api/metrics')
-    def api_metrics():
-        if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован'}), 500
-
-        metrics = {
-            'cpu_usage': 0.0,
-            'memory_usage': 0.0,
-            'cache_hit_rate': 0.0,
-            'timestamp': datetime.now().isoformat(),
-            'graph': {},
-            'contradictions': {},
-            'concepts': {},
-            'health': {}
-        }
-
-        try:
-            logger.debug(f"api_handler: brain = {web_gui_instance.brain is not None}")
-
-            if web_gui_instance.brain:
-                rm = getattr(web_gui_instance.brain, 'resource_manager', None)
-                if rm:
-                    try:
-                        metrics['cpu_usage'] = rm.get_cpu_usage() * 100
-                        metrics['memory_usage'] = rm.get_memory_usage() * 100
-                        current = rm.get_current_metrics()
-                        if isinstance(current, dict):
-                            metrics['cpu_usage'] = current.get('cpu_percent', metrics['cpu_usage'])
-                            metrics['memory_usage'] = current.get('memory_percent', metrics['memory_usage'])
-                            metrics['disk_usage'] = current.get('disk_usage_percent', 0)
-                            metrics['io_tokens'] = current.get('io_tokens', 0)
-                    except Exception as e:
-                        logger.debug(f"resource_manager error: {e}")
-                elif hasattr(web_gui_instance.brain, 'get_resource_snapshot'):
-                    snapshot = web_gui_instance.brain.get_resource_snapshot()
-                    if snapshot:
-                        metrics.update(snapshot)
-                if hasattr(web_gui_instance.brain, 'get_cache_stats'):
-                    cache = web_gui_instance.brain.get_cache_stats()
-                    metrics['cache_hit_rate'] = cache.get('hit_rate', 0.0)
-                
-                # === Graph Metrics (FGv2 only) ===
-                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
-                if fg is None:
-                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
-                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
-                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
-                
-                if fg and hasattr(fg, 'get_stats'):
-                    try:
-                        fg_stats = fg.get_stats()
-                        metrics['graph']['fractal_graph_v2'] = fg_stats if isinstance(fg_stats, dict) else {}
-                    except Exception as e:
-                        logger.debug(f"FractalGraph stats error: {e}")
-                
-                # === Graph Curator Metrics ===
-                gc = getattr(web_gui_instance.brain, 'graph_curator', None)
-                if gc and hasattr(gc, 'get_metrics'):
-                    try:
-                        gc_metrics = gc.get_metrics()
-                        metrics['graph']['curator'] = gc_metrics
-                    except Exception as e:
-                        logger.debug(f"GraphCurator metrics error: {e}")
-                
-                # === Contradictions ===
-                cm = getattr(web_gui_instance.brain, 'contradiction_manager', None)
-                if cm:
-                    try:
-                        if hasattr(cm, 'get_stats'):
-                            metrics['contradictions'] = cm.get_stats()
-                        elif hasattr(cm, 'contradictions'):
-                            metrics['contradictions'] = {
-                                'total': len(getattr(cm, 'contradictions', [])),
-                                'active': sum(1 for c in getattr(cm, 'contradictions', []) if c.get('status') != 'resolved')
-                            }
-                    except Exception as e:
-                        logger.debug(f"Contradictions error: {e}")
-                
-                # === Concepts (from FractalGraphV2) ===
-                if metrics.get('graph', {}).get('fractal_graph_v2', {}):
-                    fg_stats = metrics['graph']['fractal_graph_v2']
-                    nodes_by_type = fg_stats.get('nodes_by_type', {})
-                    concept_miner = getattr(web_gui_instance.brain, 'concept_miner', None)
-                    if concept_miner:
-                        try:
-                            if hasattr(concept_miner, 'get_metrics'):
-                                cm_metrics = concept_miner.get_metrics()
-                                candidates = concept_miner.get_candidates() if hasattr(concept_miner, 'get_candidates') else []
-                                provisional = sum(1 for c in candidates if c.get('status') == 'provisional')
-                                confirmed = sum(1 for c in candidates if c.get('status') == 'confirmed')
-                                archived = sum(1 for c in candidates if c.get('status') == 'archived')
-                                metrics['concepts'] = {
-                                    'provisional': provisional,
-                                    'confirmed': confirmed,
-                                    'archived': archived,
-                                    'total': len(candidates),
-                                    'hypothesis_confirmation_ratio': cm_metrics.get('hypothesis_confirmation_ratio', 0),
-                                    'status': cm_metrics.get('status', 'unknown')
-                                }
-                        except Exception as e:
-                            logger.debug(f"ConceptMiner metrics error: {e}")
-                    else:
-                        # Новый формат концептов для отображения
-                        fg_v2 = metrics.get('graph', {}).get('fractal_graph_v2', {})
-                        nodes_by_type = fg_v2.get('nodes_by_type', {})
-                        metrics['concepts'] = {
-                            'concept_nodes': nodes_by_type.get('concept', 0),  # Существующие
-                            'aci_concepts': nodes_by_type.get('aci_concept', 0),  # В процессе
-                            'response_nodes': nodes_by_type.get('response', 0),  # Завершенные (ответы)
-                            'total': nodes_by_type.get('concept', 0) + nodes_by_type.get('aci_concept', 0),
-                            'status': 'active'
-                        }
-                
-                # === Graph Metrics (только FractalGraphV2) ===
-                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
-                if fg is None:
-                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
-                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
-                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
-                
-                if fg and hasattr(fg, 'get_stats'):
-                    try:
-                        fg_stats = fg.get_stats()
-                        if isinstance(fg_stats, dict):
-                            metrics['graph'].update(fg_stats)
-                    except Exception as e:
-                        logger.debug(f"FractalGraph stats error: {e}")
-                
-                # === Graph Curator Metrics ===
-                gc = getattr(web_gui_instance.brain, 'graph_curator', None)
-                if gc and hasattr(gc, 'get_metrics'):
-                    try:
-                        gc_metrics = gc.get_metrics()
-                        if 'graph' not in metrics:
-                            metrics['graph'] = {}
-                        metrics['graph']['curator'] = gc_metrics
-                    except Exception as e:
-                        logger.debug(f"GraphCurator metrics error: {e}")
-                
-                # === Health Check (только FractalGraphV2) ===
-                try:
-                    health = {
-                        'status': 'healthy',
-                        'issues': []
-                    }
-                    
-                    total_nodes = 0
-                    
-                    # Только FractalGraphV2
-                    if fg and hasattr(fg, 'get_stats'):
-                        try:
-                            fg_stats = fg.get_stats()
-                            total_nodes = fg_stats.get('total_nodes', 0)
-                        except Exception as e:
-                            logger.debug(f"FractalGraph stats error: {e}")
-                    
-                    if total_nodes == 0:
-                        health['issues'].append('Фрактальная память пуста')
-                    
-                    # Проверка куратора
-                    if gc and hasattr(gc, 'get_state'):
-                        gc_state = gc.get_state()
-                        if isinstance(gc_state, str) and gc_state == 'error':
-                            health['issues'].append('GraphCurator в состоянии ошибки')
-                        elif isinstance(gc_state, dict) and gc_state.get('state') == 'error':
-                            health['issues'].append('GraphCurator в состоянии ошибки')
-                    
-                    if health['issues']:
-                        health['status'] = 'degraded'
-                    
-                    metrics['health'] = health
-                except Exception as e:
-                    logger.debug(f"Health check error: {e}")
-                    metrics['health'] = {'status': 'error', 'error': str(e)}
-                    
-        except Exception as e:
-            logger.error(f"Error getting metrics: {e}")
-        
-        if metrics.get('cpu_usage', 0) == 0 or metrics.get('memory_usage', 0) == 0:
-            try:
-                import psutil
-                metrics['cpu_usage'] = psutil.cpu_percent(interval=0.1)
-                metrics['memory_usage'] = psutil.virtual_memory().percent
-                metrics['disk_usage'] = psutil.disk_usage('C:\\' if os.name == 'nt' else '/').percent
-            except Exception:
-                pass
-
-        return jsonify(metrics)
-
     @app.route('/api/memory-graph')
     def api_memory_graph():
         if not web_gui_instance:
@@ -936,7 +751,47 @@ def register_routes(app, web_gui_instance):
                     logger.info("api_memory_graph: returning cached data")
                     return jsonify(cached)
             
-            if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
+            # Получаем FractalGraphV2
+            fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+            if fg is None:
+                fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
+            if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
+                fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
+            
+            # Если FractalGraphV2 найден
+            if fg:
+                if hasattr(fg, 'get_nodes_list'):
+                    nodes_list = fg.get_nodes_list()
+                    graph_data['nodes'] = [
+                        {
+                            'id': n.id if hasattr(n, 'id') else str(i),
+                            'label': n.content[:100] if hasattr(n, 'content') else str(n),
+                            'type': n.node_type if hasattr(n, 'node_type') else 'concept',
+                            'level': n.level if hasattr(n, 'level') else 1
+                        }
+                        for i, n in enumerate(nodes_list[:200])
+                    ]
+                    graph_data['stats']['total_nodes'] = len(nodes_list)
+                
+                if hasattr(fg, 'get_edges_list'):
+                    edges_list = fg.get_edges_list()
+                    graph_data['edges'] = [
+                        {
+                            'id': e.id if hasattr(e, 'id') else str(i),
+                            'source': e.source if hasattr(e, 'source') else '',
+                            'target': e.target if hasattr(e, 'target') else ''
+                        }
+                        for i, e in enumerate(edges_list[:500])
+                    ]
+                    graph_data['stats']['total_edges'] = len(edges_list)
+                
+                if hasattr(fg, 'get_stats'):
+                    stats = fg.get_stats()
+                    if isinstance(stats, dict):
+                        graph_data['stats'].update(stats)
+            
+            # Fallback на memory_manager
+            elif web_gui_instance.brain and hasattr(web_gui_instance.brain, 'memory_manager') and web_gui_instance.brain.memory_manager:
                 mm = web_gui_instance.brain.memory_manager
                 if hasattr(mm, 'get_graph_data'):
                     graph_data = mm.get_graph_data()
@@ -1818,12 +1673,69 @@ def register_routes(app, web_gui_instance):
 
             return jsonify({'error': 'Failed to create snapshot'}), 500
 
+    @app.route('/api/stats')
+    def api_stats():
+        """Get general statistics (alias для analytics)."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        
+        stats = {
+            'fractal_nodes': 0,
+            'fractal_edges': 0,
+            'fractal_groups': 0,
+            'queries': 0,
+            'dialogs': 0,
+            'cache_hit_rate': 0,
+            'cpu': 0,
+            'memory': 0,
+            'web_searches': 0,
+            'wiki_articles': 0,
+        }
+        
+        try:
+            if web_gui_instance.brain:
+                # Graph stats
+                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg is None:
+                    fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
+                if fg is None and hasattr(web_gui_instance.brain, 'memory_manager'):
+                    fg = getattr(web_gui_instance.brain.memory_manager, 'fractal_graph_v2', None)
+                
+                if fg and hasattr(fg, 'get_stats'):
+                    fg_stats = fg.get_stats()
+                    if isinstance(fg_stats, dict):
+                        stats['fractal_nodes'] = fg_stats.get('total_nodes', 0)
+                        stats['fractal_edges'] = fg_stats.get('total_edges', 0)
+                        stats['fractal_groups'] = fg_stats.get('total_groups', 0)
+                
+                # Cache stats
+                if hasattr(web_gui_instance.brain, 'get_cache_stats'):
+                    cache = web_gui_instance.brain.get_cache_stats()
+                    if cache:
+                        stats['cache_hit_rate'] = cache.get('hit_rate', 0)
+                
+                # Web search
+                web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
+                if web_search and hasattr(web_search, 'stats'):
+                    stats['web_searches'] = web_search.stats.get('searches_performed', 0)
+                
+                # System
+                import psutil
+                stats['cpu'] = psutil.cpu_percent(interval=0.1)
+                stats['memory'] = psutil.virtual_memory().percent
+                
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+        
+        return jsonify(stats)
+
     @app.route('/api/websearch_stats')
+    @app.route('/api/websearch/stats')
     def api_websearch_stats():
         """Get web search statistics including Tavily metrics."""
         if not web_gui_instance:
             return jsonify({'error': 'Сервер не инициализирован', 'stats': {}}), 500
-        
+
         stats = {
             'searches_performed': 0,
             'results_found': 0,
@@ -1834,7 +1746,7 @@ def register_routes(app, web_gui_instance):
             'tavily_errors': 0,
             'active_requests': 0
         }
-        
+
         try:
             if web_gui_instance.brain:
                 web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
@@ -1847,28 +1759,88 @@ def register_routes(app, web_gui_instance):
                             stats.update(search_stats)
         except Exception as e:
             logger.debug(f"WebSearch stats error: {e}")
-        
+
         return jsonify({'stats': stats})
 
     @app.route('/api/metrics')
     def api_metrics():
-        """Получить все метрики производительности (Prometheus format)."""
+        """Получить все метрики производительности."""
+        metrics = {
+            'counters': {},
+            'gauges': {},
+            'histograms': {},
+            'system': {},
+            'graph': {},
+            'timestamp': time.time()
+        }
+        
         try:
+            # Метрики из реестра
             from eva_ai.core.metrics import get_metrics_registry
-            
             registry = get_metrics_registry()
             
-            # JSON format
-            if request.args.get('format') == 'json':
-                return jsonify(registry.get_all_metrics())
+            # Prometheus format по запросу
+            if request.args.get('format') == 'prometheus':
+                prometheus_data = registry.export_prometheus()
+                return Response(prometheus_data, mimetype='text/plain')
             
-            # Prometheus format (default)
-            prometheus_data = registry.export_prometheus()
-            return Response(prometheus_data, mimetype='text/plain')
+            # JSON format - собираем все метрики
+            all_metrics = registry.get_all_metrics()
+            metrics.update(all_metrics)
+            
+            # Системные метрики
+            try:
+                import psutil
+                metrics['system'] = {
+                    'cpu_percent': psutil.cpu_percent(interval=0.1),
+                    'memory_percent': psutil.virtual_memory().percent,
+                    'memory_used_mb': psutil.virtual_memory().used / (1024 * 1024),
+                    'disk_percent': psutil.disk_usage('/').percent if os.name != 'nt' else psutil.disk_usage('C:\\').percent,
+                }
+            except Exception:
+                pass
+            
+            # Метрики из brain
+            if web_gui_instance and web_gui_instance.brain:
+                brain = web_gui_instance.brain
+                
+                # FractalGraphV2 stats
+                fg = getattr(brain, 'fractal_graph_v2', None)
+                if fg is None:
+                    fg = getattr(brain, 'components', {}).get('fractal_graph_v2')
+                if fg is None and hasattr(brain, 'memory_manager'):
+                    fg = getattr(brain.memory_manager, 'fractal_graph_v2', None)
+                
+                if fg and hasattr(fg, 'get_stats'):
+                    try:
+                        fg_stats = fg.get_stats()
+                        if isinstance(fg_stats, dict):
+                            metrics['graph'] = fg_stats
+                    except Exception:
+                        pass
+                
+                # Cache stats
+                if hasattr(brain, 'get_cache_stats'):
+                    try:
+                        cache = brain.get_cache_stats()
+                        if cache:
+                            metrics['gauges']['cache_hit_rate'] = cache.get('hit_rate', 0)
+                    except Exception:
+                        pass
+                
+                # Web search stats
+                web_search = getattr(brain, 'web_search_engine', None)
+                if web_search and hasattr(web_search, 'stats'):
+                    try:
+                        metrics['counters']['web_searches'] = web_search.stats.get('searches_performed', 0)
+                    except Exception:
+                        pass
+            
+            return jsonify(metrics)
             
         except Exception as e:
             logger.error(f"Error exporting metrics: {e}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': str(e), 'metrics': metrics}), 500
 
     @app.route('/api/health')
     def api_health():
@@ -2088,4 +2060,3 @@ def extract_text_from_file(filepath, ext):
             return f"[Формат файла не поддерживается: {ext}]"
     except Exception as e:
         logger.error(f"Ошибка извлечения текста: {e}")
-        return f"[Ошибка чтения файла: {str(e)}"

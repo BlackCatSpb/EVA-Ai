@@ -888,7 +888,7 @@
     }
     
     function sendMessageStreaming() {
-        """Отправка сообщения с streaming ответом (SSE)"""
+        // Отправка сообщения с streaming ответом (SSE)
         const input = $('#chatInput');
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
@@ -971,7 +971,7 @@
     }
     
     function updateMessageText(msgId, text) {
-        """Обновить текст сообщения"""
+        // Обновить текст сообщения
         const msgEl = document.getElementById(msgId);
         if (msgEl) {
             const contentEl = msgEl.querySelector('.msg-content');
@@ -987,7 +987,7 @@
     }
     
     function updateGenerationProgress(tokens, elapsedMs) {
-        """Обновить индикатор генерации"""
+        // Обновить индикатор генерации
         const progressEl = document.querySelector('.gen-progress-text');
         if (progressEl) {
             progressEl.textContent = `${tokens} токенов, ${(elapsedMs/1000).toFixed(1)}s`;
@@ -995,7 +995,7 @@
     }
     
     function sendMessageStandard() {
-        """Стандартная отправка сообщения (без streaming)"""
+        // Стандартная отправка сообщения (без streaming)
         const input = $('#chatInput');
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
@@ -1402,6 +1402,7 @@
         Promise.all([api('/analytics'), api('/metrics')]).then(([analytics, metrics]) => {
             if (analytics.error) {
                 toast('Ошибка загрузки аналитики', 'error');
+                console.error('Analytics error:', analytics.error);
                 return;
             }
             
@@ -1416,31 +1417,27 @@
             $('#analyticsGaps').textContent = analytics.gaps || 0;
             $('#analyticsLearned').textContent = analytics.learned || 0;
             
-            // Graph metrics
+            // Graph metrics из /api/metrics
             const graphData = metrics.graph || {};
-            let kgStats = {}, fgStats = {};
-            if (graphData.knowledge_graph) kgStats = graphData.knowledge_graph;
-            if (graphData.fractal_graph_v2) fgStats = graphData.fractal_graph_v2;
-            
-            const totalNodes = kgStats.total_nodes || fgStats.total_nodes || 0;
-            const totalEdges = kgStats.total_edges || fgStats.total_edges || 0;
-            const totalGroups = fgStats.total_groups || 0;
+            const totalNodes = graphData.total_nodes || analytics.fractal_nodes || 0;
+            const totalEdges = graphData.total_edges || analytics.fractal_edges || 0;
+            const totalGroups = graphData.total_groups || analytics.fractal_groups || 0;
             
             $('#graphNodes').textContent = totalNodes;
             $('#graphEdges').textContent = totalEdges;
             $('#graphGroups').textContent = totalGroups;
             
-            // Contradictions
-            const contrad = metrics.contradictions || {};
-            $('#contradTotal').textContent = contrad.total || 0;
+            // Contradictions из graph.contradictions
+            const contrad = graphData.contradictions || {};
+            $('#contradTotal').textContent = contrad.total || graphData.contradictions || 0;
             $('#contradActive').textContent = contrad.active || 0;
             $('#contradResolved').textContent = (contrad.total || 0) - (contrad.active || 0);
             
-            // Concepts from FGv2
-            const concepts = metrics.concepts || {};
-            $('#conceptExisting').textContent = concepts.concept_nodes || concepts.total || 0;
-            $('#conceptProcessing').textContent = concepts.aci_concepts || 0;
-            $('#conceptCompleted').textContent = (metrics.graph?.fractal_graph_v2?.nodes_by_type?.response || 0);
+            // Concepts from FGv2 nodes_by_type
+            const nodesByType = graphData.nodes_by_type || {};
+            $('#conceptExisting').textContent = nodesByType.concept || 0;
+            $('#conceptProcessing').textContent = nodesByType.aci_concept || 0;
+            $('#conceptCompleted').textContent = nodesByType.response || 0;
             
             // Curator metrics
             $('#curatorCycles').textContent = analytics.curator_cycles || 0;
@@ -1453,32 +1450,55 @@
                 $('#curatorNextRun').textContent = '—';
             }
             
-            // System Health
-            const health = metrics.health || { status: 'unknown', issues: [] };
-            const healthStatus = $('#healthStatus');
-            const healthDot = healthStatus.querySelector('.health-dot');
-            const healthText = healthStatus.querySelector('.health-text');
-            const healthIssues = $('#healthIssues');
-            
-            healthDot.className = 'health-dot ' + (health.status || 'unknown');
-            healthText.textContent = health.status === 'healthy' ? 'Здоров' : 
-                                    health.status === 'degraded' ? 'Деградация' : 'Ошибка';
-            
-            if (health.issues && health.issues.length > 0) {
-                healthIssues.innerHTML = '<ul>' + health.issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>';
-            } else {
-                healthIssues.innerHTML = '<span style="color: #4caf50">Проблем не обнаружено</span>';
-            }
+            // System metrics из /api/metrics
+            const systemMetrics = metrics.system || {};
+            const gauges = metrics.gauges || {};
             
             // Web Search / Tavily metrics
+            const counters = metrics.counters || {};
+            const webSearches = counters.web_searches || analytics.web_searches || 0;
             $('#tavilyRequestsTotal').textContent = analytics.tavily_requests || 0;
             $('#tavilyResponsesTotal').textContent = analytics.tavily_responses || 0;
-            $('#webSearchesTotal').textContent = analytics.web_searches || 0;
+            $('#webSearchesTotal').textContent = webSearches;
             
-            // Wikipedia metrics
-            $('#wikiQueries').textContent = analytics.wiki_queries || 0;
-            $('#wikiArticles').textContent = analytics.wiki_articles || metrics.graph?.total_nodes || 0;
-            $('#wikiCached').textContent = analytics.wiki_cached || 0;
+            // Wiki metrics
+            if ($('#wikiQueries')) $('#wikiQueries').textContent = analytics.wiki_queries || 0;
+            if ($('#wikiArticles')) $('#wikiArticles').textContent = analytics.wiki_articles || totalNodes;
+            if ($('#wikiCached')) $('#wikiCached').textContent = analytics.wiki_cached || 0;
+            
+            // System Health
+            const healthStatus = $('#healthStatus');
+            if (healthStatus) {
+                const healthDot = healthStatus.querySelector('.health-dot');
+                const healthText = healthStatus.querySelector('.health-text');
+                const healthIssues = $('#healthIssues');
+                
+                // Определяем статус по метрикам
+                let health = 'healthy';
+                let issues = [];
+                
+                if ((analytics.cpu || 0) > 90) {
+                    health = 'degraded';
+                    issues.push('Высокая нагрузка CPU');
+                }
+                if ((analytics.memory || 0) > 90) {
+                    health = 'degraded';
+                    issues.push('Высокое потребление памяти');
+                }
+                if (totalNodes === 0) {
+                    issues.push('Граф знаний пуст');
+                }
+                
+                if (healthDot) healthDot.className = 'health-dot ' + health;
+                if (healthText) healthText.textContent = health === 'healthy' ? 'Здоров' : 'Деградация';
+                if (healthIssues) {
+                    if (issues.length > 0) {
+                        healthIssues.innerHTML = '<ul>' + issues.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>';
+                    } else {
+                        healthIssues.innerHTML = '<span style="color: #4caf50">Проблем не обнаружено</span>';
+                    }
+                }
+            }
             
             // Render activities
             const activityList = $('#activityList');

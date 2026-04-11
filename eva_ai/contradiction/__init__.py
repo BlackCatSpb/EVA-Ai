@@ -16,7 +16,14 @@ def __getattr__(name):
         'ContradictionResponseGenerator': ('contradiction_responses', 'ContradictionResponseGenerator'),
         'SourceReputationSystem': ('contradiction_reputation', 'SourceReputationSystem'),
         'ContradictionLearning': ('contradiction_learning', 'ContradictionLearning'),
-        'ContradictionAnalyzer': ('contradiction_analysis', 'ContradictionAnalyzer')
+        'ContradictionAnalyzer': ('contradiction_analysis', 'ContradictionAnalyzer'),
+        'ContradictionGenerator': ('contradiction_generator', 'ContradictionGenerator'),
+        'GeneratedContradiction': ('contradiction_generator', 'GeneratedContradiction'),
+        'create_contradiction_generator': ('contradiction_generator', 'create_contradiction_generator'),
+        'ContradictionMiner': ('contradiction_miner', 'ContradictionMiner'),
+        'ContradictionStatus': ('contradiction_miner', 'ContradictionStatus'),
+        'ContradictionCandidate': ('contradiction_miner', 'ContradictionCandidate'),
+        'create_contradiction_miner': ('contradiction_miner', 'create_contradiction_miner')
     }
     
     if name in imports:
@@ -40,5 +47,12 @@ __all__ = [
     'ContradictionResponseGenerator',
     'SourceReputationSystem',
     'ContradictionLearning',
-    'ContradictionAnalyzer'
+    'ContradictionAnalyzer',
+    'ContradictionGenerator',
+    'GeneratedContradiction',
+    'create_contradiction_generator',
+    'ContradictionMiner',
+    'ContradictionStatus',
+    'ContradictionCandidate',
+    'create_contradiction_miner'
 ]

@@ -247,6 +247,12 @@ class QueryMixin:
             # Кэшируем успешный ответ
             if result.get('response') and result.get('status') != 'error':
                 _cache_response(query, result)
+                
+                # Извлекаем концепты из запроса и ответа для обучения
+                try:
+                    self._extract_key_concepts(query, result.get('response', ''))
+                except Exception as e:
+                    query_logger.debug(f"Concept extraction error: {e}")
             
             # Track query metrics
             elapsed = time.time() - start_time
@@ -343,13 +349,26 @@ class QueryMixin:
             command_id = tracker.start_generation(query, source="gguf_pipeline")
             tracker.update_progress(command_id, "pipeline_start", 10)
 
+        # Добавляем контекст из концептов и противоречий
+        concepts_context = ""
+        if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+            try:
+                concepts_context = self.self_dialog_learning.get_context_for_generation(query)
+                if concepts_context:
+                    query_logger.debug(f"Added concepts/contradictions context: {len(concepts_context)} chars")
+            except Exception as e:
+                query_logger.debug(f"Error getting concepts context: {e}")
+        
         # Добавляем контекст от Tavily к запросу
         enhanced_query = query
+        if concepts_context:
+            enhanced_query = concepts_context + "\n\n" + query
+        
         if search_results:
             web_context = "\n\nДополнительная информация из интернета:\n"
             for i, r in enumerate(search_results[:3], 1):
                 web_context += f"{i}. {r.get('title', '')}: {r.get('content', '')[:200]}...\n"
-            enhanced_query = query + web_context
+            enhanced_query = enhanced_query + web_context
             query_logger.info(f"Query enhanced with {len(search_results)} web results")
         
         try:
@@ -728,8 +747,7 @@ class QueryMixin:
                 response_text, gen_err = self._generate_with_timeout(
                     lambda: self.llama_cpp_deployment.generate(
                         prompt=prompt, max_new_tokens=max_new_tokens or 2048,
-                        temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty),
-                    timeout=60)
+                        temperature=temperature, top_p=top_p, repeat_penalty=repetition_penalty))
                 if tracker and command_id:
                     tracker.update_progress(command_id, "generation_done", 80)
                 if gen_err:
@@ -793,8 +811,7 @@ class QueryMixin:
         response_text, gen_err = self._generate_with_timeout(
             lambda: self.qwen_model_manager.generate(
                 messages, max_new_tokens=2048, temperature=temperature,
-                top_p=top_p, repetition_penalty=repetition_penalty),
-            timeout=60)
+                top_p=top_p, repetition_penalty=repetition_penalty))
         if gen_err:
             return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",
                     "status": "error", "confidence": 0.0, "source": "qwen_timeout",
@@ -822,8 +839,7 @@ class QueryMixin:
                 lambda: self.llama_cpp_deployment.generate(
                     prompt=full_prompt, max_new_tokens=max_new_tokens or 2048,
                     temperature=temperature or 0.7, top_p=top_p or 0.9,
-                    repeat_penalty=repetition_penalty or 1.1),
-                timeout=60)
+                    repeat_penalty=repetition_penalty or 1.1))
             if gen_err:
                 query_logger.warning(f"LlamaCpp generation timeout/error: {gen_err}")
                 return None
@@ -1074,8 +1090,7 @@ class QueryMixin:
                             lambda: self.llama_cpp_deployment.generate(
                                 prompt=query, max_new_tokens=max_new_tokens or 2048,
                                 temperature=temperature or 0.7, top_p=top_p or 0.9,
-                                repeat_penalty=repetition_penalty or 1.1),
-                            timeout=60)
+                                repeat_penalty=repetition_penalty or 1.1))
                         if gen_err:
                             query_logger.warning(f"Final LlamaCpp generation timeout/error: {gen_err}")
                         elif response_text and len(response_text) > 0:
@@ -1116,8 +1131,7 @@ class QueryMixin:
                 response_text, gen_err = self._generate_with_timeout(
                     lambda: self.qwen_model_manager.generate(
                         messages, max_new_tokens=2048, temperature=temperature,
-                        top_p=top_p, repetition_penalty=repetition_penalty),
-                    timeout=60)
+                        top_p=top_p, repetition_penalty=repetition_penalty))
                 if gen_err:
                     query_logger.warning(f"Qwen generation timeout/error: {gen_err}")
                     raise RuntimeError(f"Generation timeout: {gen_err}")
@@ -1357,8 +1371,8 @@ class QueryMixin:
 
         return None
 
-    def _generate_with_timeout(self, generate_fn, timeout=60):
-        """Wraps a generate call with a timeout using threading."""
+    def _generate_with_timeout(self, generate_fn, timeout=None):
+        """Wraps a generate call (без таймаута по умолчанию)."""
         result = [None]
         error = [None]
         def _gen():
@@ -1368,9 +1382,12 @@ class QueryMixin:
                 error[0] = e
         t = threading.Thread(target=_gen, daemon=True)
         t.start()
-        t.join(timeout=timeout)
-        if t.is_alive():
-            return None, 'timeout'
+        if timeout:
+            t.join(timeout=timeout)
+            if t.is_alive():
+                return None, 'timeout'
+        else:
+            t.join()  # Ждём бесконечно
         if error[0]:
             return None, str(error[0])
         return result[0], None
@@ -1439,7 +1456,45 @@ class QueryMixin:
             query_logger.debug(f"FG save error: {e}")
     
     def _extract_key_concepts(self, query: str, response: str) -> List[Dict[str, Any]]:
-        """Extracts key concepts from query and response via word frequency."""
+        """
+        Extracts key concepts from query and response using ConceptExtractor.
+        Saves concepts to FractalGraph v2 and queues them for self-dialog.
+        """
+        # Use ConceptExtractor if available
+        if hasattr(self, 'concept_extractor') and self.concept_extractor:
+            try:
+                concepts = self.concept_extractor.extract_concepts(query, response)
+                
+                # Save concepts to graph and queue for self-dialog
+                for concept in concepts:
+                    # Save to FGv2
+                    node_id = self.concept_extractor.save_concept_to_graph(concept)
+                    
+                    # Queue for self-dialog
+                    if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
+                        self.self_dialog_learning.queue_concept_for_dialog(
+                            concept.name, 
+                            priority=concept.confidence
+                        )
+                    
+                    query_logger.debug(f"Concept '{concept.name}' extracted and queued")
+                
+                # Return in legacy format for compatibility
+                return [
+                    {
+                        'word': c.name,
+                        'type': 'concept',
+                        'description': c.description,
+                        'links': c.related_terms,
+                        'confidence': c.confidence,
+                        'domain': c.domain
+                    }
+                    for c in concepts
+                ]
+            except Exception as e:
+                query_logger.debug(f"ConceptExtractor error: {e}")
+        
+        # Fallback to legacy extraction
         text = (query + ' ' + response).lower()
         words = re.findall(r'\b[а-яёa-z]{3,}\b', text)
 

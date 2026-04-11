@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 
 from .brain_config import load_brain_config, mask_secrets, ConfigMixin
 from .brain_components import ComponentMixin, _init_managers, _init_fractal_model, _init_llama_cpp, _init_two_model_pipeline, _init_preprocessing, _init_qwen_config, _init_background, _init_mode_controller
-from .brain_init import _init_fractal_final, _init_gen_coord, _init_wikipedia, _init_reasoning, _start_post_init_services, _connect_components, _start_components, _stop_components
+from .brain_init import _init_fractal_final, _init_gen_coord, _init_wikipedia, _init_reasoning, _init_performance_monitor, _start_post_init_services, _connect_components, _start_components, _stop_components
 from .brain_query import QueryMixin, FALLBACK_RESPONSES, FALLBACK_RESPONSE_DEFAULT
 from .brain_monitoring import MonitoringMixin
 from .brain_memory import MemoryMixin
@@ -180,6 +180,7 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             _init_wikipedia(self)
             self.initialized = True
             _init_reasoning(self)
+            _init_performance_monitor(self)
             self._update_state(SystemState.READY, "Инициализация завершена успешно")
             total_time = time.time() - start_time
             if self.metrics_manager:

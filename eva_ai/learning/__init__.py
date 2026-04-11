@@ -6,6 +6,8 @@ from .learning_manager import LearningManager
 from .self_analyzer import SelfAnalyzer
 from .self_dialog_learning import SelfDialogLearningSystem
 from .concept_dialog_integration import ConceptDialogIntegrator, create_concept_dialog_integrator
+from .dialog_core import SelfDialogLearning
+from .dialog_concepts import DialogConceptsMixin
 
 __all__ = [
     'LearningScheduler',
@@ -16,5 +18,7 @@ __all__ = [
     'LearningOpportunity',
     'SelfDialogLearningSystem',
     'ConceptDialogIntegrator',
-    'create_concept_dialog_integrator'
+    'create_concept_dialog_integrator',
+    'SelfDialogLearning',
+    'DialogConceptsMixin'
 ]

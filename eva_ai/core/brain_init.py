@@ -68,6 +68,19 @@ def _init_reasoning(brain):
         pass
 
 
+def _init_performance_monitor(brain):
+    """Initialize PerformanceMonitor for metrics collection."""
+    try:
+        from eva_ai.core.metrics import PerformanceMonitor
+        brain.performance_monitor = PerformanceMonitor(interval=5.0)
+        brain.performance_monitor.start()
+        brain.components['performance_monitor'] = brain.performance_monitor
+        logger.info("PerformanceMonitor запущен")
+    except Exception as e:
+        query_logger.warning(f"Failed to start PerformanceMonitor: {e}")
+        brain.performance_monitor = None
+
+
 def _start_post_init_services(brain):
     """Start services that must run after full initialization."""
     if hasattr(brain, 'self_dialog_learning') and brain.self_dialog_learning and hasattr(brain.self_dialog_learning, 'start'):

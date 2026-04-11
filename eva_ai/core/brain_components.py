@@ -215,7 +215,7 @@ def _init_llama_cpp(brain):
             brain.llama_cpp_deployment = LlamaCppHotDeployment(
                 model_path=model_config.get('gguf_model_path', ''),
                 n_ctx=model_config.get('llama_cpp_n_ctx', 4096),
-                n_threads=model_config.get('llama_cpp_threads', 8)
+                n_threads=model_config.get('llama_cpp_threads', os.cpu_count() or 12)
             )
             if brain.llama_cpp_deployment.initialize(preload_root=True):
                 brain.llama_cpp_ready = True
@@ -239,7 +239,7 @@ def _init_two_model_pipeline(brain):
         # 'fractal' - FractalPipeline (новый)
         # 'recursive' - RecursiveModelPipeline (старый)
         # 'hybrid' - FractalPipeline + fallback на RecursiveModelPipeline
-        pipeline_mode = model_config.get('pipeline_mode', 'dual')
+        pipeline_mode = model_config.get('pipeline_mode', 'fractal')
         
         # Проверяем нужен ли pipeline
         if not model_config.get('use_two_model_pipeline', False):
@@ -266,7 +266,7 @@ def _init_two_model_pipeline(brain):
         model_b_path = model_config.get('model_b_gguf_path', '')
         model_c_path = model_config.get('model_c_gguf_path', '')
         n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
-        n_threads = model_config.get('llama_cpp_threads', 8)
+        n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 12)
 
         # Проверяем пути
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -387,7 +387,7 @@ def _init_two_model_pipeline(brain):
         model_b_path = model_config.get('model_b_gguf_path', '')
         model_c_path = model_config.get('model_c_gguf_path', '')
         n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
-        n_threads = model_config.get('llama_cpp_threads', 8)
+        n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 12)
 
         # Проверяем пути
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

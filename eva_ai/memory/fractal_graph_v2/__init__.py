@@ -980,6 +980,14 @@ class FractalMemoryGraph:
         
         return groups
     
+    def get_nodes_list(self, limit: int = 200) -> List[FractalNode]:
+        """Получить список узлов для API."""
+        return list(self.storage.nodes.values())[:limit]
+    
+    def get_edges_list(self, limit: int = 500) -> List[FractalEdge]:
+        """Получить список связей для API."""
+        return list(self.storage.edges.values())[:limit]
+    
     # === ИНТЕГРАЦИЯ СО СТАРОЙ СИСТЕМОЙ ===
     
     def save_experience(

@@ -124,13 +124,10 @@ class SemanticContextCache:
     def _compute_embedding(self, text: str) -> np.ndarray:
         """Вычислить эмбеддинг (CPU эмбеддер)."""
         try:
-            from sentence_transformers import SentenceTransformer
+            from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
             
             if not hasattr(self, '_embedder'):
-                self._embedder = SentenceTransformer(
-                    'all-MiniLM-L6-v2',
-                    device='cpu'
-                )
+                self._embedder = get_sentence_transformer('all-MiniLM-L6-v2', device='cpu')
             
             emb = self._embedder.encode(text, convert_to_numpy=True)
             

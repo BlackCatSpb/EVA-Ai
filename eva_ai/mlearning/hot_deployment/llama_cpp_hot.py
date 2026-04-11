@@ -122,7 +122,7 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         self,
         model_path: str,
         n_ctx: int = 4096,
-        n_threads: int = 8,
+        n_threads: int = None,  # По умолчанию: все ядра CPU
         n_gpu_layers: int = 0,
         system_prompt: str = None,
         purpose: str = "general",
@@ -146,7 +146,7 @@ class LlamaCppHotDeployment(HotDeploymentManager):
         super().__init__(model_path, **kwargs)
         
         self.n_ctx = n_ctx
-        self.n_threads = n_threads
+        self.n_threads = n_threads or os.cpu_count() or 12  # Все ядра CPU
         self.n_gpu_layers = n_gpu_layers
         self.system_prompt = system_prompt
         self.purpose = purpose

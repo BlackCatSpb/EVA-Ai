@@ -57,18 +57,19 @@ class FractalPipeline:
         gguf_model=None,  # Загруженная GGUF модель
         model_path: str = None,
         n_ctx: int = 2048,
-        n_threads: int = 4,
+        n_threads: int = None,  # По умолчанию: все ядра CPU
         max_semantic_contexts: int = 500,
         semantic_cache_dir: str = None,
         llama_a=None,
         llama_b=None,
         llama_c=None
     ):
+        import os
         self.graph = fractal_graph
         self.gguf_model = gguf_model
         self.model_path = model_path
         self.n_ctx = n_ctx
-        self.n_threads = n_threads
+        self.n_threads = n_threads or os.cpu_count() or 12  # Все ядра CPU
         self.llama_a = llama_a
         self.llama_b = llama_b
         self.llama_c = llama_c

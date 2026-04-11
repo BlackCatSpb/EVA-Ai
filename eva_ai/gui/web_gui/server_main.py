@@ -2,6 +2,7 @@
 Flask app creation, WebGUI class, imports from other modules, re-exports
 """
 import os
+import time
 import logging
 import threading
 import json
@@ -20,9 +21,9 @@ from eva_ai.gui.web_gui.server_auth import SessionManager, AuthManager, EntityEx
 from eva_ai.gui.web_gui.server_routes import register_routes as register_basic_routes
 from eva_ai.gui.web_gui.server_routes import extract_text_from_file
 from eva_ai.gui.web_gui.server_api_wikipedia import register_routes as register_wikipedia_routes
-from eva_ai.gui.web_gui.server_api_knowledge import register_routes as register_knowledge_routes
 from eva_ai.gui.web_gui.server_api_export import register_routes as register_export_routes
 from eva_ai.gui.web_gui.server_models import register_routes as register_model_routes
+from eva_ai.gui.web_gui.server_routes_graph import register_graph_routes
 
 
 def _get_secret_key():
@@ -775,10 +776,10 @@ class WebGUI:
                 from werkzeug.serving import make_server
                 self._server = make_server(self.host, self.port, app, threaded=True)
                 logger.info(f"Flask server created on {self.host}:{self.port}")
-                # Serve until shutdown with timeout
+                # Serve until shutdown with short timeout
                 while self.running and not self.shutting_down:
                     try:
-                        self._server.socket.settimeout(1.0)
+                        self._server.socket.settimeout(0.5)  # Короче timeout для быстрого shutdown
                         self._server.handle_request()
                     except socket.timeout:
                         continue
@@ -786,8 +787,12 @@ class WebGUI:
                         if not self.shutting_down:
                             logger.error(f"Flask error: {e}")
                         break
+                # Быстрый shutdown без ожидания
                 if self._server:
-                    self._server.shutdown()
+                    try:
+                        self._server.shutdown()
+                    except:
+                        pass
                 logger.info("Flask server shut down")
             except Exception as e:
                 if not getattr(self, 'shutting_down', False):
@@ -802,12 +807,27 @@ class WebGUI:
     def stop(self):
         self.shutting_down = True
         self.running = False
-        # Force shutdown if server exists
+        
+        # Закрываем сокет принудительно
         if hasattr(self, '_server') and self._server:
             try:
-                self._server.shutdown()
+                try:
+                    self._server.shutdown()
+                except:
+                    pass
+                # Закрываем сокет
+                if hasattr(self._server, 'socket') and self._server.socket:
+                    try:
+                        self._server.socket.close()
+                    except:
+                        pass
             except:
                 pass
+        
+        # Прерываем поток если он всё ещё работает
+        if self.thread and self.thread.is_alive():
+            logger.debug(f"Ожидание завершения потока WebGUI...")
+        
         logger.info("WebGUI сервер остановлен")
 
 
@@ -824,9 +844,9 @@ def create_app(brain=None, integrator=None, host='127.0.0.1', port=5555):
 
     register_basic_routes(app, web_gui_instance)
     register_wikipedia_routes(app, web_gui_instance)
-    register_knowledge_routes(app, web_gui_instance)
     register_export_routes(app, web_gui_instance)
     register_model_routes(app, web_gui_instance)
+    register_graph_routes(app, web_gui_instance)
 
     web_gui_instance.start()
     return web_gui_instance

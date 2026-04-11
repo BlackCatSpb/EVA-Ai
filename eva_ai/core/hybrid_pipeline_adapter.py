@@ -57,7 +57,7 @@ class HybridPipelineAdapter:
         model_b_path: str = None,
         model_c_path: str = None,
         n_ctx: int = 8192,
-        n_threads: int = 8,
+        n_threads: int = None,  # По умолчанию: все ядра CPU
         load_models: bool = True,
         brain=None,  # Добавляем brain для компактификации контекста
         **kwargs
@@ -75,7 +75,7 @@ class HybridPipelineAdapter:
         self.model_b_path = model_b_path
         self.model_c_path = model_c_path
         self.n_ctx = n_ctx
-        self.n_threads = n_threads
+        self.n_threads = n_threads or os.cpu_count() or 12  # Все ядра CPU
         self._models_loaded = False
         
         # Пайплайны

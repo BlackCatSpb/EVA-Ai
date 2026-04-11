@@ -11,12 +11,13 @@ from eva_ai.learning.dialog_types import DialogRole, DialogTurn, LearningType, S
 from eva_ai.learning.dialog_topics import DialogTopicsMixin
 from eva_ai.learning.dialog_generation import DialogGenerationMixin
 from eva_ai.learning.dialog_learning import DialogLearningMixin
+from eva_ai.learning.dialog_concepts import DialogConceptsMixin
 from eva_ai.learning.interest_scorer import InterestScorer
 
 logger = logging.getLogger("eva_ai.self_dialog_learning")
 
 
-class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearningMixin):
+class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearningMixin, DialogConceptsMixin):
     """
     Система самообучения через самодиалог.
 
@@ -69,6 +70,9 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
         }
 
         self.interest_scorer = InterestScorer()
+        
+        # Инициализация DialogConceptsMixin
+        DialogConceptsMixin.__init__(self)
         
         # Подписка на события куратора
         self._setup_curator_events()
@@ -277,6 +281,67 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                 
         except Exception as e:
             logger.debug(f"Ошибка в _process_pending_context_compactions: {e}")
+
+    def _generate_dialog_from_conversations(self) -> None:
+        """
+        Generates self-dialog from concepts, contradictions, or conversation history.
+        
+        Priority:
+        1. Contradictions for resolution
+        2. Concepts from queue
+        3. Conversation history (fallback)
+        """
+        if not self.brain:
+            return
+        
+        current_time = time.time()
+        
+        # Check interval
+        if current_time - self.last_dialog_check < self.auto_dialog_interval:
+            return
+        
+        self.last_dialog_check = current_time
+        
+        # Try to get topic from concepts/contradictions queue first
+        next_topic = self._get_next_dialog_topic()
+        
+        if next_topic:
+            topic_type = next_topic['type']
+            title = next_topic['title']
+            data = next_topic['data']
+            
+            logger.info(f"Creating self-dialog from {topic_type}: {title[:50]}...")
+            
+            # Create dialog with appropriate type
+            dialog_id = f"dialog_{int(time.time() * 1000)}"
+            dialog = SelfDialog(
+                id=dialog_id,
+                topic=title,
+                turns=[],
+                start_time=time.time()
+            )
+            
+            self.active_dialogs[dialog_id] = dialog
+            
+            try:
+                if topic_type == 'concept':
+                    self._run_concept_dialog(dialog, data)
+                elif topic_type == 'contradiction':
+                    self._run_contradiction_dialog(dialog, data)
+                
+                dialog.end_time = time.time()
+                self._finalize_dialog(dialog)
+                self.stats["total_dialogs"] += 1
+                
+            except Exception as e:
+                logger.error(f"Error in {topic_type} dialog: {e}")
+                dialog.outcome = f"error: {str(e)}"
+                dialog.end_time = time.time()
+                
+            return
+        
+        # Fallback to conversation history
+        super()._generate_dialog_from_conversations()
 
     def create_dialog(self, topic: str, context: Optional[Dict[str, Any]] = None):
         """

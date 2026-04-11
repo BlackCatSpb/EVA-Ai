@@ -507,6 +507,92 @@ def create_knowledge_graph(initializer):
         if hasattr(initializer.core_brain, 'components'):
             initializer.core_brain.components['knowledge_graph'] = kg_adapter
         
+        # Создаём ConceptExtractor для извлечения концептов из запросов
+        try:
+            from eva_ai.knowledge.concept_extractor import create_concept_extractor
+            concept_extractor = create_concept_extractor(
+                fractal_graph=fg,
+                brain=initializer.core_brain
+            )
+            initializer.core_brain.concept_extractor = concept_extractor
+            initializer.core_brain.components['concept_extractor'] = concept_extractor
+            initializer.logger.info("[OK] ConceptExtractor создан")
+        except Exception as ce:
+            initializer.logger.warning(f"[WARN] ConceptExtractor не создан: {ce}")
+        
+        # Создаём ContradictionGenerator для генерации противоречий (шаблоны)
+        try:
+            from eva_ai.contradiction.contradiction_generator import create_contradiction_generator
+            contr_generator = create_contradiction_generator(
+                brain=initializer.core_brain,
+                fractal_graph=fg
+            )
+            initializer.core_brain.contradiction_generator = contr_generator
+            initializer.core_brain.components['contradiction_generator'] = contr_generator
+            initializer.logger.info("[OK] ContradictionGenerator создан (шаблоны)")
+        except Exception as cge:
+            initializer.logger.warning(f"[WARN] ContradictionGenerator не создан: {cge}")
+        
+        # Создаём ContradictionMiner для обнаружения противоречий в графе (анализ)
+        try:
+            from eva_ai.contradiction.contradiction_miner import create_contradiction_miner
+            
+            event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
+            deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+            
+            contradiction_miner = create_contradiction_miner(
+                brain=initializer.core_brain,
+                event_bus=event_bus,
+                deferred_system=deferred_system,
+                config={
+                    'enabled': True,
+                    'dry_run': False,
+                    'sim_threshold': 0.75,
+                    'contra_threshold': 0.65,
+                    'max_candidates_per_cycle': 3
+                }
+            )
+            
+            initializer.core_brain.contradiction_miner = contradiction_miner
+            initializer.core_brain.components['contradiction_miner'] = contradiction_miner
+            
+            # Запускаем
+            contradiction_miner.start()
+            
+            initializer.logger.info("[OK] ContradictionMiner создан и запущен (анализ графа)")
+        except Exception as cme:
+            initializer.logger.warning(f"[WARN] ContradictionMiner не создан: {cme}")
+        
+        # Создаём ConceptMiner для глубокого анализа кластеров
+        try:
+            from eva_ai.knowledge.concept_miner import create_concept_miner
+            
+            # Получаем необходимые компоненты
+            event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
+            deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+            
+            concept_miner = create_concept_miner(
+                brain=initializer.core_brain,
+                event_bus=event_bus,
+                deferred_system=deferred_system,
+                config={
+                    'enabled': True,
+                    'dry_run': False,
+                    'max_candidates_per_cycle': 3,
+                    'enable_web_search_validation': False  # Пока отключим для скорости
+                }
+            )
+            
+            initializer.core_brain.concept_miner = concept_miner
+            initializer.core_brain.components['concept_miner'] = concept_miner
+            
+            # Запускаем ConceptMiner
+            concept_miner.start()
+            
+            initializer.logger.info("[OK] ConceptMiner (глубокий анализ) создан и запущен")
+        except Exception as cme:
+            initializer.logger.warning(f"[WARN] ConceptMiner не создан: {cme}")
+        
         initializer.logger.info("[OK] KnowledgeGraph адаптер (FGv2) создан")
         return kg_adapter
     except Exception as e:
