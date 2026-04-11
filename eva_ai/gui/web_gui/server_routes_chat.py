@@ -1,6 +1,6 @@
 """
 Chat routes для Web GUI
-Chat endpoints, streaming
+Chat endpoints, streaming, sessions
 """
 import json
 import logging
@@ -13,7 +13,7 @@ logger = logging.getLogger("eva_ai.webgui")
 
 
 def register_chat_routes(app, web_gui_instance):
-    """Регистрирует chat роуты"""
+    """Регистрирует chat и session роуты"""
     
     @app.route('/api/chat', methods=['POST'])
     def api_chat():
@@ -187,5 +187,83 @@ def register_chat_routes(app, web_gui_instance):
         except Exception as e:
             logger.error(f"Ошибка в api_chat_stream: {e}", exc_info=True)
             return jsonify({'error': str(e)}), 500
+
+    # ===== SESSION ROUTES =====
+    
+    @app.route('/api/sessions', methods=['GET', 'POST', 'DELETE'])
+    def api_sessions():
+        """Manage user sessions."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        user_id = request.headers.get('X-User-ID')
+
+        if request.method == 'GET':
+            sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
+            return jsonify({'sessions': sessions})
+
+        if request.method == 'POST':
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Invalid JSON'}), 400
+            name = data.get('name')
+            session_id = web_gui_instance.session_manager.create_session(user_id, name)
+            sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
+            return jsonify({'session_id': session_id, 'sessions': sessions})
+
+        if request.method == 'DELETE':
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Invalid JSON'}), 400
+            session_id = data.get('session_id')
+            if not session_id:
+                return jsonify({'error': 'session_id is required'}), 400
+            session = web_gui_instance.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({'error': 'Сессия не найдена'}), 404
+            if user_id and session.get('user_id') != user_id:
+                return jsonify({'error': 'Доступ запрещён'}), 403
+            web_gui_instance.session_manager.delete_session(session_id)
+            sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
+            return jsonify({'sessions': sessions, 'message': 'Сессия удалена'})
+
+    @app.route('/api/session/<session_id>', methods=['GET', 'DELETE', 'PUT'])
+    def api_session(session_id):
+        """Get, update or delete a specific session."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        if request.method == 'GET':
+            session = web_gui_instance.session_manager.get_session(session_id)
+            if session:
+                return jsonify({
+                    'session': session,
+                    'context': session.get('context_nodes', []),
+                    'entities': session.get('entities', []),
+                    'chat_history': session.get('chat_history', [])
+                })
+            return jsonify({'error': 'Сессия не найдена'}), 404
+
+        if request.method == 'DELETE':
+            session = web_gui_instance.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({'error': 'Сессия не найдена'}), 404
+            web_gui_instance.session_manager.delete_session(session_id)
+            return jsonify({'message': 'Сессия удалена'})
+
+        if request.method == 'PUT':
+            data = request.get_json()
+            if not data:
+                return jsonify({'error': 'Invalid JSON'}), 400
+            session = web_gui_instance.session_manager.get_session(session_id)
+            if not session:
+                return jsonify({'error': 'Сессия не найдена'}), 404
+            allowed_fields = {'name', 'chat_history', 'context_nodes', 'entities'}
+            update_data = {k: v for k, v in data.items() if k in allowed_fields}
+            if not update_data:
+                return jsonify({'error': 'Нет допустимых полей для обновления'}), 400
+            web_gui_instance.session_manager.update_session(session_id, update_data)
+            updated = web_gui_instance.session_manager.get_session(session_id)
+            return jsonify({'session': updated, 'message': 'Сессия обновлена'})
     
     logger.info("Chat routes registered")

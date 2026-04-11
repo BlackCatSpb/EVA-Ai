@@ -352,49 +352,4 @@ def register_core_routes(app, web_gui_instance):
         
         return jsonify(metrics)
     
-    @app.route('/api/dashboard')
-    def api_dashboard():
-        """Dashboard data endpoint."""
-        if not web_gui_instance or not web_gui_instance.brain:
-            return jsonify({'error': 'Brain не инициализирован'}), 500
-        
-        try:
-            brain = web_gui_instance.brain
-            
-            dashboard_data = {
-                'timestamp': datetime.now().isoformat(),
-                'system_status': 'active',
-                'components': {},
-                'stats': {
-                    'sessions': len(web_gui_instance.session_manager.sessions) if web_gui_instance.session_manager else 0,
-                    'users': len(web_gui_instance.auth_manager.users) if web_gui_instance.auth_manager else 0
-                }
-            }
-            
-            # Component statuses
-            for comp_name in ['memory_manager', 'knowledge_graph', 'self_dialog_learning', 
-                             'contradiction_manager', 'concept_extractor', 'concept_miner']:
-                if hasattr(brain, comp_name):
-                    comp = getattr(brain, comp_name)
-                    dashboard_data['components'][comp_name] = {
-                        'available': comp is not None,
-                        'running': getattr(comp, 'running', False) or getattr(comp, 'is_running', False)
-                    }
-            
-            # Graph stats
-            if hasattr(brain, 'fractal_graph_v2') and brain.fractal_graph_v2:
-                fg = brain.fractal_graph_v2
-                if hasattr(fg, 'storage'):
-                    dashboard_data['graph'] = {
-                        'nodes': len(fg.storage.nodes),
-                        'edges': len(fg.storage.edges),
-                        'groups': len(fg.storage.semantic_groups)
-                    }
-            
-            return jsonify(dashboard_data)
-            
-        except Exception as e:
-            logger.error(f"Error getting dashboard data: {e}")
-            return jsonify({'error': str(e)}), 500
-    
     logger.info("Core routes registered")
