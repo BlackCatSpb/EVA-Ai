@@ -30,17 +30,23 @@ def register_auth_routes(app, web_gui_instance):
         try:
             # Check credentials
             if web_gui_instance.auth_manager:
-                success = web_gui_instance.auth_manager.authenticate(username, password)
-                if success:
+                user = web_gui_instance.auth_manager.authenticate(username, password)
+                if user:
                     # Create session
-                    session_id = web_gui_instance.session_manager.create_session(username)
+                    session_id = web_gui_instance.session_manager.create_session(
+                        user.get('user_id', username),
+                        f"Сессия {username}"
+                    )
+                    # Get user sessions
+                    sessions = web_gui_instance.session_manager.get_user_sessions(user.get('user_id', username))
+                    
                     return jsonify({
-                        'success': True,
+                        'user': user.get('username', username),
                         'session_id': session_id,
-                        'username': username
+                        'sessions': sessions
                     })
             
-            return jsonify({'error': 'Invalid credentials'}), 401
+            return jsonify({'error': 'Неверные учетные данные'}), 401
             
         except Exception as e:
             logger.error(f"Login error: {e}")

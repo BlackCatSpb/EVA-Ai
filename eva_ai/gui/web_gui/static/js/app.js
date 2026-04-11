@@ -329,9 +329,10 @@
             
             console.log('Login: Success, switching screens');
             token = true;
-            userId = d.sessions[0]?.user_id;
             sessions = d.sessions || [];
             activeSessionId = d.session_id;
+            // Extract userId from first session or generate from username
+            userId = sessions[0]?.user_id || sessions[0]?.id || d.user;
             $('#loginScreen').style.display = 'none';
             $('#appContainer').style.display = 'flex';
             $('#userName').textContent = d.user;
