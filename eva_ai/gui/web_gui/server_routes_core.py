@@ -307,8 +307,34 @@ def register_core_routes(app, web_gui_instance):
             metrics['system'] = {
                 'cpu_percent': psutil.cpu_percent(interval=0.1),
                 'memory_percent': psutil.virtual_memory().percent,
-                'disk_usage': psutil.disk_usage('/').percent if hasattr(psutil.disk_usage('/'), 'percent') else None
+                'disk_usage': psutil.disk_usage('/').percent if hasattr(psutil.disk_usage('/'), 'percent') else None,
+                'gpu_memory_percent': 0.0,
+                'gpu_available': False
             }
+            
+            # Get GPU metrics
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    gpu_memory_allocated = torch.cuda.memory_allocated() / (1024**3)
+                    gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                    metrics['system']['gpu_memory_percent'] = (gpu_memory_allocated / gpu_memory_total) * 100
+                    metrics['system']['gpu_available'] = True
+                    metrics['system']['gpu_name'] = torch.cuda.get_device_name(0)
+                    logger.debug(f"GPU metrics: {metrics['system']['gpu_memory_percent']:.2f}% VRAM used")
+            except Exception as gpu_e:
+                logger.debug(f"GPU metrics error: {gpu_e}")
+                
+            # Also try resource_manager GPU metrics
+            rm = getattr(brain, 'resource_manager', None)
+            if rm and hasattr(rm, 'get_gpu_metrics'):
+                try:
+                    gpu_metrics = rm.get_gpu_metrics()
+                    if gpu_metrics:
+                        metrics['system']['gpu_memory_percent'] = gpu_metrics.get('vram_percent', gpu_metrics.get('gpu_memory', 0))
+                        metrics['system']['gpu_usage'] = gpu_metrics.get('gpu_usage', 0)
+                except Exception as rm_gpu_e:
+                    logger.debug(f"Resource manager GPU error: {rm_gpu_e}")
         except Exception as e:
             logger.debug(f"Error getting system metrics: {e}")
         

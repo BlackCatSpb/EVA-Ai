@@ -136,8 +136,26 @@ def register_analytics_routes(app, web_gui_instance):
                             analytics['cpu'] = current.get('cpu_percent', analytics['cpu'])
                             analytics['memory'] = current.get('memory_percent', analytics['memory'])
                             analytics['vram'] = current.get('gpu_memory', 0)
+                        
+                        # Get GPU metrics explicitly
+                        if hasattr(rm, 'get_gpu_metrics'):
+                            gpu_metrics = rm.get_gpu_metrics()
+                            if gpu_metrics:
+                                analytics['vram'] = gpu_metrics.get('vram_percent', gpu_metrics.get('gpu_memory', analytics['vram']))
+                                logger.debug(f"GPU metrics: {gpu_metrics}")
                     except Exception as e:
                         logger.debug(f"resource_manager error: {e}")
+                    
+                    # Try to get GPU metrics directly via torch.cuda
+                    try:
+                        import torch
+                        if torch.cuda.is_available():
+                            gpu_memory_allocated = torch.cuda.memory_allocated() / (1024**3)
+                            gpu_memory_total = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+                            analytics['vram'] = (gpu_memory_allocated / gpu_memory_total) * 100
+                            logger.debug(f"GPU VRAM from torch.cuda: {analytics['vram']:.2f}%")
+                    except Exception as gpu_e:
+                        logger.debug(f"torch.cuda metrics error: {gpu_e}")
                 elif hasattr(brain, 'get_resource_snapshot'):
                     try:
                         snapshot = brain.get_resource_snapshot()

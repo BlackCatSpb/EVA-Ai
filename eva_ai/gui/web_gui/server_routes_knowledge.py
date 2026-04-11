@@ -485,4 +485,83 @@ def register_knowledge_routes(app, web_gui_instance):
 
         return jsonify({'stats': stats})
 
+    @app.route('/api/knowledge', methods=['GET', 'POST'])
+    def api_knowledge():
+        """Knowledge base endpoint for frontend."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        if request.method == 'GET':
+            # Get knowledge statistics
+            result = {
+                'total_entities': 0,
+                'total_relations': 0,
+                'entities': [],
+                'relations': [],
+                'session_entities': 0
+            }
+            
+            try:
+                # Get from fractal graph
+                fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                if fg:
+                    if hasattr(fg, 'storage') and hasattr(fg.storage, 'nodes'):
+                        result['total_entities'] = len(fg.storage.nodes)
+                    if hasattr(fg, 'storage') and hasattr(fg.storage, 'edges'):
+                        result['total_relations'] = len(fg.storage.edges)
+                    
+                    # Get sample entities
+                    if hasattr(fg, 'get_nodes_list'):
+                        nodes = fg.get_nodes_list()[:50]
+                        result['entities'] = [
+                            {
+                                'id': n.id if hasattr(n, 'id') else str(i),
+                                'name': n.content[:50] if hasattr(n, 'content') else str(n)[:50],
+                                'type': n.node_type if hasattr(n, 'node_type') else 'concept'
+                            }
+                            for i, n in enumerate(nodes)
+                        ]
+                
+                # Get session entities
+                user_id = request.headers.get('X-User-ID')
+                if user_id and hasattr(web_gui_instance.session_manager, 'get_user_sessions'):
+                    sessions = web_gui_instance.session_manager.get_user_sessions(user_id)
+                    total_session_entities = 0
+                    for session in sessions:
+                        if isinstance(session, dict):
+                            total_session_entities += len(session.get('entities', []))
+                    result['session_entities'] = total_session_entities
+                    
+            except Exception as e:
+                logger.debug(f"Knowledge GET error: {e}")
+            
+            return jsonify(result)
+        
+        elif request.method == 'POST':
+            # Search knowledge
+            data = request.get_json() or {}
+            action = data.get('action', 'search')
+            query = data.get('query', '')
+            
+            if action == 'search':
+                results = []
+                try:
+                    fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                    if fg and hasattr(fg, 'search_nodes') and query:
+                        matches = fg.search_nodes(query, limit=20)
+                        results = [
+                            {
+                                'name': n.content[:100] if hasattr(n, 'content') else str(n)[:100],
+                                'type': n.node_type if hasattr(n, 'node_type') else 'concept',
+                                'content': n.content[:200] if hasattr(n, 'content') else ''
+                            }
+                            for n in matches
+                        ]
+                except Exception as e:
+                    logger.debug(f"Knowledge search error: {e}")
+                
+                return jsonify({'results': results, 'matches': results})
+            
+            return jsonify({'error': 'Unknown action'}), 400
+
     logger.info("Knowledge routes registered")
