@@ -2527,6 +2527,54 @@ body {
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(-5px); }
-    to { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(0); }
+}
+
+/* Markdown styles */
+.msg-text h1, .msg-text h2, .msg-text h3 {
+    color: #ececec;
+    margin: 16px 0 8px;
+}
+.msg-text h1 { font-size: 1.5em; }
+.msg-text h2 { font-size: 1.3em; }
+.msg-text h3 { font-size: 1.1em; }
+.msg-text p { margin: 8px 0; }
+.msg-text ul, .msg-text ol { margin: 8px 0; padding-left: 24px; }
+.msg-text li { margin: 4px 0; }
+.msg-text blockquote {
+    border-left: 3px solid #555;
+    margin: 8px 0;
+    padding-left: 16px;
+    color: #999;
+}
+.msg-text code {
+    background: #333;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+.msg-text pre {
+    background: #1e1e1e;
+    padding: 12px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 8px 0;
+}
+.msg-text pre code {
+    background: none;
+    padding: 0;
+}
+.msg-text hr {
+    border: none;
+    border-top: 1px solid #333;
+    margin: 16px 0;
+}
+.msg-text a {
+    color: #60a5fa;
+    text-decoration: none;
+}
+.msg-text a:hover {
+    text-decoration: underline;
 }
 
