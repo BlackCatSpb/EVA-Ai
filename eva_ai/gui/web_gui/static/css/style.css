@@ -377,7 +377,7 @@ body {
     display: flex;
     gap: 8px;
     margin-top: 10px;
-    opacity: 0;
+    opacity: 1;  /* Always visible */
     transition: opacity 0.2s;
 }
 
