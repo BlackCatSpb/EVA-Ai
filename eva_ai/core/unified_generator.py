@@ -336,6 +336,115 @@ class UnifiedGenerator:
                 confidence=0.0
             )
     
+    def generate_dual(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens_logic: int = 256,
+        max_tokens_context: int = 512,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None
+    ) -> GenerationResult:
+        """
+        Двухэтапная генерация:
+        1. LOGIC - даёт короткий ответ/план
+        2. CONTEXT - расширяет ответ используя вывод LOGIC как промт
+        
+        Args:
+            query: Запрос пользователя
+            context: Дополнительный контекст из FractalGraph
+            max_tokens_logic: Максимум токенов для LOGIC модели
+            max_tokens_context: Максимум токенов для CONTEXT модели
+            temperature: Температура
+            system_prompt: Системный промпт
+            
+        Returns:
+            GenerationResult от CONTEXT модели
+        """
+        start_time = time.time()
+        logger.info(f"[DUAL_GENERATE] Начало двухэтапной генерации для: {query[:30]}...")
+        
+        # Этап 1: LOGIC - короткий ответ
+        logger.info("[DUAL_GENERATE] Этап 1: LOGIC модель...")
+        
+        if not self._load_model(ModelType.LOGIC):
+            return GenerationResult(
+                text="Ошибка: LOGIC модель недоступна",
+                model_used="none",
+                generation_time=0.0,
+                tokens_generated=0,
+                confidence=0.0
+            )
+        
+        logic_model = self.models[ModelType.LOGIC]
+        full_context = self._build_context(query, context)
+        logic_prompt = self._format_prompt(query, full_context, system_prompt, ModelType.LOGIC)
+        
+        logic_output = logic_model(
+            logic_prompt,
+            max_tokens=max_tokens_logic,
+            temperature=temperature,
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
+        )
+        
+        logic_text = logic_output['choices'][0]['text']
+        logic_text = logic_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        logic_tokens = logic_output['usage']['completion_tokens']
+        
+        logger.info(f"[DUAL_GENERATE] LOGIC вывод: {logic_text[:100]}... ({logic_tokens} токенов)")
+        
+        # Этап 2: CONTEXT - расширение с выводом LOGIC
+        logger.info("[DUAL_GENERATE] Этап 2: CONTEXT модель...")
+        
+        if not self._load_model(ModelType.CONTEXT):
+            return GenerationResult(
+                text=logic_text,  # Return LOGIC output if CONTEXT fails
+                model_used="logic_only",
+                generation_time=time.time() - start_time,
+                tokens_generated=logic_tokens,
+                confidence=0.7
+            )
+        
+        context_model = self.models[ModelType.CONTEXT]
+        
+        # Формируем промт для CONTEXT: оригинальный запрос + ответ от LOGIC
+        combined_prompt = self._format_prompt(
+            query=f"Запрос: {query}\n\nКраткий ответ: {logic_text}",
+            context=full_context,
+            system_prompt=system_prompt or "Дай развёрнутый, подробный ответ на основе краткого ответа.",
+            model_type=ModelType.CONTEXT
+        )
+        
+        context_output = context_model(
+            combined_prompt,
+            max_tokens=max_tokens_context,
+            temperature=temperature,
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
+        )
+        
+        context_text = context_output['choices'][0]['text']
+        context_text = context_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        context_tokens = context_output['usage']['completion_tokens']
+        
+        total_time = time.time() - start_time
+        logger.info(f"[DUAL_GENERATE] CONTEXT вывод: {context_text[:100]}... ({context_tokens} токенов)")
+        
+        return GenerationResult(
+            text=context_text,
+            model_used="logic+context",
+            generation_time=total_time,
+            tokens_generated=logic_tokens + context_tokens,
+            confidence=0.85
+        )
+    
     def generate_code(
         self,
         query: str,
