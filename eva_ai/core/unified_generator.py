@@ -42,6 +42,7 @@ class GenerationResult:
     generation_time: float
     tokens_generated: int
     confidence: float = 0.8
+    metadata: Optional[Dict] = None
 
 
 class SimpleRouter:
