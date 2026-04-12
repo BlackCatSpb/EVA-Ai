@@ -1230,70 +1230,7 @@
         return d.innerHTML;
     }
 
-    // Selection popup for text highlighting
-    let selectionPopup = null;
-
-    document.addEventListener('mouseup', function(e) {
-        const selection = window.getSelection();
-        const selectedText = selection.toString().trim();
-        
-        // Remove existing popup
-        if (selectionPopup) {
-            selectionPopup.remove();
-            selectionPopup = null;
-        }
-        
-        if (!selectedText || selectedText.length < 3) return;
-        
-        // Create popup
-        selectionPopup = document.createElement('div');
-        selectionPopup.className = 'selection-popup';
-        selectionPopup.innerHTML = `
-            <button class="selection-btn explain-btn" data-text="${esc(selectedText)}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                Объясни
-            </button>
-            <button class="selection-btn search-btn" data-text="${esc(selectedText)}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Найди в интернете
-            </button>
-        `;
-        
-        // Position popup
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-        selectionPopup.style.position = 'fixed';
-        selectionPopup.style.left = rect.left + 'px';
-        selectionPopup.style.top = (rect.bottom + 5) + 'px';
-        selectionPopup.style.zIndex = '1000';
-        
-        document.body.appendChild(selectionPopup);
-        
-        // Event listeners
-        selectionPopup.querySelector('.explain-btn').addEventListener('click', function() {
-            const text = this.dataset.text;
-            const input = $('#chatInput');
-            if (input) {
-                input.value = `Объясни подробнее: ${text}`;
-                input.focus();
-            }
-            selectionPopup.remove();
-            selectionPopup = null;
-        });
-        
-        selectionPopup.querySelector('.search-btn').addEventListener('click', async function() {
-            const text = this.dataset.text;
-            const input = $('#chatInput');
-            if (input) {
-                input.value = `Найди информацию в интернете: ${text}`;
-                input.focus();
-                // Optionally auto-send
-                // sendMessage(input.value);
-            }
-            selectionPopup.remove();
-            selectionPopup = null;
-        });
-    });
+    /* ── Selection Popup handled below ── */
 
     // Hide popup on click elsewhere
     document.addEventListener('mousedown', function(e) {
@@ -1420,6 +1357,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
             <span>Объяснить</span>
         </button>
+        <button class="popup-btn" data-action="websearch" title="Найди в интернете">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <span>Найди в интернете</span>
+        </button>
         <button class="popup-btn" data-action="translate" title="Перевести">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 8l6 6"/><path d="M4 14l6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="M22 22l-5-10-5 10"/><path d="M14 18h6"/></svg>
             <span>Перевести</span>
@@ -1504,7 +1445,12 @@
                     $('#chatInput').value = `Объясни что значит: "${selectedText}"`;
                     $('#chatInput').focus();
                     break;
-                    
+                
+                case 'websearch':
+                    $('#chatInput').value = `Найди информацию в интернете: "${selectedText}"`;
+                    $('#chatInput').focus();
+                    break;
+                
                 case 'translate':
                     $('#chatInput').value = `Переведи на русский: "${selectedText}"`;
                     $('#chatInput').focus();
