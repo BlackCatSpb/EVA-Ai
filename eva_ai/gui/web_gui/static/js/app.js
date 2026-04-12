@@ -877,8 +877,8 @@
 
     /* ── Chat ── */
     
-    // Streaming mode toggle - ВЫКЛЮЧЁН ПО УМОЛЧАНИЮ (проблема с инициализацией GUI)
-    let streamingMode = false; // localStorage.getItem('streamingMode') === 'true';
+    // Streaming mode - включен по умолчанию для плавного отображения
+    let streamingMode = true; // localStorage.getItem('streamingMode') === 'true';
     
     function sendMessage() {
         if (streamingMode) {
@@ -948,9 +948,13 @@
                             fullText += data.text;
                             chunksReceived++;
                             updateMessageText(msgId, fullText);
-                            updateGenerationProgressStreaming(data);
+                            updateGenerationProgressStreaming(data, fullText);
                         } else if (data.type === 'complete') {
-                            fullText = data.full_text || fullText;
+                            // only add non-empty text that wasn't already sent as chunk
+                            if (data.text && data.text.length > 0 && chunksReceived === 0) {
+                                fullText = data.text;
+                            }
+                            // otherwise fullText already has all chunks
                             updateMessageText(msgId, fullText);
                             hideGenerationProgress();
                             console.log('Complete! Full text length:', fullText.length);
@@ -997,7 +1001,7 @@
         xhr.send(JSON.stringify(body));
     }
     
-    function updateGenerationProgressStreaming(data) {
+    function updateGenerationProgressStreaming(data, fullText = '') {
         // Обновить индикатор генерации для стриминга
         const genProgress = document.getElementById('genProgress');
         if (!genProgress) return;
@@ -1012,10 +1016,13 @@
             fill.style.width = `${Math.round(progress * 100)}%`;
         }
         
-        // Обновляем статус
-        if (label) {
-            const chunks = data.chunk_index !== undefined ? `${data.chunk_index + 1}/${data.total_chunks || '?'}` : '';
-            label.textContent = chunks ? `Чанк ${chunks}` : 'Генерация...';
+        // Обновляем статус - показываем количество символов
+        if (label && fullText) {
+            const charCount = fullText.length;
+            const tokenCount = data.tokens_count || Math.ceil(charCount / 4);
+            label.textContent = `${charCount} симв., ~${tokenCount} токенов`;
+        } else if (label) {
+            label.textContent = 'Генерация...';
         }
         
         // Время
@@ -1247,6 +1254,10 @@
         // Escape HTML first (but preserve markdown)
         html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         
+        // Handle bullet points with emoji (like 🔹, 🔸) BEFORE bold/italic
+        // This handles lines like "🔹 **Разговорный** — текст"
+        html = html.replace(/^[🔹🔸•○◆▪][\s]+(\*\*[^*]+\*\*)[—\-:]?\s*(.+)$/gm, '<li><strong>$1</strong> $2</li>');
+        
         // Headers
         html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
         html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
@@ -1272,8 +1283,9 @@
             return `<pre class="code-block"><code class="language-${langLabel}">${code.trim()}</code></pre>`;
         });
         
-        // Unordered lists
+        // Unordered lists (including emoji bullets like 🔹, 🔸, •, ○)
         html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/^[🔹🔸•○] (.+)$/gm, '<li>$1</li>');
         html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
         
         // Ordered lists

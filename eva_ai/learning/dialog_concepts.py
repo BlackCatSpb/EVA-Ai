@@ -242,8 +242,32 @@ class DialogConceptsMixin:
         # Получаем детали противоречия
         contr_info = self._get_contradiction_info(contr_id)
         
+        # Получаем генератор
+        generator = self._get_unified_generator()
+        
         # Turn 1: Assistant представляет противоречие
-        assistant_content = self._present_contradiction(concept, contr_info)
+        if generator:
+            facts = contr_info.get('conflicting_facts', [])
+            fact_a = facts[0].get('value', 'Точка зрения A') if len(facts) >= 1 else 'Точка зрения A'
+            fact_b = facts[1].get('value', 'Точка зрения B') if len(facts) >= 2 else 'Противоположная точка зрения'
+            
+            prompt_assistant = f"""Представь противоречие по концепту "{concept}":
+
+Точка зрения A: {fact_a}
+Точка зрения B: {fact_b}
+
+Сформулируй это противоречие чётко и объективно."""
+            
+            result = generator.generate_iterative(
+                query=prompt_assistant,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            assistant_content = result.text if result else self._present_contradiction(concept, contr_info)
+        else:
+            assistant_content = self._present_contradiction(concept, contr_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.ASSISTANT,
             content=assistant_content,
@@ -251,7 +275,23 @@ class DialogConceptsMixin:
         ))
         
         # Turn 2: Critic анализирует
-        critic_content = self._analyze_contradiction_sides(concept, contr_info)
+        if generator:
+            prompt_critic = f"""Проанализируй противоречие по концепту "{concept}":
+
+{assistant_content[:300]}
+
+Какие сильные и слабые стороны у каждой точки зрения?"""
+            
+            result = generator.generate_iterative(
+                query=prompt_critic,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            critic_content = result.text if result else self._analyze_contradiction_sides(concept, contr_info)
+        else:
+            critic_content = self._analyze_contradiction_sides(concept, contr_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.CRITIC,
             content=critic_content,
@@ -259,7 +299,24 @@ class DialogConceptsMixin:
         ))
         
         # Turn 3: Learner ищет синтез
-        learner_content = self._synthesize_contradiction(concept, contr_info)
+        if generator:
+            prompt_learner = f"""Найди синтез для противоречия "{concept}":
+
+Точка A: {critic_content[:150]}
+Точка B: {critic_content[150:300] if len(critic_content) > 150 else ''}
+
+Предложи третий путь или компромисс."""
+            
+            result = generator.generate_iterative(
+                query=prompt_learner,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            learner_content = result.text if result else self._synthesize_contradiction(concept, contr_info)
+        else:
+            learner_content = self._synthesize_contradiction(concept, contr_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.LEARNER,
             content=learner_content,
@@ -267,7 +324,24 @@ class DialogConceptsMixin:
         ))
         
         # Turn 4: Teacher формулирует разрешение
-        resolution = self._formulate_resolution(concept, contr_info, dialog.turns)
+        if generator:
+            prompt_teacher = f"""Сформулируй финальное разрешение противоречия "{concept}":
+
+Анализ: {critic_content[:200]}
+Синтез: {learner_content[:200]}
+
+Дай чёткую резолюцию, которая объединяет обе точки зрения."""
+            
+            result = generator.generate_iterative(
+                query=prompt_teacher,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            resolution = result.text if result else self._formulate_resolution(concept, contr_info, dialog.turns)
+        else:
+            resolution = self._formulate_resolution(concept, contr_info, dialog.turns)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.TEACHER,
             content=resolution,
@@ -536,17 +610,16 @@ class DialogConceptsMixin:
         
         try:
             cache = self.brain.hybrid_cache
-            # Ищем ключи с префиксом self_dialog:
-            keys = cache.search_keys("self_dialog:*", limit=limit * 2)
+            # Используем get_recent вместо search_keys
+            if hasattr(cache, 'get_recent'):
+                recent = cache.get_recent(limit=limit * 2)
+                for item in recent:
+                    if isinstance(item, dict) and 'self_dialog' in str(item.get('key', '')):
+                        resolved.append(item)
+            elif hasattr(cache, 'disk_cache') and hasattr(cache.disk_cache, 'get_recent'):
+                recent = cache.disk_cache.get_recent(limit=limit * 2)
+                resolved.extend(recent)
             
-            for key in keys:
-                try:
-                    data = cache.get(key)
-                    if data and isinstance(data, dict):
-                        resolved.append(data)
-                except:
-                    continue
-                    
         except Exception as e:
             logger.debug(f"Ошибка получения знаний из кеша: {e}")
         
@@ -572,12 +645,16 @@ class DialogConceptsMixin:
         try:
             cache = self.brain.hybrid_cache
             
-            # Ищем все разрешённые знания
-            keys = cache.search_keys("self_dialog:resolved_*", limit=50)
+            # Используем get_recent вместо search_keys
+            recent_items = []
+            if hasattr(cache, 'get_recent'):
+                recent_items = cache.get_recent(limit=50)
+            elif hasattr(cache, 'disk_cache') and hasattr(cache.disk_cache, 'get_recent'):
+                recent_items = cache.disk_cache.get_recent(limit=50)
             
-            for key in keys:
+            for item in recent_items:
                 try:
-                    data = cache.get(key)
+                    data = item if isinstance(item, dict) else {}
                     if not data or not isinstance(data, dict):
                         continue
                     
@@ -591,7 +668,7 @@ class DialogConceptsMixin:
                     fact = self._convert_to_fact(data)
                     if fact:
                         knowledge.append(fact)
-                        
+                    
                 except Exception as e:
                     logger.debug(f"Ошибка обработки кеша: {e}")
                     continue

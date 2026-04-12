@@ -19,5 +19,8 @@
   "fractal_graph_v2": {
     "enabled": true,
     "auto_save": true
+  },
+  "web_search": {
+    "tavily_api_key": "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"
   }
 }

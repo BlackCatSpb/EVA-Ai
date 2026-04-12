@@ -31,10 +31,20 @@ except ImportError:
 
 def load_brain_config() -> Dict:
     """Загружает конфигурацию brain"""
-    config_path = os.path.join(os.getcwd(), 'brain_config.json')
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+    # Пробуем несколько путей для поиска конфига
+    possible_paths = [
+        os.path.join(os.getcwd(), 'brain_config.json'),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'brain_config.json'),
+        'C:\\Users\\black\\OneDrive\\Desktop\\CogniFlex\\brain_config.json'
+    ]
+    
+    for config_path in possible_paths:
+        if os.path.exists(config_path):
+            logger.info(f"Found brain_config.json at: {config_path}")
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    
+    logger.warning(f"brain_config.json not found in any of: {possible_paths}")
     return {}
 
 
@@ -43,8 +53,10 @@ def tavily_search(query: str, api_key: str = None, max_results: int = 5) -> Dict
     if not api_key:
         config = load_brain_config()
         api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+        logger.info(f"Loaded config, checking for tavily_api_key: found={bool(api_key)}")
     
     if not api_key:
+        logger.error(f"Tavily API key не найден. Config keys: {config.keys() if config else 'empty'}")
         logger.warning("Tavily API key не найден")
         return {"error": "API key не найден", "results": []}
     
@@ -98,8 +110,10 @@ async def tavily_search_async(
     if not api_key:
         config = load_brain_config()
         api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+        logger.info(f"[ASYNC] Loaded config, checking for tavily_api_key: found={bool(api_key)}")
     
     if not api_key:
+        logger.error(f"[ASYNC] Tavily API key не найден")
         logger.warning("Tavily API key не найден")
         return {"error": "API key не найден", "results": []}
     
@@ -256,6 +270,8 @@ class AsyncWebSearchClient:
 class IntegratedWebSearchEngine(BaseComponent):
     """Интегрированный поисковый движок с поддержкой событий"""
     
+    _instance = None
+    
     def __init__(self, event_bus=None, brain=None, cache_dir: Optional[str] = None):
         super().__init__("web_search_engine", event_bus)
         
@@ -290,6 +306,13 @@ class IntegratedWebSearchEngine(BaseComponent):
         self._async_client: Optional[AsyncWebSearchClient] = None
         
         logger.info(f"IntegratedWebSearchEngine {self.name} инициализирован")
+    
+    @classmethod
+    def get_instance(cls, event_bus=None, brain=None) -> 'IntegratedWebSearchEngine':
+        """Получить экземпляр движка (singleton)"""
+        if cls._instance is None:
+            cls._instance = cls(event_bus=event_bus, brain=brain)
+        return cls._instance
     
     async def _get_async_client(self) -> AsyncWebSearchClient:
         """Получить или создать асинхронный клиент."""
@@ -1070,3 +1093,9 @@ class IntegratedWebSearchEngine(BaseComponent):
 """ + enrichment_result.get('context', '') + """
 
 Используя эти результаты, дай развёрнутый и информативный ответ пользователю."""
+
+
+# Функция для получения экземпляра движка
+def get_web_search_engine() -> Optional[IntegratedWebSearchEngine]:
+    """Получить экземпляр IntegratedWebSearchEngine"""
+    return IntegratedWebSearchEngine.get_instance()

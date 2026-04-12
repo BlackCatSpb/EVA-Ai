@@ -975,16 +975,17 @@ class UnifiedGenerator:
         chunk_size: int = 80
     ) -> Generator[Dict[str, Any], None, None]:
         """
-        Генерация со стримингом токенов.
+        Генерация со стримингом токенов в реальном времени.
         
-        Yields чанки текста по мере генерации для натурального UX.
+        Yields чанки текста ПО МЕРЕ генерации для натурального UX.
+        Использует реальный streaming от GGUF модели.
         
         Args:
             query: Запрос
             context: Дополнительный контекст
             max_tokens: Максимум токенов
             temperature: Температура
-            chunk_size: Размер чанка для выдачи
+            chunk_size: Размер чанка для выдачи (символы)
             
         Yields:
             Dict с 'type', 'text', 'is_final', 'tokens_count', 'elapsed_ms'
@@ -993,37 +994,101 @@ class UnifiedGenerator:
         
         start_time = time.time()
         
-        # 1. Получаем полный ответ
-        result = self.generate(query, context, max_tokens, temperature)
+        # Определяем модель
+        model_type = self.router.route(query)
         
-        if not result or not result.text:
+        # Загружаем модель
+        if not self._load_model(model_type):
+            fallback_type = ModelType.CONTEXT if model_type == ModelType.LOGIC else ModelType.LOGIC
+            if not self._load_model(fallback_type):
+                yield {
+                    'type': 'error',
+                    'text': 'Модели недоступны',
+                    'is_final': True,
+                    'tokens_count': 0,
+                    'elapsed_ms': 0
+                }
+                return
+            model_type = fallback_type
+        
+        model = self.models[model_type]
+        
+        # Формируем промпт
+        full_context = self._build_context(query, context)
+        prompt = self._format_prompt(query, full_context, None, model_type)
+        
+        # Реальный streaming от GGUF
+        full_text = ""
+        buffer = ""
+        delimiter = "\n"
+        
+        try:
+            stream = model(
+                prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+                echo=False,
+                stream=True
+            )
+            
+            for chunk in stream:
+                text = chunk.get('choices', [{}])[0].get('text', '')
+                if not text:
+                    continue
+                
+                buffer += text
+                full_text += text
+                
+                # Отправляем чанк когда накопилось достаточно символов или есть разделитель
+                if len(buffer) >= chunk_size or delimiter in buffer:
+                    parts = buffer.split(delimiter)
+                    while len(parts) > 1:
+                        yield {
+                            'type': 'chunk',
+                            'text': parts[0] + (delimiter if parts[0] else ''),
+                            'is_final': False,
+                            'tokens_count': len(full_text.split()),
+                            'elapsed_ms': int((time.time() - start_time) * 1000),
+                            'chunk_index': 0,
+                            'total_chunks': 0,
+                            'progress': 0
+                        }
+                        parts = parts[1:]
+                    buffer = parts[0] if parts else ""
+            
+            # Отправляем оставшийся текст
+            if buffer:
+                yield {
+                    'type': 'complete',
+                    'text': buffer,
+                    'is_final': True,
+                    'tokens_count': len(full_text.split()),
+                    'elapsed_ms': int((time.time() - start_time) * 1000),
+                    'chunk_index': 0,
+                    'total_chunks': 1,
+                    'progress': 1.0
+                }
+            else:
+                yield {
+                    'type': 'complete',
+                    'text': '',
+                    'is_final': True,
+                    'tokens_count': len(full_text.split()),
+                    'elapsed_ms': int((time.time() - start_time) * 1000),
+                    'chunk_index': 0,
+                    'total_chunks': 1,
+                    'progress': 1.0
+                }
+                
+        except Exception as e:
+            logger.error(f"Streaming generation error: {e}")
             yield {
                 'type': 'error',
-                'text': 'Пустой ответ',
+                'text': f'Ошибка генерации: {str(e)}',
                 'is_final': True,
-                'tokens_count': 0,
-                'elapsed_ms': 0
-            }
-            return
-        
-        full_text = result.text
-        tokens_count = result.tokens_generated or len(full_text.split())
-        
-        # 2. Разбиваем на чанки для стриминга
-        chunks = self._split_text_chunks(full_text, chunk_size)
-        
-        for i, chunk_text in enumerate(chunks):
-            is_final = (i == len(chunks) - 1)
-            
-            yield {
-                'type': 'complete' if is_final else 'chunk',
-                'text': chunk_text,
-                'is_final': is_final,
-                'tokens_count': tokens_count,
-                'elapsed_ms': int((time.time() - start_time) * 1000),
-                'chunk_index': i,
-                'total_chunks': len(chunks),
-                'progress': (i + 1) / len(chunks)
+                'tokens_count': len(full_text.split()),
+                'elapsed_ms': int((time.time() - start_time) * 1000)
             }
     
     def _split_text_chunks(self, text: str, chunk_size: int) -> List[str]:

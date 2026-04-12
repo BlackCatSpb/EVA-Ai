@@ -460,7 +460,10 @@ body {
 .msg-text h3 { font-size: 1.1em; font-weight: 600; margin: 12px 0 4px; }
 .msg-text p { margin: 8px 0; }
 .msg-text ul, .msg-text ol { margin: 8px 0; padding-left: 24px; }
-.msg-text li { margin: 4px 0; }
+.msg-text li { margin: 6px 0; }
+.msg-text li strong { color: #fff; }
+.msg-text ul { list-style: none; padding-left: 8px; }
+.msg-text ul li::before { content: '•'; margin-right: 8px; color: #888; }
 .msg-text blockquote {
     border-left: 3px solid var(--border);
     padding-left: 12px;
@@ -2540,7 +2543,8 @@ body {
 .msg-text h3 { font-size: 1.1em; }
 .msg-text p { margin: 8px 0; }
 .msg-text ul, .msg-text ol { margin: 8px 0; padding-left: 24px; }
-.msg-text li { margin: 4px 0; }
+.msg-text li { margin: 6px 0; }
+.msg-text li strong { color: #fff; }
 .msg-text blockquote {
     border-left: 3px solid #555;
     margin: 8px 0;

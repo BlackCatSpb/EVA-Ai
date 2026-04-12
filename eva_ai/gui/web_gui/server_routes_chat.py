@@ -175,9 +175,9 @@ def register_chat_routes(app, web_gui_instance):
                     
                     for chunk_data in pipeline.generate_streaming(
                         prompt=message,
-                        max_tokens=2048,
+                        max_tokens=4096,  # Увеличено для длинных рассказов
                         temperature=0.7,
-                        chunk_size=100  # ~100 символов на чанк
+                        chunk_size=20  # ~20 символов для плавного появления
                     ):
                         chunk_type = chunk_data.get('type', 'chunk')
                         chunk_text = chunk_data.get('text', '')

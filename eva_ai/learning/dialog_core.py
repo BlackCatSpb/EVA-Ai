@@ -241,8 +241,8 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
             if not cache:
                 return
             
-            # Ищем ключи сырых контекстов
-            raw_context_keys = cache.search_keys("raw_context:*", limit=10)
+            # Используем get_recent вместо search_keys
+            raw_context_keys = cache.get_recent("raw_context:", limit=10)
             
             if not raw_context_keys:
                 return
