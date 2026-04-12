@@ -1245,7 +1245,29 @@
         // Parse markdown using marked library
         let html = marked.parse(escaped);
         
+        // Add copy button to code blocks (GPT-like)
+        html = html.replace(/<pre><code class="language-(\w+)">([\s\S]*?)<\/code><\/pre>/g, function(match, lang, code) {
+            const langLabel = lang || 'text';
+            const codeId = 'code_' + Math.random().toString(36).substr(2, 9);
+            return `
+                <div class="code-block" id="${codeId}">
+                    <div class="code-header">
+                        <span class="code-lang">${langLabel}</span>
+                        <button class="code-copy" onclick="copyCode(this, '${codeId}')">Copy</button>
+                    </div>
+                    <pre><code class="language-${langLabel}">${code}</code></pre>
+                </div>
+            `;
+        });
+        
         return html;
+    }
+    
+    function copyCode(btn, codeId) {
+        const code = document.querySelector('#' + codeId + ' code').textContent;
+        navigator.clipboard.writeText(code);
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy', 2000);
     }
 
     /* ── Status Indicator ── */
