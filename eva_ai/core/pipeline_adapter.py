@@ -70,15 +70,15 @@ class PipelineAdapter:
             # Определяем параметры генерации
             user_context = context or {}
             params = gen_params or {}
-            max_tokens = params.get('max_new_tokens', 512)
+            max_tokens = params.get('max_new_tokens', 1024)  # Увеличено с 512 до 1024
             temperature = params.get('temperature', 0.7)
             
             # Используем итеративную генерацию с проверкой противоречий
             result = self._generator.generate_iterative(
                 query=query,
                 context=None,
-                max_tokens_logic=max_tokens // 4,  # 1/4 для LOGIC
-                max_tokens_context=max_tokens,      # полный для CONTEXT
+                max_tokens_logic=256,  # Увеличено с max_tokens//4
+                max_tokens_context=1024,  # Увеличено с max_tokens
                 temperature=temperature,
                 check_contradictions=True,
                 check_concepts=True
