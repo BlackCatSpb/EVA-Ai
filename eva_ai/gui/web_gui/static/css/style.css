@@ -2583,6 +2583,40 @@ body {
     text-decoration: underline;
 }
 
+/* Selection popup */
+.selection-popup {
+    display: flex;
+    gap: 8px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.selection-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.selection-btn:hover {
+    background: var(--bg4);
+    border-color: var(--accent);
+}
+
+.selection-btn svg {
+    flex-shrink: 0;
+}
+
 /* Code block - GPT-like canvas style */
 .code-block {
     background: #1e1e1e;

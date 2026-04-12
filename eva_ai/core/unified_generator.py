@@ -520,7 +520,7 @@ class UnifiedGenerator:
         
         context_model = self.models[ModelType.CONTEXT]
         
-        # Формируем расширенный контекст с концептами и противоречиями
+        # Формируем расширенный контекст с концептами, противоречиями и веб-поиском
         enriched_context = full_context
         
         if check_concepts:
@@ -532,6 +532,11 @@ class UnifiedGenerator:
             contradictions_context = self._get_contradictions_context(query)
             if contradictions_context:
                 enriched_context += f"\n\nИзвестные противоречия: {contradictions_context}"
+        
+        # Веб-поиск для актуальной информации
+        web_context = self._get_web_search_context(query)
+        if web_context:
+            enriched_context += f"\n\nАктуальная информация из интернета: {web_context}"
         
         combined_prompt = self._format_prompt(
             query=f"Запрос: {query}\n\nКраткий ответ: {logic_text}",
@@ -626,6 +631,39 @@ class UnifiedGenerator:
             
         except Exception as e:
             logger.debug(f"Could not get contradictions: {e}")
+            return ""
+    
+    def _get_web_search_context(self, query: str) -> str:
+        """Получить актуальную информацию из веб-поиска."""
+        try:
+            # Проверяем нужен ли веб-поиск
+            from eva_ai.core.brain_query import needs_web_search
+            need_search, _ = needs_web_search(query)
+            
+            if not need_search:
+                return ""
+            
+            from eva_ai.websearch.web_search_integrated import get_web_search_engine
+            web_search = get_web_search_engine()
+            if not web_search or not hasattr(web_search, 'search'):
+                return ""
+            
+            # Выполняем поиск
+            results = web_search.search(query, max_results=3)
+            if not results:
+                return ""
+            
+            search_text = []
+            for r in results:
+                title = r.get('title', '')[:80]
+                content = r.get('content', '')[:200]
+                if title and content:
+                    search_text.append(f"- {title}: {content}")
+            
+            return "\n".join(search_text) if search_text else ""
+            
+        except Exception as e:
+            logger.debug(f"Could not get web search: {e}")
             return ""
     
     def generate_code(
