@@ -23,10 +23,35 @@ from .confidence_scorer import (
     calculate_adaptive_confidence
 )
 from .clarification_generator import ClarificationGenerator
-from .sre_context import *
-from .sre_quality import *
+from .sre_context import (
+    _build_contextual_query,
+    _get_wikipedia_context,
+    _determine_query_type,
+    _get_generation_params,
+    _generate_with_qwen,
+    _generate_simple_response,
+    _get_knowledge_response,
+)
+from .sre_quality import (
+    check_quality,
+    _sanitize_response,
+    _clean_filler_start,
+    _remove_looping_blocks,
+    _check_relevance,
+)
 from .sre_feedback import *
-from .sre_recursive import *
+from .sre_recursive import (
+    _recursive_process_query,
+    _check_semantic_stability,
+    _recursive_reasoning_step,
+    _is_complex_query,
+    decompose_query,
+    retrieve_similar_reasoning,
+    build_recursive_context,
+    _synthesize_recursive_results,
+    _linear_process_query,
+    _init_retriever,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -836,6 +861,16 @@ class SelfReasoningEngine:
             'max_iterations': self.max_iterations
         }
 
+    # Methods imported from sre_context, sre_quality, sre_recursive:
+    _build_contextual_query = _build_contextual_query
+    _determine_query_type = _determine_query_type
+    _check_response_quality = check_quality
+    _init_retriever = _init_retriever
+    _get_generation_params = _get_generation_params
+    _is_complex_query = _is_complex_query
+    _check_relevance = _check_relevance
+    _generate_with_qwen = _generate_with_qwen
+
     def health_check(self) -> Dict[str, Any]:
         checks = {
             "engine_initialized": True,
@@ -852,9 +887,6 @@ class SelfReasoningEngine:
             "checks": checks,
             "stats": self.get_stats()
         }
-
-    _check_response_quality = check_quality
-    _init_retriever = _init_retriever
 
 
 def create_reasoning_engine(brain, config: Optional[Dict] = None) -> SelfReasoningEngine:

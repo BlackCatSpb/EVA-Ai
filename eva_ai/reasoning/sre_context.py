@@ -9,6 +9,17 @@ from typing import Dict, Any, Optional, List
 
 logger = logging.getLogger(__name__)
 
+# Явно экспортируем все функции для import *
+__all__ = [
+    '_build_contextual_query',
+    '_get_wikipedia_context',
+    '_determine_query_type',
+    '_get_generation_params',
+    '_generate_with_qwen',
+    '_generate_simple_response',
+    '_get_knowledge_response',
+]
+
 
 def _build_contextual_query(self, query: str, conversation_history: List[Dict]) -> str:
     """
@@ -16,7 +27,7 @@ def _build_contextual_query(self, query: str, conversation_history: List[Dict]) 
     """
     parts = []
 
-    wiki_context = self._get_wikipedia_context(query)
+    wiki_context = _get_wikipedia_context(self, query)
     if wiki_context:
         parts.append(f"Справочная информация из Википедии:\n{wiki_context}")
 
@@ -110,77 +121,55 @@ def _get_generation_params(self, query_type: str) -> Dict[str, Any]:
 
 def _generate_with_qwen(self, prompt: str) -> str:
     """
-    Генерация ответа с fallback на разные модели
-    Приоритет: Qwen → FractalModelManager → ResponseGenerator
+    Генерация ответа с fallback на доступные модели.
+    Упрощенная цепочка: GenerationCoordinator → ResponseGenerator → Simple Response
+    (QwenModelManager и FractalModelManager отключены - используется UnifiedGenerator)
     """
-    try:
-        if self._qwen_cached is None:
-            with self._qwen_init_lock:
-                if self._qwen_cached is None:
-                    if self.brain is not None:
-                        qwen = getattr(self.brain, 'qwen_model_manager', None)
-                    else:
-                        qwen = None
-
-                    if qwen is None or not getattr(qwen, 'initialized', False):
-                        try:
-                            from eva_ai.mlearning.qwen_model_manager import get_qwen_model_manager
-                            qwen = get_qwen_model_manager(
-                                model_size='qwen3.5-0.8b',
-                                device='auto',
-                                load_in_8bit=True
-                            )
-                            if qwen is not None:
-                                self._qwen_cached = qwen
-                        except Exception as e:
-                            logger.warning(f"Failed to initialize Qwen: {e}")
-
-        if self._qwen_cached is not None and getattr(self._qwen_cached, 'initialized', False):
-            messages = [{"role": "user", "content": prompt}]
-            response = self._qwen_cached.generate(
-                messages,
-                max_new_tokens=self.max_new_tokens,
-                temperature=0.7,
-                top_p=0.9,
-                top_k=50,
-                repetition_penalty=1.1
-            )
-            if response:
-                return response
-    except Exception as e:
-        logger.debug(f"Qwen generation failed: {e}")
-
-    try:
-        if self.brain is not None:
-            fractal_mm = getattr(self.brain, 'fractal_model_manager', None)
-            if fractal_mm and hasattr(fractal_mm, 'generate_response'):
-                response = fractal_mm.generate_response(prompt)
-                if response:
-                    return response
-    except Exception as e:
-        logger.debug(f"FractalModelManager generation failed: {e}")
-
-    try:
-        if self.brain is not None:
-            resp_gen = getattr(self.brain, 'response_generator', None)
-            if resp_gen and hasattr(resp_gen, 'generate'):
-                result = resp_gen.generate(prompt)
-                if result and isinstance(result, dict):
-                    return result.get('text', result.get('response', ''))
-                elif result:
-                    return str(result)
-    except Exception as e:
-        logger.debug(f"ResponseGenerator generation failed: {e}")
-
+    # 1. Пробуем GenerationCoordinator (основной, использует UnifiedGenerator)
     try:
         if self.brain is not None:
             gen_coord = getattr(self.brain, 'generation_coordinator', None)
             if gen_coord and hasattr(gen_coord, 'generate'):
                 result = gen_coord.generate(text=prompt, source="reasoning_engine")
                 if result:
-                    return result.text if hasattr(result, 'text') else str(result)
+                    text = result.text if hasattr(result, 'text') else str(result)
+                    if text and len(text.strip()) > 10:
+                        logger.debug("Generated via GenerationCoordinator")
+                        return text
     except Exception as e:
         logger.debug(f"GenerationCoordinator failed: {e}")
+
+    # 2. Пробуем ResponseGenerator
+    try:
+        if self.brain is not None:
+            resp_gen = getattr(self.brain, 'response_generator', None)
+            if resp_gen and hasattr(resp_gen, 'generate'):
+                result = resp_gen.generate(prompt)
+                if result:
+                    if isinstance(result, dict):
+                        text = result.get('text', result.get('response', ''))
+                    else:
+                        text = str(result)
+                    if text and len(text.strip()) > 10:
+                        logger.debug("Generated via ResponseGenerator")
+                        return text
+    except Exception as e:
+        logger.debug(f"ResponseGenerator generation failed: {e}")
+
+    # 3. Пробуем two_model_pipeline (UnifiedGenerator через PipelineAdapter)
+    try:
+        if self.brain is not None:
+            pipeline = getattr(self.brain, 'two_model_pipeline', None)
+            if pipeline and hasattr(pipeline, 'generate'):
+                result = pipeline.generate(prompt, max_tokens=512, temperature=0.7)
+                if result and len(result.strip()) > 10:
+                    logger.debug("Generated via two_model_pipeline")
+                    return result
+    except Exception as e:
+        logger.debug(f"TwoModelPipeline generation failed: {e}")
+
+    # Примечание: QwenModelManager и FractalModelManager отключены
+    # Они возвращают None через get_qwen_model_manager() и get_fractal_qwen()
 
     logger.warning("Все генераторы недоступны, используем простой ответ")
     return self._generate_simple_response(prompt)

@@ -85,9 +85,9 @@ class EnhancedReasoningEngine:
         # Qwen для генерации ответов (GPU)
         self._qwen = None
         
-        # Fractal Qwen для генерации промтов (CPU)
+        # Fractal Qwen DISABLED - using UnifiedGenerator
         self._fractal_qwen = None
-        self._use_fractal_for_prompts = config.get('use_fractal_qwen', True) if config else True
+        self._use_fractal_for_prompts = False
         
         logger.info(f"EnhancedReasoningEngine initialized: max_iterations={self.max_iterations}, fractal_qwen={self._use_fractal_for_prompts}")
     
@@ -108,28 +108,23 @@ class EnhancedReasoningEngine:
             logger.info("WebSearch connected")
     
     def _get_qwen(self):
-        """Получает экземпляр Qwen или GGUF если PyTorch отключён"""
+        """Получает экземпляр генератора - используем UnifiedGenerator (two_model_pipeline)"""
         if self._qwen is not None:
             return self._qwen
         
-        # Проверяем, отключён ли PyTorch
-        disable_pytorch = False
+        # Используем UnifiedGenerator через two_model_pipeline
         try:
-            if self.brain and hasattr(self.brain, 'config'):
-                disable_pytorch = self.brain.config.get('model', {}).get('disable_pytorch', False)
-        except Exception:
-            pass
+            if self.brain is not None:
+                # Проверяем two_model_pipeline (UnifiedGenerator через PipelineAdapter)
+                pipeline = getattr(self.brain, 'two_model_pipeline', None)
+                if pipeline and getattr(self.brain, 'two_model_pipeline_ready', False):
+                    logger.info("Using UnifiedGenerator (two_model_pipeline) for generation")
+                    self._qwen = pipeline
+                    return self._qwen
+        except Exception as e:
+            logger.debug(f"Cannot get UnifiedGenerator from brain: {e}")
         
-        # Если PyTorch отключён, пробуем GGUF
-        if disable_pytorch:
-            try:
-                if self.brain and hasattr(self.brain, 'llama_cpp_deployment') and self.brain.llama_cpp_deployment:
-                    logger.info("PyTorch отключён - используем GGUF в EnhancedReasoningEngine")
-                    return self.brain.llama_cpp_deployment
-            except Exception as e:
-                logger.debug(f"Cannot get GGUF: {e}")
-            return None
-        
+        # Fallback: пробуем старые методы
         try:
             if self.brain is not None:
                 self._qwen = getattr(self.brain, 'qwen_model_manager', None)
@@ -138,18 +133,8 @@ class EnhancedReasoningEngine:
         except Exception as e:
             logger.debug(f"Cannot get Qwen from brain: {e}")
         
-        # Fallback: пробуем импортировать
-        try:
-            from eva_ai.mlearning.qwen_model_manager import get_qwen_model_manager
-            self._qwen = get_qwen_model_manager(
-                model_size='qwen3.5-0.8b',
-                device='auto',
-                load_in_8bit=True
-            )
-            return self._qwen
-        except Exception as e:
-            logger.warning(f"Cannot initialize Qwen: {e}")
-            return None
+        logger.warning("No generation model available (UnifiedGenerator not ready)")
+        return None
     
     def _get_fractal_qwen(self):
         """Получает экземпляр Fractal Qwen для генерации промтов"""
@@ -419,26 +404,42 @@ class EnhancedReasoningEngine:
         query: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """Генерирует начальный ответ через Qwen"""
-        qwen = self._get_qwen()
+        """
+        Генерирует начальный ответ через UnifiedGenerator.
+        Унифицированный API: всегда передаем строку prompt, получаем строку response.
+        """
+        generator = self._get_qwen()
         
-        if qwen is None or not getattr(qwen, 'initialized', False):
-            logger.warning("Qwen not available, using fallback response")
+        if generator is None:
+            logger.warning("Generator not available, using fallback response")
             return self._fallback_response(query)
         
         # Формируем промпт с историей
         prompt = self._build_prompt(query, conversation_history)
         
         try:
-            messages = [{"role": "user", "content": prompt}]
-            response = qwen.generate(
-                messages,
-                max_new_tokens=2048,
-                temperature=0.7
-            )
-            return response if response else self._fallback_response(query)
+            # Унифицированный вызов: всегда строка
+            if hasattr(generator, 'generate'):
+                result = generator.generate(
+                    prompt,  # Строка!
+                    max_tokens=2048,
+                    temperature=0.7
+                )
+                # Обрабатываем результат (может быть строкой или объектом)
+                if isinstance(result, str):
+                    return result if result.strip() else self._fallback_response(query)
+                elif hasattr(result, 'text'):
+                    return result.text if result.text and result.text.strip() else self._fallback_response(query)
+                else:
+                    response_str = str(result)
+                    return response_str if response_str.strip() else self._fallback_response(query)
+            else:
+                logger.warning("Generator has no generate method")
+                return self._fallback_response(query)
         except Exception as e:
-            logger.error(f"Qwen generation error: {e}")
+            logger.error(f"Generation error in _generate_response: {e}")
+            import traceback
+            traceback.print_exc()
             return self._fallback_response(query)
     
     async def _regenerate_response(
@@ -542,22 +543,30 @@ class EnhancedReasoningEngine:
             # Добавляем контекст к промпту
             final_prompt = context_text + composed.full_prompt if context_text else composed.full_prompt
         
-        # Генерируем через основной Qwen (GPU)
-        qwen = self._get_qwen()
-        if qwen is None or not getattr(qwen, 'initialized', False):
-            logger.warning("Qwen not available for regeneration")
+        # Генерируем через UnifiedGenerator
+        generator = self._get_qwen()
+        if generator is None:
+            logger.warning("Generator not available for regeneration")
             return previous_response
         
         try:
-            messages = [{"role": "user", "content": final_prompt}]
-            response = qwen.generate(
-                messages,
-                max_new_tokens=1024,
+            result = generator.generate(
+                final_prompt,  # Строка!
+                max_tokens=1024,
                 temperature=0.7
             )
-            return response if response else previous_response
+            # Унифицированная обработка результата
+            if isinstance(result, str):
+                return result if result.strip() else previous_response
+            elif hasattr(result, 'text'):
+                return result.text if result.text and result.text.strip() else previous_response
+            else:
+                response_str = str(result)
+                return response_str if response_str.strip() else previous_response
         except Exception as e:
             logger.error(f"Regeneration error: {e}")
+            import traceback
+            traceback.print_exc()
             return previous_response
     
     def _build_prompt(self, query: str, history: Optional[List[Dict]] = None) -> str:
@@ -716,23 +725,34 @@ Answer:"""
         return combined
     
     async def _generate_with_context(self, context: str, query: str) -> str:
-        """Генерирует ответ с объединённым контекстом."""
-        qwen = self._get_qwen()
+        """
+        Генерирует ответ с объединённым контекстом через UnifiedGenerator.
+        Унифицированный API: всегда передаем строку context.
+        """
+        generator = self._get_qwen()
         
-        if not qwen or not getattr(qwen, 'initialized', False):
-            logger.warning("Qwen not available for context generation")
+        if generator is None:
+            logger.warning("Generator not available for context generation")
             return ""
         
         try:
-            messages = [{"role": "user", "content": context}]
-            response = qwen.generate(
-                messages,
-                max_new_tokens=1024,
+            result = generator.generate(
+                context,  # Строка!
+                max_tokens=1024,
                 temperature=0.7
             )
-            return response if response else ""
+            # Унифицированная обработка результата
+            if isinstance(result, str):
+                return result if result.strip() else ""
+            elif hasattr(result, 'text'):
+                return result.text if result.text and result.text.strip() else ""
+            else:
+                response_str = str(result)
+                return response_str if response_str.strip() else ""
         except Exception as e:
             logger.error(f"Context generation error: {e}")
+            import traceback
+            traceback.print_exc()
             return ""
     
     def _fallback_response(self, query: str) -> str:

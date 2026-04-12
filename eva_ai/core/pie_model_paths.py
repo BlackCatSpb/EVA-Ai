@@ -1,0 +1,127 @@
+"""
+Pie Architecture Model Paths Configuration
+
+Конфигурация путей к моделям для Pie Architecture.
+Модели остаются в eva_pie_architecture/models/
+"""
+
+from pathlib import Path
+from typing import Dict, Optional
+
+# Базовая директория моделей
+PIE_MODELS_BASE = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models")
+
+# Пути к конкретным моделям
+PIE_MODEL_PATHS = {
+    "qwen_0.5b": {
+        "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-0.5b-instruct-q4_0.gguf",
+        "extended": PIE_MODELS_BASE / "gguf_models" / "recursion_gguf" / "qwen2.5-0.5b-instruct-q4_0-recursion.gguf",
+    },
+    "qwen_3b": {
+        "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-3b-instruct" / "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "extended": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-3b-instruct" / "qwen2.5-3b-instruct-q4_k_m_model_b.gguf",
+    },
+    "ruadapt_qwen3_4b": {
+        "condensed": PIE_MODELS_BASE / "gguf_models" / "ruadapt_qwen3_4b_q4_k_m.gguf",
+    },
+    "qwen_coder_1_5b": {
+        "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-coder-1.5b-instruct" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+    },
+    "embeddings": {
+        "semantic": PIE_MODELS_BASE / "embeddings" / "sentence-transformers" / "all-MiniLM-L6-v2",
+    }
+}
+
+
+def get_pie_model_path(model_name: str, variant: str = "condensed") -> Optional[Path]:
+    """
+    Получить путь к модели Pie Architecture.
+    
+    Args:
+        model_name: Имя модели ('qwen_0.5b', 'qwen_3b', etc.)
+        variant: Вариант ('condensed', 'extended')
+        
+    Returns:
+        Path к модели или None если не найдена
+    """
+    model_config = PIE_MODEL_PATHS.get(model_name)
+    if not model_config:
+        return None
+    
+    path = model_config.get(variant)
+    if path and path.exists():
+        return path
+    
+    return None
+
+
+def get_available_pie_models() -> Dict[str, list]:
+    """
+    Получить список доступных моделей.
+    
+    Returns:
+        Dict с именами моделей и их вариантами
+    """
+    available = {}
+    
+    for model_name, variants in PIE_MODEL_PATHS.items():
+        available_variants = []
+        for variant, path in variants.items():
+            if isinstance(path, Path) and path.exists():
+                available_variants.append(variant)
+        
+        if available_variants:
+            available[model_name] = available_variants
+    
+    return available
+
+
+def verify_pie_models() -> Dict[str, bool]:
+    """
+    Проверить доступность всех моделей.
+    
+    Returns:
+        Dict с именами моделей и статусом доступности
+    """
+    status = {}
+    
+    for model_name, variants in PIE_MODEL_PATHS.items():
+        for variant, path in variants.items():
+            if isinstance(path, Path):
+                key = f"{model_name}/{variant}"
+                status[key] = path.exists()
+    
+    return status
+
+
+# Для backward compatibility - маппинг на старые пути
+def map_to_legacy_paths(pie_path: Path) -> Path:
+    """
+    Маппинг пути Pie Architecture на legacy пути eva_ai.
+    
+    Если нужно будет перенести модели позже.
+    """
+    # Пока просто возвращаем как есть
+    return pie_path
+
+
+if __name__ == "__main__":
+    # Тестирование путей
+    print("Pie Architecture Model Paths")
+    print("=" * 60)
+    
+    print("\nAll configured paths:")
+    for model_name, variants in PIE_MODEL_PATHS.items():
+        print(f"\n{model_name}:")
+        for variant, path in variants.items():
+            if isinstance(path, Path):
+                exists = "OK" if path.exists() else "MISSING"
+                print(f"  [{exists}] {variant}: {path}")
+            else:
+                print(f"  [CFG] {variant}: {path}")
+    
+    print("\n" + "=" * 60)
+    print("Available models:")
+    available = get_available_pie_models()
+    for model_name, variants in available.items():
+        print(f"  {model_name}: {', '.join(variants)}")

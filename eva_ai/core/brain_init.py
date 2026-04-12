@@ -13,7 +13,10 @@ logger = logging.getLogger("eva_ai.core_brain")
 
 def _init_fractal_final(brain):
     """Finalize fractal model initialization and set models_ready flag."""
-    if brain.fractal_model_manager:
+    brain.fractal_ready = False
+    
+    # Check if fractal_model_manager exists and is not None
+    if hasattr(brain, 'fractal_model_manager') and brain.fractal_model_manager:
         try:
             if hasattr(brain.fractal_model_manager, 'initialized') and brain.fractal_model_manager.initialized:
                 brain.fractal_ready = True
@@ -23,6 +26,12 @@ def _init_fractal_final(brain):
             brain.fractal_ready = False
         if brain.fractal_ready and brain.events:
             brain.events.trigger('fractal_model_ready', brain.fractal_model_manager)
+    
+    # UnifiedGenerator is our main pipeline - check if it's ready
+    if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline and hasattr(brain, 'two_model_pipeline_ready'):
+        if brain.two_model_pipeline_ready:
+            brain.fractal_ready = True
+    
     ml_ready = False
     if hasattr(brain, 'ml_unit') and brain.ml_unit:
         ml_ready = getattr(brain.ml_unit, 'models_ready', False) or getattr(brain.ml_unit, 'initialized', False) or getattr(brain.ml_unit, 'running', False)

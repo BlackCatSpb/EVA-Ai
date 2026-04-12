@@ -808,7 +808,8 @@ class FractalGraphV2:
     def _simple_clustering(
         self,
         level_nodes: List[Tuple[str, FractalNode]],
-        threshold: float
+        threshold: float,
+        level: int = 1
     ) -> Dict[str, List[str]]:
         """Простая кластеризация - присоединение к ближайшей группе."""
         clusters = {}

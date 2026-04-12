@@ -273,21 +273,11 @@ _fractal_qwen_instance: Optional[FractalQwenManager] = None
 def get_fractal_qwen(
     force_reload: bool = False,
     device: str = "cpu"
-) -> FractalQwenManager:
+) -> Optional[FractalQwenManager]:
     """
-    Возвращает синглтон экземпляр FractalQwenManager.
+    DISABLED - Using UnifiedGenerator instead of FractalQwenManager.
     
-    Args:
-        force_reload: Принудительная перезагрузка
-        device: Устройство (только cpu)
-        
-    Returns:
-        FractalQwenManager
+    Returns None to prevent fractal_qwen loading.
     """
-    global _fractal_qwen_instance
-    
-    if _fractal_qwen_instance is None or force_reload:
-        _fractal_qwen_instance = FractalQwenManager(device=device)
-        _fractal_qwen_instance.initialize()
-    
-    return _fractal_qwen_instance
+    logger.info("FractalQwenManager disabled - using UnifiedGenerator")
+    return None

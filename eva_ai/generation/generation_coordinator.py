@@ -294,8 +294,71 @@ class ResponseGeneratorProvider(GenerationProvider):
         return 2
 
 
+class UnifiedGeneratorProvider(GenerationProvider):
+    """Провайдер для UnifiedGenerator (Pie Architecture)"""
+    
+    def __init__(self, unified_generator):
+        self.unified_generator = unified_generator
+    
+    def is_available(self) -> bool:
+        return self.unified_generator is not None and getattr(self.unified_generator, 'is_ready', False)
+    
+    def generate(self, request: GenerationRequest) -> GenerationResponse:
+        start_time = time.time()
+        
+        try:
+            if not self.is_available():
+                return GenerationResponse(
+                    text="",
+                    status="error",
+                    error_message="UnifiedGenerator недоступен",
+                    source="unified_generator"
+                )
+            
+            # Генерация через UnifiedGenerator (PipelineAdapter -> UnifiedGenerator)
+            result = self.unified_generator.generate(
+                prompt=request.text,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature
+            )
+            
+            generation_time = time.time() - start_time
+            
+            # PipelineAdapter возвращает текст напрямую
+            if isinstance(result, str):
+                text = result
+                model_name = "unified_generator"
+                status = "ok"
+            else:
+                text = str(result)
+                model_name = "unified_generator"
+                status = "ok"
+            
+            return GenerationResponse(
+                text=text,
+                status=status,
+                source="unified_generator",
+                model_name=model_name,
+                generation_time=generation_time,
+                metadata={"provider": "UnifiedGeneratorProvider", "model": getattr(result, 'model_used', 'unknown') if hasattr(result, 'model_used') else 'unknown'}
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка генерации через UnifiedGenerator: {e}")
+            return GenerationResponse(
+                text="",
+                status="error",
+                error_message=str(e),
+                source="unified_generator",
+                generation_time=time.time() - start_time
+            )
+    
+    def get_priority(self) -> int:
+        return 0  # Высший приоритет
+
+
 class MLUnitProvider(GenerationProvider):
-    """Провайдер на основе MLUnit"""
+    """Провайдер для MLUnit"""
     
     def __init__(self, ml_unit):
         self.ml_unit = ml_unit
@@ -500,7 +563,16 @@ def initialize_generation_coordinator(brain):
     
     # Регистрируем провайдеров в порядке приоритета
     
-    # 1. HybridModelManager (высший приоритет)
+    # 0. UnifiedGenerator (высший приоритет - Pie Architecture)
+    if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline and hasattr(brain, 'two_model_pipeline_ready') and brain.two_model_pipeline_ready:
+        try:
+            unified_provider = UnifiedGeneratorProvider(brain.two_model_pipeline)
+            coordinator.register_provider(unified_provider)
+            logger.info("[OK] Зарегистрирован UnifiedGeneratorProvider (Pie Architecture)")
+        except Exception as e:
+            logger.warning(f"[WARN] Ошибка регистрации UnifiedGeneratorProvider: {e}")
+    
+    # 1. HybridModelManager
     if hasattr(brain, 'model_manager') and brain.model_manager:
         # Проверяем является ли это HybridModelManager
         if hasattr(brain.model_manager, 'get_available_models') and hasattr(brain.model_manager, 'generate_response'):

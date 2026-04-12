@@ -154,7 +154,12 @@ def get_qwen_model_manager(
     
     Все модули должны использовать эту функцию вместо создания собственных
     экземпляров QwenModelManager.
+    
+    DISABLED - Using UnifiedGenerator instead.
     """
+    logger.info("QwenModelManager disabled - using UnifiedGenerator")
+    return None
+    
     global _qwen_model_manager_instance
     
     # Если уже есть экземпляр и он инициализирован - возвращаем его

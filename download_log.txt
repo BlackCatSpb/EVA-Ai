@@ -1,0 +1,86 @@
+C:\Users\black\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\huggingface_hub\utils\_validators.py:190: UserWarning: The `resume_download` argument is deprecated and ignored in `hf_hub_download`. Downloads always resume whenever possible.
+  warnings.warn(
+C:\Users\black\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\huggingface_hub\utils\_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+
+============================================================
+╙╤╥└═╬┬╩└ ╚ ╥┼╤╥╚╨╬┬└═╚┼ RuadaptQwen3-4B
+============================================================
+[OK] huggingface_hub єёЄрэютыхэ (v1.8.0)
+============================================================
+╤╩└╫╚┬└═╚┼ ╠╬─┼╦╚ RuadaptQwen3-4B-Instruct
+============================================================
+╨хяючшЄюЁшщ: RefalMachine/RuadaptQwen3-4B-Instruct-GGUF
+╘рщы: Q4_K_M.gguf
+╨рчьхЁ: ~2.49 GB
+╩трэЄшчрЎш : Q4_K_M
+============================================================
+
+[...] ═рўшэрхь ёърўштрэшх...
+     (¤Єю ьюцхЄ чрэ Є№ 10-20 ьшэєЄ т чртшёшьюёЄш юЄ ёъюЁюёЄш)
+     ═рцьшЄх Ctrl+C фы  юЄьхэ√
+
+
+[OK] ╠юфхы№ ёърўрэр єёях°эю!
+     ╧єЄ№: C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models\Q4_K_M.gguf
+     ╨рчьхЁ: 2371.3 MB
+
+Traceback (most recent call last):
+  File "C:\Users\black\OneDrive\Desktop\CogniFlex\download_ruadapt.py", line 126, in test_model
+    model = Llama(
+        model_path=str(MODEL_PATH),
+    ...<2 lines>...
+        verbose=False
+    )
+  File "C:\Users\black\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\llama_cpp\llama.py", line 371, in __init__
+    _LlamaModel(
+    ~~~~~~~~~~~^
+        path_model=self.model_path,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        params=self.model_params,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+        verbose=self.verbose,
+        ^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\black\AppData\Local\Packages\PythonSoftwareFoundation.Python.3.13_qbz5n2kfra8p0\LocalCache\local-packages\Python313\site-packages\llama_cpp\_internals.py", line 55, in __init__
+    raise ValueError(f"Failed to load model from file: {path_model}")
+ValueError: Failed to load model from file: C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models\Q4_K_M.gguf
+[?] ╒юЄшЄх яЁюЄхёЄшЁютрЄ№ ьюфхы№? (y/n): 
+============================================================
+╥┼╤╥╚╨╬┬└═╚┼ ╠╬─┼╦╚
+============================================================
+[...] ╟руЁєчър llama-cpp-python...
+[...] ╟руЁєчър ьюфхыш т ярь Є№...
+     (¤Єю ьюцхЄ чрэ Є№ 1-2 ьшэєЄ√)
+[FAIL] ╬°шсър ЄхёЄшЁютрэш : Failed to load model from file: C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models\Q4_K_M.gguf
+
+[WARN] ╥хёЄшЁютрэшх чртхЁ°шыюё№ ё ю°шсърьш
+       ═ю ьюфхы№ ёърўрэр ш фюыцэр ЁрсюЄрЄ№
+
+============================================================
+╬┴═╬┬╦┼═╚┼ ╩╬═╘╚├╙╨└╓╚╚
+============================================================
+[WARN] ═х єфрыюё№ ртЄюьрЄшўхёъш юсэютшЄ№ ъюэЇшуєЁрЎш■
+[INFO] ─юсрт№Єх т C:\Users\black\OneDrive\Desktop\CogniFlex\eva_ai\core\pie_model_paths.py:
+    "ruadapt_qwen3_4b": {
+        "condensed": MODEL_DIR / "gguf_models" / "Q4_K_M.gguf",
+        "tokenizer_config": "qwen3",
+        "chat_template": "qwen3",
+    },
+
+============================================================
+╙╤╥└═╬┬╩└ ╟└┬┼╨╪┼═└
+============================================================
+[OK] ╠юфхы№: C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models\Q4_K_M.gguf
+[OK] ╨рчьхЁ: 2371.3 MB
+
+[USAGE]
+     from eva_ai.core.pie_model_paths import get_pie_model_path
+     path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
+
+[PIE INTEGRATION]
+     ─ы  шёяюы№чютрэш  т Pie Architecture:
+     pie_fallback = PieFallbackGenerator(
+         model_path=get_pie_model_path('ruadapt_qwen3_4b')
+     )

@@ -7,6 +7,14 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    'check_quality',
+    '_sanitize_response',
+    '_clean_filler_start',
+    '_remove_looping_blocks',
+    '_check_relevance',
+]
+
 
 def check_quality(self, response: str, query: str) -> Dict[str, Any]:
     """Проверяет качество ответа модели"""
