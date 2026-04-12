@@ -105,11 +105,6 @@ def register_core_routes(app, web_gui_instance):
             'status': 'ok',
             'message': 'EVA shutdown initiated'
         })
-        else:
-            status['brain_connected'] = False
-            status['brain_running'] = False
-        
-        return jsonify(status)
     
     @app.route('/api/debug/deferred')
     def api_debug_deferred():
