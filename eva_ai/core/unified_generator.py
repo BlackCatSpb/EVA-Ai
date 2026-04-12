@@ -458,11 +458,10 @@ class UnifiedGenerator:
         check_concepts: bool = True
     ) -> GenerationResult:
         """
-        Трёхэтапная итеративная генерация с проверкой противоречий и концептов:
+        Двухэтапная генерация с обогащением контекста концептами и противоречиями:
         
         1. LOGIC - даёт краткий ответ
-        2. CONTEXT - расширяет ответ  
-        3. LOGIC (рефлексия) - проверяет противоречия и концепты, корректирует ответ
+        2. CONTEXT - расширяет ответ + добавляет связанные концепты и противоречия из FractalGraph
         
         Args:
             query: Запрос пользователя
@@ -471,20 +470,20 @@ class UnifiedGenerator:
             max_tokens_context: Максимум токенов для CONTEXT модели
             temperature: Температура
             system_prompt: Системный промпт
-            check_contradictions: Проверять противоречия
-            check_concepts: Проверять релевантные концепты
+            check_contradictions: Включить противоречия в контекст
+            check_concepts: Включить концепты в контекст
             
         Returns:
-            GenerationResult от финальной LOGIC модели
+            GenerationResult от CONTEXT модели
         """
         start_time = time.time()
-        logger.info(f"[ITERATIVE] Начало итеративной генерации для: {query[:30]}...")
+        logger.info(f"[ITERATIVE] Начало генерации для: {query[:30]}...")
         
         # Получаем дополнительный контекст из FractalGraph
         full_context = self._build_context(query, context)
         
         # Этап 1: LOGIC - первичный краткий ответ
-        logger.info("[ITERATIVE] Этап 1: LOGIC (первичный ответ)...")
+        logger.info("[ITERATIVE] Этап 1: LOGIC...")
         
         if not self._load_model(ModelType.LOGIC):
             return GenerationResult(
@@ -511,20 +510,33 @@ class UnifiedGenerator:
         logic_text = logic_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
         logic_tokens = logic_output['usage']['completion_tokens']
         
-        logger.info(f"[ITERATIVE] LOGIC-1: {logic_text[:100]}...")
+        logger.info(f"[ITERATIVE] LOGIC: {logic_text[:80]}...")
         
-        # Этап 2: CONTEXT - расширение
-        logger.info("[ITERATIVE] Этап 2: CONTEXT (расширение)...")
+        # Этап 2: CONTEXT - расширение с добавлением концептов и противоречий
+        logger.info("[ITERATIVE] Этап 2: CONTEXT (с концептами и противоречиями)...")
         
         if not self._load_model(ModelType.CONTEXT):
             return GenerationResult(text=logic_text, model_used="logic_only", generation_time=time.time()-start_time, tokens_generated=logic_tokens, confidence=0.7)
         
         context_model = self.models[ModelType.CONTEXT]
         
+        # Формируем расширенный контекст с концептами и противоречиями
+        enriched_context = full_context
+        
+        if check_concepts:
+            concepts_context = self._get_concepts_context(query)
+            if concepts_context:
+                enriched_context += f"\n\nСвязанные концепты: {concepts_context}"
+        
+        if check_contradictions:
+            contradictions_context = self._get_contradictions_context(query)
+            if contradictions_context:
+                enriched_context += f"\n\nИзвестные противоречия: {contradictions_context}"
+        
         combined_prompt = self._format_prompt(
             query=f"Запрос: {query}\n\nКраткий ответ: {logic_text}",
-            context=full_context,
-            system_prompt=system_prompt or "Дай развёрнутый, подробный ответ.",
+            context=enriched_context,
+            system_prompt=system_prompt or "Дай развёрнутый, подробный ответ на основе краткого ответа и связанных концептов.",
             model_type=ModelType.CONTEXT
         )
         
@@ -537,78 +549,84 @@ class UnifiedGenerator:
             repeat_penalty=1.1
         )
         
-        context_text = context_output['choices'][0]['text']
-        context_text = context_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
-        context_tokens = context_output['usage']['completion_tokens']
-        
-        logger.info(f"[ITERATIVE] CONTEXT: {context_text[:100]}...")
-        
-        # Этап 3: LOGIC (рефлексия) - проверка противоречий и концептов
-        logger.info("[ITERATIVE] Этап 3: LOGIC (рефлексия и коррекция)...")
-        
-        # Формируем промпт для рефлексии
-        reflection_prompt = f"""Запрос пользователя: {query}
-
-Предыдущий краткий ответ: {logic_text}
-
-Расширенный контекст: {context_text}
-
-"""
-        
-        if check_contradictions:
-            reflection_prompt += """Проанализируй расширенный контекст на наличие противоречий. 
-Если найдены противоречия между кратким ответом и расширенным контекстом, укажи их и предложи исправленную версию ответа.
-
-"""
-        
-        if check_concepts:
-            reflection_prompt += """Определи ключевые концепты и идеи из расширенного контекста. 
-Покажи как они связаны с запросом пользователя.
-
-"""
-        
-        reflection_prompt += """Дай финальный, согласованный ответ учитывая всю информацию выше."""
-        
-        reflection_prompt_formatted = self._format_prompt(
-            query=reflection_prompt,
-            context=full_context,
-            system_prompt="Ты - система рефлексии. Проверь согласованность ответа, найди противоречия и концепты.",
-            model_type=ModelType.LOGIC
-        )
-        
-        reflection_output = logic_model(
-            reflection_prompt_formatted,
-            max_tokens=max_tokens_logic * 2,
-            temperature=temperature * 0.9,  # Немного меньше для более стабильного вывода
-            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
-            echo=False,
-            repeat_penalty=1.1
-        )
-        
-        final_text = reflection_output['choices'][0]['text']
+        final_text = context_output['choices'][0]['text']
         final_text = final_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
-        final_tokens = reflection_output['usage']['completion_tokens']
+        final_tokens = context_output['usage']['completion_tokens']
         
         total_time = time.time() - start_time
-        total_tokens = logic_tokens + context_tokens + final_tokens
+        total_tokens = logic_tokens + final_tokens
         
-        logger.info(f"[ITERATIVE] Финальный ответ: {final_text[:100]}... ({final_tokens} токенов)")
+        logger.info(f"[ITERATIVE] Финальный ответ: {final_text[:80]}... ({final_tokens} токенов)")
         
         return GenerationResult(
             text=final_text,
-            model_used="logic+context+logic_reflection",
+            model_used="logic+context",
             generation_time=total_time,
             tokens_generated=total_tokens,
-            confidence=0.9,
-            metadata={
-                "logic_1": logic_text[:200],
-                "context": context_text[:200],
-                "logic_reflection": final_text[:200],
-                "stages": 3,
-                "contradictions_checked": check_contradictions,
-                "concepts_checked": check_concepts
-            }
+            confidence=0.85
         )
+    
+    def _get_concepts_context(self, query: str) -> str:
+        """Получить связанные концепты из FractalGraphV2."""
+        try:
+            from eva_ai.memory.fractal_graph_v2 import get_fractal_graph
+            fg = get_fractal_graph()
+            if not fg:
+                return ""
+            
+            # Поиск похожих концептов
+            concepts = fg.search_nodes(
+                query=query,
+                node_type='concept',
+                limit=5
+            )
+            
+            if not concepts:
+                return ""
+            
+            concepts_text = []
+            for c in concepts:
+                name = c.get('name', '')
+                description = c.get('description', '')[:100]
+                if name and description:
+                    concepts_text.append(f"- {name}: {description}")
+            
+            return "\n".join(concepts_text) if concepts_text else ""
+            
+        except Exception as e:
+            logger.debug(f"Could not get concepts: {e}")
+            return ""
+    
+    def _get_contradictions_context(self, query: str) -> str:
+        """Получить противоречия из FractalGraphV2."""
+        try:
+            from eva_ai.memory.fractal_graph_v2 import get_fractal_graph
+            fg = get_fractal_graph()
+            if not fg:
+                return ""
+            
+            # Поиск противоречий
+            contradictions = fg.search_nodes(
+                query=query,
+                node_type='contradiction',
+                limit=3
+            )
+            
+            if not contradictions:
+                return ""
+            
+            contr_text = []
+            for c in contradictions:
+                title = c.get('title', '')
+                description = c.get('description', '')[:100]
+                if title and description:
+                    contr_text.append(f"- {title}: {description}")
+            
+            return "\n".join(contr_text) if contr_text else ""
+            
+        except Exception as e:
+            logger.debug(f"Could not get contradictions: {e}")
+            return ""
     
     def generate_code(
         self,

@@ -86,7 +86,6 @@ class PipelineAdapter:
             
             # Формируем ответ в формате TwoModelPipeline
             response_text = result.text if result else "Нет ответа"
-            result_metadata = getattr(result, 'metadata', {}) if result else {}
             
             return {
                 "response": response_text,
@@ -98,61 +97,32 @@ class PipelineAdapter:
                 "confidence": result.confidence if result else 0,
                 # Для совместимости с SRE
                 "model_a_result": {
-                    "natural_response": result_metadata.get("logic_1", "logic_completed")[:300],
+                    "natural_response": "logic_completed",
                     "confidence": 0.8,
-                    "tokens": result.tokens_generated // 3 if result else 0,
+                    "tokens": result.tokens_generated // 2 if result else 0,
                     "model": "logic"
                 },
                 "model_b_result": {
-                    "natural_response": result_metadata.get("context", response_text)[:300],
+                    "natural_response": response_text[:300],
                     "confidence": result.confidence if result else 0,
-                    "tokens": result.tokens_generated // 3 if result else 0,
+                    "tokens": result.tokens_generated // 2 if result else 0,
                     "model": "context"
                 },
                 "reasoning_steps": [
                     {
                         "step": 1,
                         "phase": "logic_primary",
-                        "thought": f"LOGIC: {result_metadata.get('logic_1', 'generated')[:100]}...",
+                        "thought": "LOGIC: краткий ответ сгенерирован",
                         "confidence": 0.8,
                         "model": "logic"
                     },
                     {
                         "step": 2,
                         "phase": "context_expansion",
-                        "thought": f"CONTEXT: расширенный контекст ({result.tokens_generated//3 if result else 0} токенов)",
-                        "confidence": 0.85,
+                        "thought": "CONTEXT: расширение с концептами и противоречиями",
+                        "confidence": result.confidence if result else 0,
                         "model": "context",
                         "input": query
-                    },
-                    {
-                        "step": 3,
-                        "phase": "logic_reflection",
-                        "thought": "LOGIC: рефлексия с проверкой противоречий и концептов",
-                        "confidence": result.confidence if result else 0,
-                        "model": "logic",
-                        "output": response_text[:200]
-                    },
-                    {
-                        "step": 4,
-                        "phase": "contradiction_check",
-                        "thought": "Проверка противоречий в ответе",
-                        "confidence": 0.9 if result_metadata.get("contradictions_checked") else 0,
-                        "model": "logic"
-                    },
-                    {
-                        "step": 5,
-                        "phase": "concepts_extraction",
-                        "thought": "Извлечение ключевых концептов",
-                        "confidence": 0.9 if result_metadata.get("concepts_checked") else 0,
-                        "model": "logic"
-                    },
-                    {
-                        "step": 6,
-                        "phase": "final_synthesis",
-                        "thought": "Финальный согласованный ответ",
-                        "confidence": result.confidence if result else 0,
-                        "model": "logic"
                     }
                 ]
             }
