@@ -82,6 +82,11 @@ def register_core_routes(app, web_gui_instance):
                 status['components'] = len(web_gui_instance.brain.components)
             if hasattr(web_gui_instance.brain, 'get_state'):
                 status['brain_state'] = str(web_gui_instance.brain.get_state())
+        else:
+            status['brain_connected'] = False
+            status['brain_running'] = False
+        
+        return jsonify(status)
 
     @app.route('/api/shutdown', methods=['POST'])
     def api_shutdown():
