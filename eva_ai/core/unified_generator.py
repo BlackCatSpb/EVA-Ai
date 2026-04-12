@@ -73,8 +73,16 @@ class SimpleRouter:
         'предыдущее', 'previous', 'выше', 'above',
         'суммаризируй', 'summarize', 'итог', 'summary',
         'анализируй', 'analyze', 'сравни', 'compare',
-        'документация', 'documentation', 'спецификация'
+        'документация', 'documentation', 'спецификация',
+        # Общие вопросительные слова - для использования CONTEXT модели
+        'что такое', 'кто такой', 'как работает', 'почему происходит',
+        'объясни', 'расскажи', 'опиши', 'характеристики',
+        'преимущества', 'недостатки', 'разница между', 'отличие',
+        'что это', 'кто это', 'для чего', 'зачем нужно'
     ]
+
+    # Минимальная длина для CONTEXT модели
+    MIN_LENGTH_FOR_CONTEXT = 25
     
     def route(self, query: str) -> ModelType:
         """Определить тип модели для запроса."""
@@ -85,9 +93,11 @@ class SimpleRouter:
         if coder_score >= 2:
             return ModelType.CODER
         
-        # Проверяем длинный контекст
+        # Проверяем длинный контекст или вопросительные слова
         context_score = sum(1 for kw in self.CONTEXT_KEYWORDS if kw in query_lower)
-        if context_score >= 1:
+        
+        # Если есть ключевые слова контекста ИЛИ запрос достаточно длинный
+        if context_score >= 1 or len(query) >= self.MIN_LENGTH_FOR_CONTEXT:
             return ModelType.CONTEXT
         
         # По умолчанию - LOGIC
@@ -258,7 +268,7 @@ class UnifiedGenerator:
         
         # Определяем модель
         model_type = self.router.route(query)
-        logger.info(f"[GENERATE] Выбрана модель: {model_type}")
+        logger.info(f"[GENERATE] Выбрана модель: {model_type}, длина запроса: {len(query)}")
         
         # Загружаем модель
         if not self._load_model(model_type):
