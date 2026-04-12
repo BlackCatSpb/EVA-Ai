@@ -445,6 +445,170 @@ class UnifiedGenerator:
             confidence=0.85
         )
     
+    def generate_iterative(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens_logic: int = 256,
+        max_tokens_context: int = 512,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        check_contradictions: bool = True,
+        check_concepts: bool = True
+    ) -> GenerationResult:
+        """
+        Трёхэтапная итеративная генерация с проверкой противоречий и концептов:
+        
+        1. LOGIC - даёт краткий ответ
+        2. CONTEXT - расширяет ответ  
+        3. LOGIC (рефлексия) - проверяет противоречия и концепты, корректирует ответ
+        
+        Args:
+            query: Запрос пользователя
+            context: Дополнительный контекст из FractalGraph
+            max_tokens_logic: Максимум токенов для LOGIC модели
+            max_tokens_context: Максимум токенов для CONTEXT модели
+            temperature: Температура
+            system_prompt: Системный промпт
+            check_contradictions: Проверять противоречия
+            check_concepts: Проверять релевантные концепты
+            
+        Returns:
+            GenerationResult от финальной LOGIC модели
+        """
+        start_time = time.time()
+        logger.info(f"[ITERATIVE] Начало итеративной генерации для: {query[:30]}...")
+        
+        # Получаем дополнительный контекст из FractalGraph
+        full_context = self._build_context(query, context)
+        
+        # Этап 1: LOGIC - первичный краткий ответ
+        logger.info("[ITERATIVE] Этап 1: LOGIC (первичный ответ)...")
+        
+        if not self._load_model(ModelType.LOGIC):
+            return GenerationResult(
+                text="Ошибка: LOGIC модель недоступна",
+                model_used="none",
+                generation_time=0.0,
+                tokens_generated=0,
+                confidence=0.0
+            )
+        
+        logic_model = self.models[ModelType.LOGIC]
+        logic_prompt = self._format_prompt(query, full_context, system_prompt, ModelType.LOGIC)
+        
+        logic_output = logic_model(
+            logic_prompt,
+            max_tokens=max_tokens_logic,
+            temperature=temperature,
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1
+        )
+        
+        logic_text = logic_output['choices'][0]['text']
+        logic_text = logic_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        logic_tokens = logic_output['usage']['completion_tokens']
+        
+        logger.info(f"[ITERATIVE] LOGIC-1: {logic_text[:100]}...")
+        
+        # Этап 2: CONTEXT - расширение
+        logger.info("[ITERATIVE] Этап 2: CONTEXT (расширение)...")
+        
+        if not self._load_model(ModelType.CONTEXT):
+            return GenerationResult(text=logic_text, model_used="logic_only", generation_time=time.time()-start_time, tokens_generated=logic_tokens, confidence=0.7)
+        
+        context_model = self.models[ModelType.CONTEXT]
+        
+        combined_prompt = self._format_prompt(
+            query=f"Запрос: {query}\n\nКраткий ответ: {logic_text}",
+            context=full_context,
+            system_prompt=system_prompt or "Дай развёрнутый, подробный ответ.",
+            model_type=ModelType.CONTEXT
+        )
+        
+        context_output = context_model(
+            combined_prompt,
+            max_tokens=max_tokens_context,
+            temperature=temperature,
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1
+        )
+        
+        context_text = context_output['choices'][0]['text']
+        context_text = context_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        context_tokens = context_output['usage']['completion_tokens']
+        
+        logger.info(f"[ITERATIVE] CONTEXT: {context_text[:100]}...")
+        
+        # Этап 3: LOGIC (рефлексия) - проверка противоречий и концептов
+        logger.info("[ITERATIVE] Этап 3: LOGIC (рефлексия и коррекция)...")
+        
+        # Формируем промпт для рефлексии
+        reflection_prompt = f"""Запрос пользователя: {query}
+
+Предыдущий краткий ответ: {logic_text}
+
+Расширенный контекст: {context_text}
+
+"""
+        
+        if check_contradictions:
+            reflection_prompt += """Проанализируй расширенный контекст на наличие противоречий. 
+Если найдены противоречия между кратким ответом и расширенным контекстом, укажи их и предложи исправленную версию ответа.
+
+"""
+        
+        if check_concepts:
+            reflection_prompt += """Определи ключевые концепты и идеи из расширенного контекста. 
+Покажи как они связаны с запросом пользователя.
+
+"""
+        
+        reflection_prompt += """Дай финальный, согласованный ответ учитывая всю информацию выше."""
+        
+        reflection_prompt_formatted = self._format_prompt(
+            query=reflection_prompt,
+            context=full_context,
+            system_prompt="Ты - система рефлексии. Проверь согласованность ответа, найди противоречия и концепты.",
+            model_type=ModelType.LOGIC
+        )
+        
+        reflection_output = logic_model(
+            reflection_prompt_formatted,
+            max_tokens=max_tokens_logic * 2,
+            temperature=temperature * 0.9,  # Немного меньше для более стабильного вывода
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1
+        )
+        
+        final_text = reflection_output['choices'][0]['text']
+        final_text = final_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        final_tokens = reflection_output['usage']['completion_tokens']
+        
+        total_time = time.time() - start_time
+        total_tokens = logic_tokens + context_tokens + final_tokens
+        
+        logger.info(f"[ITERATIVE] Финальный ответ: {final_text[:100]}... ({final_tokens} токенов)")
+        
+        return GenerationResult(
+            text=final_text,
+            model_used="logic+context+logic_reflection",
+            generation_time=total_time,
+            tokens_generated=total_tokens,
+            confidence=0.9,
+            metadata={
+                "logic_1": logic_text[:200],
+                "context": context_text[:200],
+                "logic_reflection": final_text[:200],
+                "stages": 3,
+                "contradictions_checked": check_contradictions,
+                "concepts_checked": check_concepts
+            }
+        )
+    
     def generate_code(
         self,
         query: str,
