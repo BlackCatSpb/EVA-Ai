@@ -4,7 +4,7 @@ import json
 import time
 import threading
 import logging
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +225,51 @@ class TokenDiskCache:
     def __len__(self) -> int:
         with self._lock:
             return len(self.file_index)
+    
+    def get_recent(self, limit: int = 20) -> List[Dict]:
+        """Получить недавно использованные записи из дискового кэша."""
+        with self._lock:
+            try:
+                # Сортируем по времени последнего доступа
+                sorted_items = sorted(
+                    self.file_index.items(),
+                    key=lambda x: x[1].get('last_access', 0),
+                    reverse=True
+                )
+                
+                results = []
+                for token_id, meta in sorted_items[:limit]:
+                    data = self.get(token_id)
+                    if data:
+                        results.append(data)
+                
+                return results
+            except Exception as e:
+                logger.error(f"Ошибка получения недавних записей: {e}")
+                return []
+    
+    def search(self, query: str, limit: int = 10) -> List[Dict]:
+        """Поиск по содержимому дискового кэша."""
+        results = []
+        
+        # Ищем в индексе ключевые слова
+        query_words = set(query.lower().split())
+        
+        with self._lock:
+            for token_id, meta in self.file_index.items():
+                # Проверяем метаданные
+                keywords = meta.get('keywords', [])
+                text_preview = meta.get('text_preview', '')
+                
+                text_lower = (text_preview + ' ' + ' '.join(keywords)).lower()
+                
+                matches = sum(1 for w in query_words if w in text_lower)
+                if matches >= 1:
+                    data = self.get(token_id)
+                    if data:
+                        data['_relevance'] = matches / len(query_words) if query_words else 0
+                        results.append(data)
+        
+        # Сортируем по релевантности
+        results.sort(key=lambda x: x.get('_relevance', 0), reverse=True)
+        return results[:limit]

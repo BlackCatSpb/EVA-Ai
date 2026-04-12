@@ -129,50 +129,90 @@ def register_chat_routes(app, web_gui_instance):
             mode = data.get('mode', 'extended')
             
             def generate_stream():
-                """Генератор для SSE."""
+                """Генератор для SSE со стримингом чанков."""
                 try:
-                    # Получаем dual_generator
-                    dg = None
-                    if (web_gui_instance.brain and 
-                        hasattr(web_gui_instance.brain, 'two_model_pipeline') and
-                        web_gui_instance.brain.two_model_pipeline and
-                        hasattr(web_gui_instance.brain.two_model_pipeline, 'dual_generator')):
-                        dg = web_gui_instance.brain.two_model_pipeline.dual_generator
+                    # Получаем PipelineAdapter с UnifiedGenerator
+                    pipeline = None
                     
-                    if not dg:
-                        yield f"data: {json.dumps({'type': 'error', 'text': 'Generator not available'})}\n\n"
+                    logger.info(f"web_gui_instance: {web_gui_instance}")
+                    logger.info(f"web_gui_instance.brain: {getattr(web_gui_instance, 'brain', 'NO ATTR')}")
+                    
+                    if (web_gui_instance and 
+                        hasattr(web_gui_instance, 'brain') and
+                        web_gui_instance.brain and
+                        hasattr(web_gui_instance.brain, 'two_model_pipeline') and
+                        web_gui_instance.brain.two_model_pipeline):
+                        pipeline = web_gui_instance.brain.two_model_pipeline
+                        logger.info(f"Pipeline type: {type(pipeline)}")
+                    
+                    if not pipeline:
+                        error_msg = 'Pipeline не найден - GUI brain не инициализирован'
+                        logger.error(error_msg)
+                        yield f"data: {json.dumps({'type': 'error', 'text': error_msg})}\n\n"
+                        return
+                    
+                    if not hasattr(pipeline, 'generate_streaming'):
+                        error_msg = 'Pipeline не поддерживает streaming'
+                        logger.error(error_msg)
+                        yield f"data: {json.dumps({'type': 'error', 'text': error_msg})}\n\n"
                         return
                     
                     # Отправляем начало
                     yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
                     
-                    # Генерируем поток токенов
+                    # Получаем контекст из FractalGraph
+                    context = ""
+                    fractal_graph = None
+                    hybrid_cache = None
+                    
+                    if web_gui_instance.brain:
+                        fractal_graph = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
+                        hybrid_cache = getattr(web_gui_instance.brain, 'hybrid_cache', None)
+                    
+                    # Генерируем со стримингом чанков
                     full_text = ""
-                    for chunk in dg.generate_streaming(message, mode=mode):
-                        chunk_data = {
-                            'type': chunk.get('type', 'chunk'),
-                            'text': chunk.get('text', ''),
-                            'tokens_count': chunk.get('tokens_count', 0),
-                            'elapsed_ms': chunk.get('elapsed_ms', 0)
-                        }
-                        full_text += chunk.get('text', '')
+                    chunk_count = 0
+                    
+                    for chunk_data in pipeline.generate_streaming(
+                        prompt=message,
+                        max_tokens=2048,
+                        temperature=0.7,
+                        chunk_size=100  # ~100 символов на чанк
+                    ):
+                        chunk_type = chunk_data.get('type', 'chunk')
+                        chunk_text = chunk_data.get('text', '')
                         
-                        yield f"data: {json.dumps(chunk_data)}\n\n"
+                        if chunk_text:
+                            full_text += chunk_text
+                            chunk_count += 1
                         
-                        if chunk.get('type') == 'complete':
+                        # Отправляем чанк клиенту
+                        yield f"data: {json.dumps({
+                            'type': chunk_type,
+                            'text': chunk_text,
+                            'is_final': chunk_data.get('is_final', False),
+                            'tokens_count': chunk_data.get('tokens_count', 0),
+                            'elapsed_ms': chunk_data.get('elapsed_ms', 0),
+                            'chunk_index': chunk_data.get('chunk_index', 0),
+                            'total_chunks': chunk_data.get('total_chunks', 0),
+                            'progress': chunk_data.get('progress', 0)
+                        })}\n\n"
+                        
+                        # Если это финальный чанк - выходим
+                        if chunk_data.get('is_final', False):
                             break
                     
                     # Сохраняем в историю
-                    if session_id:
+                    if session_id and full_text:
                         web_gui_instance.session_manager.add_chat_message(
                             session_id, 'assistant', full_text
                         )
                     
                     # Отправляем завершение
-                    yield f"data: {json.dumps({'type': 'done', 'full_text': full_text})}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'full_text': full_text, 'chunks_sent': chunk_count})}\n\n"
                     
                 except Exception as e:
-                    logger.error(f"Streaming error: {e}")
+                    logger.error(f"Streaming error: {e}", exc_info=True)
                     yield f"data: {json.dumps({'type': 'error', 'text': str(e)})}\n\n"
             
             return Response(

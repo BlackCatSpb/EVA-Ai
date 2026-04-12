@@ -41,14 +41,6 @@ def _init_managers(brain):
         brain.config_manager = None
         query_logger.warning("Менеджер конфигурации недоступен")
     
-    # Инициализация прогнозной деградации (P0)
-    try:
-        if hasattr(brain, '_init_proactive_fallback'):
-            brain._init_proactive_fallback()
-            query_logger.info("Proactive fallback initialized in _init_managers")
-    except Exception as e:
-        query_logger.warning(f"Proactive fallback init error: {e}")
-
     try:
         from .system_state import SystemStateManager, SystemState
         brain.state_manager = SystemStateManager()
@@ -484,19 +476,11 @@ def _init_preprocessing(brain):
 
 
 def _init_qwen_config(brain):
+    """DISABLED - Using UnifiedGenerator instead of QwenModelManager"""
     brain.qwen_model_manager = None
     brain._qwen_config = None
-    try:
-        model_config = brain.config.get('model', {})
-        model_type = model_config.get('type', '')
-        model_name = model_config.get('name', '')
-        if model_type == 'qwen' or model_name.startswith('qwen'):
-            brain._qwen_config = model_config
-            query_logger.info(f"QwenModelManager будет загружен при первом запросе (type={model_type}, name={model_name})")
-        else:
-            query_logger.warning(f"Qwen НЕ ЗАГРУЖЕН: model.type='{model_type}', model.name='{model_name}'")
-    except Exception as e:
-        query_logger.warning(f"Qwen config не найден: {e}")
+    query_logger.info("QwenModelManager disabled - using UnifiedGenerator")
+    return
 
 
 def _init_background(brain):
@@ -940,3 +924,97 @@ class ComponentMixin:
             return {"error": "Invalid format. Use: add subject | relation | object"}
         
         return {"error": f"Unknown command: {command}"}
+
+
+
+def _init_unified_generator(brain):
+    '''Инициализация UnifiedGenerator (Pie-based architecture).'''
+    brain.two_model_pipeline = None
+    brain.two_model_pipeline_ready = False
+    
+    try:
+        model_config = brain.config.get('model', {})
+        
+        # Проверяем включён ли unified generator
+        if not model_config.get('use_unified_generator', True):
+            query_logger.info('UnifiedGenerator отключён в конфигурации, используем legacy pipeline')
+            # Fallback на старую инициализацию
+            _init_two_model_pipeline(brain)
+            return
+        
+        # Получаем пути к трем моделям: LOGIC, CONTEXT и CODER
+        logic_model_path = model_config.get('logic_model_path')
+        context_model_path = model_config.get('context_model_path')
+        coder_model_path = model_config.get('coder_model_path')
+        
+        # Если пути не указаны, используем defaults
+        if not logic_model_path or not context_model_path or not coder_model_path:
+            try:
+                from eva_ai.core.pie_model_paths import get_pie_model_path
+                
+                # LOGIC и CONTEXT - ruadapt_qwen3_4b
+                if not logic_model_path:
+                    logic_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
+                if not context_model_path:
+                    context_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
+                
+                # CODER - qwen_coder_1_5b
+                if not coder_model_path:
+                    coder_model_path = get_pie_model_path('qwen_coder_1_5b', 'condensed')
+                    
+            except Exception as e:
+                query_logger.warning(f'Could not load model paths: {e}')
+                # Default paths
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                if not logic_model_path:
+                    logic_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 
+                                                    'ruadapt_qwen3_4b_q4_k_m.gguf')
+                if not context_model_path:
+                    context_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 
+                                                      'ruadapt_qwen3_4b_q4_k_m.gguf')
+                if not coder_model_path:
+                    coder_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models',
+                                                    'qwen2.5-coder-1.5b-instruct', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf')
+        
+        # Проверяем существование файлов
+        if not os.path.exists(logic_model_path):
+            query_logger.error(f'LOGIC model not found: {logic_model_path}')
+            return
+        if not os.path.exists(context_model_path):
+            query_logger.error(f'CONTEXT model not found: {context_model_path}')
+            return
+        if not os.path.exists(coder_model_path):
+            query_logger.error(f'CODER model not found: {coder_model_path}')
+            return
+        
+        n_ctx = model_config.get('llama_cpp_n_ctx', 32768)  # Максимальный контекст для Pie
+        n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 4)
+        
+        # Создаём PipelineAdapter с UnifiedGenerator
+        from eva_ai.core.pipeline_adapter import create_pipeline_adapter
+        
+        adapter = create_pipeline_adapter(
+            logic_model_path=logic_model_path,
+            context_model_path=context_model_path,
+            coder_model_path=coder_model_path,
+            n_ctx=n_ctx,
+            n_threads=n_threads,
+            fractal_graph=getattr(brain, 'fractal_graph_v2', None),
+            brain=brain
+        )
+        
+        if adapter:
+            brain.two_model_pipeline = adapter
+            brain.two_model_pipeline_ready = True
+            query_logger.info('UnifiedGenerator (Pie-based) инициализирован успешно')
+            query_logger.info(f'  LOGIC (RuadaptQwen3-4B condensed): {logic_model_path}')
+            query_logger.info(f'  CONTEXT (RuadaptQwen3-4B extended): {context_model_path}')
+            query_logger.info(f'  CODER (Qwen Coder 1.5B): {coder_model_path}')
+        else:
+            query_logger.error('Failed to create PipelineAdapter')
+            
+    except Exception as e:
+        query_logger.error(f'Ошибка инициализации UnifiedGenerator: {e}')
+        brain.two_model_pipeline = None
+        brain.two_model_pipeline_ready = False
+

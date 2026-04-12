@@ -187,10 +187,10 @@ def create_qwen_api_enhancer(initializer):
         from eva_ai.knowledge.qwen_api_enhancer import QwenAPIEnhancer
 
         api_key = os.environ.get('OPENROUTER_API_KEY', '')
-        enhancer = QwenAPIEnhancer(api_key=api_key, enable_fallbacks=True)
+        enhancer = QwenAPIEnhancer(api_key=api_key)
 
         initializer.core_brain.qwen_api_enhancer = enhancer
-        initializer.logger.info(f"[OK] QwenAPIEnhancer создан: {enhancer.get_status()}")
+        initializer.logger.info(f"[OK] QwenAPIEnhancer создан")
         return enhancer
     except Exception as e:
         initializer.logger.error(f"[FAIL] Ошибка создания qwen_api_enhancer: {e}", exc_info=True)

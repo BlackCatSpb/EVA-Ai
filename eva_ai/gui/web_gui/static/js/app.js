@@ -877,8 +877,8 @@
 
     /* ── Chat ── */
     
-    // Streaming mode toggle
-    let streamingMode = localStorage.getItem('streamingMode') === 'true';
+    // Streaming mode toggle - ВЫКЛЮЧЁН ПО УМОЛЧАНИЮ (проблема с инициализацией GUI)
+    let streamingMode = false; // localStorage.getItem('streamingMode') === 'true';
     
     function sendMessage() {
         if (streamingMode) {
@@ -905,7 +905,7 @@
         
         // Создаем сообщение для ассистента сразу (будем обновлять)
         const msgId = 'msg-' + Date.now();
-        addMsg('system', '', null, null, null, msgId);
+        addMsg('system', 'Генерация...', null, null, null, msgId);
         
         showGenerationProgress('start');
         
@@ -923,6 +923,11 @@
         const xhr = new XMLHttpRequest();
         let fullText = '';
         let buffer = '';
+        let chunksReceived = 0;
+        
+        // Обновляем статус на "Генерация..."
+        const statusEl = document.querySelector('#genLabel');
+        if (statusEl) statusEl.textContent = 'Генерация...';
         
         xhr.open('POST', '/api/chat/stream', true);
         xhr.setRequestHeader('Content-Type', 'application/json');
@@ -937,45 +942,103 @@
                 if (line.startsWith('data: ')) {
                     try {
                         const data = JSON.parse(line.substring(6));
+                        console.log('SSE chunk:', data.type, data.text?.substring(0, 50));
                         
                         if (data.type === 'chunk') {
                             fullText += data.text;
+                            chunksReceived++;
                             updateMessageText(msgId, fullText);
-                            updateGenerationProgress(data.tokens_count, data.elapsed_ms);
+                            updateGenerationProgressStreaming(data);
                         } else if (data.type === 'complete') {
                             fullText = data.full_text || fullText;
                             updateMessageText(msgId, fullText);
                             hideGenerationProgress();
+                            console.log('Complete! Full text length:', fullText.length);
                         } else if (data.type === 'error') {
                             updateMessageText(msgId, 'Ошибка: ' + data.text);
                             hideGenerationProgress();
+                            console.error('Error:', data.text);
                         }
                     } catch (e) {
-                        // Игнорируем неполные JSON
+                        console.log('JSON parse error (incomplete):', e.message);
                     }
                 }
             }
         };
         
         xhr.onload = function() {
+            if (xhr.status !== 200) {
+                console.error('XHR Status:', xhr.status);
+            }
             hideGenerationProgress();
             clearFile();
         };
         
-        xhr.onerror = function() {
+        xhr.onerror = function(e) {
             hideGenerationProgress();
-            updateMessageText(msgId, 'Ошибка соединения');
+            console.error('XHR Error:', e);
+            // Fallback to standard API
+            console.log('Falling back to standard API...');
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            }).then(r => r.json()).then(d => {
+                removeTyping();
+                updateMessageText(msgId, d.response || 'Нет ответа');
+                reasoningData = d.reasoning_steps || null;
+            }).catch(err => {
+                console.error('Fallback error:', err);
+                updateMessageText(msgId, 'Ошибка: ' + err.message);
+            });
             clearFile();
         };
         
         xhr.send(JSON.stringify(body));
     }
     
+    function updateGenerationProgressStreaming(data) {
+        // Обновить индикатор генерации для стриминга
+        const genProgress = document.getElementById('genProgress');
+        if (!genProgress) return;
+        
+        const label = document.querySelector('#genLabel');
+        const fill = document.querySelector('.progress-bar-fill');
+        const stepC = document.getElementById('stepC');
+        
+        // Показываем прогресс
+        const progress = data.progress || 0;
+        if (fill) {
+            fill.style.width = `${Math.round(progress * 100)}%`;
+        }
+        
+        // Обновляем статус
+        if (label) {
+            const chunks = data.chunk_index !== undefined ? `${data.chunk_index + 1}/${data.total_chunks || '?'}` : '';
+            label.textContent = chunks ? `Чанк ${chunks}` : 'Генерация...';
+        }
+        
+        // Время
+        const timeEl = document.querySelector('#genTime');
+        if (timeEl && data.elapsed_ms) {
+            timeEl.textContent = `${(data.elapsed_ms / 1000).toFixed(1)}с`;
+        }
+        
+        // Завершаем если финал
+        if (data.is_final) {
+            if (stepC) {
+                stepC.classList.add('done');
+                stepC.querySelector('.step-dot').textContent = '✓';
+            }
+            if (label) label.textContent = 'Готово!';
+        }
+    }
+    
     function updateMessageText(msgId, text) {
         // Обновить текст сообщения
         const msgEl = document.getElementById(msgId);
         if (msgEl) {
-            const contentEl = msgEl.querySelector('.msg-content');
+            const contentEl = msgEl.querySelector('.msg-inner .msg-text');
             if (contentEl) {
                 contentEl.textContent = text;
                 // Автопрокрутка

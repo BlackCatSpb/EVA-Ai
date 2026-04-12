@@ -392,6 +392,17 @@ class ComponentInitializationManager:
 
                     self._logger.info(f"Компонент {component_name} готов")
                     return True
+                elif result is False:
+                    # Компонент вернул False - это нормально для опциональных компонентов
+                    # (например, tokenizer в Pie архитектуре не нужен)
+                    self._logger.warning(f"Компонент {component_name} вернул False (опциональный компонент)")
+                    self._initialized_components[component_name] = {
+                        "instance": component_instance,
+                        "initialized_at": time.time(),
+                        "init_result": result,
+                        "optional": True
+                    }
+                    return True  # Не падаем, просто продолжаем
                 else:
                     raise RuntimeError(f"Функция инициализации вернула {result}")
 

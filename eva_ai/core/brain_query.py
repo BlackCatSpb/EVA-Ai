@@ -9,17 +9,6 @@ import random
 import threading
 from typing import Dict, Any, Optional, List
 
-try:
-    from eva_ai.core.proactive_fallback import (
-        ProactiveDegradationMonitor, StatePreservingFallback, 
-        FallbackErrorMapper, create_proactive_fallback
-    )
-except ImportError:
-    ProactiveDegradationMonitor = None
-    StatePreservingFallback = None
-    FallbackErrorMapper = None
-    create_proactive_fallback = None
-
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 logger = logging.getLogger("eva_ai.core_brain")
 
@@ -131,15 +120,6 @@ def _is_greeting_query(query: str) -> Optional[str]:
 class QueryMixin:
     """Mixin providing query processing methods to CoreBrain."""
     
-    def _init_proactive_fallback(self):
-        """Инициализировать прогнозную деградацию."""
-        if create_proactive_fallback:
-            self._degradation_monitor, self._state_preserving = create_proactive_fallback()
-            query_logger.info("Proactive fallback initialized")
-        else:
-            self._degradation_monitor = None
-            self._state_preserving = None
-    
     def _check_proactive_fallback(self, response: str, latency: float = 0.0) -> bool:
         """Проверить метрики и решить, нужен ли превентивный fallback."""
         if not self._degradation_monitor:
@@ -207,6 +187,11 @@ class QueryMixin:
             disable_pytorch = model_cfg.get('disable_pytorch', False)
         except Exception as e:
             logger.debug(f"Error checking disable_pytorch: {e}")
+
+        # FIX: Всегда использовать GGUF pipeline если two_model_pipeline доступен
+        if self.two_model_pipeline is not None:
+            disable_pytorch = True
+            query_logger.info("GGUF mode: using Two-Model Pipeline (forced)")
 
         if disable_pytorch:
             query_logger.info("GGUF mode: using Two-Model Pipeline")
@@ -463,7 +448,7 @@ class QueryMixin:
                 context = '\n'.join(context_parts)
                 
                 # Генерируем ответ на основе знаний
-                response_text = self._generate_fg_response(query, context)
+                response_text = self._generate_template_response(query, context)
                 self._save_to_fractal_graph(query, response_text)
                 
                 query_logger.info(f"FG generation: used {len(top_knowledge)} relevant knowledge items")
@@ -473,7 +458,6 @@ class QueryMixin:
                     "status": "ok",
                     "confidence": 0.75,
                     "source": "fractal_graph_v2_knowledge",
-                    "fallback_level": 0,
                     "knowledge_used": len(top_knowledge),
                     "processing_time": time.time() - start_time,
                     "timestamp": time.time()
@@ -487,7 +471,7 @@ class QueryMixin:
             context_parts = [item['content'][:150] for item in sample_knowledge]
             context = '\n'.join(context_parts)
             
-            response_text = self._generate_fg_response(query, context)
+            response_text = self._generate_template_response(query, context)
             self._save_to_fractal_graph(query, response_text)
             
             return {
@@ -496,105 +480,33 @@ class QueryMixin:
                 "status": "ok",
                 "confidence": 0.6,
                 "source": "fractal_graph_v2_random",
-                "fallback_level": 1,
                 "knowledge_used": len(sample_knowledge),
                 "processing_time": time.time() - start_time,
                 "timestamp": time.time()
             }
         
-        # === FALLBACK: Two-Model Pipeline ===
-        query_logger.info("FG empty - falling back to Two-Model Pipeline")
-        return self._handle_sre_fallback(query, user_context, start_time, max_new_tokens)
+        # === FALLBACK: Template Response ===
+        query_logger.info("FG empty - using template fallback")
+        return self._handle_fallback(query, user_context, start_time, max_new_tokens)
     
-    def _handle_sre_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
-                              max_new_tokens: int) -> Dict[str, Any]:
-        """Fallback to SelfReasoningEngine when FG methods fail."""
-        reasoning_engine = getattr(self, 'self_reasoning_engine', None)
+    def _handle_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
+                         max_new_tokens: int) -> Dict[str, Any]:
+        """Simple fallback using templates when primary generation fails."""
+        query_logger.info("Using template fallback")
         
-        if reasoning_engine is None and hasattr(self, 'reasoning_integration') and self.reasoning_integration:
-            reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
+        response_text = self._generate_template_response(query)
         
-        if not reasoning_engine:
-            query_logger.warning("SRE not available - using basic templates")
-            response_text = self._generate_fg_response(query, None)
-            return {
-                "response": response_text,
-                "text": response_text,
-                "status": "ok",
-                "confidence": 0.3,
-                "source": "basic_templates",
-                "fallback_level": 3,
-                "processing_time": time.time() - start_time,
-                "timestamp": time.time()
-            }
-        
-        try:
-            query_logger.info("Using SelfReasoningEngine as fallback")
-            
-            # Получаем историю диалогов
-            conversation_history = None
-            if user_context and 'conversation_history' in user_context:
-                conversation_history = user_context['conversation_history']
-            
-            # Пробуем использовать two_model_pipeline если есть
-            pipeline = getattr(self, 'two_model_pipeline', None)
-            if not pipeline and hasattr(self, 'two_model_pipeline_ready') and self.two_model_pipeline_ready:
-                pipeline = self.two_model_pipeline
-            
-            if pipeline:
-                # Используем Two-Model Pipeline
-                query_logger.info("Using two_model_pipeline for SRE fallback")
-                result = pipeline.process_query(query)
-                
-                if result and result.get('response'):
-                    response_text = result.get('response')
-                    self._save_to_fractal_graph(query, response_text)
-                    return {
-                        "response": response_text,
-                        "text": response_text,
-                        "status": "ok",
-                        "confidence": 0.8,
-                        "source": "two_model_pipeline_fallback",
-                        "fallback_level": 2,
-                        "processing_time": time.time() - start_time,
-                        "timestamp": time.time()
-                    }
-            
-            # Пробуем прямой вызов SRE process_query
-            query_logger.info("Trying direct SRE process_query")
-            reasoning_result = reasoning_engine.process_query(query, user_context)
-            
-            if reasoning_result and (reasoning_result.get('response') or reasoning_result.get('text')):
-                response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
-                self._save_to_fractal_graph(query, response_text)
-                
-                return {
-                    "response": response_text,
-                    "text": response_text,
-                    "status": "ok",
-                    "confidence": reasoning_result.get('confidence', 0.8),
-                    "source": "self_reasoning_engine_fallback",
-                    "fallback_level": 2,
-                    "processing_time": time.time() - start_time,
-                    "timestamp": time.time()
-                }
-        except Exception as e:
-            query_logger.warning(f"SRE fallback error: {e}")
-        
-        # Final fallback
-        response_text = self._generate_fg_response(query, None)
         return {
             "response": response_text,
             "text": response_text,
             "status": "ok",
-            "confidence": 0.2,
-            "source": "final_fallback",
-            "fallback_level": 3,
+            "confidence": 0.3,
+            "source": "template_fallback",
             "processing_time": time.time() - start_time,
             "timestamp": time.time()
         }
-    
-    def _generate_fg_response(self, query: str, context: Optional[str]) -> str:
+
+    def _generate_template_response(self, query: str, context: Optional[str] = None) -> str:
         """Generate response using FG context and templates."""
         query_lower = query.lower().strip()
         

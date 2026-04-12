@@ -10,6 +10,8 @@ from .background_coordinator import BackgroundCoordinator
 from .token_processor import TokenProcessor
 from .resource_manager import ResourceManager
 from .config_manager import ConfigManager
+from .unified_generator import UnifiedGenerator, create_unified_generator, ModelType
+from .pipeline_adapter import PipelineAdapter, create_pipeline_adapter
 
 __all__ = [
     "CoreBrain",
@@ -20,4 +22,9 @@ __all__ = [
     "TokenProcessor",
     "ResourceManager",
     "ConfigManager",
+    "UnifiedGenerator",
+    "create_unified_generator",
+    "ModelType",
+    "PipelineAdapter",
+    "create_pipeline_adapter",
 ]
