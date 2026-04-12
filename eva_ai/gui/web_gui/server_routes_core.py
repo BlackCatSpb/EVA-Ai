@@ -82,6 +82,29 @@ def register_core_routes(app, web_gui_instance):
                 status['components'] = len(web_gui_instance.brain.components)
             if hasattr(web_gui_instance.brain, 'get_state'):
                 status['brain_state'] = str(web_gui_instance.brain.get_state())
+
+    @app.route('/api/shutdown', methods=['POST'])
+    def api_shutdown():
+        """Graceful shutdown endpoint - stops the entire EVA system."""
+        logger.info("Received shutdown request via API")
+        
+        # Stop WebGUI first
+        if web_gui_instance:
+            try:
+                web_gui_instance.stop()
+                logger.info("WebGUI stopped via API")
+            except Exception as e:
+                logger.error(f"Error stopping WebGUI: {e}")
+        
+        # Set shutdown event to signal main process to exit
+        import os
+        os._exit(0)
+        
+        # Return success - this won't be reached but for API compatibility
+        return jsonify({
+            'status': 'ok',
+            'message': 'EVA shutdown initiated'
+        })
         else:
             status['brain_connected'] = False
             status['brain_running'] = False

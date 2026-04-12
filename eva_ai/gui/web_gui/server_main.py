@@ -803,6 +803,9 @@ class WebGUI:
             except Exception as e:
                 if not getattr(self, 'shutting_down', False):
                     logger.error(f"Flask error: {e}")
+            finally:
+                # Явно сигнализируем о завершении
+                self.running = False
 
         self.thread = threading.Thread(target=run, daemon=True)
         self.thread.daemon = True

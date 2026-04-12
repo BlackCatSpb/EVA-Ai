@@ -1741,6 +1741,24 @@
     setupToggle('#toggleTheme', 'dark_theme');
     setupToggle('#toggleSound', 'sound_enabled');
 
+    // Shutdown button
+    $('#shutdownBtn')?.addEventListener('click', async () => {
+        if (!confirm('Вы уверены, что хотите остановить EVA? Все сессии будут завершены.')) {
+            return;
+        }
+        try {
+            const result = await api('/api/shutdown', { method: 'POST' });
+            toast('EVA останавливается...', 'info');
+            // Close browser connection and notify user
+            setTimeout(() => {
+                alert('EVA система остановлена. Закройте эту вкладку браузера.');
+                window.close();
+            }, 1000);
+        } catch (e) {
+            toast('Ошибка остановки: ' + e.message, 'error');
+        }
+    });
+
     /* ── Export/Import ── */
     $('#exportSessionBtn')?.addEventListener('click', async () => {
         if (!activeSessionId) {

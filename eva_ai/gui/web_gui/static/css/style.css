@@ -19,6 +19,23 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* Button styles */
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+    transition: opacity 0.2s;
+}
+.btn:hover {
+    opacity: 0.8;
+}
+.btn-danger {
+    background: #dc3545;
+    color: white;
+}
+
 body {
     font-family: var(--font);
     background: var(--bg);
