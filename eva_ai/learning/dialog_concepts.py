@@ -93,9 +93,22 @@ class DialogConceptsMixin:
         
         return None
     
+    def _get_unified_generator(self):
+        """Получить UnifiedGenerator из brain если доступен."""
+        try:
+            if self.brain and hasattr(self.brain, 'two_model_pipeline'):
+                from eva_ai.core.pipeline_adapter import PipelineAdapter
+                if isinstance(self.brain.two_model_pipeline, PipelineAdapter):
+                    return self.brain.two_model_pipeline._generator
+        except Exception as e:
+            logger.debug(f"Could not get unified generator: {e}")
+        return None
+    
     def _run_concept_dialog(self, dialog: SelfDialog, concept_data: Dict[str, Any]):
         """
         Выполняет самодиалог для исследования концепта.
+        
+        Использует UnifiedGenerator (LOGIC -> CONTEXT) для генерации ответов.
         
         Роли:
         - ASSISTANT: Представляет базовое определение концепта
@@ -108,32 +121,101 @@ class DialogConceptsMixin:
         # Получаем информацию о концепте из графа
         concept_info = self._get_concept_info(concept_name)
         
-        # Turn 1: Assistant представляет концепт
-        assistant_content = self._generate_concept_intro(concept_name, concept_info)
+        # Используем UnifiedGenerator если доступен
+        generator = self._get_unified_generator()
+        
+        if generator:
+            # Turn 1: ASSISTANT - базовое определение через LLM
+            prompt_intro = f"""Ты исследуешь концепт "{concept_name}". 
+
+Домен: {concept_info.get('domain', 'общий')}
+Связанные понятия: {concept_info.get('related_concepts', [])}
+
+Дай краткое, но информативное определение этого концепта. Включи ключевые характеристики и применение."""
+            
+            result = generator.generate_iterative(
+                query=prompt_intro,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            assistant_content = result.text if result else self._generate_concept_intro(concept_name, concept_info)
+        else:
+            assistant_content = self._generate_concept_intro(concept_name, concept_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.ASSISTANT,
             content=assistant_content,
             timestamp=time.time()
         ))
         
-        # Turn 2: Critic ищет противоречия
-        critic_content = self._generate_concept_criticism(concept_name, concept_info)
+        # Turn 2: CRITIC - поиск противоречий через LLM
+        if generator:
+            prompt_critic = f"""Ты критически анализируешь концепт "{concept_name}".
+
+Предыдущий ответ: {assistant_content[:200]}
+
+Выяви возможные проблемы, противоречия или неполноту в определении. Какие аспекты требуют уточнения?"""
+            
+            result = generator.generate_iterative(
+                query=prompt_critic,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            critic_content = result.text if result else self._generate_concept_criticism(concept_name, concept_info)
+        else:
+            critic_content = self._generate_concept_criticism(concept_name, concept_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.CRITIC,
             content=critic_content,
             timestamp=time.time()
         ))
         
-        # Turn 3: Learner предлагает направления
-        learner_content = self._generate_learning_directions(concept_name, concept_info)
+        # Turn 3: LEARNER - направления через LLM
+        if generator:
+            prompt_learner = f"""Ты предлагаешь направления для углублённого изучения концепта "{concept_name}".
+
+Основные вопросы: {critic_content[:200]}
+
+Какие шаги нужно предпринять для полного понимания этого концепта?"""
+            
+            result = generator.generate_iterative(
+                query=prompt_learner,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            learner_content = result.text if result else self._generate_learning_directions(concept_name, concept_info)
+        else:
+            learner_content = self._generate_learning_directions(concept_name, concept_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.LEARNER,
             content=learner_content,
             timestamp=time.time()
         ))
         
-        # Turn 4: Teacher даёт рекомендации
-        teacher_content = self._generate_teaching_recommendations(concept_name, concept_info)
+        # Turn 4: TEACHER - рекомендации через LLM
+        if generator:
+            prompt_teacher = f"""Ты даёшь финальные рекомендации по изучению концепта "{concept_name}".
+
+Изучено: {concept_name}
+Направления: {learner_content[:200]}
+
+Сформулируй практические рекомендации для использования этого знания."""
+            
+            result = generator.generate_iterative(
+                query=prompt_teacher,
+                max_tokens_logic=128,
+                max_tokens_context=256,
+                temperature=0.7
+            )
+            teacher_content = result.text if result else self._generate_teaching_recommendations(concept_name, concept_info)
+        else:
+            teacher_content = self._generate_teaching_recommendations(concept_name, concept_info)
+        
         dialog.turns.append(DialogTurn(
             role=DialogRole.TEACHER,
             content=teacher_content,
