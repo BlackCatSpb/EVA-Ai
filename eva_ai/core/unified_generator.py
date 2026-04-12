@@ -299,7 +299,7 @@ class UnifiedGenerator:
                 prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                stop=["<|im_end|>", "<|im_start|>"],
+                stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
                 echo=False,
                 repeat_penalty=1.1,
                 frequency_penalty=0.0,
@@ -310,6 +310,10 @@ class UnifiedGenerator:
             
             text = output['choices'][0]['text']
             tokens = output['usage']['completion_tokens']
+            
+            # Очищаем ответ от токенов-маркеров
+            text = text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+            text = text.replace("<|endoftext|>", "").strip()
             
             # Сохраняем в FractalGraph
             self._save_to_graph(query, text)
@@ -503,23 +507,33 @@ class UnifiedGenerator:
         system_prompt: Optional[str],
         model_type: ModelType
     ) -> str:
-        """Форматировать промпт для модели RuadaptQwen3."""
-        # Простой формат - модель хорошо работает с прямым вводом
-        prompt = ""
+        """Форматировать промпт для модели Qwen с правильным chat template."""
+        # Используем chat template как в qwen_model_manager
+        text = ""
         
+        # System prompt
         if system_prompt:
-            prompt += f"{system_prompt}\n\n"
-        
-        if context:
-            prompt += f"{context}\n\n"
-        
-        # Добавляем завершающий вопрос
-        if context:
-            prompt += f"Вопрос: {query}\nОтвет:"
+            text += f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
         else:
-            prompt += f"{query}\n"
+            # Дефолтный system prompt для разных типов
+            default_systems = {
+                ModelType.CODER: "Ты - Eva AI, продвинутый ИИ-ассистент. Пиши чистый, хорошо комментируемый код.",
+                ModelType.CONTEXT: "Ты - Eva AI, продвинутый ИИ-ассистент. Давай развёрнутые, подробные ответы.",
+                ModelType.LOGIC: "Ты - Eva AI, продвинутый ИИ-ассистент. Давай точные, логичные ответы."
+            }
+            text += f"<|im_start|>system\n{default_systems.get(model_type, 'Ты - Eva AI, продвинутый ИИ-ассистент.')}<|im_end|>\n"
         
-        return prompt
+        # Контекст из FractalGraph
+        if context:
+            text += f"<|im_start|>user\nКонтекст: {context}<|im_end|>\n"
+        
+        # Запрос пользователя
+        text += f"<|im_start|>user\n{query}<|im_end|>\n"
+        
+        # Маркер для начала ответа
+        text += "<|im_start|>assistant\n"
+        
+        return text
     
     def _save_to_graph(self, query: str, response: str):
         """Сохранить в FractalGraph."""
