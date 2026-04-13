@@ -1,8 +1,0 @@
-{
-  "theme": "light",
-  "compact_mode": false,
-  "show_advanced_metrics": true,
-  "enable_gpu_monitoring": true,
-  "auto_refresh_interval": 5000,
-  "notification_throttle_seconds": 30
-}

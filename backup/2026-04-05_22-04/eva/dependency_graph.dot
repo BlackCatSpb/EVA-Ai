@@ -1,4 +1,0 @@
-digraph cogniflex_deps {
-  rankdir=LR;
-  node [shape=box, fontsize=10];
-}
