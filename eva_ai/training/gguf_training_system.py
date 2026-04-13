@@ -80,9 +80,10 @@ class GGUFTrainingSystem:
         self.brain = brain
         self.config = config or {}
         
-        # Пути к моделям
+        # Пути к моделям (используем ruadapt_qwen3_4b)
+        base_dir = r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models"
         self.base_model_path = self.config.get('base_model_path', 
-            'eva_ai/memory/fractal_torch_storage/gguf_models/qwen2.5-0.5b-instruct-q4_0.gguf')
+            base_dir + '/ruadapt_qwen3_4b_q4_k_m.gguf')
         self.training_model_path = self.config.get('training_model_path',
             'eva_ai/models/training_qwen.gguf')
         self.lora_path = self.config.get('lora_path',

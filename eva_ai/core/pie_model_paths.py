@@ -3,6 +3,10 @@ Pie Architecture Model Paths Configuration
 
 Конфигурация путей к моделям для Pie Architecture.
 Модели остаются в eva_pie_architecture/models/
+
+Актуальные модели:
+- ruadapt_qwen3_4b: Основная модель для LOGIC и CONTEXT
+- qwen_coder_1_5b: Модель для генерации кода
 """
 
 from pathlib import Path
@@ -13,20 +17,15 @@ PIE_MODELS_BASE = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_archi
 
 # Пути к конкретным моделям
 PIE_MODEL_PATHS = {
-    "qwen_0.5b": {
-        "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-0.5b-instruct-q4_0.gguf",
-        "extended": PIE_MODELS_BASE / "gguf_models" / "recursion_gguf" / "qwen2.5-0.5b-instruct-q4_0-recursion.gguf",
-    },
-    "qwen_3b": {
-        "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-3b-instruct" / "qwen2.5-3b-instruct-q4_k_m.gguf",
-        "extended": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-3b-instruct" / "qwen2.5-3b-instruct-q4_k_m_model_b.gguf",
-    },
+    # Основная модель: ruadapt_qwen3_4b (используется для LOGIC и CONTEXT)
     "ruadapt_qwen3_4b": {
         "condensed": PIE_MODELS_BASE / "gguf_models" / "ruadapt_qwen3_4b_q4_k_m.gguf",
     },
+    # Модель для кода: qwen_coder_1_5b
     "qwen_coder_1_5b": {
         "condensed": PIE_MODELS_BASE / "gguf_models" / "qwen2.5-coder-1.5b-instruct" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
     },
+    # Embeddings модель
     "embeddings": {
         "semantic": PIE_MODELS_BASE / "embeddings" / "sentence-transformers" / "all-MiniLM-L6-v2",
     }
@@ -38,7 +37,7 @@ def get_pie_model_path(model_name: str, variant: str = "condensed") -> Optional[
     Получить путь к модели Pie Architecture.
     
     Args:
-        model_name: Имя модели ('qwen_0.5b', 'qwen_3b', etc.)
+        model_name: Имя модели ('ruadapt_qwen3_4b', 'qwen_coder_1_5b', etc.)
         variant: Вариант ('condensed', 'extended')
         
     Returns:
