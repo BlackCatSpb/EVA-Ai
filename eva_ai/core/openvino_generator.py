@@ -324,12 +324,12 @@ class OpenVINOGenerator:
         self,
         model_path: Path,
         device: str,
-        max_tokens: int,
-        temperature: float,
-        n_ctx: int,
-        scheduler_config: Dict,
-        performance_hint: str,
-        num_streams: Optional[int]
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        n_ctx: int = 4096,
+        scheduler_config: Optional[Dict] = None,
+        performance_hint: str = "LATENCY",
+        num_streams: Optional[int] = None
     ):
         """Инициализация базовых атрибутов (для registry)."""
         self.model_path = model_path
