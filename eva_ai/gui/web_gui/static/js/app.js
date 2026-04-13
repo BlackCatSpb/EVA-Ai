@@ -919,7 +919,7 @@
             body.file_data = currentFileData;
         }
         
-        // Используем EventSource для streaming
+        // Используем XHR с streaming для POST запроса (EventSource не поддерживает POST)
         const xhr = new XMLHttpRequest();
         let fullText = '';
         let buffer = '';

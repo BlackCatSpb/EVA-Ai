@@ -12,19 +12,31 @@ logger = logging.getLogger("eva_ai.health_monitor")
 class HealthMonitor:
     """Модуль мониторинга здоровья системы для ЕВА."""
     
-    def __init__(self, brain=None, analyzer_core=None):
+    DEFAULT_WEIGHTS = {
+        'ml': 0.3,
+        'kg': 0.2,
+        'mm': 0.15,
+        'am': 0.1,
+        'ef': 0.1,
+        'ns': 0.1,
+        'wse': 0.05
+    }
+    
+    def __init__(self, brain=None, analyzer_core=None, weights: Dict[str, float] = None):
         """
         Инициализирует монитор здоровья.
         
         Args:
             brain: Ссылка на ядро ЕВА (опционально)
             analyzer_core: Ссылка на ядро самоанализа (опционально)
+            weights: Словарь весов для компонентов (опционально)
         """
         from eva_ai.learning import AnalyzerCore
         
         self.brain = brain
         self.analyzer_core = analyzer_core or AnalyzerCore(brain)
-        logger.info("HealthMonitor инициализирован")
+        self.weights = weights or self.DEFAULT_WEIGHTS.copy()
+        logger.info(f"HealthMonitor инициализирован с весами: {self.weights}")
     
     def analyze_system_health(self) -> Dict[str, Any]:
         """Анализирует здоровье системы."""
@@ -35,16 +47,16 @@ class HealthMonitor:
                 "components": {},
                 "issues": [],
                 "recommendations": [],
-                "timestamp": time.time()
+                "timestamp": time.time(),
+                "weights_used": self.weights.copy()
             }
             
             # Анализируем здоровье ML
             if self.brain and hasattr(self.brain, 'ml_core'):
                 ml_health = self.brain.ml_core.get_system_health()
                 report["components"]["ml"] = ml_health
-                report["health_score"] += ml_health["health_score"] * 0.3
+                report["health_score"] += ml_health["health_score"] * self.weights.get('ml', 0.3)
                 
-                # Проверяем проблемы с ML
                 if ml_health["status"] == "critical":
                     report["issues"].append("Критическое состояние модуля машинного обучения")
                     self._add_ml_issue(ml_health)
@@ -55,37 +67,37 @@ class HealthMonitor:
             if self.brain and hasattr(self.brain, 'knowledge_graph'):
                 kg_health = self.brain.knowledge_graph.get_system_health()
                 report["components"]["knowledge_graph"] = kg_health
-                report["health_score"] += kg_health["health_score"] * 0.2
+                report["health_score"] += kg_health["health_score"] * self.weights.get('kg', 0.2)
             
             # Анализируем здоровье MemoryManager
             if self.brain and hasattr(self.brain, 'memory_manager'):
                 mm_health = self.brain.memory_manager.get_system_health()
                 report["components"]["memory_manager"] = mm_health
-                report["health_score"] += mm_health["health_score"] * 0.15
+                report["health_score"] += mm_health["health_score"] * self.weights.get('mm', 0.15)
             
             # Анализируем здоровье AdaptationManager
             if self.brain and hasattr(self.brain, 'adaptation_manager'):
                 am_health = self.brain.adaptation_manager.get_system_health()
                 report["components"]["adaptation_manager"] = am_health
-                report["health_score"] += am_health["health_score"] * 0.1
+                report["health_score"] += am_health["health_score"] * self.weights.get('am', 0.1)
             
             # Анализируем здоровье EthicalFramework
             if self.brain and hasattr(self.brain, 'ethical_framework'):
                 ef_health = self.brain.ethical_framework.get_system_health()
                 report["components"]["ethical_framework"] = ef_health
-                report["health_score"] += ef_health["health_score"] * 0.1
+                report["health_score"] += ef_health["health_score"] * self.weights.get('ef', 0.1)
             
             # Анализируем здоровье NeuromorphicSimulator
             if self.brain and hasattr(self.brain, 'neuromorphic_simulator'):
                 ns_health = self.brain.neuromorphic_simulator.get_system_health()
                 report["components"]["neuromorphic_simulator"] = ns_health
-                report["health_score"] += ns_health["health_score"] * 0.1
+                report["health_score"] += ns_health["health_score"] * self.weights.get('ns', 0.1)
             
             # Анализируем здоровье WebSearchEngine
             if self.brain and hasattr(self.brain, 'web_search_engine'):
                 wse_health = self.brain.web_search_engine.get_system_health()
                 report["components"]["web_search_engine"] = wse_health
-                report["health_score"] += wse_health["health_score"] * 0.05
+                report["health_score"] += wse_health["health_score"] * self.weights.get('wse', 0.05)
             
             # Определяем общий статус
             if report["health_score"] > 0.7:

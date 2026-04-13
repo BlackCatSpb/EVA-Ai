@@ -23,7 +23,6 @@ def needs_web_search(query: str) -> tuple[bool, str]:
         (нужен_поиск, причина)
     """
     import re
-    # Очищаем от знаков препинания
     query_clean = re.sub(r'[^\w\s]', '', query.lower().strip())
     query_lower = query.lower().strip()
     words = query_clean.split()
@@ -46,7 +45,37 @@ def needs_web_search(query: str) -> tuple[bool, str]:
     if any(p in query_lower for p in math_patterns):
         return False, "математика/код"
     
-    # Обычные ответы - нужен поиск для обогащения
+    # Вопросы о текущих событиях - нужен поиск
+    current_events_keywords = ['2025', '2026', 'сейчас', 'недавно', 'сегодня', 'в этом году',
+                               'последние новости', 'что происходит', 'тенденция', 'тренд']
+    if any(kw in query_lower for kw in current_events_keywords):
+        return True, "текущие события"
+    
+    # Фактические вопросы (кто, что, когда, где) - нужен поиск для точности
+    factual_patterns = ['кто изобрел', 'кто создал', 'кто открыл', 'когда произошло',
+                       'когда началось', 'когда закончилось', 'где находится', 'где найти',
+                       'что такое', 'что такое', 'как называется', 'сколько стоит',
+                       'какая столица', 'какой год', 'какое число']
+    if any(p in query_lower for p in factual_patterns):
+        return True, "фактический вопрос"
+    
+    # Личные вопросы пользователю - не нужен поиск
+    personal_patterns = ['мне нужно', 'помоги мне', 'сделай для меня', 'напиши мне',
+                        'отправь', 'сохрани', 'запомни']
+    if any(p in query_lower for p in personal_patterns):
+        return False, "личный запрос"
+    
+    # Творческие/генеративные запросы - не нужен поиск
+    creative_patterns = ['напиши стих', 'напиши рассказ', 'придумай', 'создай',
+                        'нарисуй образ', 'опиши что-нибудь']
+    if any(p in query_lower for p in creative_patterns):
+        return False, "творческий запрос"
+    
+    # Длинные аналитические запросы - нужен поиск
+    if len(words) > 15:
+        return True, "сложный запрос (много слов)"
+    
+    # По умолчанию - поиск для обогащения
     return True, "обогащение контекста"
 
 

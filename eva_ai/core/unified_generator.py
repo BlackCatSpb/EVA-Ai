@@ -446,6 +446,143 @@ class UnifiedGenerator:
             confidence=0.85
         )
     
+    def generate_unified(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None
+    ) -> GenerationResult:
+        """
+        Одноэтапная генерация с единым промтом и XML-выводом (metod.txt).
+        
+        Объединяет LOGIC + CONTEXT в один LLM вызов:
+        - Концепты и противоречия добавляются в контекст ДО генерации
+        - Модель генерирует ответ в XML-формате
+        - Парсинг XML для получения short_answer, conclusion, full_answer
+        
+        Args:
+            query: Запрос пользователя
+            context: Дополнительный контекст
+            max_tokens: Максимум токенов для генерации
+            temperature: Температура
+            system_prompt: Системный промпт
+            
+        Returns:
+            GenerationResult с объединённым выводом
+        """
+        import re
+        start_time = time.time()
+        logger.info(f"[UNIFIED] Начало одноэтапной генерации для: {query[:30]}...")
+        
+        # Проверка модели
+        if not self._load_model(ModelType.CONTEXT):
+            if not self._load_model(ModelType.LOGIC):
+                return GenerationResult(
+                    text="Ошибка: модель недоступна",
+                    model_used="none",
+                    generation_time=0.0,
+                    tokens_generated=0,
+                    confidence=0.0
+                )
+            model_type = ModelType.LOGIC
+        else:
+            model_type = ModelType.CONTEXT
+        
+        model = self.models[model_type]
+        
+        # Формируем промт с концептами и противоречиями
+        full_context = self._build_context(query, context)
+        
+        # Unified system prompt с инструкциями для XML-формата
+        unified_system = system_prompt or (
+            "Ты — когнитивная нейросетевая система ЕВА. "
+            "Ответь строго в указанном XML-формате. "
+            "Используй концепты и противоречия из контекста для формирования ответа. "
+            "Убедись, что развёрнутый ответ логически согласуется с кратким выводом."
+        )
+        
+        # Универсальный промт с XML-инструкциями (metod.txt)
+        user_message = f"""Запрос: {query}
+Контекст: {full_context if full_context else 'Нет дополнительного контекста'}
+
+Сформируй ответ строго в формате:
+<short_answer>1-2 предложения краткого ответа</short_answer>
+<conclusion>На вопрос о {query[:30]}... можно сказать, что ...</conclusion>
+<full_answer>Подробный развёрнутый ответ с учётом концептов и противоречий из контекста...</full_answer>"""
+        
+        prompt = self._format_prompt(query=user_message, context="", system_prompt=unified_system, model_type=model_type)
+        
+        # Генерация
+        output = model(
+            prompt,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stop=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+            echo=False,
+            repeat_penalty=1.1,
+            frequency_penalty=0.0,
+            presence_penalty=0.0
+        )
+        
+        raw_text = output['choices'][0]['text']
+        raw_text = raw_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
+        tokens = output['usage']['completion_tokens']
+        
+        # Парсинг XML с fallback
+        parsed = self._parse_structured_output(raw_text)
+        
+        total_time = time.time() - start_time
+        combined_text = f"{parsed['short_answer']}\n\n{parsed['conclusion']}\n\n{parsed['full_answer']}"
+        
+        logger.info(f"[UNIFIED] Результат: {parsed['short_answer'][:50]}... ({tokens} токенов, {total_time:.1f}s)")
+        
+        return GenerationResult(
+            text=combined_text,
+            model_used=f"unified_{model_type.value}",
+            generation_time=total_time,
+            tokens_generated=tokens,
+            confidence=0.85,
+            metadata={
+                'short_answer': parsed['short_answer'],
+                'conclusion': parsed['conclusion'],
+                'full_answer': parsed['full_answer']
+            }
+        )
+    
+    def _parse_structured_output(self, text: str) -> Dict[str, str]:
+        """
+        Надёжный парсинг XML-тегов с fallback-логикой (metod.txt).
+        
+        Args:
+            text: Текст для парсинга
+            
+        Returns:
+            Dict с short_answer, conclusion, full_answer
+        """
+        import re
+        
+        def extract(tag: str) -> str:
+            match = re.search(rf"<{tag}>(.*?)</{tag}>", text, re.DOTALL | re.IGNORECASE)
+            return match.group(1).strip() if match else ""
+        
+        short = extract("short_answer")
+        conclusion = extract("conclusion")
+        full = extract("full_answer")
+        
+        if not (short and full):
+            # Fallback: разделение по первому абзацу, если модель нарушила формат
+            parts = text.strip().split("\n\n", 1)
+            short = short or parts[0].strip()
+            full = full or (parts[1] if len(parts) > 1 else text)
+        
+        return {
+            "short_answer": short or "Ответ недоступен",
+            "conclusion": conclusion or f"На вопрос можно сказать, что {short[:50]}" if short else "Вывод недоступен",
+            "full_answer": full or text
+        }
+    
     def generate_iterative(
         self,
         query: str,
@@ -681,12 +818,61 @@ class UnifiedGenerator:
             temperature=0.3
         )
     
+    def _build_concept_contradiction_context(self, query: str) -> str:
+        """
+        Извлекает концепты и противоречия ДО генерации (metod.txt).
+        
+        Использует concept_extractor и contradiction_generator для получения
+        релевантных концептов и противоречий по запросу, чтобы добавить их
+        в контекст до генерации ответа.
+        
+        Returns:
+            Строка с форматированными концептами и противоречиями
+        """
+        parts = []
+        
+        # 1. Концепты через ConceptExtractor
+        if self.brain and hasattr(self.brain, 'concept_extractor'):
+            try:
+                concept_context = self.brain.concept_extractor.get_concepts_for_prompt(query, max_concepts=3)
+                if concept_context:
+                    parts.append(concept_context)
+            except Exception as e:
+                logger.debug(f"Concept extraction error: {e}")
+        
+        # 2. Противоречия через ContradictionGenerator
+        if self.brain and hasattr(self.brain, 'contradiction_generator'):
+            try:
+                # Extract key term for contradiction lookup
+                words = query.lower().split()
+                stop_words = {'что', 'как', 'где', 'когда', 'почему', 'это', 'какой', 'какая', 'какое', 'какие'}
+                key_terms = [w for w in words if w not in stop_words and len(w) > 3]
+                
+                for term in key_terms[:2]:  # Проверяем первые 2 значимых термина
+                    contr_context = self.brain.contradiction_generator.get_contradictions_for_prompt(term)
+                    if contr_context:
+                        parts.append(contr_context)
+                        break  # Достаточно одного найденного
+            except Exception as e:
+                logger.debug(f"Contradiction lookup error: {e}")
+        
+        if parts:
+            logger.debug(f"Added concept/contradiction context: {len(parts)} blocks")
+            return "\n".join(parts)
+        
+        return ""
+    
     def _build_context(self, query: str, provided_context: Optional[str]) -> str:
         """Построить контекст из FractalGraph и HybridTokenCache с асинхронной загрузкой."""
         if provided_context:
             return provided_context
         
         contexts = []
+        
+        # === 0. Концепты и противоречия ДО генерации (metod.txt) ===
+        concept_contr_context = self._build_concept_contradiction_context(query)
+        if concept_contr_context:
+            contexts.append(concept_contr_context)
         
         # 1. FractalGraph через semantic search
         if self.fractal_graph:
@@ -838,14 +1024,12 @@ class UnifiedGenerator:
         model_type: ModelType
     ) -> str:
         """Форматировать промпт для модели Qwen с правильным chat template."""
-        # Используем chat template как в qwen_model_manager
         text = ""
         
-        # System prompt
+        # System prompt - всегда в system role
         if system_prompt:
             text += f"<|im_start|>system\n{system_prompt}<|im_end|>\n"
         else:
-            # Дефолтный system prompt для разных типов
             default_systems = {
                 ModelType.CODER: "Ты - Eva AI, продвинутый ИИ-ассистент. Пиши чистый, хорошо комментируемый код.",
                 ModelType.CONTEXT: "Ты - Eva AI, продвинутый ИИ-ассистент. Давай развёрнутые, подробные ответы.",
@@ -853,12 +1037,12 @@ class UnifiedGenerator:
             }
             text += f"<|im_start|>system\n{default_systems.get(model_type, 'Ты - Eva AI, продвинутый ИИ-ассистент.')}<|im_end|>\n"
         
-        # Контекст из FractalGraph
+        # Контекст + запрос В ОДНОМ user сообщении
+        user_message = query
         if context:
-            text += f"<|im_start|>user\nКонтекст: {context}<|im_end|>\n"
+            user_message = f"Контекст: {context}\n\nВопрос: {query}"
         
-        # Запрос пользователя
-        text += f"<|im_start|>user\n{query}<|im_end|>\n"
+        text += f"<|im_start|>user\n{user_message}<|im_end|>\n"
         
         # Маркер для начала ответа
         text += "<|im_start|>assistant\n"
@@ -1155,8 +1339,9 @@ def create_unified_generator(
             code_path = model_config.get('code_model_path')
         
         return UnifiedGenerator(
-            general_model_path=Path(general_path) if general_path else None,
-            code_model_path=Path(code_path) if code_path else None,
+            logic_model_path=Path(general_path) if general_path else None,
+            context_model_path=Path(general_path) if general_path else None,  # Тоже general для LOGIC/CONTEXT
+            coder_model_path=Path(code_path) if code_path else None,
             fractal_graph=fractal_graph,
             brain=brain
         )

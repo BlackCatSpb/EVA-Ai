@@ -5,6 +5,8 @@ Adds active coordination capabilities via mixins:
 - EventSubscriptionMixin: subscribes to critical system events and reacts
 - CommandIssuerMixin: issues coordination commands via DeferredCommandSystem
 - ProcessTrackerMixin: tracks and monitors active processes
+
+Также содержит CommandHandlers - отдельный класс для обработки команд.
 """
 
 import time
@@ -30,6 +32,180 @@ def _to_priority(value: int) -> CommandPriority:
 
 def _make_event(event_type: str, source: str = "core_brain", data: Optional[Dict] = None) -> Event:
     return Event(event_type=event_type, source=source, data=data or {})
+
+
+class CommandHandlers:
+    """
+    Класс для обработки команд - вынесен из CommandIssuerMixin для соблюдения SRP.
+    Каждый метод обрабатывает одну команду.
+    """
+    
+    def __init__(self, brain):
+        self.brain = brain
+    
+    def reload_pipeline(self, args):
+        """Reload Two-Model Pipeline models."""
+        if hasattr(self.brain, "two_model_pipeline") and self.brain.two_model_pipeline:
+            pipeline = self.brain.two_model_pipeline
+            if hasattr(pipeline, "unload_models"):
+                pipeline.unload_models()
+            if hasattr(pipeline, "load_models"):
+                pipeline.load_models()
+            self.brain.two_model_pipeline_ready = True
+            if self.brain.event_bus:
+                self.brain.event_bus.publish(_make_event("pipeline.reloaded", data={"status": "ok"}))
+            logger.info("Pipeline models reloaded")
+
+    def adjust_params(self, args):
+        """Adjust pipeline generation parameters."""
+        if hasattr(self.brain, "two_model_pipeline") and self.brain.two_model_pipeline:
+            pipeline = self.brain.two_model_pipeline
+            for model_name, params in args.items():
+                attr = f"{model_name}_params"
+                if hasattr(pipeline, attr):
+                    param_ctrl = getattr(pipeline, attr)
+                    if hasattr(param_ctrl, "base_params"):
+                        param_ctrl.base_params.update(params)
+                        logger.info(f"Adjusted {model_name} params: {params}")
+
+    def flush_cache(self, args):
+        """Flush specified cache layer."""
+        cache_type = args.get("type", "all")
+        if hasattr(self.brain, "hybrid_cache") and self.brain.hybrid_cache:
+            cache = self.brain.hybrid_cache
+            if cache_type in ("all", "hot"):
+                if hasattr(cache, "clear_hot"):
+                    cache.clear_hot()
+                    logger.info(f"Flushed {cache_type} cache")
+            if cache_type == "all" and hasattr(cache, "clear"):
+                cache.clear()
+                logger.info("Flushed all caches")
+
+    def compact_memory(self, args):
+        """Compact memory structures."""
+        if hasattr(self.brain, "memory_manager") and self.brain.memory_manager:
+            mm = self.brain.memory_manager
+            if hasattr(mm, "compact"):
+                mm.compact()
+                logger.info("Memory compacted")
+
+    def unload_models(self, args):
+        """Выгрузить все модели из памяти."""
+        target = args.get("target", "all")
+        if target == "all":
+            if hasattr(self.brain, "unload_all_models"):
+                results = self.brain.unload_all_models()
+                logger.info(f"Модели выгружены: {results}")
+                if self.brain.event_bus:
+                    self.brain.event_bus.publish(_make_event("memory.models_unloaded", data={"results": results}))
+        elif target == "model_c":
+            if hasattr(self.brain, "unload_model_c_only"):
+                self.brain.unload_model_c_only()
+                logger.info("Model C выгружена")
+        elif target == "fractal":
+            if hasattr(self.brain, "fractal_model_manager") and self.brain.fractal_model_manager:
+                if hasattr(self.brain.fractal_model_manager, "unload"):
+                    self.brain.fractal_model_manager.unload()
+                    logger.info("FractalModelManager выгружен")
+        elif target == "llama_cpp":
+            if hasattr(self.brain, "llama_cpp_deployment") and self.brain.llama_cpp_deployment:
+                if hasattr(self.brain.llama_cpp_deployment, "unload"):
+                    self.brain.llama_cpp_deployment.unload()
+                    logger.info("LlamaCppHotDeployment выгружен")
+
+    def reload_models(self, args):
+        """Перезагрузить модели."""
+        target = args.get("target", "all")
+        logger.info(f"Перезагрузка моделей: {target}")
+
+    def get_memory_usage(self, args):
+        """Получить информацию об использовании памяти."""
+        import psutil
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        return {
+            "rss_mb": mem_info.rss / 1024 / 1024,
+            "vms_mb": mem_info.vms / 1024 / 1024,
+        }
+
+    def trigger_learning(self, args):
+        """Запустить самообучение."""
+        if hasattr(self.brain, "self_dialog_learning"):
+            logger.info("Запущен триггер самообучения")
+        else:
+            logger.warning("SelfDialogLearning недоступен")
+
+    def resolve_contradiction(self, args):
+        """Разрешить противоречие."""
+        logger.info(f"Разрешение противоречия: {args}")
+
+    def recover_component(self, args):
+        """Восстановить компонент."""
+        component_name = args.get("component")
+        logger.info(f"Попытка восстановления компонента: {component_name}")
+
+    def abort_generation(self, args):
+        """Прервать генерацию."""
+        logger.info("Прерывание генерации")
+
+    def scale_resources(self, args):
+        """Масштабировать ресурсы."""
+        logger.info(f"Масштабирование ресурсов: {args}")
+
+    def rebuild_knowledge(self, args):
+        """Перестроить граф знаний."""
+        logger.info("Перестроение графа знаний")
+
+    def initiate_search(self, args):
+        """Инициировать поиск."""
+        logger.info(f"Инициирован поиск: {args}")
+
+    def publish_alert(self, args):
+        """Опубликовать алерт."""
+        if self.brain.event_bus:
+            self.brain.event_bus.publish(_make_event("alert", data=args))
+        logger.info(f"Alert опубликован: {args}")
+
+    def set_timeout_limit(self, args):
+        """Установить лимит таймаута."""
+        limit = args.get("limit")
+        if limit and hasattr(self.brain, "query_timeout"):
+            self.brain.query_timeout = limit
+            logger.info(f"Таймаут установлен: {limit}")
+
+    def force_model_fallback(self, args):
+        """Принудительный fallback модели."""
+        logger.info("Принудительный fallback модели")
+
+    def reset_generation_attempts(self, args):
+        """Сбросить счётчики попыток генерации."""
+        logger.info("Счётчики генерации сброшены")
+
+    def set_max_retries(self, args):
+        """Установить максимальное количество попыток."""
+        max_retries = args.get("max_retries")
+        logger.info(f"max_retries установлен: {max_retries}")
+
+    def get_system_status(self, args):
+        """Получить статус системы."""
+        return {
+            "running": getattr(self.brain, "running", False),
+            "initialized": getattr(self.brain, "initialized", False),
+        }
+
+    def restart_component(self, args):
+        """Перезапустить компонент."""
+        component = args.get("component")
+        logger.info(f"Перезапуск компонента: {component}")
+
+    def update_event_subscription(self, args):
+        """Обновить подписку на события."""
+        logger.info(f"Обновление подписки: {args}")
+
+    def set_log_level(self, args):
+        """Установить уровень логирования."""
+        level = args.get("level")
+        logger.info(f"Уровень логирования установлен: {level}")
 
 
 def _extract_data(event) -> Dict[str, Any]:
@@ -232,6 +408,10 @@ class EventSubscriptionMixin:
 class CommandIssuerMixin:
     """Methods for CoreBrain to issue coordination commands."""
 
+    def _init_command_handlers(self):
+        """Инициализирует обработчики команд."""
+        self._command_handlers = CommandHandlers(self)
+    
     def _issue_command(self, command_type: str, args: Dict, priority: int = 2):
         """Issue a command via DeferredCommandSystem."""
         if not self.deferred_system:
@@ -240,30 +420,31 @@ class CommandIssuerMixin:
 
         cmd_id = f"{command_type}_{int(time.time())}_{hash(str(args)) & 0xFFFF:04x}"
 
+        # Используем CommandHandlers
         handlers = {
-            "reload_pipeline": self._cmd_reload_pipeline,
-            "adjust_pipeline_params": self._cmd_adjust_params,
-            "flush_cache": self._cmd_flush_cache,
-            "compact_memory": self._cmd_compact_memory,
-            "unload_models": self._cmd_unload_models,
-            "reload_models": self._cmd_reload_models,
-            "get_memory_usage": self._cmd_get_memory_usage,
-            "trigger_learning": self._cmd_trigger_learning,
-            "resolve_contradiction": self._cmd_resolve_contradiction,
-            "recover_component": self._cmd_recover_component,
-            "abort_generation": self._cmd_abort_generation,
-            "scale_resources": self._cmd_scale_resources,
-            "rebuild_knowledge": self._cmd_rebuild_knowledge,
-            "initiate_search": self._cmd_initiate_search,
-            "publish_alert": self._cmd_publish_alert,
-            "set_timeout_limit": self._cmd_set_timeout_limit,
-            "force_model_fallback": self._cmd_force_model_fallback,
-            "reset_generation_attempts": self._cmd_reset_generation_attempts,
-            "set_max_retries": self._cmd_set_max_retries,
-            "get_system_status": self._cmd_get_system_status,
-            "restart_component": self._cmd_restart_component,
-            "update_event_subscription": self._cmd_update_event_subscription,
-            "set_log_level": self._cmd_set_log_level,
+            "reload_pipeline": self._command_handlers.reload_pipeline,
+            "adjust_pipeline_params": self._command_handlers.adjust_params,
+            "flush_cache": self._command_handlers.flush_cache,
+            "compact_memory": self._command_handlers.compact_memory,
+            "unload_models": self._command_handlers.unload_models,
+            "reload_models": self._command_handlers.reload_models,
+            "get_memory_usage": self._command_handlers.get_memory_usage,
+            "trigger_learning": self._command_handlers.trigger_learning,
+            "resolve_contradiction": self._command_handlers.resolve_contradiction,
+            "recover_component": self._command_handlers.recover_component,
+            "abort_generation": self._command_handlers.abort_generation,
+            "scale_resources": self._command_handlers.scale_resources,
+            "rebuild_knowledge": self._command_handlers.rebuild_knowledge,
+            "initiate_search": self._command_handlers.initiate_search,
+            "publish_alert": self._command_handlers.publish_alert,
+            "set_timeout_limit": self._command_handlers.set_timeout_limit,
+            "force_model_fallback": self._command_handlers.force_model_fallback,
+            "reset_generation_attempts": self._command_handlers.reset_generation_attempts,
+            "set_max_retries": self._command_handlers.set_max_retries,
+            "get_system_status": self._command_handlers.get_system_status,
+            "restart_component": self._command_handlers.restart_component,
+            "update_event_subscription": self._command_handlers.update_event_subscription,
+            "set_log_level": self._command_handlers.set_log_level,
         }
 
         handler = handlers.get(command_type)
@@ -284,30 +465,7 @@ class CommandIssuerMixin:
             logger.error(f"Failed to issue command {command_type}: {e}")
             return None
 
-    def _cmd_reload_pipeline(self, args):
-        """Reload Two-Model Pipeline models."""
-        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
-            pipeline = self.two_model_pipeline
-            if hasattr(pipeline, "unload_models"):
-                pipeline.unload_models()
-            if hasattr(pipeline, "load_models"):
-                pipeline.load_models()
-            self.two_model_pipeline_ready = True
-            if self.event_bus:
-                self.event_bus.publish(_make_event("pipeline.reloaded", data={"status": "ok"}))
-            logger.info("Pipeline models reloaded")
-
-    def _cmd_adjust_params(self, args):
-        """Adjust pipeline generation parameters."""
-        if hasattr(self, "two_model_pipeline") and self.two_model_pipeline:
-            pipeline = self.two_model_pipeline
-            for model_name, params in args.items():
-                attr = f"{model_name}_params"
-                if hasattr(pipeline, attr):
-                    param_ctrl = getattr(pipeline, attr)
-                    if hasattr(param_ctrl, "base_params"):
-                        param_ctrl.base_params.update(params)
-                        logger.info(f"Adjusted {model_name} params: {params}")
+    # Удалены старые методы-обработчики (_cmd_*) - теперь в CommandHandlers
 
     def _cmd_flush_cache(self, args):
         """Flush specified cache layer."""

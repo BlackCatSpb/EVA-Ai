@@ -91,12 +91,59 @@ class KnowledgeGraphAdapter:
         related = self.find_related(concept, limit=5)
         return [r['name'] for r in related]
     
-    def find_path_between_concepts(self, concept1: str, concept2: str) -> List[str]:
-        """Найти путь между концепциями (упрощённый)."""
-        related1 = self.get_related_concepts(concept1)
-        if concept2 in related1:
+    def find_path_between_concepts(self, concept1: str, concept2: str, max_depth: int = 5) -> List[str]:
+        """Найти кратчайший путь между концепциями через BFS."""
+        if not self._fg or not hasattr(self._fg, 'storage'):
             return [concept1, concept2]
-        return [concept1] + related1[:2] + [concept2]
+        
+        try:
+            # BFS для поиска кратчайшего пути
+            from collections import deque
+            
+            # Находим ID узлов
+            nodes = self._fg.storage.nodes
+            start_id = None
+            end_id = None
+            
+            for nid, node in nodes.items():
+                content = node.get('content', '').lower()
+                if concept1.lower() in content:
+                    start_id = nid
+                if concept2.lower() in content:
+                    end_id = nid
+            
+            if not start_id or not end_id:
+                return [concept1, concept2]
+            
+            if start_id == end_id:
+                return [concept1]
+            
+            # BFS
+            queue = deque([(start_id, [start_id])])
+            visited = {start_id}
+            
+            while queue:
+                current, path = queue.popleft()
+                
+                if len(path) > max_depth:
+                    continue
+                
+                # Ищем соседей
+                edges = self._fg.storage.edges
+                for edge in edges:
+                    if edge.get('from') == current:
+                        neighbor = edge.get('to')
+                        if neighbor == end_id:
+                            return path + [neighbor]
+                        if neighbor not in visited:
+                            visited.add(neighbor)
+                            queue.append((neighbor, path + [neighbor]))
+            
+            return [concept1, concept2]  # Путь не найден
+            
+        except Exception as e:
+            logger.debug(f"Path finding error: {e}")
+            return [concept1, concept2]
     
     def get_entity_facts(self, entity: str) -> List[str]:
         """Получить факты о сущности."""

@@ -11,7 +11,7 @@ import hashlib
 import secrets
 import socket
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from flask import Flask
 
@@ -200,6 +200,111 @@ class WebGUI:
         # Простая эвристика: ~1.3 токена на слово
         return int(len(text.split()) * 1.3)
 
+    def _prepare_file_context(self, query: str, file_data: Dict) -> tuple:
+        """Подготовить контекст файла для запроса."""
+        if not file_data or not file_data.get('extracted_text'):
+            return query, None
+            
+        filename = file_data.get('filename', 'file')
+        extracted = file_data['extracted_text']
+        estimated_tokens = self._estimate_tokens(extracted)
+        
+        if estimated_tokens > self._document_memory_threshold:
+            document_id = self._ingest_document_to_memory(extracted, filename, None)
+            if document_id:
+                enhanced_query = f"""Пользователь прикрепил документ "{filename}" ({estimated_tokens} токенов).
+Документ загружен в виртуальную память (ID: {document_id}).
+
+Запрос пользователя: {query}"""
+                return enhanced_query, document_id
+            else:
+                logger.warning(f"Не удалось загрузить документ в память, используем обычный режим")
+        
+        enhanced_query = f"""Пользователь прикрепил файл "{filename}".
+Содержимое файла:
+---
+{extracted[:8000] if estimated_tokens > self._document_memory_threshold else extracted}
+---
+
+Запрос пользователя: {query}"""
+        return enhanced_query, None
+    
+    def _extract_reasoning_from_result(self, result: Dict, source: str, 
+                                        brain_reasoning: Any, brain_reasoning_raw: Any,
+                                        brain_ethics: Dict, brain_contradiction: Dict,
+                                        confidence: float, search_results: List) -> tuple:
+        """Извлечь reasoning_steps и reasoning_data из результата brain."""
+        reasoning_steps = []
+        reasoning_data = None
+        
+        if source == 'document_virtual_memory':
+            doc_context = result.get('document_context', {})
+            doc_title = doc_context.get('document_title', 'Unknown')
+            relevant_pages = doc_context.get('relevant_pages', [])
+            
+            reasoning_steps = [
+                {'step': 1, 'phase': 'document_analysis', 
+                 'thought': f'Документ "{doc_title}" загружен в виртуальную память', 'confidence': 0.95},
+                {'step': 2, 'phase': 'page_retrieval', 
+                 'thought': f'Извлечены релевантные страницы: {relevant_pages}', 'confidence': 0.9},
+                {'step': 3, 'phase': 'context_building', 
+                 'thought': 'Построение контекста из страниц документа', 'confidence': 0.9},
+                {'step': 4, 'phase': 'generation', 
+                 'thought': 'Генерация ответа на основе контекста документа', 'confidence': 0.85},
+                {'step': 5, 'phase': 'final_synthesis', 
+                 'thought': 'Финальный ответ с учетом документа', 'confidence': result.get('confidence', 0.9)}
+            ]
+            
+            reasoning_data = f"📚 Анализ документа:\n\n"
+            reasoning_data += f"Документ: {doc_title}\n"
+            reasoning_data += f"Использованы страницы: {', '.join(map(str, relevant_pages))}\n\n"
+            reasoning_data += "Шаги:\n"
+            for s in reasoning_steps:
+                reasoning_data += f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})\n"
+        
+        elif source in ['llama_cpp_with_modules', 'self_reasoning_engine', 'enhanced_reasoning_engine']:
+            if result.get('reasoning_steps'):
+                reasoning_steps = result.get('reasoning_steps', [])
+            elif brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
+                steps = brain_reasoning_raw.get('steps', [])
+                for i, step in enumerate(steps):
+                    reasoning_steps.append({
+                        'step': i + 1,
+                        'phase': step.get('phase', 'unknown'),
+                        'thought': step.get('thought', ''),
+                        'confidence': step.get('confidence', 0)
+                    })
+            
+            if brain_reasoning:
+                reasoning_data = str(brain_reasoning)
+        
+        # Добавляем ethics и contradiction шаги
+        if brain_contradiction:
+            reasoning_steps.append({
+                'step': len(reasoning_steps) + 1,
+                'phase': 'contradiction_check',
+                'thought': f'Проверка противоречий: найдено={brain_contradiction.get("significant_count", 0)}',
+                'confidence': 1.0 - brain_contradiction.get('contradiction_level', 0.0)
+            })
+        
+        if brain_ethics:
+            reasoning_steps.append({
+                'step': len(reasoning_steps) + 1,
+                'phase': 'ethics_check',
+                'thought': f'Этическая оценка: violations={brain_ethics.get("has_violations", False)}',
+                'confidence': brain_ethics.get('is_ethical', 1.0)
+            })
+        
+        if search_results and len(search_results) > 0:
+            reasoning_steps.append({
+                'step': len(reasoning_steps) + 1,
+                'phase': 'web_search',
+                'thought': f'Веб-поиск: найдено {len(search_results)} результатов',
+                'confidence': 0.8
+            })
+        
+        return reasoning_steps, reasoning_data
+
     def process_message(self, query: str, session_id: str, user_id: str, file_data: Dict = None) -> Dict[str, Any]:
         # Начинаем измерение времени
         request_start = time.time()
@@ -226,47 +331,10 @@ class WebGUI:
             except Exception as e:
                 logger.debug(f"Ошибка записи метрик: {e}")
         
-        # Если есть file_data, проверяем размер и решаем как обрабатывать
-        document_id = None
-        if file_data and file_data.get('extracted_text'):
-            filename = file_data.get('filename', 'file')
-            extracted = file_data['extracted_text']
-            estimated_tokens = self._estimate_tokens(extracted)
-            
-            # Если документ большой - используем DocumentVirtualMemory
-            if estimated_tokens > self._document_memory_threshold:
-                logger.info(f"Документ '{filename}' большой ({estimated_tokens} токенов), используем виртуальную память")
-                document_id = self._ingest_document_to_memory(extracted, filename, session_id)
-                
-                if document_id:
-                    # Не добавляем полный текст к запросу, используем виртуальную память
-                    enhanced_query = f"""Пользователь прикрепил документ "{filename}" ({estimated_tokens} токенов).
-Документ загружен в виртуальную память (ID: {document_id}).
-
-Запрос пользователя: {query}"""
-                    query = enhanced_query
-                else:
-                    # Fallback: добавляем текст как обычно
-                    logger.warning(f"Не удалось загрузить документ в память, используем обычный режим")
-                    enhanced_query = f"""Пользователь прикрепил файл "{filename}".
-Содержимое файла:
----
-{extracted[:8000]}  # Ограничиваем размер
----
-
-Запрос пользователя: {query}"""
-                    query = enhanced_query
-            else:
-                # Маленький документ - обычная обработка
-                enhanced_query = f"""Пользователь прикрепил файл "{filename}".
-Содержимое файла:
----
-{extracted}
----
-
-Запрос пользователя: {query}"""
-                query = enhanced_query
-
+        # Подготавливаем контекст файла
+        query, document_id = self._prepare_file_context(query, file_data or {})
+        
+        # Проверка этики
         ethics_result = self.ethics_checker.check_message(query)
         if not ethics_result['allowed']:
             record_metrics(success=False, error='ethics_blocked')
@@ -275,12 +343,12 @@ class WebGUI:
                 'status': 'blocked',
                 'reason': ethics_result.get('reason')
             }
-
+        
+        # Извлечение сущностей и сохранение в сессию
         entities = self.entity_extractor.extract_entities(query)
-
+        
         if session_id:
             self.session_manager.add_chat_message(session_id, 'user', query)
-
             context_node = {
                 'id': str(uuid.uuid4()),
                 'user_message': query,
@@ -289,424 +357,62 @@ class WebGUI:
                 'file_data': file_data
             }
             self.session_manager.add_context_node(session_id, context_node)
-
+            
             for entity in entities:
                 if not self.entity_extractor.is_personal_info(entity.get('context', '')):
                     sanitized = self.ethics_checker.sanitize_entity(entity)
                     self.session_manager.add_entity(session_id, sanitized)
-
-        response_text = "Система обрабатывает запрос..."
-
-        result = None
-        debug_info = {"brain": self.brain is not None, "has_process_query": False}
-
+        
+        # Подготовка контекста пользователя
         conversation_history = []
         if session_id and isinstance(session_id, str) and session_id.strip():
             conversation_history = self.session_manager.get_chat_history(session_id, limit=20)
-
+        
         user_context = {
             'session_id': session_id,
             'user_id': user_id,
             'conversation_history': conversation_history
         }
-
+        
+        # Обработка через DocumentVirtualMemory или brain
         result = None
+        response_text = "Система обрабатывает запрос..."
         document_mode = False
         document_context_info = None
         
-        # Проверяем, нужно ли использовать DocumentVirtualMemory
         if (has_active_documents or document_id) and self._get_document_manager():
-            dg = self._get_document_manager()
-            # Используем самый свежий документ
-            if document_id:
-                active_doc_id = document_id
-            elif session_id and session_id in self._session_documents:
-                active_doc_id = max(
-                    self._session_documents[session_id].keys(),
-                    key=lambda k: self._session_documents[session_id][k].get('loaded_at', '')
-                )
-            else:
-                active_doc_id = None
-            
-            if active_doc_id:
-                try:
-                    logger.info(f"Используем DocumentVirtualMemory для документа {active_doc_id}")
-                    # Используем generate_with_document для генерации с контекстом из документа
-                    gen_result = dg.generate_with_document(
-                        query=query,
-                        document_id=active_doc_id,
-                        mode="extended"  # Используем extended для лучшего качества
-                    )
-                    
-                    if gen_result and isinstance(gen_result, dict):
-                        response_text = gen_result.get('response', gen_result.get('text', response_text))
-                        document_context_info = gen_result.get('document_context', {})
-                        document_mode = True
-                        
-                        # Формируем reasoning steps для документного режима
-                        reasoning_steps = [
-                            {
-                                'step': 1,
-                                'phase': 'document_query',
-                                'thought': f'Запрос к документу с использованием виртуальной памяти',
-                                'confidence': 0.95
-                            },
-                            {
-                                'step': 2,
-                                'phase': 'page_retrieval',
-                                'thought': f'Загружены релевантные страницы: {document_context_info.get("relevant_pages", [])}',
-                                'confidence': 0.9
-                            },
-                            {
-                                'step': 3,
-                                'phase': 'generation',
-                                'thought': f'Генерация ответа на основе контекста документа',
-                                'confidence': 0.85
-                            }
-                        ]
-                        
-                        result = {
-                            'response': response_text,
-                            'source': 'document_virtual_memory',
-                            'document_context': document_context_info,
-                            'reasoning_steps': reasoning_steps
-                        }
-                        
-                        logger.info(f"Ответ сгенерирован с использованием DocumentVirtualMemory")
-                except Exception as e:
-                    logger.error(f"Ошибка при использовании DocumentVirtualMemory: {e}")
-                    # Fallback на обычную генерацию
+            result = self._process_with_document(query, document_id, session_id)
+            if result:
+                response_text = result.get('response', response_text)
+                document_mode = True
         
-        # Обычная генерация если не использовали DocumentVirtualMemory
         if not document_mode and self.brain and hasattr(self.brain, 'process_query'):
-            debug_info["has_process_query"] = True
-            debug_info["brain_loaded"] = self.brain is not None and hasattr(self.brain, 'self_reasoning_engine') and self.brain.self_reasoning_engine is not None
-            debug_info["enhanced_reasoning_loaded"] = self.brain is not None and hasattr(self.brain, 'enhanced_reasoning_engine') and self.brain.enhanced_reasoning_engine is not None
             result = self.brain.process_query(query, user_context)
-            debug_info["result_keys"] = list(result.keys()) if result and isinstance(result, dict) else []
-            debug_info["result_reasoning"] = str(result.get('reasoning'))[:100] if result and isinstance(result, dict) else None
-            debug_info["result_source"] = result.get('source') if result and isinstance(result, dict) else None
-            logger.debug(f"brain result: source={result.get('source') if result and isinstance(result, dict) else 'None'}")
             if result and isinstance(result, dict):
                 response_text = result.get('response', result.get('text', response_text))
-        elif not document_mode:
-            debug_info["reason"] = "no brain or no process_query"
-
-        brain_reasoning = None
-        reasoning_data = None
+        
+        # Извлечение reasoning из результата
         reasoning_steps = []
+        reasoning_data = None
         search_results = []
-        web_search_info = None
-
-        # Извлекаем ethics и contradiction из brain result ДО обработки по источникам
         brain_ethics = None
         brain_contradiction = None
+        
         if result and isinstance(result, dict):
-            brain_reasoning = result.get('reasoning')
-            brain_reasoning_raw = result.get('reasoning_raw')
             source = result.get('source', '')
             confidence = result.get('confidence', 0)
             search_results = result.get('search_results', [])
-
-            if result.get('reasoning_steps'):
-                reasoning_steps = result.get('reasoning_steps', [])
-                logger.debug(f"Got {len(reasoning_steps)} reasoning steps from result")
-
-            # Этическая оценка из brain
-            if result.get('ethics_result') and not ethics_result:
-                ethics_result = result.get('ethics_result')
-            brain_ethics = ethics_result
-
-            # Противоречия из brain
+            brain_ethics = result.get('ethics_result') or ethics_result
             brain_contradiction = result.get('contradiction_result')
-
-            if search_results and len(search_results) > 0:
-                web_search_info = f"Найдено {len(search_results)} результатов:"
-                for i, sr in enumerate(search_results[:3]):
-                    title = sr.get('title', 'No title')[:60]
-                    url = sr.get('url', '')[:50]
-                    web_search_info += f"\n{i+1}. {title}... ({url})"
-
-            if source == 'document_virtual_memory':
-                # Обработка для DocumentVirtualMemory
-                doc_context = result.get('document_context', {})
-                doc_title = doc_context.get('document_title', 'Unknown')
-                relevant_pages = doc_context.get('relevant_pages', [])
-                
-                reasoning_steps = [
-                    {
-                        'step': 1,
-                        'phase': 'document_analysis',
-                        'thought': f'Документ "{doc_title}" загружен в виртуальную память',
-                        'confidence': 0.95
-                    },
-                    {
-                        'step': 2,
-                        'phase': 'page_retrieval',
-                        'thought': f'Извлечены релевантные страницы: {relevant_pages}',
-                        'confidence': 0.9
-                    },
-                    {
-                        'step': 3,
-                        'phase': 'context_building',
-                        'thought': 'Построение контекста из страниц документа',
-                        'confidence': 0.9
-                    },
-                    {
-                        'step': 4,
-                        'phase': 'generation',
-                        'thought': 'Генерация ответа на основе контекста документа',
-                        'confidence': 0.85
-                    },
-                    {
-                        'step': 5,
-                        'phase': 'final_synthesis',
-                        'thought': 'Финальный ответ с учетом документа',
-                        'confidence': result.get('confidence', 0.9)
-                    }
-                ]
-                
-                reasoning_data = f"📚 Анализ документа:\n\n"
-                reasoning_data += f"Документ: {doc_title}\n"
-                reasoning_data += f"Использованы страницы: {', '.join(map(str, relevant_pages))}\n\n"
-                reasoning_data += "Шаги:\n"
-                for s in reasoning_steps:
-                    reasoning_data += f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})\n"
             
-            elif source == 'llama_cpp_with_modules' or (file_data and file_data.get('extracted_text')):
-                reasoning_steps = []
-
-                if file_data and file_data.get('extracted_text'):
-                    filename = file_data.get('filename', 'file')
-                    text_len = len(file_data.get('extracted_text', ''))
-                    reasoning_steps.append({
-                        'step': 0,
-                        'phase': 'document_analysis',
-                        'thought': f'Анализ документа "{filename}" - извлечено {text_len} символов',
-                        'confidence': 0.9
-                    })
-
-                reasoning_steps.append({
-                    'step': len(reasoning_steps) + 1,
-                    'phase': 'generation',
-                    'thought': 'Первичная генерация ответа через LlamaCpp (GGUF)',
-                    'confidence': 0.5
-                })
-
-                # Противоречия
-                contr_count = 0
-                if brain_contradiction:
-                    contr_count = brain_contradiction.get('significant_count', 0)
-                    contr_conf = 1.0 - brain_contradiction.get('contradiction_level', 0.0)
-                    reasoning_steps.append({
-                        'step': 2,
-                        'phase': 'contradiction_check',
-                        'thought': f'Проверка противоречий: {contr_count} найдено, уровень={brain_contradiction.get("contradiction_level", 0):.2f}',
-                        'confidence': contr_conf
-                    })
-
-                # Этика
-                if brain_ethics:
-                    has_violations = brain_ethics.get('has_violations', False)
-                    ethics_conf = brain_ethics.get('is_ethical', 1.0)
-                    reasoning_steps.append({
-                        'step': 3,
-                        'phase': 'ethics_check',
-                        'thought': f'Проверка этики: violations={has_violations}, score={ethics_conf:.2f}',
-                        'confidence': ethics_conf
-                    })
-
-                if search_results and len(search_results) > 0:
-                    reasoning_steps.append({
-                        'step': 4,
-                        'phase': 'web_search',
-                        'thought': f'Веб-поиск: найдено {len(search_results)} результатов',
-                        'confidence': 0.8
-                    })
-
-                    reasoning_steps.append({
-                        'step': 5,
-                        'phase': 'refinement',
-                        'thought': 'Перегенерация с контекстом из веб-поиска',
-                        'confidence': 0.9
-                    })
-                elif contr_count > 0 or (brain_ethics and brain_ethics.get('has_violations', False)):
-                    reasoning_steps.append({
-                        'step': 4,
-                        'phase': 'refinement',
-                        'thought': 'Перегенерация после исправления модулей',
-                        'confidence': 0.7
-                    })
-
-                reasoning_steps.append({
-                    'step': len(reasoning_steps) + 1,
-                    'phase': 'final_synthesis',
-                    'thought': 'Финальный ответ с учетом всех проверок',
-                    'confidence': result.get('confidence', 0.9)
-                })
-
-                reasoning_data = "Рассуждения системы (qwen_only_mode):\n\n" + "\n".join([
-                    f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})"
-                    for s in reasoning_steps
-                ])
-
-            elif source == 'self_reasoning_engine':
-                if result.get('reasoning_steps'):
-                    reasoning_steps = result.get('reasoning_steps', [])
-                    reasoning_text = "Рассуждения системы:\n\n"
-                    for i, step in enumerate(reasoning_steps):
-                        phase = step.get('phase', 'unknown')
-                        thought = step.get('thought', '')
-                        conf = step.get('confidence', 0)
-                        model = step.get('model', '')
-                        if i < 15:
-                            reasoning_text += f"{i+1}. [{phase}] {thought} (conf: {conf:.2f})\n"
-                    reasoning_data = reasoning_text
-                elif brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
-                    steps = brain_reasoning_raw.get('steps', [])
-                    if steps:
-                        reasoning_text = "Рассуждения системы:\n\n"
-                        for i, step in enumerate(steps):
-                            phase = step.get('phase', 'unknown')
-                            thought = step.get('thought', '')
-                            conf = step.get('confidence', 0)
-                            reasoning_steps.append({
-                                'step': i + 1,
-                                'phase': phase,
-                                'thought': thought,
-                                'confidence': conf
-                            })
-                            if i < 10:
-                                reasoning_text += f"{i+1}. [{phase}] {thought} (conf: {conf:.2f})\n"
-                        reasoning_data = reasoning_text
-                    elif brain_reasoning:
-                        reasoning_data = str(brain_reasoning)
-                elif brain_reasoning:
-                    reasoning_data = str(brain_reasoning)
-
-            elif source == 'enhanced_reasoning_engine':
-                if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
-                    chain = brain_reasoning_raw.get('reasoning_chain', [])
-                    if chain:
-                        reasoning_text = "Регенерация ответа:\n\n"
-                        for i, iteration in enumerate(chain):
-                            resp_preview = iteration.get('response', '')[:80]
-                            conf = iteration.get('confidence', 0)
-                            has_contr = iteration.get('has_contradictions', False)
-                            has_ethics = iteration.get('has_ethics_issues', False)
-                            module_prompts = iteration.get('module_prompts', {})
-
-                            prompts_text = ""
-                            if module_prompts:
-                                prompts_text = "\nПромты модулей:"
-                                for mod, prompt in module_prompts.items():
-                                    prompts_text += f"\n  [{mod.upper()}]: {prompt[:100]}..."
-
-                            reasoning_steps.append({
-                                'step': i + 1,
-                                'phase': 'regeneration',
-                                'thought': resp_preview,
-                                'confidence': conf,
-                                'has_contradictions': has_contr,
-                                'has_ethics_issues': has_ethics,
-                                'module_prompts': prompts_text
-                            })
-                            reasoning_text += f"{i+1}. [regeneration] {resp_preview} (conf: {conf:.2f})\n"
-                            if has_contr:
-                                reasoning_text += f"   ⚠️ Противоречия обнаружены\n"
-                            if has_ethics:
-                                reasoning_text += f"   ⚠️ Этические проблемы обнаружены\n"
-                            if prompts_text:
-                                reasoning_text += prompts_text + "\n"
-                        reasoning_data = reasoning_text
-                    elif brain_reasoning:
-                        reasoning_data = str(brain_reasoning)
-                elif brain_reasoning:
-                    reasoning_data = str(brain_reasoning)
-
-            else:
-                if brain_reasoning:
-                    reasoning_data = str(brain_reasoning)
-
-            # Добавляем ethics и contradiction шаги для НЕ-llama_cpp источников
-            # (для llama_cpp_with_modules они уже добавлены внутри блока выше)
-            if source != 'llama_cpp_with_modules' and not (file_data and file_data.get('extracted_text')):
-                # Противоречия
-                if brain_contradiction:
-                    contr_count = brain_contradiction.get('significant_count', 0)
-                    contr_level = brain_contradiction.get('contradiction_level', 0.0)
-                    contr_conf = 1.0 - contr_level
-                    reasoning_steps.append({
-                        'step': len(reasoning_steps) + 1,
-                        'phase': 'contradiction_check',
-                        'thought': f'Проверка противоречий: найдено={contr_count}, уровень={contr_level:.2f}',
-                        'confidence': contr_conf
-                    })
-
-                # Этика
-                if brain_ethics:
-                    has_violations = brain_ethics.get('has_violations', False)
-                    ethics_conf = brain_ethics.get('is_ethical', brain_ethics.get('confidence', 1.0))
-                    reasoning_steps.append({
-                        'step': len(reasoning_steps) + 1,
-                        'phase': 'ethics_check',
-                        'thought': f'Этическая оценка: violations={has_violations}, score={ethics_conf:.2f}',
-                        'confidence': ethics_conf
-                    })
-                elif brain_reasoning:
-                    reasoning_data = str(brain_reasoning)
-
-            elif source == 'enhanced_reasoning_engine':
-                if brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
-                    chain = brain_reasoning_raw.get('reasoning_chain', [])
-                    if chain:
-                        reasoning_text = "Регенерация ответа:\n\n"
-                        for i, iteration in enumerate(chain):
-                            resp_preview = iteration.get('response', '')[:80]
-                            conf = iteration.get('confidence', 0)
-                            has_contr = iteration.get('has_contradictions', False)
-                            has_ethics = iteration.get('has_ethics_issues', False)
-                            module_prompts = iteration.get('module_prompts', {})
-
-                            prompts_text = ""
-                            if module_prompts:
-                                prompts_text = "\nПромты модулей:"
-                                for mod, prompt in module_prompts.items():
-                                    prompts_text += f"\n  [{mod.upper()}]: {prompt[:100]}..."
-
-                            reasoning_steps.append({
-                                'step': i + 1,
-                                'phase': 'regeneration',
-                                'thought': resp_preview,
-                                'confidence': conf,
-                                'has_contradictions': has_contr,
-                                'has_ethics_issues': has_ethics,
-                                'module_prompts': module_prompts
-                            })
-
-                            status = ""
-                            if has_contr:
-                                status += " [противоречия]"
-                            if has_ethics:
-                                status += " [этика]"
-
-                            reasoning_text += f"Итерация {i+1}: {resp_preview}...{status}\n"
-                            reasoning_text += f"  Уверенность: {conf:.2f}\n"
-                            if prompts_text:
-                                reasoning_text += f"  {prompts_text}\n"
-                            reasoning_text += "\n"
-
-                        reasoning_data = reasoning_text
-                    elif brain_reasoning:
-                        reasoning_data = str(brain_reasoning)
-                elif brain_reasoning:
-                    reasoning_data = str(brain_reasoning)
-            elif source == 'qwen_model' and confidence >= 0.85:
-                reasoning_data = f"🤖 Qwen Model обработал запрос (уверенность: {confidence:.2f})"
-
+            reasoning_steps, reasoning_data = self._extract_reasoning_from_result(
+                result, source, result.get('reasoning'), result.get('reasoning_raw'),
+                brain_ethics, brain_contradiction, confidence, search_results
+            )
+        
+        # Сохранение ответа в сессию
         if session_id and response_text:
             self.session_manager.add_chat_message(session_id, 'assistant', response_text)
-
             response_node = {
                 'id': str(uuid.uuid4()),
                 'assistant_message': response_text,
@@ -714,17 +420,11 @@ class WebGUI:
                 'reasoning': reasoning_data
             }
             self.session_manager.add_context_node(session_id, response_node)
-
-            if self.brain and hasattr(self.brain, 'fractal_memory') and self.brain.fractal_memory:
-                self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_memory)
-            elif self.brain and hasattr(self.brain, 'fractal_graph_v2') and self.brain.fractal_graph_v2:
+            
+            if self.brain and hasattr(self.brain, 'fractal_graph_v2') and self.brain.fractal_graph_v2:
                 self.session_manager.convert_chat_to_knowledge(session_id, self.brain.fractal_graph_v2)
-
-        self_dialog_result = None
-        # Самодиалог НЕ запускается при каждом запросе!
-        # Он запускается автоматически в brain_query.py когда система не знает ответа (обнаружены unknown_patterns)
-        # Во время генерации ответа — только рассуждения, самодиалог это фоновое обучение
-
+        
+        # Формирование ответа
         return_data = {
             'response': response_text,
             'status': 'ok',
@@ -733,15 +433,43 @@ class WebGUI:
             'contradiction_metrics': brain_contradiction,
             'reasoning': reasoning_data,
             'reasoning_steps': reasoning_steps,
-            'self_dialog': self_dialog_result,
             'search_results': search_results if search_results else None,
-            'web_search_info': web_search_info
+            'web_search_info': f"Найдено {len(search_results)} результатов" if search_results else None
         }
         
-        # Записываем метрики успешного запроса
         record_metrics(success=True)
-        
         return return_data
+    
+    def _process_with_document(self, query: str, document_id: str, session_id: str) -> Optional[Dict]:
+        """Обработать запрос с использованием DocumentVirtualMemory."""
+        dg = self._get_document_manager()
+        if not dg:
+            return None
+        
+        try:
+            active_doc_id = document_id
+            if not active_doc_id and session_id and session_id in self._session_documents:
+                active_doc_id = max(
+                    self._session_documents[session_id].keys(),
+                    key=lambda k: self._session_documents[session_id][k].get('loaded_at', '')
+                )
+            
+            if not active_doc_id:
+                return None
+            
+            logger.info(f"Используем DocumentVirtualMemory для документа {active_doc_id}")
+            gen_result = dg.generate_with_document(query=query, document_id=active_doc_id, mode="extended")
+            
+            if gen_result and isinstance(gen_result, dict):
+                return {
+                    'response': gen_result.get('response', gen_result.get('text', '')),
+                    'source': 'document_virtual_memory',
+                    'document_context': gen_result.get('document_context', {})
+                }
+        except Exception as e:
+            logger.error(f"Ошибка при использовании DocumentVirtualMemory: {e}")
+        
+        return None
 
     def get_session_documents(self, session_id: str) -> Dict[str, Any]:
         """Получить список документов для сессии."""
@@ -789,6 +517,10 @@ class WebGUI:
                         self._server.handle_request()
                     except socket.timeout:
                         continue
+                    except OSError as e:
+                        if not self.shutting_down and e.winerror != 10004:  # WSAEWOULDBLOCK
+                            logger.error(f"Flask socket error: {e}")
+                        break
                     except Exception as e:
                         if not self.shutting_down:
                             logger.error(f"Flask error: {e}")
@@ -836,6 +568,11 @@ class WebGUI:
         # Прерываем поток если он всё ещё работает
         if self.thread and self.thread.is_alive():
             logger.debug(f"Ожидание завершения потока WebGUI...")
+            self.thread.join(timeout=3)  # Ждём максимум 3 секунды
+        
+        # Принудительно завершаем если поток всё ещё жив
+        if self.thread and self.thread.is_alive():
+            logger.warning("Поток WebGUI не завершился, продолжаем...")
         
         logger.info("WebGUI сервер остановлен")
 
@@ -869,8 +606,19 @@ def create_app(brain=None, integrator=None, host='127.0.0.1', port=5555):
     return web_gui_instance
 
 
-def get_app() -> WebGUI:
+def get_app() -> Optional[WebGUI]:
+    """
+    Получить экземпляр WebGUI (singleton).
+    Правильный способ доступа к инстансу - через эту функцию.
+    """
     return web_gui_instance
+
+
+def get_brain():
+    """Получить brain из WebGUI инстанса."""
+    if web_gui_instance and hasattr(web_gui_instance, 'brain'):
+        return web_gui_instance.brain
+    return None
 
 
 # Direct execution - create app and run

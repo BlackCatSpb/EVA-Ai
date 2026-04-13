@@ -421,9 +421,34 @@ class DocumentVirtualMemory:
     
     def _find_relevant_pages(self, document_id: str, query: str, top_k: int) -> List[str]:
         """Находит релевантные страницы через семантический поиск."""
-        # TODO: Реализовать через semantic_search фрактального графа
-        # Пока возвращаем первые top_k страниц как заглушку
+        # Проверяем есть ли FractalGraph для семантического поиска
+        if self.brain and hasattr(self.brain, 'fractal_graph_v2'):
+            try:
+                fg = self.brain.fractal_graph_v2
+                if hasattr(fg, 'semantic_search'):
+                    results = fg.semantic_search(
+                        query=query,
+                        top_k=top_k * 2,
+                        min_similarity=0.3
+                    )
+                    
+                    # Фильтруем страницы только этого документа
+                    page_ids = []
+                    for r in results:
+                        node = r.get('node', {})
+                        node_doc_id = node.get('metadata', {}).get('document_id')
+                        if node_doc_id == document_id:
+                            page_ids.append(node.get('id'))
+                            if len(page_ids) >= top_k:
+                                break
+                    
+                    if page_ids:
+                        logger.debug(f"Found {len(page_ids)} relevant pages via semantic search")
+                        return page_ids
+            except Exception as e:
+                logger.debug(f"Semantic search failed: {e}")
         
+        # Fallback: возвращаем первые top_k страниц (без поиска)
         pages = []
         for page_id, doc_id in self._page_index.items():
             if doc_id == document_id:

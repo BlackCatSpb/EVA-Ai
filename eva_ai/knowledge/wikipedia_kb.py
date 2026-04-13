@@ -14,6 +14,16 @@ from datetime import datetime
 
 logger = logging.getLogger("eva_ai.wikipedia_kb")
 
+# Опциональный импорт FAISS для быстрого поиска
+try:
+    import faiss
+    import numpy as np
+    FAISS_AVAILABLE = True
+    logger.info("FAISS доступен для быстрого поиска")
+except ImportError:
+    FAISS_AVAILABLE = False
+    logger.info("FAISS не установлен, используется fallback поиск")
+
 class WikipediaKnowledgeBase:
     """
     База знаний на основе русскоязычной Википедии.
@@ -32,11 +42,141 @@ class WikipediaKnowledgeBase:
         self.max_chunks = max_chunks
         self._lock = threading.RLock()
         self._embedder = None
+        self._faiss_index = None
+        self._faiss_ids = []  # Маппинг индекса FAISS -> chunk_id
         self._init_db()
         
         stats = self.get_stats()
         logger.info(f"WikipediaKnowledgeBase инициализирован: {stats['articles']} статей, "
                    f"{stats['chunks']} чанков")
+    
+    def _build_faiss_index(self):
+        """Построить FAISS индекс для быстрого поиска."""
+        if not FAISS_AVAILABLE:
+            return
+        
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("SELECT id, embedding FROM chunks WHERE embedding IS NOT NULL")
+                rows = cursor.fetchall()
+            
+            if not rows:
+                logger.warning("Нет данных для построения FAISS индекса")
+                return
+            
+            # Собираем эмбеддинги
+            embeddings = []
+            self._faiss_ids = []
+            
+            for chunk_id, emb_json in rows:
+                if emb_json:
+                    emb = json.loads(emb_json)
+                    embeddings.append(emb)
+                    self._faiss_ids.append(chunk_id)
+            
+            if not embeddings:
+                return
+            
+            embeddings_array = np.array(embeddings, dtype=np.float32)
+            dim = embeddings_array.shape[1]
+            
+            # Создаём индекс (IVF для больших баз, Flat для маленьких)
+            if len(embeddings) > 10000:
+                nlist = min(100, len(embeddings) // 10)
+                quantizer = faiss.IndexFlatIP(dim)
+                self._faiss_index = faiss.IndexIVFFlat(quantizer, dim, nlist, faiss.METRIC_INNER_PRODUCT)
+                self._faiss_index.train(embeddings_array)
+            else:
+                self._faiss_index = faiss.IndexFlatIP(dim)
+            
+            self._faiss_index.add(embeddings_array)
+            logger.info(f"FAISS индекс построен: {len(embeddings)} векторов, dim={dim}")
+            
+        except Exception as e:
+            logger.error(f"Ошибка построения FAISS индекса: {e}")
+            self._faiss_index = None
+    
+    def _search_with_faiss(self, query_embedding: List[float], limit: int, min_similarity: float) -> List[Dict]:
+        """Поиск с использованием FAISS."""
+        if self._faiss_index is None:
+            self._build_faiss_index()
+        
+        if self._faiss_index is None:
+            return self._search_fallback(query_embedding, limit, min_similarity)
+        
+        try:
+            query_array = np.array([query_embedding], dtype=np.float32)
+            scores, indices = self._faiss_index.search(query_array, limit * 3)
+            
+            results = []
+            for score, idx in zip(scores[0], indices[0]):
+                if idx < 0 or idx >= len(self._faiss_ids):
+                    continue
+                
+                similarity = float(score)
+                if similarity >= min_similarity:
+                    chunk_id = self._faiss_ids[idx]
+                    # Получаем данные чанка из БД
+                    with sqlite3.connect(self.db_path) as conn:
+                        cursor = conn.execute(
+                            "SELECT article_id, title, text FROM chunks WHERE id = ?", 
+                            (chunk_id,)
+                        )
+                        row = cursor.fetchone()
+                        if row:
+                            results.append({
+                                'chunk_id': chunk_id,
+                                'article_id': row[0],
+                                'title': row[1],
+                                'text': row[2],
+                                'similarity': round(similarity, 4),
+                            })
+            
+            return results[:limit]
+            
+        except Exception as e:
+            logger.error(f"Ошибка FAISS поиска: {e}")
+            return self._search_fallback(query_embedding, limit, min_similarity)
+    
+    def _search_fallback(self, query_embedding: List[float], limit: int, min_similarity: float) -> List[Dict]:
+        """Fallback поиск без FAISS (медленный)."""
+        import math
+        
+        results = []
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute("SELECT id, article_id, title, text, embedding FROM chunks WHERE embedding IS NOT NULL")
+            
+            for row in cursor:
+                chunk_id, article_id, title, text, emb_json = row
+                if not emb_json:
+                    continue
+                
+                stored_embedding = json.loads(emb_json)
+                
+                dot = sum(a * b for a, b in zip(query_embedding, stored_embedding))
+                norm_q = math.sqrt(sum(a * a for a in query_embedding))
+                norm_s = math.sqrt(sum(a * a for a in stored_embedding))
+                
+                if norm_q == 0 or norm_s == 0:
+                    continue
+                
+                similarity = dot / (norm_q * norm_s)
+                
+                if similarity >= min_similarity:
+                    results.append({
+                        'chunk_id': chunk_id,
+                        'article_id': article_id,
+                        'title': title,
+                        'text': text,
+                        'similarity': round(similarity, 4),
+                    })
+                
+                if len(results) >= limit * 3:
+                    break
+        
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        return results[:limit]
     
     def _init_db(self):
         """Инициализация SQLite."""
@@ -190,46 +330,12 @@ class WikipediaKnowledgeBase:
         if query_embedding is None:
             return []
         
-        import math
+        # Используем FAISS если доступен
+        if FAISS_AVAILABLE and self._faiss_index is not None:
+            return self._search_with_faiss(query_embedding, limit, min_similarity)
         
-        results = []
-        
-        with sqlite3.connect(self.db_path) as conn:
-            # Загружаем все чанки с эмбеддингами (оптимизация: можно использовать FAISS для больших баз)
-            cursor = conn.execute("SELECT id, article_id, title, text, embedding FROM chunks WHERE embedding IS NOT NULL")
-            
-            for row in cursor:
-                chunk_id, article_id, title, text, emb_json = row
-                if not emb_json:
-                    continue
-                
-                stored_embedding = json.loads(emb_json)
-                
-                # Cosine similarity
-                dot = sum(a * b for a, b in zip(query_embedding, stored_embedding))
-                norm_q = math.sqrt(sum(a * a for a in query_embedding))
-                norm_s = math.sqrt(sum(a * a for a in stored_embedding))
-                
-                if norm_q == 0 or norm_s == 0:
-                    continue
-                
-                similarity = dot / (norm_q * norm_s)
-                
-                if similarity >= min_similarity:
-                    results.append({
-                        'chunk_id': chunk_id,
-                        'article_id': article_id,
-                        'title': title,
-                        'text': text,
-                        'similarity': round(similarity, 4),
-                    })
-                
-                if len(results) >= limit * 3:  # Загружаем больше для сортировки
-                    break
-        
-        # Сортируем по схожести и берём top-N
-        results.sort(key=lambda x: x['similarity'], reverse=True)
-        return results[:limit]
+        # Fallback на медленный поиск
+        return self._search_fallback(query_embedding, limit, min_similarity)
     
     def get_article(self, article_id: str) -> Optional[Dict[str, Any]]:
         """Получает статью по ID."""

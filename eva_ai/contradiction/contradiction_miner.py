@@ -24,6 +24,27 @@ from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("eva_ai.contradiction.miner")
 
+# NLI модель через singleton для избежания повторной загрузки
+_NLI_MODEL = None
+_NLI_MODEL_NAME = "facebook/bart-large-mnli"
+
+
+def _get_nli_model():
+    """Получает singleton NLI модель"""
+    global _NLI_MODEL
+    if _NLI_MODEL is not None:
+        return _NLI_MODEL
+    
+    try:
+        from transformers import pipeline
+        logger.info(f"Загрузка NLI модели: {_NLI_MODEL_NAME}")
+        _NLI_MODEL = pipeline("zero-shot-classification", model=_NLI_MODEL_NAME, device=-1)
+        logger.info("NLI модель загружена")
+        return _NLI_MODEL
+    except Exception as e:
+        logger.warning(f"Не удалось загрузить NLI модель: {e}")
+        return None
+
 
 class ContradictionStatus(Enum):
     """Жизненный цикл узла-противоречия"""
@@ -445,28 +466,81 @@ RESOLUTION_QUESTION: [вопрос]"""
 
     def _compute_contradiction(self, node1: Dict, node2: Dict) -> float:
         """
-        Оценка логического противоречия между узлами.
+        Оценка логического противоречия между узлами через NLI модель.
         
-        В реальной реализации должна использоваться NLI-модель (deberta-v3-xsmall-mnli).
-        Здесь - эвристика на основе ключевых слов как fallback.
+        Использует BART-large-mnli для классификации: entailment, contradiction, neutral.
+        Fallback на эвристику если модель недоступна.
+        """
+        content1 = node1.get('content', '')
+        content2 = node2.get('content', '')
+        
+        if not content1 or not content2:
+            return 0.0
+        
+        # Пробуем использовать NLI модель
+        nli_model = _get_nli_model()
+        
+        if nli_model is not None:
+            try:
+                # Формируем последовательность
+                sequence = f"{content1} [SEP] {content2}"
+                
+                # NLI классификация
+                result = nli_model(
+                    sequence,
+                    candidate_labels=["entailment", "contradiction", "neutral"],
+                    truncation=True,
+                    max_length=512
+                )
+                
+                # Получаем scores
+                labels = result.get('labels', [])
+                scores = result.get('scores', [])
+                
+                # Ищем score для contradiction
+                for i, label in enumerate(labels):
+                    if label == 'contradiction':
+                        contradiction_score = scores[i]
+                        logger.debug(f"NLI: contradiction={contradiction_score:.2f}")
+                        return contradiction_score
+                        
+            except Exception as e:
+                logger.debug(f"NLI error: {e}, fallback to heuristics")
+        
+        # Fallback: эвристика на основе ключевых слов
+        return self._compute_contradiction_heuristic(node1, node2)
+    
+    def _compute_contradiction_heuristic(self, node1: Dict, node2: Dict) -> float:
+        """
+        Fallback эвристика для оценки противоречия.
+        Используется когда NLI модель недоступна.
         """
         content1 = node1.get('content', '').lower()
         content2 = node2.get('content', '').lower()
         
-        # Простая эвристика: антонимы и противоположности
+        # Расширенный словарь антонимов
         contradictions_map = {
-            'быстрый': ['медленный', 'медленнее'],
-            'медленный': ['быстрый', 'быстрее'],
+            'быстрый': ['медленный', 'медленнее', 'медленно'],
+            'медленный': ['быстрый', 'быстрее', 'быстро'],
             'хороший': ['плохой', 'худший'],
             'плохой': ['хороший', 'лучший'],
-            'высокий': ['низкий', 'ниже'],
-            'низкий': ['высокий', 'выше'],
-            'большой': ['маленький', 'меньше'],
-            'маленький': ['большой', 'больше'],
-            'да': ['нет', 'не'],
-            'нет': ['да'],
+            'высокий': ['низкий', 'ниже', 'низко'],
+            'низкий': ['высокий', 'выше', 'высоко'],
+            'большой': ['маленький', 'меньше', 'мало'],
+            'маленький': ['большой', 'больше', 'много'],
+            'да': ['нет', 'не', 'никогда'],
+            'нет': ['да', 'всегда'],
             'всегда': ['никогда', 'редко'],
             'никогда': ['всегда', 'часто'],
+            'правда': ['ложь', 'враньё', 'неправда'],
+            'ложь': ['правда', 'истина'],
+            'истина': ['ложь', 'враньё'],
+            'важно': ['неважно', 'второстепенно'],
+            'неважно': ['важно', 'главное'],
+            'нужно': ['нельзя', 'запрещено'],
+            'можно': ['нельзя', 'запрещено'],
+            'верно': ['неверно', 'ошибочно'],
+            'неверно': ['верно', 'правильно'],
         }
         
         words1 = set(content1.split())
@@ -478,17 +552,15 @@ RESOLUTION_QUESTION: [вопрос]"""
             if word in contradictions_map:
                 antonyms = contradictions_map[word]
                 if any(ant in content2 for ant in antonyms):
-                    contradiction_score = 0.7  # Найдено противоречие
+                    contradiction_score = 0.7
                     break
         
-        # Дополнительно: проверка на отрицание
-        negations = ['не ', 'нет ', 'без ', 'отсутствует']
+        # Проверка на отрицание
+        negations = ['не ', 'нет ', 'без ', 'отсутствует', 'никогда']
         has_negation1 = any(n in content1 for n in negations)
         has_negation2 = any(n in content2 for n in negations)
         
-        # Если один утверждает, другой отрицает - возможно противоречие
         if has_negation1 != has_negation2:
-            # Проверим похожесть остального текста
             clean1 = ' '.join([w for w in content1.split() if w not in negations])
             clean2 = ' '.join([w for w in content2.split() if w not in negations])
             if clean1 and clean2 and len(set(clean1.split()) & set(clean2.split())) > 2:

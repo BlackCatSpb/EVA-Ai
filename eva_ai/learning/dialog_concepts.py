@@ -21,8 +21,11 @@ class DialogConceptsMixin:
     3. Сохранение результатов в кеш контекста
     """
     
+    MAX_RESOLVED_KNOWLEDGE = 200
+    MAX_CONCEPT_QUEUE = 100
+    MAX_CONTRADICTION_TOPICS = 100
+    
     def __init__(self, *args, **kwargs):
-        # Будет вызван при инициализации SelfDialogLearning
         self._concept_queue = []  # Очередь концептов для обсуждения
         self._contradiction_topics = []  # Противоречия для разрешения
         self._resolved_knowledge = []  # Разрешённые знания
@@ -43,6 +46,11 @@ class DialogConceptsMixin:
         })
         # Сортируем по приоритету
         self._concept_queue.sort(key=lambda x: x['priority'], reverse=True)
+        
+        # Ограничиваем размер очереди
+        if len(self._concept_queue) > self.MAX_CONCEPT_QUEUE:
+            self._concept_queue = self._concept_queue[:self.MAX_CONCEPT_QUEUE]
+        
         logger.debug(f"Концепт '{concept_name}' добавлен в очередь (priority: {priority})")
     
     def queue_contradiction_for_resolution(self, contradiction_id: str,
@@ -62,6 +70,11 @@ class DialogConceptsMixin:
             'priority': priority,
             'queued_at': time.time()
         })
+        
+        # Ограничиваем размер очереди
+        if len(self._contradiction_topics) > self.MAX_CONTRADICTION_TOPICS:
+            self._contradiction_topics = self._contradiction_topics[:self.MAX_CONTRADICTION_TOPICS]
+        
         logger.debug(f"Противоречие '{contradiction_id}' добавлено в очередь")
     
     def _get_next_dialog_topic(self) -> Optional[Dict[str, Any]]:
@@ -510,6 +523,10 @@ class DialogConceptsMixin:
         }
         
         self._resolved_knowledge.append(summary)
+        # Ограничиваем размер списка
+        if len(self._resolved_knowledge) > self.MAX_RESOLVED_KNOWLEDGE:
+            self._resolved_knowledge = self._resolved_knowledge[-self.MAX_RESOLVED_KNOWLEDGE:]
+        
         self._save_to_context_cache(f"resolved_concept_{concept}", summary)
         
         logger.info(f"Результаты исследования '{concept}' сохранены")
@@ -527,6 +544,10 @@ class DialogConceptsMixin:
         }
         
         self._resolved_knowledge.append(summary)
+        # Ограничиваем размер списка
+        if len(self._resolved_knowledge) > self.MAX_RESOLVED_KNOWLEDGE:
+            self._resolved_knowledge = self._resolved_knowledge[-self.MAX_RESOLVED_KNOWLEDGE:]
+        
         self._save_to_context_cache(f"resolved_contr_{contr_id}", summary)
         
         # Обновляем статус противоречия

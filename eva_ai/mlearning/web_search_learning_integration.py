@@ -77,14 +77,14 @@ class WebSearchLearningIntegration:
             return {
                 "status": "error",
                 "message": "Веб-поиск недоступен",
-                "response": self.fractal_model_manager.generate_response(query, max_tokens)
+                "response": self.fractal_model_manager.generate_response(query, max_new_tokens)
             }
         
         try:
             start_time = time.time()
             
             # 1. Генерируем базовый ответ
-            base_response = self.fractal_model_manager.generate_response(query, max_tokens)
+            base_response = self.fractal_model_manager.generate_response(query, max_new_tokens)
             
             # 2. Анализируем качество базового ответа
             quality_metrics = self._analyze_response_quality(base_response)
@@ -146,7 +146,7 @@ class WebSearchLearningIntegration:
             return {
                 "status": "error",
                 "message": str(e),
-                "response": self.fractal_model_manager.generate_response(query, max_tokens)
+                "response": self.fractal_model_manager.generate_response(query, max_new_tokens)
             }
     
     def _should_search(self, query: str, quality_metrics: Dict[str, Any]) -> bool:

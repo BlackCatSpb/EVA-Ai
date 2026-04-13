@@ -133,23 +133,39 @@ class ChatInputMixin:
             self.ml_status_label = None
 
     def _create_typing_indicator(self):
-        """Создает индикатор набора текста."""
+        """Создает индикатор набора текста с прогресс-баром."""
         try:
+            self.typing_frame = ttk.Frame(self.chat_frame)
+            
             self.typing_indicator = ttk.Label(
-                self.chat_frame,
+                self.typing_frame,
                 text=self.typing_text,
                 foreground=self.gui.colors['text-muted'])
-            self.typing_indicator.pack_forget()  # Скрыт по умолчанию
-        except (AttributeError, TypeError, RuntimeError, tk.TclError):
+            self.typing_indicator.pack(side=tk.LEFT, padx=(5, 10))
+            
+            self.generation_progress = ttk.Progressbar(
+                self.typing_frame,
+                mode='indeterminate',
+                length=200
+            )
+            self.generation_progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
+            
+            self.typing_frame.pack_forget()
+        except (AttributeError, TypeError, RuntimeError, tk.TclError) as e:
+            logger.debug(f"Error creating typing indicator: {e}")
             self.typing_indicator = None
+            self.generation_progress = None
+            self.typing_frame = None
 
     def _show_typing(self):
         """Показывает индикатор набора текста."""
         try:
             self.typing_active = True
-            if self.typing_indicator and self.chat_frame and self.chat_frame.winfo_exists():
-                if not self.typing_indicator.winfo_ismapped():
-                    self.typing_indicator.pack(fill=tk.X, padx=5, pady=(0, 5))
+            if self.typing_frame and self.chat_frame and self.chat_frame.winfo_exists():
+                if not self.typing_frame.winfo_ismapped():
+                    self.typing_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+                    if self.generation_progress:
+                        self.generation_progress.start(10)
         except (AttributeError, TypeError, RuntimeError, tk.TclError):
             pass
 
@@ -157,8 +173,23 @@ class ChatInputMixin:
         """Скрывает индикатор набора текста."""
         try:
             self.typing_active = False
-            if self.typing_indicator and self.typing_indicator.winfo_ismapped():
-                self.typing_indicator.pack_forget()
+            if self.generation_progress:
+                self.generation_progress.stop()
+            if self.typing_frame and self.typing_frame.winfo_ismapped():
+                self.typing_frame.pack_forget()
+        except (AttributeError, TypeError, RuntimeError, tk.TclError):
+            pass
+
+    def _update_generation_progress(self, value: int = None):
+        """Обновляет прогресс генерации."""
+        try:
+            if self.generation_progress and value is not None:
+                self.generation_progress['value'] = value
+            elif self.generation_progress:
+                if not self.generation_progress.cget('mode') == 'indeterminate':
+                    self.generation_progress.configure(mode='indeterminate')
+                if not self.generation_progress.winfo_ismapped():
+                    self.generation_progress.start(10)
         except (AttributeError, TypeError, RuntimeError, tk.TclError):
             pass
 
@@ -169,6 +200,16 @@ class ChatInputMixin:
         message = self.input_text.get("1.0", tk.END).strip()
         if not message:
             return
+
+        # Добавляем контекст из выделенного текста если есть
+        context_prefix = ""
+        if hasattr(self, '_get_context_for_prompt') and callable(self._get_context_for_prompt):
+            context_prefix = self._get_context_for_prompt()
+            if context_prefix:
+                message = context_prefix + message
+                # Очищаем контекст после использования
+                if hasattr(self, '_clear_selection_context') and callable(self._clear_selection_context):
+                    self._clear_selection_context()
 
         # Проверка готовности - расширенная проверка
         try:
@@ -194,7 +235,17 @@ class ChatInputMixin:
             logger.debug(f"[DEBUG CHAT] Exception in check: {e}")
 
         # Добавление сообщения
-        self._add_message("Вы", message, "user")
+        display_message = message
+        if context_prefix:
+            # Показываем пользователю только его вопрос, без технического контекста
+            # Извлекаем вопрос из сообщения (после "Контекст для ответа:")
+            if "Контекст для ответа:" in display_message:
+                parts = display_message.split("Контекст для ответа:")
+                context_part = parts[1].split("\n\n")[0] if len(parts) > 1 else ""
+                question_part = parts[1].split("\n\n")[1] if len(parts) > 1 and len(parts[1].split("\n\n")) > 1 else parts[1] if len(parts) > 1 else ""
+                display_message = f"📎 По контексту: {context_part[:50]}...\n\n{question_part}"
+        
+        self._add_message("Вы", display_message, "user")
 
         # Очистка поля
         self.input_text.delete("1.0", tk.END)

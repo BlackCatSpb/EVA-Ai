@@ -2,9 +2,30 @@
 import tkinter as tk
 from tkinter import ttk
 import logging
+import platform
 from typing import Dict, Any, Callable, Optional, List
 
 logger = logging.getLogger("eva_ai.gui.widgets")
+
+# DPI awareness для Windows
+def _set_dpi_awareness():
+    """Установить DPI awareness для Windows."""
+    if platform.system() == 'Windows':
+        try:
+            import ctypes
+            # Try Windows 10+ API first
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+            logger.debug("DPI awareness установлен (Windows 10+)")
+        except Exception:
+            try:
+                # Fallback for older Windows
+                ctypes.windll.user32.SetProcessDPIAware()
+                logger.debug("DPI awareness установлен (legacy)")
+            except Exception as e:
+                logger.debug(f"Не удалось установить DPI awareness: {e}")
+
+# Устанавливаем DPI awareness при импорте
+_set_dpi_awareness()
 
 def create_rounded_button(parent, text, command=None, width=15, height=2, 
                          bg="#4a7abc", fg="white", font=("Arial", 10)):

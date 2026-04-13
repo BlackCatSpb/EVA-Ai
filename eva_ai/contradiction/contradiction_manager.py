@@ -1,23 +1,6 @@
 import logging
 from typing import List, Dict, Any, Optional
-try:
-    from ..core.base_component import BaseComponent
-except ImportError:
-    class BaseComponent:
-        def __init__(self, brain=None):
-            self.brain = brain
-        
-        def _setup_component(self):
-            pass
-        
-        def initialize(self):
-            pass
-        
-        def start(self):
-            pass
-        
-        def stop(self):
-            pass
+from ..core.base_component import BaseComponent
 from .contradiction_core import OptimizedContradictionDetector
 
 logger = logging.getLogger(__name__)

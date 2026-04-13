@@ -14,17 +14,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger("eva_ai.deferred_commands")
 
-# Глобальный EventBus для публикации событий команд
+# Глобальный EventBus для публикации событий команд (singleton)
 _global_event_bus = None
+_event_bus_lock = __import__('threading').Lock()
 
 def set_event_bus(event_bus):
     """Устанавливает глобальный EventBus для DeferredCommandSystem."""
     global _global_event_bus
-    _global_event_bus = event_bus
+    with _event_bus_lock:
+        _global_event_bus = event_bus
 
 def get_event_bus():
     """Получает глобальный EventBus."""
-    return _global_event_bus
+    with _event_bus_lock:
+        return _global_event_bus
 
 class CommandPriority(Enum):
     """Приоритеты команд."""
@@ -392,8 +395,8 @@ class DeferredCommandSystem:
     
     def _publish_command_event(self, event_type: str, cmd: DeferredCommand):
         """Публикует событие при выполнении команды."""
-        global _global_event_bus
-        if _global_event_bus is None:
+        eb = get_event_bus()
+        if eb is None:
             return
         
         try:
@@ -411,14 +414,13 @@ class DeferredCommandSystem:
                 },
                 priority=EventPriority.NORMAL
             )
-            _global_event_bus.publish(event)
+            eb.publish(event)
         except Exception as e:
             logger.debug(f"Не удалось опубликовать событие команды: {e}")
     
     def create_bridge(self, event_bus, resource_manager):
         """Создает мост EventBus ↔ DeferredCommandSystem с load shedding."""
-        global _global_event_bus
-        _global_event_bus = event_bus
+        set_event_bus(event_bus)
         
         if not resource_manager:
             logger.warning("ResourceManager не предоставлен, load shedding не будет работать")

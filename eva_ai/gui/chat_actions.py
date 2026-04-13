@@ -37,6 +37,144 @@ class ChatActionsMixin:
         self.context_menu.add_separator()
         self.context_menu.add_command(label="Очистить чат", command=self._clear_chat)
 
+    def _create_response_action_bar(self):
+        """Создает панель действий с ответом (копировать, полезно, неверно, перегенерировать)."""
+        try:
+            self.action_bar = ttk.Frame(self.chat_frame)
+            
+            btn_style = 'action.TButton'
+            style = ttk.Style()
+            style.configure(btn_style, font=('Segoe UI', 9))
+            
+            # Кнопка копирования
+            self.btn_copy = ttk.Button(
+                self.action_bar,
+                text="📋 Копировать",
+                style=btn_style,
+                command=self._action_copy_response,
+                width=12
+            )
+            self.btn_copy.pack(side=tk.LEFT, padx=2)
+            
+            # Кнопка полезно
+            self.btn_useful = ttk.Button(
+                self.action_bar,
+                text="👍 Полезно",
+                style=btn_style,
+                command=self._action_mark_useful,
+                width=12
+            )
+            self.btn_useful.pack(side=tk.LEFT, padx=2)
+            
+            # Кнопка неверно
+            self.btn_incorrect = ttk.Button(
+                self.action_bar,
+                text="👎 Неверно",
+                style=btn_style,
+                command=self._action_mark_incorrect,
+                width=12
+            )
+            self.btn_incorrect.pack(side=tk.LEFT, padx=2)
+            
+            # Кнопка перегенерировать
+            self.btn_regenerate = ttk.Button(
+                self.action_bar,
+                text="🔄 Перегенерировать",
+                style=btn_style,
+                command=self._action_regenerate,
+                width=15
+            )
+            self.btn_regenerate.pack(side=tk.LEFT, padx=2)
+            
+            # Скрываем панель по умолчанию
+            self.action_bar.pack_forget()
+            
+            logger.debug("Response action bar created")
+        except Exception as e:
+            logger.debug(f"Error creating response action bar: {e}")
+            self.action_bar = None
+
+    def _show_response_actions(self):
+        """Показывает панель действий с ответом."""
+        try:
+            if self.action_bar and self.chat_frame.winfo_exists():
+                if not self.action_bar.winfo_ismapped():
+                    self.action_bar.pack(fill=tk.X, padx=5, pady=(0, 5), before=self._get_input_frame())
+        except Exception as e:
+            logger.debug(f"Error showing response actions: {e}")
+
+    def _hide_response_actions(self):
+        """Скрывает панель действий с ответом."""
+        try:
+            if self.action_bar and self.action_bar.winfo_ismapped():
+                self.action_bar.pack_forget()
+        except Exception as e:
+            logger.debug(f"Error hiding response actions: {e}")
+
+    def _get_input_frame(self):
+        """Возвращает фрейм ввода."""
+        return getattr(self, 'input_frame', None)
+
+    def _action_copy_response(self):
+        """Копирует последний ответ EVA в буфер обмена."""
+        try:
+            if self.message_history:
+                for msg in reversed(self.message_history):
+                    if msg.get('type') == 'system' and msg.get('sender') == 'ЕВА':
+                        text = msg.get('message', '')
+                        self.gui.root.clipboard_clear()
+                        self.gui.root.clipboard_append(text)
+                        self.gui.show_toast("Ответ скопирован", "info")
+                        return
+        except Exception as e:
+            logger.error(f"Error copying response: {e}")
+
+    def _action_mark_useful(self):
+        """Отмечает ответ как полезный."""
+        try:
+            self.gui.show_toast("Спасибо за обратную связь! Ответ отмечен как полезный.", "info")
+            logger.debug("Response marked as useful")
+        except Exception as e:
+            logger.debug(f"Error marking response as useful: {e}")
+
+    def _action_mark_incorrect(self):
+        """Отмечает ответ как неверный."""
+        try:
+            self.gui.show_toast("Спасибо за обратную связь! Мы учтём это.", "info")
+            logger.debug("Response marked as incorrect")
+        except Exception as e:
+            logger.debug(f"Error marking response as incorrect: {e}")
+
+    def _action_regenerate(self):
+        """Перегенерирует последний ответ."""
+        try:
+            # Находим последний запрос пользователя
+            last_user_query = None
+            for msg in reversed(self.message_history):
+                if msg.get('type') == 'user':
+                    last_user_query = msg.get('message', '')
+                    break
+            
+            if last_user_query:
+                # Скрываем панель действий
+                self._hide_response_actions()
+                
+                # Удаляем последний ответ EVA
+                self._remove_last_message()
+                
+                # Вставляем запрос обратно в поле ввода
+                if hasattr(self, 'input_text'):
+                    self.input_text.delete("1.0", tk.END)
+                    self.input_text.insert("1.0", last_user_query)
+                    self.input_text.focus_set()
+                
+                # Отправляем запрос повторно
+                self._send_message()
+            else:
+                self.gui.show_toast("Нечего перегенерировать", "warning")
+        except Exception as e:
+            logger.error(f"Error regenerating response: {e}")
+
     def _show_context_menu(self, event):
         """Показывает контекстное меню."""
         try:
@@ -127,7 +265,15 @@ class ChatActionsMixin:
 
             # Подготовка промпта
             if cmd == 'ask':
-                prompt = f"Вопрос по цитате:\n\"{text}\""
+                # Сохраняем выделенный текст как контекст
+                self._selection_context = text
+                self._update_context_indicator()
+                
+                # Вставляем подсказку для пользователя
+                self.input_text.insert("1.0", f"📎 Контекст: \"{text[:50]}{'...' if len(text) > 50 else ''}\"\n\n")
+                self.input_text.focus_set()
+                self.gui.show_toast("Контекст добавлен. Введите ваш вопрос.", "info")
+                return  # Не отправляем сразу
             elif cmd == 'challenge':
                 prompt = f"Оспорь утверждение из цитаты и укажи возможные контраргументы:\n\"{text}\""
             elif cmd == 'explain':
@@ -390,3 +536,99 @@ class ChatActionsMixin:
             except Exception as e3:
                 logger.debug(f"Error setting focus: {e3}")
                 pass
+
+    def _on_text_selection_changed(self, event=None):
+        """Обработчик изменения выделения текста - показывает popup с быстрыми действиями."""
+        try:
+            # Проверяем есть ли выделение в чате
+            selection = None
+            try:
+                selection = self.chat_display.selection_get()
+            except (tk.TclError, Exception):
+                selection = None
+            
+            if selection and selection.strip() and len(selection.strip()) > 3:
+                # Показываем popup с быстрыми действиями
+                self._show_selection_popup()
+            else:
+                self._hide_selection_popup()
+                self._hide_response_actions()
+        except Exception as e:
+            logger.debug(f"Error handling text selection: {e}")
+
+    def _show_selection_popup(self):
+        """Показывает popup с быстрыми действиями при выделении текста."""
+        try:
+            if not hasattr(self, '_selection_popup') or self._selection_popup is None:
+                self._selection_popup = Menu(self.chat_display, tearoff=0)
+                self._selection_popup.add_command(
+                    label="💬 Задать вопрос по выделенному",
+                    command=lambda: self._run_command_on_selection('ask')
+                )
+                self._selection_popup.add_command(
+                    label="📋 Копировать",
+                    command=self._copy_selected
+                )
+                self._selection_popup.add_separator()
+                self._selection_popup.add_command(
+                    label="📖 Объяснить",
+                    command=lambda: self._run_command_on_selection('explain')
+                )
+                self._selection_popup.add_command(
+                    label="❓ Оспорить",
+                    command=lambda: self._run_command_on_selection('challenge')
+                )
+            
+            # Показываем popup в позиции курсора
+            if self.chat_display.winfo_exists():
+                try:
+                    x = self.chat_display.winfo_rootx() + 50
+                    y = self.chat_display.winfo_rooty() + self.chat_display.winfo_height() // 2
+                    self._selection_popup.tk_popup(x, y, 0)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Error showing selection popup: {e}")
+
+    def _hide_selection_popup(self):
+        """Скрывает popup выделения."""
+        try:
+            if hasattr(self, '_selection_popup') and self._selection_popup:
+                try:
+                    self._selection_popup.grab_release()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Error hiding selection popup: {e}")
+
+    def _update_context_indicator(self):
+        """Обновляет индикатор контекста в поле ввода."""
+        try:
+            if not hasattr(self, '_context_indicator') or self._context_indicator is None:
+                return
+            
+            if self._selection_context:
+                context_text = self._selection_context[:100]
+                if len(self._selection_context) > 100:
+                    context_text += "..."
+                self._context_indicator.config(
+                    text=f"📎 Контекст: {context_text}",
+                    foreground=self.gui.colors.get('primary', '#4A90D9')
+                )
+                self._context_indicator.pack(side=tk.TOP, fill=tk.X, padx=5, pady=(5, 0))
+            else:
+                self._context_indicator.pack_forget()
+        except Exception as e:
+            logger.debug(f"Error updating context indicator: {e}")
+
+    def _clear_selection_context(self):
+        """Очищает контекст из выделения."""
+        self._selection_context = None
+        self._update_context_indicator()
+        self._hide_selection_popup()
+
+    def _get_context_for_prompt(self) -> str:
+        """Возвращает контекст из выделения для включения в промпт."""
+        if self._selection_context:
+            return f"Контекст для ответа:\n\"{self._selection_context}\"\n\n"
+        return ""

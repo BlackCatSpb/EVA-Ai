@@ -143,10 +143,10 @@ class UnifiedFractalManager:
                                  use_web_search: bool = True) -> Dict[str, Any]:
         """Генерирует улучшенный ответ с использованием веб-поиска"""
         if self.enhanced_learning:
-            return self.enhanced_learning.generate_enhanced_response(query, max_tokens, use_web_search)
+            return self.enhanced_learning.generate_enhanced_response(query, max_new_tokens, use_web_search)
         else:
             # Fallback на базовую генерацию
-            response = self.generate_response(query, max_tokens)
+            response = self.generate_response(query, max_new_tokens)
             return {
                 "status": "completed",
                 "response": response,

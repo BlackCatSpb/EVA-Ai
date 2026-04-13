@@ -52,6 +52,10 @@ class ChatModule(ChatMessagesMixin, ChatInputMixin, ChatHistoryMixin, ChatAction
         # Контекстное меню
         self.context_menu = None
         
+        # Контекст из выделенного текста
+        self._selection_context = None
+        self._context_label = None
+        
         # История и очередь запросов
         self.message_history = []
         self._history_lock = threading.Lock()
@@ -67,6 +71,12 @@ class ChatModule(ChatMessagesMixin, ChatInputMixin, ChatHistoryMixin, ChatAction
         self.url_pattern = re.compile(r'https?://\S+')
         self.emoji_pattern = re.compile(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]')
         self.image_pattern = re.compile(r'\.(?:jpg|jpeg|png|gif|bmp|webp)', re.IGNORECASE)
+        self.heading_pattern = re.compile(r'^#{1,3}\s+(.+)$', re.MULTILINE)
+        self.list_pattern = re.compile(r'^[\-\*]\s+(.+)$', re.MULTILINE)
+        self.numbered_list_pattern = re.compile(r'^\d+\.\s+(.+)$', re.MULTILINE)
+        self.bullet_emoji_pattern = re.compile(r'^[\U0001F537-\U0001F93A]\s+(.+)$', re.MULTILINE)
+        self.hr_pattern = re.compile(r'^[\-\*]{3,}$', re.MULTILINE)
+        self.comment_pattern = re.compile(r'§([^§]+)§')
         
         # Инициализация флага рассуждений
         setattr(self.gui, 'reasoning_active', True)
@@ -421,6 +431,9 @@ class ChatModule(ChatMessagesMixin, ChatInputMixin, ChatHistoryMixin, ChatAction
         # Панель рассуждений
         self._init_reasoning_panel()
         
+        # Панель действий с ответом
+        self._create_response_action_bar()
+        
         # Настройка стилей
         self._configure_chat_tags()
         
@@ -461,6 +474,10 @@ class ChatModule(ChatMessagesMixin, ChatInputMixin, ChatHistoryMixin, ChatAction
         self.chat_display.tag_bind("url", "<Leave>", self._handle_url_leave)
         self.chat_display.bind("<Button-1>", self._handle_url_click)
         self.chat_display.bind("<Button-3>", self._show_context_menu)
+        
+        # Привязка для показа панели действий при выборе
+        self.chat_display.bind("<<Selection>>", self._on_text_selection_changed)
+        self.chat_display.bind("<ButtonRelease-1>", self._on_text_selection_changed)
         
         # Горячие клавиши - исправляем проблему с копированием
         self.chat_display.bind("<Control-Key-c>", self._on_chat_copy)

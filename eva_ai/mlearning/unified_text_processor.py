@@ -122,9 +122,8 @@ class UnifiedTextProcessor(BaseComponent):
         # Инициализируем анализаторы
         self.sentiment_analyzer = None
         
-        # Инициализируем модели эмбеддингов
+        # Инициализируем модели эмбеддингов (упрощено - один атрибут)
         self.embedder = None
-        self.embedding_model = None
         
         # Инициализируем модели NLP
         self._init_nlp_models()
@@ -180,10 +179,8 @@ class UnifiedTextProcessor(BaseComponent):
             
     def _load_embedding_models(self):
         """Загружает модели для эмбеддингов и семантического поиска."""
-        # Check if embeddings are disabled
         if is_embedding_loading_disabled():
             logger.info("Загрузка эмбеддингов отключена конфигурацией")
-            self.embedding_model = None
             self.embedder = None
             return
             
@@ -193,34 +190,25 @@ class UnifiedTextProcessor(BaseComponent):
             # Используем singleton для загрузки sentence-transformers модели
             if get_sentence_transformer is not None:
                 logger.info(f"Загружаем модель эмбеддингов через singleton (устройство: {device})")
-                self.embedding_model = get_sentence_transformer(self.model_name, device=device)
-                self.embedder = self.embedding_model
-                if self.embedding_model is not None:
+                self.embedder = get_sentence_transformer(self.model_name, device=device)
+                if self.embedder is not None:
                     logger.info("Модель эмбеддингов загружена успешно (через singleton)")
                 else:
                     logger.warning("Не удалось загрузить модель эмбеддингов через singleton")
             elif SentenceTransformer is not None:
-                # Fallback - прямая загрузка без singleton
                 logger.info(f"Загружаем модель эмбеддингов напрямую: {self.model_name}")
                 try:
-                    self.embedding_model = SentenceTransformer(
-                        self.model_name,
-                        device=device
-                    )
-                    self.embedder = self.embedding_model
+                    self.embedder = SentenceTransformer(self.model_name, device=device)
                     logger.info("Модель эмбеддингов загружена успешно")
                 except Exception as e:
                     logger.warning(f"Ошибка загрузки модели эмбеддингов: {e}")
-                    self.embedding_model = None
                     self.embedder = None
             else:
                 logger.warning("SentenceTransformer не доступен. Функции эмбеддингов отключены.")
-                self.embedding_model = None
                 self.embedder = None
                 
         except Exception as e:
             logger.error(f"Ошибка при загрузке модели эмбеддингов: {e}", exc_info=True)
-            self.embedding_model = None
             self.embedder = None
             try:
                 self.nlp = spacy.load("ru_core_news_sm", disable=["parser", "ner", "textcat"])
@@ -593,17 +581,15 @@ class UnifiedTextProcessor(BaseComponent):
             return np.zeros((0, getattr(self, 'embedding_dim', 384)), dtype=np.float32) if not single_input else np.zeros(getattr(self, 'embedding_dim', 384), dtype=np.float32)
         
         # Основной путь через sentence-transformers
-        if self.embedding_model:  # Исправляем: embedding_model вместо embedder
+        if self.embedder:
             try:
-                embs = self.embedding_model.encode(batch)
+                embs = self.embedder.encode(batch)
                 embs = np.array(embs)
                 if single_input:
-                    # Возвращаем вектор (D,)
                     return embs[0]
                 return embs
             except Exception as e:
                 logger.warning(f"Ошибка получения эмбеддингов: {e}")
-                # Падение в резервный путь ниже
         
         # Резервный путь: нулевые векторы нужной размерности
         D = getattr(self, 'embedding_dim', 384)
@@ -626,8 +612,8 @@ class UnifiedTextProcessor(BaseComponent):
                 self._executor.shutdown(wait=True)
                 
             # Освобождаем ресурсы моделей
-            if hasattr(self, 'embedding_model'):
-                del self.embedding_model
+            if hasattr(self, 'embedder'):
+                del self.embedder
                 
             if hasattr(self, 'nlp'):
                 del self.nlp

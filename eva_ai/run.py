@@ -110,24 +110,21 @@ def _signal_handler(signum, frame):
     
     _shutdown_event.set()
     
-    # Запускаем cleanup в отдельном потоке чтобы не блокировать signal handler
+    # Немедленно запускаем cleanup в отдельном потоке
     cleanup_thread = threading.Thread(target=_cleanup_brain, daemon=True, name="cleanup_thread")
     cleanup_thread.start()
     
-    # Ждём завершения cleanup (максимум 10 секунд)
-    cleanup_thread.join(timeout=10)
+    # Даём время на cleanup но не блокируем надолго
+    cleanup_thread.join(timeout=5)
     
     if cleanup_thread.is_alive():
-        logger.warning("Cleanup не завершился за 10 сек, принудительное завершение...")
+        logger.warning("Cleanup не завершился за 5 сек, принудительное завершение...")
         _cleanup_pid()
-        # Принудительное завершение
         import os
         os._exit(1)
     else:
         logger.info("Cleanup успешно завершён")
-    
-    # Нормальный выход
-    sys.exit(0)
+        sys.exit(0)
 
 def _check_singleton():
     """Проверяет, не запущен ли уже экземпляр EVA."""

@@ -159,46 +159,98 @@ class ConceptExtractor:
     
     def _generate_facts(self, term: str, query: str, response: str) -> List[Dict[str, Any]]:
         """
-        Генерирует факты о концепте для создания противоречий.
+        Генерирует факты о концепте из текста query/response.
         
-        Каждый факт - это потенциальная точка зрения на концепт,
-        которая может противоречить другой точке зрения.
+        Извлекает реальные факты, а не шаблоны.
         """
         facts = []
+        text = f"{query} {response}".lower()
         
-        # Факт 1: определение (is_a)
-        facts.append({
-            'relation_type': 'is_a',
-            'value': f'{term} - это понятие, которое...',
-            'confidence': 0.6,
-            'source': 'extraction'
-        })
+        # Извлекаем предложения содержащие term
+        sentences = [s.strip() for s in response.split('.') if term.lower() in s.lower()]
         
-        # Факт 2: свойство (has_property)
-        facts.append({
-            'relation_type': 'has_property',
-            'value': f'{term} имеет свойство...',
-            'confidence': 0.5,
-            'source': 'extraction'
-        })
+        # Факт 1: Определение (ищем "это", "является", "называется")
+        definition_patterns = [
+            f'{term.lower()} - это', f'{term.lower()} является',
+            f'{term.lower()} называется', f'{term.lower()} — это',
+            f'это {term.lower()}', f'называют {term.lower()}'
+        ]
         
-        # Факт 3: возможность (can)
-        facts.append({
-            'relation_type': 'can',
-            'value': f'{term} может...',
-            'confidence': 0.5,
-            'source': 'extraction'
-        })
+        for sent in sentences:
+            for pat in definition_patterns:
+                if pat in sent:
+                    facts.append({
+                        'relation_type': 'is_a',
+                        'value': sent.strip()[:200],
+                        'confidence': 0.8,
+                        'source': 'extraction'
+                    })
+                    break
+            if len(facts) >= 2:
+                break
         
-        # Факт 4: связь с другими понятиями
-        facts.append({
-            'relation_type': 'related_to',
-            'value': f'{term} связан с...',
-            'confidence': 0.4,
-            'source': 'extraction'
-        })
+        # Факт 2: Свойства (ищем прилагательные и признаки)
+        property_words = ['большой', 'маленький', 'новый', 'старый', 'важный', 'основной',
+                         'ключевой', 'простой', 'сложный', 'быстрый', 'медленный',
+                         'important', 'big', 'small', 'new', 'old', 'main', 'key']
         
-        return facts
+        for sent in sentences[:5]:
+            for pw in property_words:
+                if pw in sent:
+                    facts.append({
+                        'relation_type': 'has_property',
+                        'value': sent.strip()[:200],
+                        'confidence': 0.7,
+                        'source': 'extraction'
+                    })
+                    break
+            if len(facts) >= 4:
+                break
+        
+        # Факт 3: Возможности (ищем "может", "умеет", "способен", "allows", "can")
+        capability_patterns = ['может', 'умеет', 'способен', 'позволяет', 'allows', 'can', 'able to']
+        
+        for sent in sentences[:5]:
+            for pat in capability_patterns:
+                if pat in sent:
+                    facts.append({
+                        'relation_type': 'can',
+                        'value': sent.strip()[:200],
+                        'confidence': 0.7,
+                        'source': 'extraction'
+                    })
+                    break
+            if len(facts) >= 6:
+                break
+        
+        # Факт 4: Связи (ищем "связан", "относится", "связан с", "related to")
+        relation_patterns = ['связан с', 'относится к', 'влияет на', 'связано с',
+                             'related to', 'connected to', 'associated with']
+        
+        for sent in sentences[:5]:
+            for pat in relation_patterns:
+                if pat in sent:
+                    facts.append({
+                        'relation_type': 'related_to',
+                        'value': sent.strip()[:200],
+                        'confidence': 0.6,
+                        'source': 'extraction'
+                    })
+                    break
+            if len(facts) >= 8:
+                break
+        
+        # Fallback: если ничего не найдено - используем общий факт из контекста
+        if not facts:
+            if len(response) > 50:
+                facts.append({
+                    'relation_type': 'description',
+                    'value': response[:200],
+                    'confidence': 0.5,
+                    'source': 'extraction'
+                })
+        
+        return facts[:8]  # Максимум 8 фактов
     
     def _find_related_terms(self, term: str, query: str, response: str) -> List[str]:
         """Находит термины, связанные с данным в тексте."""
