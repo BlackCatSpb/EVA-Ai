@@ -985,7 +985,8 @@
                             fullText += data.text;
                             updateMessageText(msgId, fullText, false, data.elapsed_ms);
                         } else if (data.type === 'complete') {
-                            fullText += data.text;
+                            // complete содержит полный очищенный текст - используем напрямую
+                            fullText = data.text;
                             updateMessageText(msgId, fullText, false, data.elapsed_ms);
                         } else if (data.type === 'done') {
                             updateMessageText(msgId, fullText, true);
