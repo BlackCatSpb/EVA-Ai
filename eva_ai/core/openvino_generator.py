@@ -276,6 +276,7 @@ class OpenVINOGenerator:
         
         self._pipeline = None
         self._model_path_str = None
+        self._lazy_load = True  # Lazy load by default
         
         if model_path and use_registry:
             registry = get_openvino_registry()
@@ -294,6 +295,7 @@ class OpenVINOGenerator:
                 gen_to_init.num_streams = ns
                 gen_to_init._pipeline = None
                 gen_to_init._model_path_str = None
+                gen_to_init._lazy_load = False  # Actually load when created by registry
                 gen_to_init._load_model()
             
             creator_fn = functools.partial(
@@ -318,7 +320,8 @@ class OpenVINOGenerator:
             self._pipeline = shared_gen._pipeline
             self._model_path_str = shared_gen._model_path_str
         elif model_path:
-            self._load_model()
+            # Don't load immediately - lazy load
+            pass
     
     def _init_base(
         self,
