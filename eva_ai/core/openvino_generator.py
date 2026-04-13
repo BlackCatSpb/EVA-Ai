@@ -13,17 +13,142 @@ OpenVINO Generator - генерация на базе OpenVINO GenAI.
 - CONCEPT: извлечение и анализ концептов
 - CONTRADICTION: анализ противоречий
 - SELF_DIALOG: самодиалог для обучения
+
+GPU Model Sharing:
+- OpenVINOGeneratorRegistry - синглтон реестр для шаринга модели на одном устройстве
+- Если модель уже загружена на устройство, возвращается существующий инстанс
+- Ключ реестра: (model_path, device)
 """
 
 import time
 import asyncio
 import logging
+import threading
 from typing import Dict, List, Optional, Any, Generator, Callable, Tuple
 from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum
 
 logger = logging.getLogger("eva_ai.openvino_generator")
+
+
+class OpenVINOGeneratorRegistry:
+    """
+    Реестр синглтонов для OpenVINOGenerator.
+    
+    Обеспечивает шаринг модели на одном устройстве между разными
+    генераторами вместо создания отдельных LLMPipeline инстансов.
+    
+    Использование:
+        registry = OpenVINOGeneratorRegistry()
+        gen1 = registry.get_or_create(model_path, device, config1)
+        gen2 = registry.get_or_create(model_path, device, config2)  # Returns gen1!
+    """
+    
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
+    
+    def __init__(self):
+        if getattr(self, '_initialized', False):
+            return
+        
+        self._generators: Dict[Tuple[str, str], 'OpenVINOGenerator'] = {}
+        self._ref_counts: Dict[Tuple[str, str], int] = {}
+        self._registry_lock = threading.RLock()
+        self._initialized = True
+        
+        logger.info("OpenVINOGeneratorRegistry initialized")
+    
+    def get_or_create(
+        self,
+        model_path: Path,
+        device: str,
+        creator_fn: Callable[['OpenVINOGenerator'], None],
+        config_hash: Optional[str] = None
+    ) -> 'OpenVINOGenerator':
+        """
+        Получить существующий генератор или создать новый.
+        
+        Args:
+            model_path: Путь к модели
+            device: Устройство (CPU, GPU.0, etc)
+            creator_fn: Функция для создания генератора (если нужно)
+            config_hash: Хэш конфигурации (для различения генераторов с разными настройками)
+            
+        Returns:
+            OpenVINOGenerator instance
+        """
+        key = (str(model_path), device)
+        
+        with self._registry_lock:
+            # Проверяем существующий генератор
+            if key in self._generators:
+                self._ref_counts[key] = self._ref_counts.get(key, 0) + 1
+                logger.debug(f"Reusing existing generator for {key}, ref_count={self._ref_counts[key]}")
+                return self._generators[key]
+            
+            # Создаём новый генератор через creator_fn
+            generator = OpenVINOGenerator.__new__(OpenVINOGenerator)
+            generator._init_base(model_path, device)
+            
+            # Вызываем инициализацию
+            creator_fn(generator)
+            
+            self._generators[key] = generator
+            self._ref_counts[key] = 1
+            
+            logger.info(f"Created new generator for {key}")
+            return generator
+    
+    def release(self, model_path: Path, device: str) -> int:
+        """
+        Освободить генератор (уменьшить счётчик ссылок).
+        
+        Returns:
+            Оставшийся счётчик ссылок
+        """
+        key = (str(model_path), device)
+        
+        with self._registry_lock:
+            if key in self._ref_counts:
+                self._ref_counts[key] = max(0, self._ref_counts[key] - 1)
+                count = self._ref_counts[key]
+                
+                if count == 0:
+                    # Можно выгрузить модель
+                    logger.info(f"Last reference released for {key}")
+                
+                return count
+            return 0
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Получить статистику реестра."""
+        with self._registry_lock:
+            return {
+                "total_generators": len(self._generators),
+                "ref_counts": dict(self._ref_counts),
+                "devices": list(set(k[1] for k in self._generators.keys()))
+            }
+
+
+# Глобальный реестр
+_registry: Optional[OpenVINOGeneratorRegistry] = None
+
+
+def get_openvino_registry() -> OpenVINOGeneratorRegistry:
+    """Получить глобальный реестр OpenVINO генераторов."""
+    global _registry
+    if _registry is None:
+        _registry = OpenVINOGeneratorRegistry()
+    return _registry
 
 
 class DataType(Enum):
@@ -106,6 +231,7 @@ class OpenVINOGenerator:
     - Streaming через callback
     - CPU и GPU устройства
     - SchedulerConfig для параллельной обработки
+    - GPU Model Sharing через OpenVINOGeneratorRegistry
     """
     
     def __init__(
@@ -117,7 +243,8 @@ class OpenVINOGenerator:
         n_ctx: int = 4096,
         scheduler_config: Optional[Dict] = None,
         performance_hint: str = "LATENCY",
-        num_streams: Optional[int] = None
+        num_streams: Optional[int] = None,
+        use_registry: bool = True
     ):
         """
         Инициализация OpenVINO Generator.
@@ -135,7 +262,8 @@ class OpenVINOGenerator:
                 enable_prefix_caching: bool = True
             }
             performance_hint: "LATENCY" или "THROUGHPUT"
-            num_streams: Количество потоков (None=AUTO, для CPU авто=物理ческие ядра)
+            num_streams: Количество потоков (None=AUTO, для CPU авто=физические ядра)
+            use_registry: Использовать реестр для шаринга модели (по умолчанию True)
         """
         self.model_path = model_path
         self.device = device
@@ -149,8 +277,47 @@ class OpenVINOGenerator:
         self._pipeline = None
         self._model_path_str = None
         
-        if model_path:
+        if model_path and use_registry:
+            registry = get_openvino_registry()
+            
+            def creator(gen):
+                gen._init_base(model_path, device, max_tokens, temperature, n_ctx, scheduler_config, performance_hint, num_streams)
+                gen._load_model()
+            
+            shared_gen = registry.get_or_create(
+                model_path=model_path,
+                device=device,
+                creator_fn=creator
+            )
+            
+            # Копируем состояние из шаренного генератора
+            self._pipeline = shared_gen._pipeline
+            self._model_path_str = shared_gen._model_path_str
+        elif model_path:
             self._load_model()
+    
+    def _init_base(
+        self,
+        model_path: Path,
+        device: str,
+        max_tokens: int,
+        temperature: float,
+        n_ctx: int,
+        scheduler_config: Dict,
+        performance_hint: str,
+        num_streams: Optional[int]
+    ):
+        """Инициализация базовых атрибутов (для registry)."""
+        self.model_path = model_path
+        self.device = device
+        self.default_max_tokens = max_tokens
+        self.default_temperature = temperature
+        self.n_ctx = n_ctx
+        self.scheduler_config = scheduler_config or {}
+        self.performance_hint = performance_hint
+        self.num_streams = num_streams
+        self._pipeline = None
+        self._model_path_str = None
     
     def _load_model(self) -> bool:
         """Загрузить модель в OpenVINO."""
@@ -165,6 +332,18 @@ class OpenVINOGenerator:
                 return False
             
             path_str = str(self.model_path)
+            
+            # Проверяем реестр - возможно модель уже загружена
+            registry = get_openvino_registry()
+            key = (path_str, self.device)
+            if key in registry._generators:
+                existing = registry._generators[key]
+                if existing._pipeline is not None:
+                    self._pipeline = existing._pipeline
+                    self._model_path_str = existing._model_path_str
+                    logger.info(f"Using cached pipeline for {path_str} on {self.device}")
+                    return True
+            
             logger.info(f"Loading OpenVINO model from {path_str} on {self.device}")
             
             start = time.time()

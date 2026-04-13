@@ -273,23 +273,27 @@
 ```
 eva_ai/
 ├── knowledge/
-│   ├── concept_extractor.py          # NEW - Concept extraction (быстрый уровень)
-│   ├── concept_miner.py              # NEW - Concept mining (глубокий уровень)
+│   ├── concept_extractor.py          # Concept extraction (быстрый уровень)
+│   ├── concept_miner.py              # Concept mining (глубокий уровень)
 │   ├── __init__.py                   # Exports ConceptExtractor, ConceptMiner
 │   └── ...
 ├── contradiction/
-│   ├── contradiction_generator.py    # NEW - Contradiction generation (шаблоны)
-│   ├── contradiction_miner.py        # NEW - Contradiction mining (анализ графа)
+│   ├── contradiction_generator.py    # Contradiction generation (шаблоны)
+│   ├── contradiction_miner.py        # Contradiction mining (анализ графа)
 │   ├── __init__.py                   # Exports ContradictionGenerator, ContradictionMiner
 │   └── ...
 ├── learning/
-│   ├── dialog_concepts.py            # NEW - Concepts in dialogs
-│   ├── dialog_core.py                # MODIFIED - Uses DialogConceptsMixin
+│   ├── dialog_concepts.py            # Concepts in dialogs
+│   ├── dialog_core.py                # SelfDialogLearning with DeferredCommandSystem
 │   ├── __init__.py                   # Exports DialogConceptsMixin
 │   └── ...
 └── core/
-    ├── init_factories.py             # MODIFIED - Creates all components
-    └── brain_query.py                # MODIFIED - Uses ConceptExtractor
+    ├── init_factories.py             # Creates all components
+    ├── brain_query.py                # Uses ConceptExtractor
+    ├── model_access_manager.py       # Model access coordination (NEW)
+    ├── openvino_generator.py         # OpenVINO GenAI with Registry (MODIFIED)
+    ├── deferred_command_system.py     # Deferred command system
+    └── event_bus.py                  # EventBus
 ```
 
 ## API Endpoints for Concepts/Contradictions
@@ -359,9 +363,12 @@ curl -X POST http://localhost:7860/api/contradictions/generate \
 2. ✅ ContradictionGenerator - генерация противоречий
 3. ✅ DialogConceptsMixin - интеграция в самодиалог
 4. ✅ Integration - связка всех компонентов
-5. ⏳ Wikipedia KB - обогащение концептов внешними знаниями
-6. ⏳ Testing - проверка работы всей системы
-7. ⏳ Routes - добавление API endpoints для концептов/противоречий
+5. ✅ ModelAccessManager - координация доступа к модели
+6. ✅ OpenVINOGeneratorRegistry - шаринг GPU модели
+7. ✅ DeferredCommandSystem integration - SelfDialogLearning, ConceptMiner, ContradictionMiner
+8. ⏳ Wikipedia KB - обогащение концептов внешними знаниями
+9. ⏳ Testing - проверка работы всей системы
+10. ⏳ Routes - добавление API endpoints для концептов/противоречий
 
 ## Relevant files / directories
 
@@ -388,3 +395,87 @@ curl -X POST http://localhost:7860/api/contradictions/generate \
 ### Config:
 - `brain_config.json` - конфигурация системы
 - `C:\Users\black\OneDrive\Desktop\CogniFlex` - корень проекта
+
+## System Integration Architecture
+
+### CoreBrain - Главный координатор
+
+CoreBrain инициализирует и координирует все компоненты:
+
+```
+CoreBrain
+├── event_bus (EventBus)                    # Центральная шина событий
+├── deferred_system (DeferredCommandSystem)  # Система отложенных команд
+├── two_model_pipeline (PipelineAdapter)    # UnifiedGenerator
+│   ├── _openvino_cpu (OpenVINOGenerator)  # CPU для Logic/Context
+│   ├── _openvino_coder (OpenVINOGenerator) # GPU для Coder/Self-dialog
+│   └── _model_access (ModelAccessManager) # Координация доступа к модели
+└── components
+    ├── concept_miner (ConceptMiner)        # Глубокий анализ кластеров
+    ├── contradiction_miner (ContradictionMiner) # Анализ противоречий
+    └── self_dialog_learning (SelfDialogLearning) # Самодиалоги
+```
+
+### DeferredCommandSystem - Система отложенных команд
+
+Централизованная система для асинхронного выполнения задач:
+
+- **CommandPriority**: CRITICAL > HIGH > NORMAL > LOW
+- **EventBus интеграция**: публикует события команд
+- **Load Shedding**: сброс нагрузки при перегрузке
+- **Recovery**: автоматический перезапуск упавших команд
+
+**Используется компонентами:**
+- ConceptMiner: планирование майнинг-циклов
+- ContradictionMiner: проверка противоречий
+- SelfDialogLearning: обработка диалогов
+
+### ModelAccessManager - Координация доступа к модели
+
+Предотвращает конфликты при одновременном доступе к модели:
+
+- **Priority Queue**: CRITICAL (запросы) > HIGH (самодиалог) > NORMAL (фоновые)
+- **EventBus события**: model.request, model.completed, model.failed
+- **Блокировка**: предотвращает одновременный доступ к GPU/CPU
+
+### OpenVINOGeneratorRegistry - Шаринг GPU модели
+
+Синглтон-реестр для эффективного использования VRAM:
+
+```python
+# Если модель уже загружена на устройство - возвращается существующий инстанс
+registry = get_openvino_registry()
+gen = registry.get_or_create(model_path, device, config)
+# gen2 получит тот же инстанс если model_path и device совпадают
+gen2 = registry.get_or_create(model_path, device, config2)  # Returns gen!
+```
+
+### EventBus - Шина событий
+
+Все компоненты публикуют и подписываются на события:
+
+**ConceptMiner подписан на:**
+- memory.graph_updated
+- memory.clustering_complete
+- pipeline.complete
+- system.ready
+- system.idle
+
+**ContradictionMiner подписан на:**
+- memory.node_created
+- memory.graph_updated
+- system.idle
+
+**SelfDialogLearning подписан на:**
+- curator.knowledge_extracted
+- curator.graph_optimized
+- curator.cleanup_done
+- system.idle
+- system.state_changed
+- concept.confirmed
+- contradiction.detected
+
+**ModelAccessManager публикует:**
+- model.request
+- model.completed
+- model.failed

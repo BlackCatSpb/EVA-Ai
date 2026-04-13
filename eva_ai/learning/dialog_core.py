@@ -28,6 +28,10 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
     4. Генерация обучающих сценариев
     5. Обновление базы знаний
     6. Автоматическое выполнение возможностей для обучения
+    
+    Интеграция с DeferredCommandSystem:
+    - Использует DeferredCommandSystem для координации с другими модулями
+    - Публикует события в EventBus для координации
     """
 
     def __init__(self, brain=None, config: Optional[Dict[str, Any]] = None):
@@ -71,11 +75,25 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
 
         self.interest_scorer = InterestScorer()
         
+        # DeferredCommandSystem integration
+        self.deferred_system = None
+        if brain and hasattr(brain, 'deferred_system'):
+            self.deferred_system = brain.deferred_system
+        
+        # EventBus integration
+        self._event_bus = None
+        if brain:
+            self._event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
+        
         # Инициализация DialogConceptsMixin
         DialogConceptsMixin.__init__(self)
         
         # Подписка на события куратора
         self._setup_curator_events()
+        
+        # Подписка на события шины
+        self._subscription_ids: List[str] = []
+        self._setup_event_bus_subscriptions()
         
         logger.info("SelfDialogLearningSystem инициализирована")
 
@@ -95,6 +113,32 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
             logger.debug("Подписка на события куратора установлена")
         except Exception as e:
             logger.debug(f"Ошибка подписки на события куратора: {e}")
+    
+    def _setup_event_bus_subscriptions(self):
+        """Подписка на события EventBus для координации."""
+        if not self._event_bus:
+            return
+        
+        events_to_subscribe = [
+            ("system.idle", "_on_system_idle"),
+            ("system.state_changed", "_on_system_state_changed"),
+            ("concept.confirmed", "_on_concept_confirmed"),
+            ("contradiction.detected", "_on_contradiction_detected"),
+        ]
+        
+        for event_type, handler_name in events_to_subscribe:
+            try:
+                if hasattr(self, handler_name):
+                    handler = getattr(self, handler_name)
+                    if hasattr(self._event_bus, 'subscribe'):
+                        sub_id = self._event_bus.subscribe(event_type, handler, priority=5)
+                        self._subscription_ids.append(sub_id)
+                        logger.debug(f"Подписка на {event_type}: {sub_id}")
+            except Exception as e:
+                logger.debug(f"Ошибка подписки на {event_type}: {e}")
+        
+        if self._subscription_ids:
+            logger.info(f"SelfDialogLearning подписан на {len(self._subscription_ids)} событий шины")
 
     def _on_curator_knowledge_extracted(self, data: Dict[str, Any]):
         """Обработка извлечённых знаний от куратора."""
@@ -114,6 +158,54 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
         orphans = data.get('orphans_removed', 0)
         if orphans > 0:
             logger.debug(f"Куратор удалил {orphans} сиротских узлов")
+    
+    def _on_system_idle(self, event):
+        """При простое системы - можно выполнить фоновые задачи."""
+        if self.deferred_system and not self.dialog_queue.empty():
+            try:
+                from eva_ai.core.deferred_command_system import CommandPriority
+                self.deferred_system.add_command(
+                    command=self._process_queued_dialogs,
+                    priority=CommandPriority.LOW,
+                    command_id=f"self_dialog_process_{int(time.time())}"
+                )
+            except Exception as e:
+                logger.debug(f"Не удалось добавить в DeferredCommandSystem: {e}")
+    
+    def _on_system_state_changed(self, event):
+        """При изменении состояния системы."""
+        data = event.data if hasattr(event, 'data') else {}
+        new_state = data.get('state', '')
+        if new_state == 'idle':
+            self._on_system_idle(event)
+    
+    def _on_concept_confirmed(self, event):
+        """При подтверждении концепта - добавить в очередь для обсуждения."""
+        data = event.data if hasattr(event, 'data') else {}
+        concept_name = data.get('concept_name', '')
+        if concept_name:
+            self.queue_concept_for_dialog(concept_name, priority=data.get('confidence', 0.5))
+    
+    def _on_contradiction_detected(self, event):
+        """При обнаружении противоречия - добавить в очередь для разрешения."""
+        data = event.data if hasattr(event, 'data') else {}
+        contr_id = data.get('contradiction_id', '')
+        concept = data.get('concept', '')
+        if contr_id and concept:
+            self.queue_contradiction_for_resolution(contr_id, concept, priority=data.get('priority', 0.7))
+    
+    def _process_queued_dialogs(self):
+        """Обработать диалоги из очереди через DeferredCommandSystem."""
+        processed = 0
+        max_per_cycle = 3
+        
+        while processed < max_per_cycle:
+            try:
+                task = self.dialog_queue.get_nowait()
+                self._process_task(task)
+                processed += 1
+            except queue.Empty:
+                break
 
     def start(self):
         """Запускает систему самообучения."""
@@ -147,6 +239,16 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
 
         self.running = False
         self.stop_event.set()
+
+        # Отписываемся от EventBus
+        if self._event_bus and self._subscription_ids:
+            for sub_id in self._subscription_ids:
+                try:
+                    self._event_bus.unsubscribe(sub_id)
+                except Exception:
+                    pass
+            self._subscription_ids.clear()
+            logger.debug("SelfDialogLearning отписался от EventBus")
 
         if hasattr(self, 'worker_thread') and self.worker_thread.is_alive():
             self.worker_thread.join(timeout=5.0)
@@ -350,12 +452,50 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
         Args:
             topic: Тема диалога
             context: Дополнительный контекст
+            
+        Использует DeferredCommandSystem для координации если доступен.
         """
-        self.dialog_queue.put({
+        task = {
             "type": "create_dialog",
             "topic": topic,
             "context": context
-        })
+        }
+        
+        # Пробуем использовать DeferredCommandSystem для приоритизации
+        if self.deferred_system:
+            try:
+                from eva_ai.core.deferred_command_system import CommandPriority
+                
+                # Определяем приоритет по контексту
+                priority = CommandPriority.NORMAL
+                if context:
+                    if context.get('trigger') == 'interest_scorer':
+                        priority = CommandPriority.HIGH
+                    elif context.get('feedback', {}).get('rating', 5) < 3:
+                        priority = CommandPriority.HIGH
+                
+                self.deferred_system.add_command(
+                    command=self._create_self_dialog,
+                    args=(topic, context),
+                    kwargs={},
+                    priority=priority,
+                    command_id=f"self_dialog_{int(time.time() * 1000)}"
+                )
+                
+                # Публикуем событие о создании диалога
+                if self._event_bus:
+                    self._event_bus.publish("self_dialog.scheduled", {
+                        "topic": topic,
+                        "priority": priority.name,
+                        "source": "user_request"
+                    })
+                
+                return
+            except Exception as e:
+                logger.debug(f"DeferredCommandSystem unavailable: {e}")
+        
+        # Fallback на локальную очередь
+        self.dialog_queue.put(task)
 
     def _create_self_dialog(self, topic: str, context: Optional[Dict[str, Any]] = None):
         """Внутренний метод создания самодиалога."""
