@@ -29,11 +29,10 @@
 
     /* ── SSE Event Source ── */
     let eventSource = null;
-    let genProgressEl = null;
-    let genStartTime = null;
-    let genTimerInterval = null;
-    let currentGenCommandId = null;
-    let genSteps = { modelA: false, modelB: false, complete: false };
+    
+    /* ── Message Storage for Action Buttons ── */
+    const messageStore = {};
+    let selectedContext = null;
 
     function initSSE() {
         if (eventSource) {
@@ -42,66 +41,15 @@
         eventSource = new EventSource('/api/events/stream');
 
         eventSource.addEventListener('pipeline.start', function(e) {
-            const data = JSON.parse(e.data);
             showGenerationProgress('start');
         });
 
-        eventSource.addEventListener('pipeline.model_a.start', function(e) {
-            genSteps.modelA = false;
-            genSteps.modelB = false;
-            updateGenerationStep('model_a');
-        });
-
-        eventSource.addEventListener('pipeline.model_a.complete', function(e) {
-            genSteps.modelA = true;
-            updateGenerationStep('model_a_done');
-        });
-
-        eventSource.addEventListener('pipeline.model_b.start', function(e) {
-            genSteps.modelB = false;
-            updateGenerationStep('model_b');
-        });
-
-        eventSource.addEventListener('pipeline.model_b.complete', function(e) {
-            genSteps.modelB = true;
-            updateGenerationStep('model_b_done');
-        });
-
         eventSource.addEventListener('pipeline.complete', function(e) {
-            genSteps.complete = true;
-            updateGenerationStep('complete');
-            setTimeout(hideGenerationProgress, 800);
+            setTimeout(hideGenerationProgress, 300);
         });
 
         eventSource.addEventListener('pipeline.failed', function(e) {
-            updateGenerationStep('failed');
-            setTimeout(hideGenerationProgress, 1500);
-        });
-
-        eventSource.addEventListener('generation.progress', function(e) {
-            const data = JSON.parse(e.data);
-            if (genProgressEl) {
-                const pct = data.progress || 0;
-                const fill = genProgressEl.querySelector('.progress-bar-fill');
-                if (fill) fill.style.width = pct + '%';
-            }
-        });
-
-        eventSource.addEventListener('generation.started', function(e) {
-            const data = JSON.parse(e.data);
-            currentGenCommandId = data.command_id;
-            genStartTime = Date.now();
-            startGenTimer();
-        });
-
-        eventSource.addEventListener('generation.completed', function(e) {
-            stopGenTimer();
-            currentGenCommandId = null;
-        });
-
-        eventSource.addEventListener('generation.failed', function(e) {
-            stopGenTimer();
-            currentGenCommandId = null;
+            setTimeout(hideGenerationProgress, 500);
         });
 
         eventSource.onerror = function() {
@@ -111,83 +59,51 @@
     }
 
     function showGenerationProgress(phase) {
-        const chatContainer = $('#chatMessages');
-        if (!chatContainer) return;
+        // Progress bar removed - typing indicator shown via updateMessageText
+    }
 
-        removeTyping();
-
-        if (genProgressEl) genProgressEl.remove();
-
-        genSteps = { modelA: false, modelB: false, complete: false };
-        genStartTime = Date.now();
-
-        const div = document.createElement('div');
-        div.className = 'generation-progress';
-        div.id = 'genProgress';
-        div.innerHTML = `
-            <div class="gen-header">
-                <div class="gen-label"><span class="spinner"></span><span id="genLabel">Подготовка...</span></div>
-                <div class="gen-time" id="genTime">0.0с</div>
-            </div>
-            <div class="progress-bar-container">
-                <div class="progress-bar-fill" style="width: 5%"></div>
-            </div>
-            <div class="gen-steps">
-                <div class="gen-step" id="stepA"><span class="step-dot"></span>Model A</div>
-                <span class="gen-step-arrow">→</span>
-                <div class="gen-step" id="stepB"><span class="step-dot"></span>Model B</div>
-                <span class="gen-step-arrow">→</span>
-                <div class="gen-step" id="stepC"><span class="step-dot"></span>Завершение</div>
-            </div>
-        `;
-
-        chatContainer.appendChild(div);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-        genProgressEl = div;
-
-        startGenTimer();
+    function hideGenerationProgress() {
+        // Progress bar removed
     }
 
     function updateGenerationStep(step) {
-        if (!genProgressEl) return;
-
         const label = $('#genLabel', genProgressEl);
-        const fill = $('.progress-bar-fill', genProgressEl);
+        const fill = $('#genFill', genProgressEl);
         const stepA = $('#stepA', genProgressEl);
         const stepB = $('#stepB', genProgressEl);
         const stepC = $('#stepC', genProgressEl);
 
         switch(step) {
             case 'model_a':
-                if (label) label.textContent = 'Model A генерирует...';
+                if (label) label.textContent = 'Model A...';
                 if (fill) fill.style.width = '25%';
                 if (stepA) { stepA.className = 'gen-step active'; }
                 break;
             case 'model_a_done':
                 if (stepA) { stepA.className = 'gen-step done'; }
                 if (stepB) { stepB.className = 'gen-step active'; }
-                if (label) label.textContent = 'Model B генерирует...';
+                if (label) label.textContent = 'Model B...';
                 if (fill) fill.style.width = '55%';
                 break;
             case 'model_b':
-                if (label) label.textContent = 'Model B генерирует...';
+                if (label) label.textContent = 'Model B...';
                 if (fill) fill.style.width = '55%';
                 if (stepB) { stepB.className = 'gen-step active'; }
                 break;
             case 'model_b_done':
                 if (stepB) { stepB.className = 'gen-step done'; }
                 if (stepC) { stepC.className = 'gen-step active'; }
-                if (label) label.textContent = 'Завершение...';
+                if (label) label.textContent = 'Finalizing...';
                 if (fill) fill.style.width = '85%';
                 break;
             case 'complete':
                 if (stepC) { stepC.className = 'gen-step done'; }
-                if (label) label.textContent = 'Готово!';
+                if (label) label.textContent = 'Done!';
                 if (fill) fill.style.width = '100%';
                 stopGenTimer();
                 break;
             case 'failed':
-                if (label) label.textContent = 'Ошибка генерации';
+                if (label) label.textContent = 'Error';
                 if (fill) { fill.style.width = '100%'; fill.style.background = '#ef4444'; }
                 stopGenTimer();
                 break;
@@ -503,7 +419,7 @@
     function showWelcome() {
         const c = $('#chatMessages');
         if (c.children.length === 0) {
-            c.innerHTML = `<div class="welcome"><h2>ЕВА</h2><p>Напишите сообщение, чтобы начать</p></div>`;
+            c.innerHTML = `<div class="welcome"><h2>EVA</h2><p>Напишите сообщение, чтобы начать</p></div>`;
         }
     }
 
@@ -537,11 +453,12 @@
         const welcome = c.querySelector('.welcome');
         if (welcome) welcome.remove();
 
+        // Generate message ID if not provided
+        const messageId = msgId || ('msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));
+
         const div = document.createElement('div');
         div.className = 'msg';
-        if (msgId) {
-            div.id = msgId;
-        }
+        div.id = messageId;
 
         let reasoningHtml = '';
         let fileHtml = '';
@@ -637,37 +554,35 @@
             `;
         }
 
-        const roleLabel = role === 'user' ? 'Вы' : 'ЕВА';
+        const roleLabel = role === 'user' ? 'Вы' : 'EVA';
         const roleClass = role;
 
-        // Add action buttons for all messages (copy, like, dislike, regenerate)
-        const actionsHtml = `
+        // Add action buttons only for assistant messages
+        const actionsHtml = role !== 'user' ? `
             <div class="msg-actions">
-                <button class="msg-action-btn" onclick="copyMessage(this, \`${esc(text)}\`)" title="Копировать">
+                <button class="msg-action-btn copy-btn" data-msg-id="${messageId}" title="Копировать">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                     Копировать
                 </button>
-                <button class="msg-action-btn like" onclick="rateMessage('\`${esc(text)}\`', 1)" title="Полезно">
+                <button class="msg-action-btn like" data-msg-id="${messageId}" data-rating="1" title="Полезно">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                     Полезно
                 </button>
-                <button class="msg-action-btn dislike" onclick="rateMessage('\`${esc(text)}\`', -1)" title="Неверно">
+                <button class="msg-action-btn dislike" data-msg-id="${messageId}" data-rating="-1" title="Неверно">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
                     Неверно
                 </button>
-                ${role !== 'user' ? `
-                <button class="msg-action-btn regenerate" onclick="regenerateMessage(this, \`${esc(text)}\`)" title="Перегенерировать">
+                <button class="msg-action-btn regenerate" data-msg-id="${messageId}" title="Перегенерировать">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>
                     Перегенерировать
                 </button>
-                ` : ''}
             </div>
-        `;
+        ` : '';
 
         div.innerHTML = `
             <div class="msg-inner">
                 <div class="msg-role ${roleClass}">${roleLabel}</div>
-                <div class="msg-text">${formatText(text)}</div>
+                <div class="msg-text" id="text-${messageId}">${formatText(text)}</div>
                 ${fileHtml}
                 ${reasoningHtml}
                 ${actionsHtml}
@@ -675,26 +590,91 @@
         `;
         c.appendChild(div);
         c.scrollTop = c.scrollHeight;
+        
+        // Store message text for action buttons
+        messageStore[messageId] = {
+            text: text,
+            role: role,
+            reasoning: reasoning
+        };
+        
+        // Add event listeners for action buttons
+        const copyBtn = div.querySelector('.copy-btn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => {
+                const data = messageStore[messageId];
+                if (data && data.text) {
+                    navigator.clipboard.writeText(data.text).then(() => {
+                        toast('Скопировано', 'success');
+                    }).catch(() => {
+                        toast('Ошибка копирования', 'error');
+                    });
+                }
+            });
+        }
+        
+        const likeBtn = div.querySelector('.like');
+        if (likeBtn) {
+            likeBtn.addEventListener('click', () => {
+                const data = messageStore[messageId];
+                if (data) {
+                    rateMessage(data.text, 1);
+                }
+            });
+        }
+        
+        const dislikeBtn = div.querySelector('.dislike');
+        if (dislikeBtn) {
+            dislikeBtn.addEventListener('click', () => {
+                const data = messageStore[messageId];
+                if (data) {
+                    rateMessage(data.text, -1);
+                }
+            });
+        }
+        
+        const regenerateBtn = div.querySelector('.regenerate');
+        if (regenerateBtn) {
+            regenerateBtn.addEventListener('click', () => {
+                regenerateMessage(div);
+            });
+        }
+        
+        // Apply syntax highlighting to code blocks
+        if (window.hljs) {
+            div.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        }
     }
 
     function addTyping() {
-        const c = $('#chatMessages');
-        const div = document.createElement('div');
-        div.className = 'msg';
-        div.id = 'typingIndicator';
-        div.innerHTML = `
-            <div class="msg-inner">
-                <div class="msg-role system">ЕВА</div>
-                <div class="msg-text typing-dots"><span>·</span><span>·</span><span>·</span></div>
-            </div>
-        `;
-        c.appendChild(div);
-        c.scrollTop = c.scrollHeight;
+        // Typing indicator removed - status shown inside message
     }
 
     function removeTyping() {
-        const el = $('#typingIndicator');
-        if (el) el.remove();
+        // Typing indicator removed
+    }
+    
+    let genStartTime = null;
+    let genTimerInterval = null;
+    
+    function startGenTimer() {
+        genStartTime = Date.now();
+        genTimerInterval = setInterval(() => {
+            const elapsed = ((Date.now() - genStartTime) / 1000).toFixed(1);
+            const genStatus = document.querySelector('.gen-status');
+            if (genStatus) {
+                genStatus.textContent = `Генерирую... ${elapsed}с`;
+            }
+        }, 100);
+    }
+    
+    function stopGenTimer() {
+        if (genTimerInterval) {
+            clearInterval(genTimerInterval);
+            genTimerInterval = null;
+        }
     }
 
     /* ── File Upload ── */
@@ -730,6 +710,18 @@
             }
             currentFileData = data;
             toast(`Файл "${file.name}" загружен`, 'success');
+            
+            // Показать превью извлечённого текста
+            if (data.extracted_text && data.extracted_text.trim()) {
+                const preview = $('#extractedTextPreview');
+                const text = data.extracted_text.trim();
+                const shortText = text.length > 300 ? text.substring(0, 300) + '...' : text;
+                preview.innerHTML = `<div class="extracted-label">📄 Распознанный текст:</div><div class="extracted-content">${esc(shortText)}</div>`;
+                preview.style.display = 'block';
+            } else {
+                const preview = $('#extractedTextPreview');
+                preview.style.display = 'none';
+            }
         } catch (err) {
             toast('Ошибка загрузки файла', 'error');
             clearFile();
@@ -743,6 +735,11 @@
         currentFileData = null;
         $('#fileInput').value = '';
         $('#filePreview').style.display = 'none';
+        const preview = $('#extractedTextPreview');
+        if (preview) {
+            preview.style.display = 'none';
+            preview.innerHTML = '';
+        }
     }
 
     /* ── Documents ── */
@@ -880,12 +877,48 @@
     // Streaming mode - включен по умолчанию для плавного отображения
     let streamingMode = true; // localStorage.getItem('streamingMode') === 'true';
     
-    function sendMessage() {
-        if (streamingMode) {
-            sendMessageStreaming();
-        } else {
-            sendMessageStandard();
+    function showContextIndicator(text) {
+        let indicator = $('#contextIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'contextIndicator';
+            indicator.className = 'context-indicator';
+            const inputBox = $('.chat-input-box');
+            if (inputBox) {
+                inputBox.insertBefore(indicator, inputBox.firstChild);
+            }
         }
+        const shortText = text.length > 100 ? text.substring(0, 100) + '...' : text;
+        indicator.innerHTML = `
+            <span class="context-label">Контекст:</span>
+            <span class="context-text">${esc(shortText)}</span>
+            <button class="context-clear" onclick="clearSelectedContext()" title="Очистить контекст">×</button>
+        `;
+        indicator.style.display = 'flex';
+    }
+    
+    function clearSelectedContext() {
+        selectedContext = null;
+        const indicator = $('#contextIndicator');
+        if (indicator) {
+            indicator.style.display = 'none';
+        }
+    }
+    
+    // Make it global for onclick handler
+    window.clearSelectedContext = clearSelectedContext;
+    
+    function buildMessageWithContext(userText) {
+        if (selectedContext) {
+            const contextMessage = `Контекст из предыдущего сообщения:\n"""${selectedContext}"""\n\nВопрос пользователя: ${userText}`;
+            return contextMessage;
+        }
+        return userText;
+    }
+    
+    function sendMessage() {
+        // Always use streaming mode
+        sendMessageStreaming();
     }
     
     function sendMessageStreaming() {
@@ -894,6 +927,9 @@
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
 
+        // Build message with context if selected
+        const messageWithContext = buildMessageWithContext(text);
+        
         let msgText = text;
         if (currentFileData) {
             msgText = text || `Проанализируй файл ${currentFileData.filename}`;
@@ -901,16 +937,23 @@
 
         input.value = '';
         input.style.height = 'auto';
+        
+        // Clear context after sending
+        if (selectedContext) {
+            clearSelectedContext();
+        }
+        
         addMsg('user', msgText, null, null, currentFileData);
         
         // Создаем сообщение для ассистента сразу (будем обновлять)
         const msgId = 'msg-' + Date.now();
-        addMsg('system', 'Генерация...', null, null, null, msgId);
+        addMsg('system', '', null, null, null, msgId);
         
-        showGenerationProgress('start');
+        // Запускаем таймер генерации
+        startGenTimer();
         
         const body = {
-            message: text || `Проанализируй файл ${currentFileData?.filename || ''}`,
+            message: messageWithContext || `Проанализируй файл ${currentFileData?.filename || ''}`,
             session_id: activeSessionId,
             user_id: userId,
             mode: 'extended'
@@ -923,11 +966,6 @@
         const xhr = new XMLHttpRequest();
         let fullText = '';
         let buffer = '';
-        let chunksReceived = 0;
-        
-        // Обновляем статус на "Генерация..."
-        const statusEl = document.querySelector('#genLabel');
-        if (statusEl) statusEl.textContent = 'Генерация...';
         
         xhr.open('POST', '/api/chat/stream', true);
         xhr.setRequestHeader('Content-Type', 'application/json');
@@ -942,29 +980,24 @@
                 if (line.startsWith('data: ')) {
                     try {
                         const data = JSON.parse(line.substring(6));
-                        console.log('SSE chunk:', data.type, data.text?.substring(0, 50));
                         
                         if (data.type === 'chunk') {
                             fullText += data.text;
-                            chunksReceived++;
-                            updateMessageText(msgId, fullText);
-                            updateGenerationProgressStreaming(data, fullText);
+                            updateMessageText(msgId, fullText, false, data.elapsed_ms);
                         } else if (data.type === 'complete') {
-                            // only add non-empty text that wasn't already sent as chunk
-                            if (data.text && data.text.length > 0 && chunksReceived === 0) {
-                                fullText = data.text;
-                            }
-                            // otherwise fullText already has all chunks
-                            updateMessageText(msgId, fullText);
-                            hideGenerationProgress();
-                            console.log('Complete! Full text length:', fullText.length);
+                            fullText += data.text;
+                            updateMessageText(msgId, fullText, false, data.elapsed_ms);
+                        } else if (data.type === 'done') {
+                            updateMessageText(msgId, fullText, true);
+                            stopGenTimer();
+                            clearFile();
                         } else if (data.type === 'error') {
-                            updateMessageText(msgId, 'Ошибка: ' + data.text);
-                            hideGenerationProgress();
-                            console.error('Error:', data.text);
+                            updateMessageText(msgId, 'Ошибка: ' + data.text, true);
+                            stopGenTimer();
+                            clearFile();
                         }
                     } catch (e) {
-                        console.log('JSON parse error (incomplete):', e.message);
+                        // Игнорируем неполные JSON
                     }
                 }
             }
@@ -974,85 +1007,54 @@
             if (xhr.status !== 200) {
                 console.error('XHR Status:', xhr.status);
             }
-            // Показываем итоговое количество
-            const label = document.querySelector('#genLabel');
-            if (label && fullText) {
-                label.textContent = `Готово! ${fullText.length} симв.`;
-            }
-            hideGenerationProgress();
+            stopGenTimer();
             clearFile();
         };
         
         xhr.onerror = function(e) {
-            hideGenerationProgress();
+            stopGenTimer();
             console.error('XHR Error:', e);
-            // Fallback to standard API
-            console.log('Falling back to standard API...');
-            fetch('/api/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            }).then(r => r.json()).then(d => {
-                removeTyping();
-                updateMessageText(msgId, d.response || 'Нет ответа');
-                reasoningData = d.reasoning_steps || null;
-            }).catch(err => {
-                console.error('Fallback error:', err);
-                updateMessageText(msgId, 'Ошибка: ' + err.message);
-            });
+            updateMessageText(msgId, 'Ошибка соединения', true);
             clearFile();
         };
         
         xhr.send(JSON.stringify(body));
     }
     
-    function updateGenerationProgressStreaming(data, fullText = '') {
-        // Обновить индикатор генерации для стриминга
-        const genProgress = document.getElementById('genProgress');
-        if (!genProgress) return;
-        
-        const label = document.querySelector('#genLabel');
-        const fill = document.querySelector('.progress-bar-fill');
-        const stepC = document.getElementById('stepC');
-        
-        // Показываем прогресс
-        const progress = data.progress || 0;
-        if (fill) {
-            fill.style.width = `${Math.round(progress * 100)}%`;
-        }
-        
-        // Обновляем статус - показываем количество символов
-        if (label && fullText) {
-            const charCount = fullText.length;
-            const tokenCount = data.tokens_count || Math.ceil(charCount / 4);
-            label.textContent = `${charCount} симв., ~${tokenCount} токенов`;
-        } else if (label) {
-            label.textContent = 'Генерация...';
-        }
-        
-        // Время
-        const timeEl = document.querySelector('#genTime');
-        if (timeEl && data.elapsed_ms) {
-            timeEl.textContent = `${(data.elapsed_ms / 1000).toFixed(1)}с`;
-        }
-        
-        // Завершаем если финал
-        if (data.is_final) {
-            if (stepC) {
-                stepC.classList.add('done');
-                stepC.querySelector('.step-dot').textContent = '✓';
-            }
-            if (label) label.textContent = 'Готово!';
-        }
-    }
-    
-    function updateMessageText(msgId, text) {
-        // Обновить текст сообщения
+    function updateMessageText(msgId, text, isComplete = false, elapsedMs = null) {
+        // Обновить текст сообщения с форматированием
         const msgEl = document.getElementById(msgId);
         if (msgEl) {
             const contentEl = msgEl.querySelector('.msg-inner .msg-text');
             if (contentEl) {
-                contentEl.textContent = text;
+                // Всегда используем innerHTML с formatText для корректного отображения
+                contentEl.innerHTML = formatText(text);
+                
+                // Подсветка кода при завершении
+                if (isComplete && window.hljs) {
+                    contentEl.querySelectorAll('pre code').forEach((block) => {
+                        hljs.highlightElement(block);
+                    });
+                }
+                
+                // Обновляем статус генерации
+                if (!isComplete) {
+                    let statusEl = msgEl.querySelector('.gen-status');
+                    if (!statusEl) {
+                        statusEl = document.createElement('div');
+                        statusEl.className = 'gen-status';
+                        const innerEl = msgEl.querySelector('.msg-inner');
+                        if (innerEl) innerEl.appendChild(statusEl);
+                    }
+                    if (elapsedMs !== null) {
+                        statusEl.textContent = `Генерирую... ${(elapsedMs / 1000).toFixed(1)}с`;
+                    }
+                } else {
+                    // Убираем статус при завершении
+                    const statusEl = msgEl.querySelector('.gen-status');
+                    if (statusEl) statusEl.remove();
+                }
+                
                 // Автопрокрутка
                 const chatContainer = $('#chatMessages');
                 if (chatContainer) {
@@ -1076,6 +1078,9 @@
         const text = input.value.trim();
         if ((!text && !currentFileData) || !activeSessionId) return;
 
+        // Build message with context if selected
+        const messageWithContext = buildMessageWithContext(text);
+
         let msgText = text;
         if (currentFileData) {
             msgText = text || `Проанализируй файл ${currentFileData.filename}`;
@@ -1083,10 +1088,16 @@
 
         input.value = '';
         input.style.height = 'auto';
+        
+        // Clear context after sending
+        if (selectedContext) {
+            clearSelectedContext();
+        }
+        
         addMsg('user', msgText, null, null, currentFileData);
         
         addTyping();
-        const body = { message: text || `Проанализируй файл ${currentFileData?.filename || ''}`, session_id: activeSessionId, user_id: userId };
+        const body = { message: messageWithContext || `Проанализируй файл ${currentFileData?.filename || ''}`, session_id: activeSessionId, user_id: userId };
         if (currentFileData) {
             body.file_data = currentFileData;
         }
@@ -1256,8 +1267,59 @@
         if (!text) return '';
         let html = text;
         
+        // Normalize Windows line endings
+        html = html.replace(/\r\n/g, '\n');
+        
         // Escape HTML first (but preserve markdown)
         html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Handle escape sequences for markdown characters
+        html = html.replace(/\\([\\`*_\[\]()#+\-.!|])/g, '$1');
+        
+        // Math symbols conversion - comprehensive LaTeX support
+        const mathSymbols = {
+            // Greek letters
+            'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε', 'varepsilon': 'ε',
+            'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'vartheta': 'ϑ', 'iota': 'ι', 'kappa': 'κ',
+            'lambda': 'λ', 'mu': 'μ', 'nu': 'ν', 'xi': 'ξ', 'pi': 'π', 'varpi': 'ϖ',
+            'rho': 'ρ', 'varrho': 'ϱ', 'sigma': 'σ', 'varsigma': 'ς', 'tau': 'τ', 'upsilon': 'υ',
+            'phi': 'φ', 'varphi': 'ϕ', 'chi': 'χ', 'psi': 'ψ', 'omega': 'ω',
+            'Gamma': 'Γ', 'Delta': 'Δ', 'Theta': 'Θ', 'Lambda': 'Λ', 'Xi': 'Ξ', 'Pi': 'Π',
+            'Sigma': 'Σ', 'Upsilon': 'Υ', 'Phi': 'Φ', 'Psi': 'Ψ', 'Omega': 'Ω',
+            // Math symbols
+            'infinity': '∞', 'inf': '∞', 'sqrt': '√', 'sum': '∑', 'prod': '∏',
+            'integral': '∫', 'partial': '∂', 'nabla': '∇', 'times': '×', 'div': '÷',
+            'pm': '±', 'mp': '∓', 'cdot': '·', 'star': '⋆', 'ast': '∗',
+            'leq': '≤', 'geq': '≥', 'neq': '≠', 'equiv': '≡', 'approx': '≈',
+            'sim': '∼', 'simeq': '≃', 'cong': '≅', 'propto': '∝',
+            'forall': '∀', 'exists': '∃', 'nexists': '∄', 'in': '∈', 'notin': '∉',
+            'subset': '⊂', 'subseteq': '⊆', 'supset': '⊃', 'supseteq': '⊇',
+            'cup': '∪', 'cap': '∩', 'setminus': '∖', 'emptyset': '∅',
+            'rightarrow': '→', 'leftarrow': '←', 'Rightarrow': '⇒', 'Leftarrow': '⇐',
+            'leftrightarrow': '↔', 'Leftrightarrow': '⇔', 'mapsto': '↦',
+            'uparrow': '↑', 'downarrow': '↓', 'Uparrow': '⇑', 'Downarrow': '⇓',
+            'angle': '∠', 'perp': '⊥', 'parallel': '∥', 'nparallel': '∦',
+            'ldots': '…', 'cdots': '⋯', 'vdots': '⋮', 'ddots': '⋱',
+            'infty': '∞', 'aleph': 'ℵ', 'hbar': 'ℏ', 'ell': 'ℓ', 'Re': 'ℜ', 'Im': 'ℑ',
+            'wp': '℘', 'prime': '′', 'backprime': '‵', 'surd': '√',
+            // Operators
+            'cdot': '·', 'bullet': '•', 'circ': '∘', 'odot': '⊙', 'ominus': '⊖',
+            'oplus': '⊕', 'otimes': '⊗', 'oslash': '⊘', 'bigcirc': '○',
+            'dagger': '†', 'ddagger': '‡', 'amalg': '⨿', 'wr': '≀',
+            // Arrows
+            'to': '→', 'gets': '←', 'leadsto': '⇝', 'longrightarrow': '⟶',
+            'longleftarrow': '⟵', 'Longrightarrow': '⟹', 'Longleftarrow': '⟸'
+        };
+        
+        // LaTeX superscripts/subscripts mapping
+        const superscripts = {
+            '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+            '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ'
+        };
+        const subscripts = {
+            '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+            '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎'
+        };
         
         // Handle bullet points with emoji (like 🔹, 🔸) BEFORE bold/italic
         // This handles lines like "🔹 **Разговорный** — текст"
@@ -1282,10 +1344,39 @@
         // Inline code
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
         
-        // Code blocks
-        html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, function(match, lang, code) {
+        // Markdown links [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+        
+        // Auto-link plain URLs (but not inside code blocks or links already)
+        // Use a temporary placeholder for code blocks
+        const codeBlockPlaceholders = [];
+        html = html.replace(/<code[^>]*>[\s\S]*?<\/code>/g, (match) => {
+            codeBlockPlaceholders.push(match);
+            return `%%CODEBLOCK_${codeBlockPlaceholders.length - 1}%%`;
+        });
+        html = html.replace(/<a[^>]*>[\s\S]*?<\/a>/g, (match) => {
+            codeBlockPlaceholders.push(match);
+            return `%%LINK_${codeBlockPlaceholders.length - 1}%%`;
+        });
+        // Now convert plain URLs to links
+        html = html.replace(/(?<!["'([>])((https?:\/\/)[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="md-link">$1</a>');
+        // Restore code blocks and links
+        codeBlockPlaceholders.forEach((content, idx) => {
+            html = html.replace(`%%CODEBLOCK_${idx}%%`, content);
+            html = html.replace(`%%LINK_${idx}%%`, content);
+        });
+        
+        // Convert image URLs to images (only direct links to images)
+        html = html.replace(/<a href="([^"]+\.(jpg|jpeg|png|gif|webp|bmp))"[^>]*class="md-link"[^>]*>/g, (match, url) => {
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="md-link md-image-link" onclick="event.stopPropagation(); event.preventDefault(); this.classList.toggle('expanded');">`;
+        });
+        
+        // Code blocks - handle Windows \r\n, various formats
+        html = html.replace(/```(\w*)\r?\n?([\s\S]*?)```/g, function(match, lang, code) {
             const langLabel = lang || 'text';
-            return `<pre class="code-block"><code class="language-${langLabel}">${code.trim()}</code></pre>`;
+            const displayLang = langLabel === 'text' ? '' : langLabel;
+            const trimmedCode = code.trim();
+            return `<pre class="code-block"><div class="code-header"><span class="code-lang">${displayLang}</span><button class="code-copy" onclick="copyCodeBlock(this)">Копировать</button></div><code class="language-${langLabel}">${trimmedCode}</code></pre>`;
         });
         
         // Unordered lists (including emoji bullets like 🔹, 🔸, •, ○)
@@ -1301,6 +1392,58 @@
         
         // Horizontal rule
         html = html.replace(/^---$/gm, '<hr>');
+        
+        // Checkboxes / Task lists (unchecked and checked) - handle inline and multiline
+        html = html.replace(/^- \[ \] (.+)$/gm, '<div class="checkbox unchecked"><span class="checkbox-box"></span>$1</div>');
+        html = html.replace(/^- \[x\] (.+)$/gm, '<div class="checkbox checked"><span class="checkbox-box checked"></span>$1</div>');
+        html = html.replace(/^\* \[ \] (.+)$/gm, '<div class="checkbox unchecked"><span class="checkbox-box"></span>$1</div>');
+        html = html.replace(/^\* \[x\] (.+)$/gm, '<div class="checkbox checked"><span class="checkbox-box checked"></span>$1</div>');
+        
+        // Better handling of multiple newlines - create paragraphs
+        html = html.replace(/\n{3,}/g, '\n\n');
+        
+        // Tables - convert | col1 | col2 | to HTML table
+        const tableRegex = /^\|(.+)\|\s*\n\|[-:\s|]+\|\s*\n((?:\|.+\|\s*\n?)+)/gm;
+        html = html.replace(tableRegex, function(match, headerRow, bodyRows) {
+            const headers = headerRow.split('|').filter(h => h.trim()).map(h => h.trim());
+            const rows = bodyRows.trim().split('\n').map(row => 
+                row.split('|').filter(c => c.trim()).map(c => c.trim())
+            );
+            let tableHtml = '<div class="table-wrapper"><table class="md-table"><thead><tr>';
+            headers.forEach(h => { tableHtml += `<th>${h}</th>`; });
+            tableHtml += '</tr></thead><tbody>';
+            rows.forEach(row => {
+                tableHtml += '<tr>';
+                row.forEach(cell => { tableHtml += `<td>${cell}</td>`; });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table></div>';
+            return tableHtml;
+        });
+        
+        // Handle superscripts like x^2, x^{10}
+        html = html.replace(/(\w)\^\{(\d+)\}/g, (match, base, exp) => {
+            const sup = exp.split('').map(c => superscripts[c] || c).join('');
+            return base + sup;
+        });
+        html = html.replace(/(\w)\^(\d)/g, (match, base, exp) => {
+            return base + (superscripts[exp] || exp);
+        });
+        
+        // Handle subscripts like x_2, x_{10}
+        html = html.replace(/(\w)_\{(\d+)\}/g, (match, base, sub) => {
+            const subscript = sub.split('').map(c => subscripts[c] || c).join('');
+            return base + subscript;
+        });
+        html = html.replace(/(\w)_(\d)/g, (match, base, sub) => {
+            return base + (subscripts[sub] || sub);
+        });
+        
+        // Math blocks: $$...$$ for display math
+        html = html.replace(/\$\$([^$]+)\$\$/g, '<div class="math-block">$$$1$$</div>');
+        
+        // Math inline: $...$ for inline math
+        html = html.replace(/\$([^$\n]+)\$/g, '<span class="math-inline">$$1$</span>');
         
         // Line breaks
         html = html.replace(/\n\n/g, '</p><p>');
@@ -1318,6 +1461,30 @@
         html = html.replace(/<p>(<blockquote>)/g, '$1');
         html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
         html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
+        
+        // Apply math symbols conversion (only outside tags)
+        // First handle LaTeX \commands
+        html = html.replace(/\\([a-zA-Z]+)/g, (match, cmd) => {
+            return mathSymbols[cmd] || match;
+        });
+        
+        // Then handle text-based symbols
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const applyMathSymbols = (node) => {
+            if (node.nodeType === Node.TEXT_NODE) {
+                let text = node.textContent;
+                // Replace operators like <=, >=
+                text = text.replace(/<=/g, '≤').replace(/>=/g, '≥');
+                text = text.replace(/!=/g, '≠').replace(/=>/g, '⇒');
+                text = text.replace(/->/g, '→').replace(/<-/g, '←');
+                node.textContent = text;
+            } else if (node.nodeType === Node.ELEMENT_NODE && !['code', 'pre', 'script', 'style'].includes(node.tagName.toLowerCase())) {
+                Array.from(node.childNodes).forEach(applyMathSymbols);
+            }
+        };
+        Array.from(tempDiv.childNodes).forEach(applyMathSymbols);
+        html = tempDiv.innerHTML;
         
         return html;
     }
@@ -1454,8 +1621,11 @@
                     break;
                     
                 case 'ask':
-                    $('#chatInput').value = `Расскажи подробнее о: "${selectedText}"`;
+                    selectedContext = selectedText;
+                    $('#chatInput').value = `По поводу выделенного текста: `;
                     $('#chatInput').focus();
+                    // Show context indicator
+                    showContextIndicator(selectedText);
                     break;
                     
                 case 'explain':
@@ -2130,28 +2300,44 @@
         });
     }
     
+    function copyCodeBlock(btn) {
+        const codeBlock = btn.closest('.code-block');
+        const code = codeBlock.querySelector('code').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = 'Скопировано!';
+            setTimeout(() => { btn.textContent = 'Копировать'; }, 1500);
+        }).catch(() => {
+            toast('Ошибка копирования', 'error');
+        });
+    }
+    
     function rateMessage(text, rating) {
         console.log('Rate message:', rating, text);
         toast(rating === 1 ? 'Спасибо за оценку!' : 'О учтём', 'success');
     }
     
-    function regenerateMessage(btn, oldText) {
-        const msgDiv = btn.closest('.msg');
+    function regenerateMessage(msgDiv) {
         if (!msgDiv) return;
-        
+
         const userMsgDiv = msgDiv.previousElementSibling;
-        if (!userMsgDiv || !userMsgDiv.classList.contains('user')) {
+        if (!userMsgDiv || !userMsgDiv.classList.contains('msg')) {
             toast('Не найден предыдущий запрос', 'error');
             return;
         }
-        
-        const userText = userMsgDiv.querySelector('.msg-text')?.textContent;
+
+        // Get the user message ID and text
+        const userTextEl = userMsgDiv.querySelector('.msg-text');
+        const userMsgId = userTextEl?.id?.replace('text-', '');
+        const userText = userMsgId && messageStore[userMsgId] ? messageStore[userMsgId].text : userTextEl?.textContent;
+
         if (!userText) {
             toast('Не удалось получить текст запроса', 'error');
             return;
         }
-        
+
         msgDiv.remove();
+        // Remove the user message too since we're regenerating
+        userMsgDiv.remove();
         sendMessage(userText);
     }
 
