@@ -280,14 +280,38 @@ class OpenVINOGenerator:
         if model_path and use_registry:
             registry = get_openvino_registry()
             
-            def creator(gen):
-                gen._init_base(model_path, device, max_tokens, temperature, n_ctx, scheduler_config, performance_hint, num_streams)
-                gen._load_model()
+            # Используем partial для передачи параметров в creator
+            import functools
+            
+            def creator(gen_to_init, mp, dev, mt, temp, ctx, sc, ph, ns):
+                gen_to_init.model_path = mp
+                gen_to_init.device = dev
+                gen_to_init.default_max_tokens = mt
+                gen_to_init.default_temperature = temp
+                gen_to_init.n_ctx = ctx
+                gen_to_init.scheduler_config = sc or {}
+                gen_to_init.performance_hint = ph
+                gen_to_init.num_streams = ns
+                gen_to_init._pipeline = None
+                gen_to_init._model_path_str = None
+                gen_to_init._load_model()
+            
+            creator_fn = functools.partial(
+                creator,
+                mp=model_path,
+                dev=device,
+                mt=max_tokens,
+                temp=temperature,
+                ctx=n_ctx,
+                sc=scheduler_config,
+                ph=performance_hint,
+                ns=num_streams
+            )
             
             shared_gen = registry.get_or_create(
                 model_path=model_path,
                 device=device,
-                creator_fn=creator
+                creator_fn=creator_fn
             )
             
             # Копируем состояние из шаренного генератора
