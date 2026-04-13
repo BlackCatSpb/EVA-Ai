@@ -974,6 +974,11 @@
             if (xhr.status !== 200) {
                 console.error('XHR Status:', xhr.status);
             }
+            // Показываем итоговое количество
+            const label = document.querySelector('#genLabel');
+            if (label && fullText) {
+                label.textContent = `Готово! ${fullText.length} симв.`;
+            }
             hideGenerationProgress();
             clearFile();
         };
