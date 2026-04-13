@@ -750,7 +750,100 @@ process_query(query)
 
 ---
 
-## 17. Полная сводка проблем по приоритетам
+## 17. Core модули
+
+### 17.1 init_factories.py
+
+**Проблемы:**
+- Дублирование try/except логики
+- Hardcoded параметры (max_vram_gb=0.5)
+- Нет валидации зависимостей
+- Риск ImportError
+
+### 17.2 core_brain.py
+
+**Проблемы:**
+- 10 миксинов - нарушение SRP
+- Дублирование EventBus (self.events и self._new_event_bus)
+- Нет явного порядка инициализации
+- Глобальное состояние (singleton)
+
+### 17.3 event_bus.py
+
+**Проблемы:**
+- Избыточное логирование (10+ раз на каждый handler)
+- EventPriority не используется при обработке
+- Нет dead letter queue
+- Ограниченная история (max_history=10000)
+
+### 17.4 brain_coordination.py
+
+**Проблемы:**
+- CommandIssuerMixin > 600 строк
+- Хардкод retry логики (max_retries=3)
+- Нет circuit breaker
+- Duplicate _on_pipeline_complete и _track_query_success
+
+---
+
+## 18. Memory модули
+
+### 18.1 hybrid_token_cache.py
+
+**Проблемы:**
+- Сложная архитектура 3 уровней (VRAM/RAM/Disk)
+- Динамические импорты (циклические зависимости)
+- Потенциальные утечки памяти
+
+### 18.2 memory_manager.py
+
+**Проблемы:**
+- Дублирование инициализации кэша
+- Сложная система блокировок
+- EventBus зависимость
+
+### 18.3 document_manager.py
+
+**Проблемы:**
+- Неполная реализация поиска
+- Hit rate всегда 0.85
+- Memory leak в _page_index
+
+### 18.4 memory_types.py
+
+**Проблемы:**
+- Неполный набор типов
+- Ограниченная функциональность
+- Нет валидации
+
+---
+
+## 19. Learning и Commands
+
+### 19.1 scheduler_core.py
+
+**Проблемы:**
+- `_execute_task()` не реализован (заглушка)
+- Hardcoded values (task_timeout=300, max_concurrent_tasks=8)
+- Race conditions
+
+### 19.2 deferred_command_system.py
+
+**Проблемы:**
+- Глобальная переменная _global_event_bus
+- Избыточное логирование
+- Нет обработки зависших команд
+
+### 19.3 contradiction_manager.py
+
+**Проблемы:**
+- BaseComponent - заглушка
+- self.detector может быть None
+- Примитивный расчёт весов
+
+---
+
+## 20. Полная сводка проблем (ИТОГ)
 
 ### 🔴 КРИТИЧЕСКИЕ (система не работает)
 
@@ -762,38 +855,90 @@ process_query(query)
 | 4 | max_tokens undefined | unified_fractal_manager.py | - |
 | 5 | max_tokens undefined x2 | web_search_learning_integration.py | - |
 | 6 | DocumentManager эмбеддинги не вычисляются | document_manager.py | - |
+| 7 | `_execute_task()` не реализован | scheduler_core.py | - |
 
 ### 🟠 ВЫСОКИЙ ПРИОРИТЕТ
 
 | # | Проблема | Файл |
 |---|----------|------|
-| 7 | system_prompt в wrong role | unified_generator.py:833 |
-| 8 | Утечка памяти в `_resolved_knowledge` | dialog_concepts.py:28 |
-| 9 | Рост очередей без ограничения | dialog_concepts.py |
-| 10 | Несогласованность max_results (3 vs 5) | unified_generator.py vs brain_query.py |
-| 11 | Персистентность через JSON файлы | memory_manager.py |
-| 12 | Нет интеграции Training в brain | gguf_training_system.py |
-| 13 | Верификация в Training заглушки | gguf_training_system.py |
-| 14 | Stub в context_entity.py | context_entity.py |
-| 15 | Двойная абстракция knowledge_graph | knowledge_graph.py |
+| 8 | system_prompt в wrong role | unified_generator.py:833 |
+| 9 | Утечка памяти в `_resolved_knowledge` | dialog_concepts.py:28 |
+| 10 | Рост очередей без ограничения | dialog_concepts.py |
+| 11 | Несогласованность max_results (3 vs 5) | unified_generator.py vs brain_query.py |
+| 12 | Персистентность через JSON файлы | memory_manager.py |
+| 13 | Нет интеграции Training в brain | gguf_training_system.py |
+| 14 | Верификация в Training заглушки | gguf_training_system.py |
+| 15 | Stub в context_entity.py | context_entity.py |
+| 16 | Двойная абстракция knowledge_graph | knowledge_graph.py |
+| 17 | 10 миксинов в CoreBrain | core_brain.py |
+| 18 | CommandIssuerMixin > 600 строк | brain_coordination.py |
 
 ### 🟡 СРЕДНИЙ ПРИОРИТЕТ
 
 | # | Проблема | Файл |
 |---|----------|------|
-| 16 | Шаблонные факты в ConceptExtractor | concept_extractor.py:160 |
-| 17 | Эвристика вместо NLI | contradiction_miner.py:446 |
-| 18 | needs_web_search слишком примитивен | brain_query.py:18 |
-| 19 | Дублирование semantic_search | fractal_graph_v2 |
-| 20 | Дублирование токенизаторов | fractal_graph_v2 |
-| 21 | Дублирование `/api/chat` роутов | server_routes.py vs server_routes_chat.py |
-| 22 | Очень длинный process_message | server_main.py:203 |
-| 23 | Глобальная переменная web_gui_instance | server_main.py |
-| 24 | Hit rate всегда 0.85 | document_manager.py |
-| 25 | Дублирование embedder/embedding_model | unified_text_processor.py |
-| 26 | use_async не работает | unified_text_processor.py |
-| 27 | Упрощённый поиск пути в kg_adapter | kg_adapter.py |
-| 28 | Нет FAISS в wikipedia_kb | wikipedia_kb.py |
+| 19 | Шаблонные факты в ConceptExtractor | concept_extractor.py:160 |
+| 20 | Эвристика вместо NLI | contradiction_miner.py:446 |
+| 21 | needs_web_search слишком примитивен | brain_query.py:18 |
+| 22 | Дублирование semantic_search | fractal_graph_v2 |
+| 23 | Дублирование токенизаторов | fractal_graph_v2 |
+| 24 | Дублирование `/api/chat` роутов | server_routes.py vs server_routes_chat.py |
+| 25 | Очень длинный process_message | server_main.py:203 |
+| 26 | Глобальная переменная web_gui_instance | server_main.py |
+| 27 | Hit rate всегда 0.85 | document_manager.py |
+| 28 | Дублирование embedder/embedding_model | unified_text_processor.py |
+| 29 | use_async не работает | unified_text_processor.py |
+| 30 | Упрощённый поиск пути в kg_adapter | kg_adapter.py |
+| 31 | Нет FAISS в wikipedia_kb | wikipedia_kb.py |
+| 32 | Дублирование EventBus | core_brain.py |
+| 33 | Избыточное логирование | event_bus.py |
+| 34 | Глобальная переменная _global_event_bus | deferred_command_system.py |
+| 35 | BaseComponent заглушка | contradiction_manager.py |
+
+### 🟢 НИЗКИЙ ПРИОРИТЕТ
+
+| # | Проблема | Файл |
+|---|----------|------|
+| 36 | XHR + SSE смешение подходов | app.js |
+| 37 | EventSource не закрывается при logout | app.js |
+| 38 | `_split_text_chunks` не используется | unified_generator.py:1094 |
+| 39 | Нет DPI awareness | widgets.py |
+| 40 | Импорты внутри методов | fractal_storage.py |
+| 41 | Жёсткие веса в health_monitor | health_monitor.py |
+
+---
+
+## Итоговый подсчёт
+
+- **Критических**: 7
+- **Высокий приоритет**: 11
+- **Средний приоритет**: 17
+- **Низкий приоритет**: 6
+- **Всего**: 41 проблема
+
+---
+
+## Рекомендуемый порядок исправлений
+
+### Фаза 1: Критические
+1. `create_unified_generator` параметры
+2. max_tokens в ML модулях
+3. `_execute_task()` в scheduler
+
+### Фаза 2: Высокий приоритет
+4. Очереди и память в Self-Dialog
+5. Интеграция Training
+6. CoreBrain миксины
+
+### Фаза 3: Рефакторинг
+7. Дублирование и абстракции
+8. Конфигурация (hardcoded values)
+9. Логирование
+
+---
+
+*Анализ завершён: 20 областей, 41 проблема*
+*ЦЕЛЬ: Автономная самообучаемая система*
 | 29 | Глобальное состояние _toast_tk_root | widgets.py |
 | 30 | analytics_module matplotlib утечки | analytics_module.py |
 | 31 | Distributed HTTP без таймаутов | distributed_system.py |
