@@ -6,16 +6,84 @@ OpenVINO Generator - генерация на базе OpenVINO GenAI.
 - PagedAttention для эффективного KV-cache
 - INT8 сжатие KV-cache по умолчанию
 - Нативная поддержка GGUF моделей
+
+Асинхронная архитектура для разных типов данных:
+- QUERY: основные запросы пользователя
+- CONTEXT: контекст из истории/кэша
+- CONCEPT: извлечение и анализ концептов
+- CONTRADICTION: анализ противоречий
+- SELF_DIALOG: самодиалог для обучения
 """
 
 import time
 import asyncio
 import logging
-from typing import Dict, List, Optional, Any, Generator, Callable
+from typing import Dict, List, Optional, Any, Generator, Callable, Tuple
 from dataclasses import dataclass
 from pathlib import Path
+from enum import Enum
 
 logger = logging.getLogger("eva_ai.openvino_generator")
+
+
+class DataType(Enum):
+    """Типы данных для асинхронной обработки."""
+    QUERY = "query"              # Основной запрос
+    CONTEXT = "context"          # Контекст из истории
+    CONCEPT = "concept"          # Концепты
+    CONTRADICTION = "contradiction"  # Противоречия
+    SELF_DIALOG = "self_dialog"  # Самодиалог
+    CODE = "code"                # Генерация кода
+
+
+@dataclass
+class DataTypeConfig:
+    """Конфигурация для типа данных."""
+    max_tokens: int = 1024
+    temperature: float = 0.7
+    device: str = "CPU"  # CPU или GPU
+    priority: int = 0  # Приоритет (выше = важнее)
+
+
+# Конфигурации по умолчанию для каждого типа данных
+DEFAULT_DATA_TYPE_CONFIGS: Dict[DataType, DataTypeConfig] = {
+    DataType.QUERY: DataTypeConfig(
+        max_tokens=1024,
+        temperature=0.7,
+        device="CPU",
+        priority=10
+    ),
+    DataType.CONTEXT: DataTypeConfig(
+        max_tokens=512,
+        temperature=0.5,
+        device="CPU",
+        priority=5
+    ),
+    DataType.CONCEPT: DataTypeConfig(
+        max_tokens=512,
+        temperature=0.6,
+        device="GPU.0",
+        priority=7
+    ),
+    DataType.CONTRADICTION: DataTypeConfig(
+        max_tokens=768,
+        temperature=0.7,
+        device="GPU.0",
+        priority=8
+    ),
+    DataType.SELF_DIALOG: DataTypeConfig(
+        max_tokens=2048,
+        temperature=0.8,
+        device="GPU.0",
+        priority=9
+    ),
+    DataType.CODE: DataTypeConfig(
+        max_tokens=1024,
+        temperature=0.3,
+        device="GPU.0",
+        priority=8
+    ),
+}
 
 
 @dataclass
@@ -26,6 +94,7 @@ class OpenVINOGenerationResult:
     generation_time: float
     tokens_generated: int
     device: str
+    data_type: DataType = DataType.QUERY
 
 
 class OpenVINOGenerator:
@@ -609,3 +678,245 @@ async def async_generate_batch(
         for prompt in prompts
     ]
     return await asyncio.gather(*tasks)
+
+
+async def async_generate_query(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация основного запроса.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт
+        config: Конфигурация (или default для QUERY)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.QUERY]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.QUERY
+    return result
+
+
+async def async_generate_context(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация контекста.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт с контекстом
+        config: Конфигурация (или default для CONTEXT)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.CONTEXT]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.CONTEXT
+    return result
+
+
+async def async_generate_concept(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация для извлечения концептов.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт для анализа концептов
+        config: Конфигурация (или default для CONCEPT)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.CONCEPT]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.CONCEPT
+    return result
+
+
+async def async_generate_contradiction(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация для анализа противоречий.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт для анализа противоречий
+        config: Конфигурация (или default для CONTRADICTION)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.CONTRADICTION]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.CONTRADICTION
+    return result
+
+
+async def async_generate_self_dialog(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация для самодиалога.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт для самодиалога
+        config: Конфигурация (или default для SELF_DIALOG)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.SELF_DIALOG]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.SELF_DIALOG
+    return result
+
+
+async def async_generate_code(
+    generator: OpenVINOGenerator,
+    prompt: str,
+    config: Optional[DataTypeConfig] = None
+) -> OpenVINOGenerationResult:
+    """
+    Асинхронная генерация кода.
+    
+    Args:
+        generator: OpenVINOGenerator
+        prompt: Промпт для генерации кода
+        config: Конфигурация (или default для CODE)
+        
+    Returns:
+        OpenVINOGenerationResult
+    """
+    cfg = config or DEFAULT_DATA_TYPE_CONFIGS[DataType.CODE]
+    loop = asyncio.get_running_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: generator.generate(prompt, cfg.max_tokens, cfg.temperature)
+    )
+    result.data_type = DataType.CODE
+    return result
+
+
+class AsyncDataProcessor:
+    """
+    Процессор для асинхронной обработки разных типов данных.
+    
+    Обеспечивает:
+    - Параллельную обработку разных типов данных
+    - Приоритизацию запросов
+    - Роутинг на правильное устройство
+    """
+    
+    def __init__(
+        self,
+        cpu_generator: OpenVINOGenerator,
+        gpu_generator: OpenVINOGenerator
+    ):
+        self.cpu_generator = cpu_generator
+        self.gpu_generator = gpu_generator
+        
+        self.stats = {
+            dt.value: {'count': 0, 'total_time': 0.0}
+            for dt in DataType
+        }
+    
+    def _get_generator_for_data_type(self, data_type: DataType) -> OpenVINOGenerator:
+        """Получить генератор для типа данных."""
+        config = DEFAULT_DATA_TYPE_CONFIGS[data_type]
+        if config.device == "GPU.0" and self.gpu_generator:
+            return self.gpu_generator
+        return self.cpu_generator
+    
+    async def process_query(
+        self,
+        prompt: str,
+        data_type: DataType = DataType.QUERY
+    ) -> OpenVINOGenerationResult:
+        """Обработать запрос указанного типа."""
+        generator = self._get_generator_for_data_type(data_type)
+        config = DEFAULT_DATA_TYPE_CONFIGS[data_type]
+        
+        start = time.time()
+        
+        if data_type == DataType.QUERY:
+            result = await async_generate_query(generator, prompt, config)
+        elif data_type == DataType.CONTEXT:
+            result = await async_generate_context(generator, prompt, config)
+        elif data_type == DataType.CONCEPT:
+            result = await async_generate_concept(generator, prompt, config)
+        elif data_type == DataType.CONTRADICTION:
+            result = await async_generate_contradiction(generator, prompt, config)
+        elif data_type == DataType.SELF_DIALOG:
+            result = await async_generate_self_dialog(generator, prompt, config)
+        elif data_type == DataType.CODE:
+            result = await async_generate_code(generator, prompt, config)
+        else:
+            result = await async_generate_query(generator, prompt, config)
+        
+        elapsed = time.time() - start
+        self.stats[data_type.value]['count'] += 1
+        self.stats[data_type.value]['total_time'] += elapsed
+        
+        return result
+    
+    async def process_batch(
+        self,
+        items: List[Tuple[str, DataType]]
+    ) -> List[OpenVINOGenerationResult]:
+        """
+        Параллельная обработка списка запросов.
+        
+        Args:
+            items: List[(prompt, data_type), ...]
+            
+        Returns:
+            List[OpenVINOGenerationResult]
+        """
+        tasks = [
+            self.process_query(prompt, data_type)
+            for prompt, data_type in items
+        ]
+        return await asyncio.gather(*tasks)
+    
+    def get_stats(self) -> Dict:
+        """Получить статистику обработки."""
+        return self.stats
