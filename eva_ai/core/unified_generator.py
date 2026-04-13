@@ -7,6 +7,7 @@ UnifiedGenerator - Единая система генерации на базе 
 - L2 Роутинг для выбора модели
 - Интеграция с FractalGraph V2
 - ChunkedContextProcessor для обработки больших контекстов
+- ModelAccessManager для координации доступа к модели
 """
 
 import time
@@ -17,6 +18,7 @@ from pathlib import Path
 from enum import Enum
 
 from .context_chunking import ChunkedContextProcessor, StreamingGenerator, ContextChunk
+from .model_access_manager import ModelAccessManager, AccessPriority
 
 logger = logging.getLogger("eva_ai.unified_generator")
 
@@ -127,7 +129,8 @@ class UnifiedGenerator:
         brain=None,
         use_openvino: bool = False,
         cpu_device: str = "CPU",
-        gpu_device: str = "GPU.0"
+        gpu_device: str = "GPU.0",
+        event_bus=None
     ):
         """
         Инициализация Unified Generator.
@@ -143,6 +146,7 @@ class UnifiedGenerator:
             use_openvino: Использовать OpenVINO вместо llama.cpp
             cpu_device: Устройство для Logic/Context
             gpu_device: Устройство для Coder/Self-dialog
+            event_bus: EventBus для интеграции с ModelAccessManager
         """
         self.n_ctx = n_ctx
         self.n_threads = n_threads
@@ -152,12 +156,16 @@ class UnifiedGenerator:
         self.use_openvino = use_openvino
         self.cpu_device = cpu_device
         self.gpu_device = gpu_device
+        self.event_bus = event_bus
         
         self.models: Dict[ModelType, Any] = {}
         self._model_paths: Dict[ModelType, Path] = {}
         self._openvino_cpu: Optional['OpenVINOGenerator'] = None
         self._openvino_gpu: Optional['OpenVINOGenerator'] = None
         self._openvino_coder: Optional['OpenVINOGenerator'] = None
+        
+        self._model_access: Optional[ModelAccessManager] = None
+        self._init_model_access_manager()
         
         self._load_model_paths(logic_model_path, context_model_path, coder_model_path)
         
@@ -171,6 +179,35 @@ class UnifiedGenerator:
         logger.info(f"  LOGIC model: {self._model_paths.get(ModelType.LOGIC)}")
         logger.info(f"  CONTEXT model: {self._model_paths.get(ModelType.CONTEXT)}")
         logger.info(f"  CODER model: {self._model_paths.get(ModelType.CODER)}")
+        logger.info(f"  ModelAccessManager: {'enabled' if self._model_access else 'disabled'}")
+    
+    def _init_model_access_manager(self):
+        """Инициализировать ModelAccessManager для координации доступа."""
+        if self._model_access is not None:
+            return
+        
+        try:
+            self._model_access = ModelAccessManager(
+                event_bus=self.event_bus,
+                max_workers=4
+            )
+            self._model_access.start()
+            logger.info("ModelAccessManager initialized")
+        except Exception as e:
+            logger.warning(f"Failed to init ModelAccessManager: {e}")
+            self._model_access = None
+    
+    def _get_priority_for_task(self, task_type: str) -> AccessPriority:
+        """Определить приоритет доступа по типу задачи."""
+        priority_map = {
+            'query': AccessPriority.CRITICAL,
+            'self_dialog': AccessPriority.HIGH,
+            'concept_mining': AccessPriority.HIGH,
+            'contradiction_mining': AccessPriority.HIGH,
+            'coder': AccessPriority.HIGH,
+            'default': AccessPriority.NORMAL
+        }
+        return priority_map.get(task_type, AccessPriority.NORMAL)
     
     def _load_model_paths(self, logic_path: Optional[Path], context_path: Optional[Path], coder_path: Optional[Path] = None):
         """Загрузить пути к трем моделям: LOGIC, CONTEXT и CODER."""
@@ -382,7 +419,8 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens: int = 512,
         temperature: float = 0.7,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        task_type: str = "default"
     ) -> GenerationResult:
         """
         Генерация ответа.
@@ -393,10 +431,46 @@ class UnifiedGenerator:
             max_tokens: Максимум токенов
             temperature: Температура
             system_prompt: Системный промпт
+            task_type: Тип задачи для приоритизации
             
         Returns:
             GenerationResult
         """
+        start_time = time.time()
+        logger.info(f"[GENERATE] Начало генерации для: {query[:30]}...")
+        
+        # Use ModelAccessManager if available
+        if self._model_access is not None:
+            priority = self._get_priority_for_task(task_type)
+            request_id = self._model_access.request_access(
+                priority=priority,
+                task_type=task_type,
+                callback=self._do_generate,
+                query=query,
+                context=context,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system_prompt=system_prompt,
+                timeout=60.0
+            )
+            
+            try:
+                return self._model_access.get_result(request_id, timeout=60.0)
+            except Exception as e:
+                logger.error(f"ModelAccess error: {e}")
+        
+        # Direct generation
+        return self._do_generate(query, context, max_tokens, temperature, system_prompt)
+    
+    def _do_generate(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens: int = 512,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None
+    ) -> GenerationResult:
+        """Выполняет генерацию (вызывается через ModelAccessManager)."""
         start_time = time.time()
         logger.info(f"[GENERATE] Начало генерации для: {query[:30]}...")
         
@@ -725,7 +799,8 @@ class UnifiedGenerator:
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
         check_contradictions: bool = True,
-        check_concepts: bool = True
+        check_concepts: bool = True,
+        task_type: str = "default"
     ) -> GenerationResult:
         """
         Двухэтапная генерация с обогащением контекста концептами и противоречиями:
@@ -742,10 +817,55 @@ class UnifiedGenerator:
             system_prompt: Системный промпт
             check_contradictions: Включить противоречия в контекст
             check_concepts: Включить концепты в контекст
+            task_type: Тип задачи для приоритизации
             
         Returns:
             GenerationResult от CONTEXT модели
         """
+        start_time = time.time()
+        logger.info(f"[ITERATIVE] Начало генерации для: {query[:30]}...")
+        
+        # Use ModelAccessManager if available
+        if self._model_access is not None:
+            priority = self._get_priority_for_task(task_type)
+            request_id = self._model_access.request_access(
+                priority=priority,
+                task_type=task_type,
+                callback=self._do_generate_iterative,
+                query=query,
+                context=context,
+                max_tokens_logic=max_tokens_logic,
+                max_tokens_context=max_tokens_context,
+                temperature=temperature,
+                system_prompt=system_prompt,
+                check_contradictions=check_contradictions,
+                check_concepts=check_concepts,
+                timeout=120.0
+            )
+            
+            try:
+                return self._model_access.get_result(request_id, timeout=120.0)
+            except Exception as e:
+                logger.error(f"ModelAccess error: {e}")
+        
+        # Direct generation
+        return self._do_generate_iterative(
+            query, context, max_tokens_logic, max_tokens_context,
+            temperature, system_prompt, check_contradictions, check_concepts
+        )
+    
+    def _do_generate_iterative(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens_logic: int = 256,
+        max_tokens_context: int = 512,
+        temperature: float = 0.7,
+        system_prompt: Optional[str] = None,
+        check_contradictions: bool = True,
+        check_concepts: bool = True
+    ) -> GenerationResult:
+        """Выполняет iterative генерацию (вызывается через ModelAccessManager)."""
         start_time = time.time()
         logger.info(f"[ITERATIVE] Начало генерации для: {query[:30]}...")
         
@@ -1314,6 +1434,50 @@ class UnifiedGenerator:
         
         start_time = time.time()
         
+        # Check if ModelAccessManager is available and use it
+        if self._model_access is not None:
+            priority = self._get_priority_for_task(task_type)
+            
+            request_id = self._model_access.request_access(
+                priority=priority,
+                task_type=task_type,
+                callback=self._do_generate_streaming,
+                query=query,
+                context=context,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                chunk_size=chunk_size,
+                timeout=120.0
+            )
+            
+            # Yield from the generator result
+            try:
+                for chunk in self._model_access.get_result(request_id, timeout=120.0):
+                    yield chunk
+                return
+            except Exception as e:
+                logger.error(f"ModelAccess error: {e}")
+                # Fall through to direct generation
+        
+        # Direct generation without ModelAccessManager
+        yield from self._do_generate_streaming(
+            query, context, max_tokens, temperature, chunk_size, task_type
+        )
+    
+    def _do_generate_streaming(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        chunk_size: int = 80,
+        task_type: str = "default"
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Выполняет генерацию со стримингом (вызывается через ModelAccessManager)."""
+        import time
+        
+        start_time = time.time()
+        
         # OpenVINO path
         if self.use_openvino:
             gen, model_type = self._get_generator_for_task(task_type)
@@ -1324,7 +1488,6 @@ class UnifiedGenerator:
                 return
         
         # Fallback: определяем модель через роутер
-        model_type = self.router.route(query)
         model_type = self.router.route(query)
         
         # Загружаем модель
@@ -1540,6 +1703,7 @@ def create_unified_generator(
         config: Конфигурация
         fractal_graph: FractalGraph V2
         brain: CoreBrain
+        event_bus: EventBus для интеграции с ModelAccessManager
         
     Returns:
         UnifiedGenerator или None
@@ -1553,12 +1717,15 @@ def create_unified_generator(
             general_path = model_config.get('general_model_path')
             code_path = model_config.get('code_model_path')
         
+        event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
+        
         return UnifiedGenerator(
             logic_model_path=Path(general_path) if general_path else None,
-            context_model_path=Path(general_path) if general_path else None,  # Тоже general для LOGIC/CONTEXT
+            context_model_path=Path(general_path) if general_path else None,
             coder_model_path=Path(code_path) if code_path else None,
             fractal_graph=fractal_graph,
-            brain=brain
+            brain=brain,
+            event_bus=event_bus
         )
     except Exception as e:
         logger.error(f"Failed to create UnifiedGenerator: {e}")

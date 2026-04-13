@@ -150,7 +150,8 @@ class DialogConceptsMixin:
                 query=prompt_intro,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             assistant_content = result.text if result else self._generate_concept_intro(concept_name, concept_info)
         else:
@@ -174,7 +175,8 @@ class DialogConceptsMixin:
                 query=prompt_critic,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             critic_content = result.text if result else self._generate_concept_criticism(concept_name, concept_info)
         else:
@@ -198,7 +200,8 @@ class DialogConceptsMixin:
                 query=prompt_learner,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             learner_content = result.text if result else self._generate_learning_directions(concept_name, concept_info)
         else:
@@ -223,7 +226,8 @@ class DialogConceptsMixin:
                 query=prompt_teacher,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             teacher_content = result.text if result else self._generate_teaching_recommendations(concept_name, concept_info)
         else:
@@ -275,7 +279,8 @@ class DialogConceptsMixin:
                 query=prompt_assistant,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             assistant_content = result.text if result else self._present_contradiction(concept, contr_info)
         else:
@@ -299,7 +304,8 @@ class DialogConceptsMixin:
                 query=prompt_critic,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             critic_content = result.text if result else self._analyze_contradiction_sides(concept, contr_info)
         else:
@@ -324,7 +330,8 @@ class DialogConceptsMixin:
                 query=prompt_learner,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             learner_content = result.text if result else self._synthesize_contradiction(concept, contr_info)
         else:
@@ -349,7 +356,8 @@ class DialogConceptsMixin:
                 query=prompt_teacher,
                 max_tokens_logic=128,
                 max_tokens_context=256,
-                temperature=0.7
+                temperature=0.7,
+                task_type='self_dialog'
             )
             resolution = result.text if result else self._formulate_resolution(concept, contr_info, dialog.turns)
         else:

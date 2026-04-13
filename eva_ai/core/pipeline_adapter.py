@@ -275,6 +275,9 @@ def create_pipeline_adapter(
     - use_openvino: использовать OpenVINO вместо llama.cpp
     - cpu_device: устройство для CPU (Logic/Context)
     - gpu_device: устройство для GPU (Coder/Self-dialog)
+    
+    ModelAccessManager:
+    - event_bus: EventBus для интеграции с ModelAccessManager
     """
     try:
         from pathlib import Path
@@ -283,6 +286,8 @@ def create_pipeline_adapter(
         logic_path = Path(logic_model_path) if logic_model_path else None
         context_path = Path(context_model_path) if context_model_path else None
         coder_path = Path(coder_model_path) if coder_model_path else None
+        
+        event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
         
         generator = UnifiedGenerator(
             logic_model_path=logic_path,
@@ -294,7 +299,8 @@ def create_pipeline_adapter(
             brain=brain,
             use_openvino=use_openvino,
             cpu_device=cpu_device,
-            gpu_device=gpu_device
+            gpu_device=gpu_device,
+            event_bus=event_bus
         )
         
         return PipelineAdapter(generator)
