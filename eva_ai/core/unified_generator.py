@@ -109,8 +109,11 @@ class UnifiedGenerator:
     """
     Единый генератор на базе GGUF моделей.
     
-    Заменяет Two-Model Pipeline и Pie Fallback.
-    Использует только RuadaptQwen3-4B и Qwen Coder 1.5B.
+    Архитектура:
+    - CPU: Logic/Context модель (основная генерация)
+    - GPU.0: Coder модель (код) + Self-dialog
+    
+    Использует OpenVINO GenAI для эффективной генерации.
     """
     
     def __init__(
@@ -118,36 +121,53 @@ class UnifiedGenerator:
         logic_model_path: Optional[Path] = None,
         context_model_path: Optional[Path] = None,
         coder_model_path: Optional[Path] = None,
-        n_ctx: int = 16384,  # Максимальный контекст для Pie
+        n_ctx: int = 16384,
         n_threads: int = 4,
         fractal_graph=None,
-        brain=None
+        brain=None,
+        use_openvino: bool = False,
+        cpu_device: str = "CPU",
+        gpu_device: str = "GPU.0"
     ):
         """
         Инициализация Unified Generator.
         
         Args:
-            logic_model_path: Путь к LOGIC модели (RuadaptQwen3-4B condensed)
-            context_model_path: Путь к CONTEXT модели (RuadaptQwen3-4B extended)
-            coder_model_path: Путь к CODER модели (Qwen Coder 1.5B)
+            logic_model_path: Путь к LOGIC модели (CPU)
+            context_model_path: Путь к CONTEXT модели (CPU)
+            coder_model_path: Путь к CODER модели (GPU)
             n_ctx: Размер контекста
             n_threads: Количество потоков
             fractal_graph: FractalGraph V2 для контекста
             brain: Ссылка на CoreBrain
+            use_openvino: Использовать OpenVINO вместо llama.cpp
+            cpu_device: Устройство для Logic/Context
+            gpu_device: Устройство для Coder/Self-dialog
         """
         self.n_ctx = n_ctx
         self.n_threads = n_threads
         self.fractal_graph = fractal_graph
         self.brain = brain
         self.router = SimpleRouter()
+        self.use_openvino = use_openvino
+        self.cpu_device = cpu_device
+        self.gpu_device = gpu_device
         
         self.models: Dict[ModelType, Any] = {}
         self._model_paths: Dict[ModelType, Path] = {}
+        self._openvino_cpu: Optional['OpenVINOGenerator'] = None
+        self._openvino_gpu: Optional['OpenVINOGenerator'] = None
+        self._openvino_coder: Optional['OpenVINOGenerator'] = None
         
-        # Загружаем пути моделей
         self._load_model_paths(logic_model_path, context_model_path, coder_model_path)
         
+        if use_openvino:
+            self._init_openvino_devices()
+        
         logger.info(f"UnifiedGenerator initialized")
+        logger.info(f"  use_openvino={use_openvino}")
+        logger.info(f"  CPU device: {cpu_device} (Logic/Context)")
+        logger.info(f"  GPU device: {gpu_device} (Coder/Self-dialog)")
         logger.info(f"  LOGIC model: {self._model_paths.get(ModelType.LOGIC)}")
         logger.info(f"  CONTEXT model: {self._model_paths.get(ModelType.CONTEXT)}")
         logger.info(f"  CODER model: {self._model_paths.get(ModelType.CODER)}")
@@ -187,6 +207,119 @@ class UnifiedGenerator:
             
         if coder_path and coder_path.exists():
             self._model_paths[ModelType.CODER] = coder_path
+    
+    def _init_openvino(self, device: str = "CPU") -> bool:
+        """Инициализировать OpenVINO Generator на указанном устройстве."""
+        try:
+            from eva_ai.core.openvino_generator import OpenVINOGenerator
+            
+            model_path = self._model_paths.get(ModelType.CONTEXT) or self._model_paths.get(ModelType.LOGIC)
+            if not model_path:
+                logger.error("No model path for OpenVINO")
+                return False
+            
+            generator = OpenVINOGenerator(
+                model_path=model_path,
+                device=device
+            )
+            
+            logger.info(f"OpenVINO initialized on {device}")
+            return generator
+            
+        except Exception as e:
+            logger.error(f"Failed to init OpenVINO: {e}")
+            return None
+    
+    def _init_openvino_devices(self) -> bool:
+        """
+        Инициализировать OpenVINO генераторы на CPU и GPU.
+        
+        CPU: Logic/Context модель (основная генерация)
+        GPU: Coder модель (код + self-dialog)
+        """
+        try:
+            import os
+            from eva_ai.core.openvino_generator import OpenVINOGenerator
+            
+            cpu_count = os.cpu_count() or 4
+            logger.info(f"CPU cores detected: {cpu_count}")
+            
+            logic_model = self._model_paths.get(ModelType.LOGIC)
+            coder_model = self._model_paths.get(ModelType.CODER)
+            
+            cpu_scheduler = {
+                'cache_size': min(4, cpu_count // 2),
+                'max_num_seqs': min(8, cpu_count),
+                'max_num_batched_tokens': cpu_count * 512,
+                'enable_prefix_caching': True
+            }
+            
+            gpu_scheduler = {
+                'cache_size': 2,
+                'max_num_seqs': 4,
+                'max_num_batched_tokens': 2048,
+                'enable_prefix_caching': True
+            }
+            
+            if logic_model:
+                self._openvino_cpu = OpenVINOGenerator(
+                    model_path=logic_model,
+                    device=self.cpu_device,
+                    performance_hint="LATENCY",
+                    scheduler_config=cpu_scheduler,
+                    num_streams="AUTO"
+                )
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic/Context)")
+            
+            if coder_model:
+                self._openvino_coder = OpenVINOGenerator(
+                    model_path=coder_model,
+                    device=self.gpu_device,
+                    performance_hint="THROUGHPUT",
+                    scheduler_config=gpu_scheduler
+                )
+                logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog)")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to init OpenVINO devices: {e}")
+            return False
+    
+    def _route_device(self, query: str, task_type: str = "default") -> str:
+        """
+        Определить устройство и тип генератора для задачи.
+        
+        GPU → Coder: task_type=coder, task_type=self_dialog
+        CPU → Logic/Context: всё остальное
+        """
+        gpu_tasks = {'coder', 'self_dialog'}
+        
+        if task_type in gpu_tasks:
+            return ('gpu', task_type)
+        
+        return ('cpu', 'logic')
+    
+    def _get_generator_for_task(self, task_type: str):
+        """
+        Получить генератор для типа задачи.
+        
+        Args:
+            task_type: coder, self_dialog, или default
+            
+        Returns:
+            Tuple (generator, model_type)
+        """
+        if task_type in ('coder', 'self_dialog') and self._openvino_coder:
+            return (self._openvino_coder, ModelType.CODER)
+        
+        if self._openvino_cpu:
+            return (self._openvino_cpu, ModelType.LOGIC)
+        
+        if self._openvino_coder:
+            return (self._openvino_coder, ModelType.CODER)
+        
+        return (None, None)
     
     def _detect_optimal_threads(self) -> int:
         """Автоопределение оптимального количества потоков для CPU."""
@@ -1156,13 +1289,14 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        chunk_size: int = 80
+        chunk_size: int = 80,
+        task_type: str = "default"
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Генерация со стримингом токенов в реальном времени.
         
         Yields чанки текста ПО МЕРЕ генерации для натурального UX.
-        Использует реальный streaming от GGUF модели.
+        Использует OpenVINO если use_openvino=True, иначе llama.cpp.
         
         Args:
             query: Запрос
@@ -1170,6 +1304,8 @@ class UnifiedGenerator:
             max_tokens: Максимум токенов
             temperature: Температура
             chunk_size: Размер чанка для выдачи (символы)
+            task_type: Тип задачи для роутинга устройств
+                       (self_dialog, concept_mining, contradiction_mining, coder, default)
             
         Yields:
             Dict с 'type', 'text', 'is_final', 'tokens_count', 'elapsed_ms'
@@ -1178,7 +1314,17 @@ class UnifiedGenerator:
         
         start_time = time.time()
         
-        # Определяем модель
+        # OpenVINO path
+        if self.use_openvino:
+            gen, model_type = self._get_generator_for_task(task_type)
+            if gen:
+                yield from self._generate_streaming_openvino(
+                    query, context, max_tokens, temperature, gen, model_type
+                )
+                return
+        
+        # Fallback: определяем модель через роутер
+        model_type = self.router.route(query)
         model_type = self.router.route(query)
         
         # Загружаем модель
@@ -1228,12 +1374,20 @@ class UnifiedGenerator:
                 if len(buffer) >= chunk_size or delimiter in buffer:
                     parts = buffer.split(delimiter)
                     while len(parts) > 1:
+                        elapsed = int((time.time() - start_time) * 1000)
+                        tokens_count = len(full_text.split())
+                        
+                        # Debug: логируем скорость генерации
+                        if tokens_count % 50 == 0:
+                            chars_per_sec = len(full_text) / (elapsed / 1000) if elapsed > 0 else 0
+                            logger.debug(f"[STREAM] tokens={tokens_count}, elapsed={elapsed}ms, speed={chars_per_sec:.1f} chars/s")
+                        
                         yield {
                             'type': 'chunk',
                             'text': parts[0] + (delimiter if parts[0] else ''),
                             'is_final': False,
-                            'tokens_count': len(full_text.split()),
-                            'elapsed_ms': int((time.time() - start_time) * 1000),
+                            'tokens_count': tokens_count,
+                            'elapsed_ms': elapsed,
                             'chunk_index': 0,
                             'total_chunks': 0,
                             'progress': 0
@@ -1273,6 +1427,67 @@ class UnifiedGenerator:
                 'is_final': True,
                 'tokens_count': len(full_text.split()),
                 'elapsed_ms': int((time.time() - start_time) * 1000)
+            }
+    
+    def _generate_streaming_openvino(
+        self,
+        query: str,
+        context: Optional[str] = None,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        generator=None,
+        model_type=None
+    ) -> Generator[Dict[str, Any], None, None]:
+        """
+        Генерация со стримингом через OpenVINO.
+        
+        Args:
+            query: Запрос
+            context: Дополнительный контекст
+            max_tokens: Максимум токенов
+            temperature: Температура
+            generator: OpenVINOGenerator
+            model_type: ModelType для форматирования промпта
+            
+        Yields:
+            Dict с данными чанка
+        """
+        if model_type is None:
+            model_type = self.router.route(query)
+        
+        full_context = self._build_context(query, context)
+        prompt = self._format_prompt(query, full_context, None, model_type)
+        
+        try:
+            for chunk in generator.generate_streaming(
+                prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stop_tokens=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
+                chunk_size=25
+            ):
+                if chunk['type'] == 'complete':
+                    yield {
+                        'type': 'complete',
+                        'text': chunk.get('text', ''),
+                        'is_final': True,
+                        'tokens_count': chunk.get('tokens_count', 0),
+                        'elapsed_ms': chunk.get('elapsed_ms', 0),
+                        'chunk_index': 0,
+                        'total_chunks': 1,
+                        'progress': 1.0
+                    }
+                else:
+                    yield chunk
+                
+        except Exception as e:
+            logger.error(f"OpenVINO streaming error: {e}")
+            yield {
+                'type': 'error',
+                'text': f'Ошибка: {e}',
+                'is_final': True,
+                'tokens_count': 0,
+                'elapsed_ms': 0
             }
     
     def _split_text_chunks(self, text: str, chunk_size: int) -> List[str]:

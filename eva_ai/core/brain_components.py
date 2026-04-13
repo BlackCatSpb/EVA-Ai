@@ -987,10 +987,14 @@ def _init_unified_generator(brain):
             query_logger.error(f'CODER model not found: {coder_model_path}')
             return
         
-        n_ctx = model_config.get('llama_cpp_n_ctx', 32768)  # Максимальный контекст для Pie
+        n_ctx = model_config.get('llama_cpp_n_ctx', 32768)
         n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 4)
         
-        # Создаём PipelineAdapter с UnifiedGenerator
+        # OpenVINO настройки
+        use_openvino = model_config.get('use_openvino', False)
+        cpu_device = model_config.get('cpu_device', 'CPU')
+        gpu_device = model_config.get('gpu_device', 'GPU.0')
+        
         from eva_ai.core.pipeline_adapter import create_pipeline_adapter
         
         adapter = create_pipeline_adapter(
@@ -1000,13 +1004,20 @@ def _init_unified_generator(brain):
             n_ctx=n_ctx,
             n_threads=n_threads,
             fractal_graph=getattr(brain, 'fractal_graph_v2', None),
-            brain=brain
+            brain=brain,
+            use_openvino=use_openvino,
+            cpu_device=cpu_device,
+            gpu_device=gpu_device
         )
         
         if adapter:
             brain.two_model_pipeline = adapter
             brain.two_model_pipeline_ready = True
             query_logger.info('UnifiedGenerator (Pie-based) инициализирован успешно')
+            query_logger.info(f'  OpenVINO: {use_openvino}')
+            if use_openvino:
+                query_logger.info(f'  CPU device: {cpu_device} (Logic/Context)')
+                query_logger.info(f'  GPU device: {gpu_device} (Coder/Self-dialog)')
             query_logger.info(f'  LOGIC (RuadaptQwen3-4B condensed): {logic_model_path}')
             query_logger.info(f'  CONTEXT (RuadaptQwen3-4B extended): {context_model_path}')
             query_logger.info(f'  CODER (Qwen Coder 1.5B): {coder_model_path}')

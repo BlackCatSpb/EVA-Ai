@@ -255,10 +255,13 @@ def create_pipeline_adapter(
     logic_model_path=None,
     context_model_path=None,
     coder_model_path=None,
-    n_ctx=32768,  # Максимальный контекст
+    n_ctx=32768,
     n_threads=4,
     fractal_graph=None,
-    brain=None
+    brain=None,
+    use_openvino=False,
+    cpu_device="CPU",
+    gpu_device="GPU.0"
 ) -> Optional[PipelineAdapter]:
     """
     Создать PipelineAdapter с UnifiedGenerator.
@@ -268,13 +271,15 @@ def create_pipeline_adapter(
     - CONTEXT (RuadaptQwen3-4B extended): для длинных контекстов
     - CODER (Qwen Coder 1.5B): для кода
     
-    Эта функция заменяет создание TwoModelPipeline.
+    OpenVINO опции:
+    - use_openvino: использовать OpenVINO вместо llama.cpp
+    - cpu_device: устройство для CPU (Logic/Context)
+    - gpu_device: устройство для GPU (Coder/Self-dialog)
     """
     try:
         from pathlib import Path
         from .unified_generator import UnifiedGenerator
         
-        # Конвертируем строки в Path объекты
         logic_path = Path(logic_model_path) if logic_model_path else None
         context_path = Path(context_model_path) if context_model_path else None
         coder_path = Path(coder_model_path) if coder_model_path else None
@@ -286,7 +291,10 @@ def create_pipeline_adapter(
             n_ctx=n_ctx,
             n_threads=n_threads,
             fractal_graph=fractal_graph,
-            brain=brain
+            brain=brain,
+            use_openvino=use_openvino,
+            cpu_device=cpu_device,
+            gpu_device=gpu_device
         )
         
         return PipelineAdapter(generator)
