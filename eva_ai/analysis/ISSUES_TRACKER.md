@@ -75,7 +75,7 @@
 ## 1.1 EventBus
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 1.1.1 | Priority игнорируется - FIFO вместо приоритетов | [КРИТ] | [ ] | queue.PriorityQueue не используется |
+| 1.1.1 | Priority игнорируется - FIFO вместо приоритетов | [КРИТ] | [X] | ✅ Исправлено: PriorityQueue с (priority, timestamp, event) |
 | 1.1.2 | EventBus синглтон anti-pattern | [ВЫС] | [ ] | Рекомендуется dependency injection |
 | 1.1.3 | 90% компонентов не интегрированы | [КРИТ] | [ ] | Требуется системная интеграция |
 | 1.1.4 | Signal handler signatures (event=None → event) | [КРИТ] | [X] | Исправлено: brain_coordination, system_state, event_bus_bridge |
@@ -83,7 +83,7 @@
 ## 1.2 ModelAccessManager
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 1.2.1 | brain_query НЕ использует MAM | [КРИТ] | [ ] | Интегрировать в _handle_gguf_pipeline() |
+| 1.2.1 | brain_query НЕ использует MAM | [КРИТ] | [X] | ✅ Исправлено: HybridPipelineAdapter использует MAM |
 | 1.2.2 | Конфликты доступа самодиалог/запросы | [ВЫС] | [ ] | Приоритеты не работают |
 
 ## 1.3 DeferredCommandSystem
@@ -187,7 +187,7 @@
 ## 6.1 HybridCache / TokenCache
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 6.1.1 | **Pickle в 15+ местах без валидации** | [КРИТ] | [P] | 🔄 Заменено: cache, disk_cache, fractal_torch_storage, fractal_weight_store. Осталось: storage/fractal_storage.py (tokenizer) |
+| 6.1.1 | **Pickle в 15+ местах без валидации** | [КРИТ] | [X] | ✅ Исправлено: cache_disk, disk_cache, fractal_torch_storage, fractal_weight_store, storage/fractal_storage |
 | 6.1.2 | 2 дубликата дискового кэша | [ВЫС] | [ ] | TokenDiskCache vs DiskCache |
 | 6.1.3 | LRUCache дублируется | [ВЫС] | [ ] | cache_ram.py == memory_cache.py |
 | 6.1.4 | Race conditions в UnifiedCacheBridge | [КРИТ] | [X] | ✅ Исправлено: добавлены locks в _load_state и save_state |
