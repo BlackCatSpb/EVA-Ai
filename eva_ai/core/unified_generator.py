@@ -548,7 +548,7 @@ class UnifiedGenerator:
         self,
         query: str,
         context: Optional[str] = None,
-        max_tokens_logic: int = 1024,
+        max_tokens_logic: int = 4096,
         max_tokens_context: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None
@@ -794,7 +794,7 @@ class UnifiedGenerator:
         self,
         query: str,
         context: Optional[str] = None,
-        max_tokens_logic: int = 1024,
+        max_tokens_logic: int = 4096,
         max_tokens_context: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
