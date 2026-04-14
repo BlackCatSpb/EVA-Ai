@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (55 parallel agents across 10 cycles)  
+**Auditors:** AI Architect Agents (60 parallel agents across 11 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,15 +10,14 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 4.6/10 (снижена с 4.8)
+### Общая оценка системы: 4.4/10 (снижена с 4.6)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 10:**
-- TokenDiskCache: Pickle уязвимость, 2 дубликата файла
-- TokenCacheManager: 6 компонентов создают НОВЫЕ инстансы вместо переиспользования
-- MemoryCacheIntegration: Создаёт РАЗНЫЕ экземпляры для brain и memory_manager
-- KnowledgeGraphCore: KG это обёртка над FGv2, баг в kg_adapter.py
-- CacheEvictionPolicy: 6 реализаций, TTL только частично, нет фоновой очистки
-- SelfReasoningEngine: НЕТ EventBus интеграции, 3 движка рассуждения
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 11:**
+- EthicsFramework: 2 версии класса (framework_core vs ethics_core), конфликт имён
+- GenerationSubsystem: ТРОЙНАЯ абстракция без добавленной ценности
+- StorageSubsystem: 8 случаев Pickle, мёртвый код storage/fractal_storage.py
+- Runtime: НЕ ИСПОЛЬЗУЕТСЯ, конкурирует с DeferredCommandSystem
+- Adapters: 9 адаптеров, 3 из них orphaned,central adapters без EventBus
 
 ---
 
@@ -270,6 +269,13 @@
 - audit_cache_eviction.md (5.7/10) - 6 реализаций политик, TTL частично, нет фоновой очистки
 - audit_self_reasoning_engine.md (5.8/10) - НЕТ EventBus интеграции, 3 движка рассуждения
 
+**Цикл 11:** (subsystems audit)
+- audit_ethics_framework.md (5/10) - 2 версии класса, конфликт имён, analyze_response() отсутствует в ethics_core
+- audit_generation_subsystem.md (5/10) - ТРОЙНАЯ абстракция, мёртвый код провайдеров
+- audit_storage_subsystem.md (3.7/10) - 8 Pickle случаев, мёртвый код storage/fractal_storage.py
+- audit_runtime.md (3/10) - НЕ ИСПОЛЬЗУЕТСЯ, конкурирует с DeferredCommandSystem
+- audit_adapters.md (6.5/10) - 9 адаптеров, 3 orphaned, центральные без EventBus
+
 ---
 
 ## 8. КРИТИЧЕСКИЕ ПРОБЛЕМЫ (НОВЫЕ)
@@ -499,25 +505,80 @@ core/response_generator.py: Line 191
 
 ---
 
-## 12. ВЫВОДЫ
+## 12. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 11)
+
+### 12.1 EthicsFramework - КОНФЛИКТ ИМЁН (5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| 2 версии класса | `framework_core.py` vs `ethics_core.py` |
+| Конфликт имён | Обе экспортируются как `EthicsFramework` |
+| pipeline_core создаёт локальную копию | `pipeline_core.py:134` |
+| analyze_response() отсутствует в ethics_core | SelfReasoningEngine ожидает этот метод |
+
+**Рекомендация:** Устранить дублирование, оставить одну версию
+
+### 12.2 GenerationSubsystem - ТРОЙНАЯ АБСТРАКЦИЯ (5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Triple abstraction | PipelineAdapter → generation_coordinator → UnifiedGeneratorProvider → PipelineAdapter |
+| Мёртвый код | HybridModelProvider, FractalModelProvider не используются |
+| Конфликт интерфейсов | process_query() vs generate_response() |
+
+### 12.3 StorageSubsystem - 8 PICKLE СЛУЧАЕВ (3.7/10)
+
+| Место | Риск |
+|-------|------|
+| cache_disk.py:97, 344 | КРИТИЧЕСКИЙ (без валидации) |
+| disk_cache.py:250, 344 | ВЫСОКИЙ |
+| fractal_torch_storage/base_storage.py:216, 232 | ВЫСОКИЙ |
+| storage/fractal_storage.py:208 | ВЫСОКИЙ |
+
+**storage/fractal_storage.py** - МЁРТВЫЙ КОД (не используется системой)
+
+### 12.4 Runtime - НЕ ИСПОЛЬЗУЕТСЯ (3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Нет импортов | `grep "from eva_ai.runtime" — НЕТ СОВПАДЕНИЙ` |
+| Конкурирует с DCS | InferenceWorkerPool vs DeferredCommandSystem |
+| EventBus изоляция | `worker_pool._events` не используется |
+
+**Рекомендация:** УДАЛИТЬ eva_ai/runtime/
+
+### 12.5 Adapters - 3 ORPHANED (6.5/10)
+
+| Адаптер | Статус |
+|---------|--------|
+| HybridPipelineAdapter | ✅ PRIMARY (без EventBus) |
+| KnowledgeGraphAdapter | ✅ ACTIVE (без EventBus) |
+| PieIntegration | ✅ ACTIVE |
+| TorchBatchAdapter | ❌ ORPHANED |
+| ModelStorageAdapter | ❌ ORPHANED |
+| FractalPipelineAdapter | ❌ ORPHANED |
+
+---
+
+## 13. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, Pickle
-- **Избыточности** — 6 политик eviction, 3 движка рассуждения, 2 TokenDiskCache
-- **Сломанности** — extract_ambiguous_terms() не существует, FaultTolerance заглушка
-- **Изоляции** — SelfReasoningEngine без EventBus, компоненты не интегрированы
+- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, 8 Pickle случаев
+- **Избыточности** — 6 политик eviction, 3 движка рассуждения, 3 orphaned adapters
+- **Сломанности** — extract_ambiguous_terms() не существует, Runtime не используется
+- **Изоляции** — SelfReasoningEngine без EventBus, EthicsFramework конфликт имён
 - **Race conditions** — UnifiedCacheBridge без блокировок
 
 **Для production необходимо:**
 1. **УДАЛИТЬ backdoor admin:admin** из SecurityFramework
-2. **Заменить Pickle** на JSON/msgpack во всех кэшах
+2. **Заменить Pickle** на JSON/msgpack во всех кэшах (8 случаев)
 3. **Добавить EventBus** в SelfReasoningEngine и FractalGraphV2
-4. **Устранить дублирование** — 6 eviction policy, 3 reasoning engines
-5. **ИСПРАВИТЬ КРИТИЧЕСКИЙ БАГ: extract_ambiguous_terms()**
-6. **ЗАРЕГИСТРИРОВАТЬ Detectors в BackgroundCoordinator**
+4. **Устранить дублирование** — EthicsFramework, 3 reasoning engines
+5. **УДАЛИТЬ мёртвый код** — runtime/, storage/fractal_storage.py
+6. **ИСПРАВИТЬ extract_ambiguous_terms()** или удалить вызовы
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*55 специализированных агентов проверили 55+ компонентов*
+*60 специализированных агентов проверили 60+ компонентов*
 *April 14, 2026*
