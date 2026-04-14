@@ -157,3 +157,22 @@ memory/ → reasoning/ → generation/ → core brain
 | 5 | 2026-04-14 | Tokenizer optional component logging - WARNING to INFO | event_system.py | ✅ DONE |
 | 6 | 2026-04-14 | Security backdoor removed - no default admin:admin | security_framework.py | ✅ DONE |
 | 7 | 2026-04-14 | KG adapter removed - replaced with create_knowledge_components | init_factories.py, component_initializer.py | ✅ DONE |
+| 8 | 2026-04-14 | Tokenizer fallback path fixed - use brain_config.json model | response_generator.py | ✅ DONE |
+
+---
+
+## Статус завершения
+
+**Все критичные ошибки исправлены. Система работает без ERROR.**
+
+| Категория | Статус |
+|-----------|--------|
+| Core Brain (EventBus, Signals, Memory) | ✅ Исправлено |
+| Model & Pipeline (Tokenizer) | ✅ Исправлено |
+| Knowledge (ConceptExtractor, ContradictionGenerator) | ✅ Реализовано |
+| Security (backdoor) | ✅ Исправлено |
+| KG Adapter | ✅ Удалён (код), осталось 483 references |
+
+**Нерешённые вопросы:**
+- Memory 95%+ (hardware limitation)
+- 483 references на .knowledge_graph (архитектурная миграция, не влияет на работу)
