@@ -1327,6 +1327,7 @@
         html = html.replace(/^[🔹🔸•○◆▪][\s]+(\*\*[^*]+\*\*)[—\-:]?\s*(.+)$/gm, '<li><strong>$1</strong> $2</li>');
         
         // Headers
+        html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>');
         html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
         html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
         html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
