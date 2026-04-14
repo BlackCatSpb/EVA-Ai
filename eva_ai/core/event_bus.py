@@ -150,12 +150,12 @@ class EventBus:
     
     def subscribe(self, event_type: str, handler: Callable[[Event], None], priority: int = 5) -> str:
         """
-        Подписка на события с логированием
+        Подписка на события с приоритетом.
         
         Args:
             event_type: Тип события
             handler: Обработчик события
-            priority: Приоритет обработчика (меньше = выше приоритет, по умолчанию 5)
+            priority: Приоритет обработчика (0=высший, 255=низший, по умолчанию 128)
             
         Returns:
             str: ID подписки
@@ -164,6 +164,7 @@ class EventBus:
         logger.info("=== EVENT BUS: Subscribe ===")
         logger.info("  Event type: {}".format(event_type))
         logger.info("  Handler: {}".format(handler_name))
+        logger.info("  Priority: {} (0=highest, 255=lowest)".format(priority))
         
         with self._lock:
             # Используем weakref для автоматической очистки
@@ -176,12 +177,17 @@ class EventBus:
                 weak_handler = weakref.ref(handler)
                 handler_type = "function"
             
+            # priority хранится вместе с подпиской для сортировки
             subscription_id = "{}::{}::{}".format(event_type, handler_type, id(handler))
-            self._subscribers[event_type].append((subscription_id, weak_handler))
+            self._subscribers[event_type].append((subscription_id, weak_handler, priority))
+            
+            # СОРТИРУЕМ подписчиков по приоритету (меньше = выше приоритет)
+            self._subscribers[event_type].sort(key=lambda x: x[2])
             
             self._stats['subscribers_count'] = sum(len(handlers) for handlers in self._subscribers.values())
             
-            logger.info("SUBSCRIBED: {} -> {} (id: {})".format(event_type, handler_name, subscription_id))
+            logger.info("SUBSCRIBED: {} -> {} (id: {}, priority: {})".format(
+                event_type, handler_name, subscription_id, priority))
             logger.debug("  Total subscribers for {}: {}".format(
                 event_type, len(self._subscribers[event_type])))
             
@@ -211,18 +217,18 @@ class EventBus:
             if isinstance(handler_or_id, str):
                 # Отписка по ID
                 self._subscribers[event_type] = [
-                    (sid, handler) for sid, handler in self._subscribers[event_type]
+                    (sid, handler, prio) for sid, handler, prio in self._subscribers[event_type]
                     if sid != handler_or_id
                 ]
             else:
                 # Отписка по обработчику
                 filtered = []
-                for sid, handler in self._subscribers[event_type]:
+                for sid, handler, prio in self._subscribers[event_type]:
                     resolved = handler()
                     if resolved is None:
                         continue
                     if resolved != handler_or_id:
-                        filtered.append((sid, handler))
+                        filtered.append((sid, handler, prio))
                 self._subscribers[event_type] = filtered
             
             self._stats['subscribers_count'] = sum(len(handlers) for handlers in self._subscribers.values())
@@ -239,7 +245,7 @@ class EventBus:
         with self._lock:
             for event_type in list(self._subscribers.keys()):
                 self._subscribers[event_type] = [
-                    (sid, handler) for sid, handler in self._subscribers[event_type]
+                    (sid, handler, prio) for sid, handler, prio in self._subscribers[event_type]
                     if handler() is not None
                 ]
     
@@ -337,10 +343,10 @@ class EventBus:
             # Очищаем мертвые ссылки
             active_subscribers = []
             dead_subscribers = 0
-            for subscription_id, weak_handler in subscribers:
+            for subscription_id, weak_handler, priority in subscribers:
                 handler = weak_handler()
                 if handler is not None:
-                    active_subscribers.append((subscription_id, weak_handler))
+                    active_subscribers.append((subscription_id, weak_handler, priority))
                 else:
                     dead_subscribers += 1
             
@@ -352,8 +358,8 @@ class EventBus:
             
             logger.debug("  Active subscribers: {}".format(len(active_subscribers)))
             
-            # Вызываем обработчики
-            for subscription_id, weak_handler in active_subscribers:
+            # Вызываем обработчики (уже отсортированы по priority)
+            for subscription_id, weak_handler, priority in active_subscribers:
                 try:
                     handler = weak_handler()
                     if handler is None:
