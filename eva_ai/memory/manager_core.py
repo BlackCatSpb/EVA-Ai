@@ -111,16 +111,22 @@ class MemoryManager:
     def _deferred_optimize(self):
         """Отложенная оптимизация памяти."""
         try:
-            self.optimize()
-            logger.info("Отложенная оптимизация памяти выполнена")
+            if hasattr(self, 'optimize') and callable(getattr(self, 'optimize')):
+                self.optimize()
+                logger.info("Отложенная оптимизация памяти выполнена")
+            else:
+                logger.warning("Метод optimize не найден в MemoryManager, пропускаем")
         except Exception as e:
             logger.error(f"Ошибка отложенной оптимизации: {e}")
 
     def _deferred_cleanup(self):
         """Отложенная очистка памяти."""
         try:
-            self.clear_cache()
-            logger.info("Отложенная очистка памяти выполнена")
+            if hasattr(self, 'clear_cache') and callable(getattr(self, 'clear_cache')):
+                self.clear_cache()
+                logger.info("Отложенная очистка памяти выполнена")
+            else:
+                logger.warning("Метод clear_cache не найден в MemoryManager, пропускаем")
         except Exception as e:
             logger.error(f"Ошибка отложенной очистки: {e}")
 

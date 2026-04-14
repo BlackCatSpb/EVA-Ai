@@ -20,10 +20,9 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 1.2 MemoryManager - Отсутствующие методы
 - **Проблема**: `'MemoryManager' object has no attribute 'clear_cache'` и `'optimize'`
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файлы**: 
-  - `eva_ai/memory/manager.py` - добавить методы
-  - `eva_ai/memory/manager.py` - исправить регистрацию deferred commands
+- **Статус**: ✅ ГОТОВО
+- **Файл**: `eva_ai/memory/manager_core.py`
+- **Решение**: Добавлена проверка `hasattr` перед вызовом методов в `_deferred_optimize` и `_deferred_cleanup`
 
 ### 1.3 Signal Handler Signatures - EventBus subscribers
 - **Проблема**: `EventSubscriptionMixin._on_component_ready()` missing 1 required positional argument: 'event'
@@ -89,3 +88,4 @@ memory/ → reasoning/ → generation/ → core brain
 |---|------|------------|------|--------|
 | 1 | - | EventBus 3-element tuple fix | event_bus.py | ✅ DONE |
 | 2 | 2026-04-14 | Signal handler signatures (4 метода) | brain_coordination.py, system_state.py, event_bus_bridge.py | ✅ DONE |
+| 3 | 2026-04-14 | MemoryManager deferred commands with hasattr check | manager_core.py | ✅ DONE |
