@@ -309,14 +309,19 @@ class UnifiedGenerator:
                 logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic/Context)")
             
             if coder_model:
-                self._openvino_coder = OpenVINOGenerator(
-                    model_path=coder_model,
-                    device=self.gpu_device,
-                    max_tokens=4096,
-                    performance_hint="THROUGHPUT",
-                    scheduler_config=gpu_scheduler
-                )
-                logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096)")
+                # DEBUG: Skip coder model loading for faster startup
+                import os
+                if os.environ.get("EVA_SKIP_CODER", "0") != "1":
+                    self._openvino_coder = OpenVINOGenerator(
+                        model_path=coder_model,
+                        device=self.gpu_device,
+                        max_tokens=4096,
+                        performance_hint="THROUGHPUT",
+                        scheduler_config=gpu_scheduler
+                    )
+                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096)")
+                else:
+                    logger.info("DEBUG: Skipping coder model loading (EVA_SKIP_CODER=1)")
             
             return True
             
