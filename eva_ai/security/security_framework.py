@@ -132,13 +132,10 @@ class AuthenticationManager:
 
     def _verify_password(self, password: str, user: User) -> bool:
         """Проверяет пароль пользователя."""
-        # Для демо используем простой хэш
-        # В продакшене использовать bcrypt или argon2
         expected_hash = hashlib.sha256(f"{user.username}:{password}".encode()).hexdigest()
         stored_hash = getattr(user, 'password_hash', None)
         if stored_hash is None:
-            # Default admin user - use default password hash for demo
-            stored_hash = hashlib.sha256(f"{user.username}:admin".encode()).hexdigest()
+            return False
         return expected_hash == stored_hash
 
     def _create_session(self, user: User) -> str:

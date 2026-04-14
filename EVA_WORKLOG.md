@@ -102,8 +102,12 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 3.2 Knowledge Graph Factory Not Found
 - **Проблема**: `[WARN] Factory for knowledge_graph not found - skipped`
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/component_initializer.py` - проверить регистрацию factory
+- **Статус**: 🔨 АРХИТЕКТУРНОЕ ИЗМЕНЕНИЕ
+- **Решение**: УДАЛИТЬ KG адаптеры/переходники, полностью перейти на FGv2
+- **Файлы для очистки**:
+  - `eva_ai/knowledge/kg_adapter.py` - удалить
+  - `eva_ai/knowledge/knowledge_graph_adapter.py` - удалить
+  - Проверить все ссылки на `knowledge_graph` и заменить на `fractal_graph_v2`
 
 ---
 
@@ -111,13 +115,15 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 4.1 ConceptExtractor - не сохраняет концепты
 - **Проблема**: Только возвращает список, не сохраняет в FGv2
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/knowledge/concept_extractor.py`
+- **Статус**: ✅ УЖЕ РЕАЛИЗОВАНО
+- **Файл**: `eva_ai/knowledge/concept_extractor.py` - есть метод `save_concept_to_graph()`
 
 ### 4.2 ContradictionGenerator - интеграция
 - **Проблема**: Создан, но не интегрирован в brain_query
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/contradiction/contradiction_generator.py`
+- **Статус**: ✅ УЖЕ ИНТЕГРИРОВАН
+- **Файлы**: 
+  - `eva_ai/core/unified_generator.py` - использует `get_contradictions_for_prompt()`
+  - `eva_ai/learning/dialog_concepts.py` - использует `get_contradictions_for_prompt()`
 
 ### 4.3 Tavily API Key Not Found
 - **Проблема**: `Tavily API key not found` - API key искался в корне конфига, а лежит в `web_search.tavily_api_key`
@@ -131,9 +137,9 @@ memory/ → reasoning/ → generation/ → core brain
 ## Приоритет 5: Security
 
 ### 5.1 SecurityFramework - HARDCODED backdoor
-- **Проблема**: admin:admin backdoor (CVSS 9.8)
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/core/security_framework.py:141`
+- **Проблема**: admin:admin backdoor (CVSS 9.8) - если пароль не найден, возвращался хэш от "admin"
+- **Статус**: ✅ ИСПРАВЛЕНО
+- **Файл**: `eva_ai/security/security_framework.py` - убран default password fallback
 
 ---
 
@@ -146,3 +152,4 @@ memory/ → reasoning/ → generation/ → core brain
 | 3 | 2026-04-14 | MemoryManager deferred commands with hasattr check | manager_core.py | ✅ DONE |
 | 4 | 2026-04-14 | Tavily API Key path fix (config.web_search.tavily_api_key) | web_search_integrated.py, server_api_wikipedia.py | ✅ DONE |
 | 5 | 2026-04-14 | Tokenizer optional component logging - WARNING to INFO | event_system.py | ✅ DONE |
+| 6 | 2026-04-14 | Security backdoor removed - no default admin:admin | security_framework.py | ✅ DONE |
