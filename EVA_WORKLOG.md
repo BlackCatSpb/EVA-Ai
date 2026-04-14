@@ -102,12 +102,12 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 3.2 Knowledge Graph Factory Not Found
 - **Проблема**: `[WARN] Factory for knowledge_graph not found - skipped`
-- **Статус**: 🔨 АРХИТЕКТУРНОЕ ИЗМЕНЕНИЕ
+- **Статус**: 🔨 В ПРОЦЕССЕ
 - **Решение**: УДАЛИТЬ KG адаптеры/переходники, полностью перейти на FGv2
-- **Файлы для очистки**:
-  - `eva_ai/knowledge/kg_adapter.py` - удалить
-  - `eva_ai/knowledge/knowledge_graph_adapter.py` - удалить
-  - Проверить все ссылки на `knowledge_graph` и заменить на `fractal_graph_v2`
+- **Выполнено**:
+  - `create_knowledge_graph` → `create_knowledge_components` (убран KG адаптер)
+  - `eva_ai/core/component_initializer.py` - обновлён импорт
+- **Осталось**: Заменить `.knowledge_graph` на `.fractal_graph_v2` (483 использования)
 
 ---
 
@@ -153,3 +153,4 @@ memory/ → reasoning/ → generation/ → core brain
 | 4 | 2026-04-14 | Tavily API Key path fix (config.web_search.tavily_api_key) | web_search_integrated.py, server_api_wikipedia.py | ✅ DONE |
 | 5 | 2026-04-14 | Tokenizer optional component logging - WARNING to INFO | event_system.py | ✅ DONE |
 | 6 | 2026-04-14 | Security backdoor removed - no default admin:admin | security_framework.py | ✅ DONE |
+| 7 | 2026-04-14 | KG adapter removed - replaced with create_knowledge_components | init_factories.py, component_initializer.py | ✅ DONE |

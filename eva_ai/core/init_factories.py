@@ -481,31 +481,21 @@ def create_fractal_graph_v2(initializer):
         return None
 
 
-def create_knowledge_graph(initializer):
+def create_knowledge_components(initializer):
     """
-    Создаёт Knowledge Graph адаптер для обратной совместимости.
-    Все вызовы перенаправляются на FractalGraph v2.
+    Создаёт компоненты работы с знаниями на основе FractalGraph v2.
+    БЕЗ KG адаптера - напрямую используем FGv2.
     """
     try:
-        from eva_ai.knowledge.kg_adapter import KnowledgeGraphAdapter
-        
         # Получаем FGv2
         fg = getattr(initializer.core_brain, 'fractal_graph_v2', None)
         if fg is None:
-            # FGv2 ещё не создан - нужно получить его
             components = getattr(initializer.core_brain, 'components', {})
             fg = components.get('fractal_graph_v2')
         
         if fg is None:
-            initializer.logger.warning("[WARN] FGv2 не найден, KG адаптер не создан")
+            initializer.logger.warning("[WARN] FGv2 не найден, компоненты знаний не созданы")
             return None
-        
-        # Создаём адаптер
-        kg_adapter = KnowledgeGraphAdapter(fg)
-        initializer.core_brain.knowledge_graph = kg_adapter
-        
-        if hasattr(initializer.core_brain, 'components'):
-            initializer.core_brain.components['knowledge_graph'] = kg_adapter
         
         # Создаём ConceptExtractor для извлечения концептов из запросов
         try:
