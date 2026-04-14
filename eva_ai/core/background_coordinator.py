@@ -724,6 +724,8 @@ class BackgroundCoordinator:
     def _deferred_start(self, data: Dict[str, Any] = None) -> Dict[str, Any]:
         """Отложенная команда запуска автопилота."""
         try:
+            if not hasattr(self, '_lock'):
+                return {"status": "error", "message": "BackgroundCoordinator not fully initialized"}
             self.start()
             return {"status": "success", "message": "Autopilot started"}
         except Exception as e:
