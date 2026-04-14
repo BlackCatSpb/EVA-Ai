@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (31 parallel agents across 6 cycles)  
+**Auditors:** AI Architect Agents (37 parallel agents across 7 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,13 +10,13 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 5.8/10 (снижена с 6.2)
+### Общая оценка системы: 5.4/10 (снижена с 5.8)
 
-**НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 6:**
-- ModelAccessManager не интегрирован в brain_query (5/10)
-- EventBus priority система не работает (3/10)
-- GraphCurator полностью изолирован от архитектуры (2/10)
-- ConceptExtractor нарушает SRP (4.5/10)
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 7:**
+- **EntityExtractor: extract_ambiguous_terms() НЕ СУЩЕСТВУЕТ** (критический баг!)
+- FractalMemoryGraph: НЕТ get_clusters() метода
+- HybridCache: Pickle небезопасен, TTL частично
+- DualGenerator: мёртвый код dual_generator_pie.py
 
 ---
 
@@ -236,6 +236,14 @@
 - audit_websearch_providers.md (5/10) - Google→DuckDuckGo, Yandex→Brave подмена
 - audit_duplicate_systems.md (3.5/10) - 4 AdaptationManager, 3 RecoveryManager, 3 FractalStore
 
+**Цикл 7:** (новые компоненты)
+- audit_deferred_command_system.md (7.5/10) - DCS работает, PriorityQueue используется, но EventBus синглтон
+- audit_hybrid_cache.md (5.3/10) - Pickle небезопасен, TTL частично, интеграция с memory_manager
+- audit_pipeline_adapter.md (6/10) - max_tokens завышены x16-32, DualGenerator не использует MAM
+- audit_entity_extractor.md (3/10) - 4 версии, extract_ambiguous_terms() НЕ СУЩЕСТВУЕТ (критический баг!)
+- audit_dual_generator.md (8/10) - dual_generator_pie.py мёртвый код, дублирование _clean_response
+- audit_fractal_memory_graph.md (5.6/10) - НЕТ get_clusters(), нет WAL, embedding fallback на случайные векторы
+
 ---
 
 ## 8. КРИТИЧЕСКИЕ ПРОБЛЕМЫ (НОВЫЕ)
@@ -295,11 +303,53 @@
 
 ---
 
-## 9. ВЫВОДЫ
+## 9. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 7)
+
+### 9.1 EntityExtractor - КРИТИЧЕСКИЙ БАГ (3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| `extract_ambiguous_terms()` НЕ СУЩЕСТВУЕТ | Вызывается в 7 местах, но метода нет! |
+| 4 версии EntityExtractor | Массовое дублирование |
+| Нет EventBus интеграции | Изоляция от системы событий |
+
+**Вызывается в:**
+```
+contradiction/core_detection.py: Lines 321, 322, 362, 363, 655
+memory/manager_operations.py: Line 436
+core/response_generator.py: Line 191
+```
+
+### 9.2 FractalMemoryGraph - НЕТ get_clusters() (5.6/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Метод `get_clusters()` отсутствует | ConceptMiner делает O(n^2) кластеризацию на лету |
+| SQLite без WAL | Блокировка записи при чтении |
+| Embedding fallback | Случайные векторы ломают семантический поиск |
+
+### 9.3 HybridCache - Pickle НЕБЕЗОПАСЕН (5.3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Pickle используется | `cache_disk.py`, `disk_cache.py` - уязвимость |
+| TTL частично | Для `_get_token_impl` не проверяется |
+| Нет персистентности | embedding кэш теряется при перезапуске |
+
+### 9.4 DualGenerator - МЁРТВЫЙ КОД (8/10)
+
+| Проблема | Описание |
+|----------|----------|
+| `dual_generator_pie.py` не используется | Можно удалить |
+| `_clean_response()` дублируется | В CondensedGenerator и ExtendedGenerator |
+
+---
+
+## 10. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
 - **Избыточности** — множественные дублирования
-- **Сломанности** — скрипты миграции не работают
+- **Сломанности** — скрипты миграции не работают, extract_ambiguous_terms() не существует
 - **Изоляции** — компоненты не интегрированы в EventBus
 
 **Для production необходимо:**
@@ -307,9 +357,10 @@
 2. Починить сломанные миграции
 3. Интегрировать разрозненные системы
 4. Объединить дублирующиеся модули
+5. **ИСПРАВИТЬ КРИТИЧЕСКИЙ БАГ: extract_ambiguous_terms()**
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*25 специализированных агентов проверили 28 компонентов*
+*37 специализированных агентов проверили 37+ компонентов*
 *April 14, 2026*
