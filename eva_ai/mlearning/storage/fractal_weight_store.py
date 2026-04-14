@@ -51,16 +51,15 @@ class FractalWeightStore:
     def save_to_disk(self, output_path: str, knowledge_graph: Optional[Dict[str, Any]] = None) -> bool:
         """Сохраняет фрактальное хранилище на диск"""
         try:
-            import pickle
             import json
             from pathlib import Path
 
             out_dir = Path(output_path)
             out_dir.mkdir(parents=True, exist_ok=True)
 
-            containers_file = out_dir / "containers.pkl"
-            with open(containers_file, 'wb') as f:
-                pickle.dump(self.containers, f)
+            containers_file = out_dir / "containers.json"
+            with open(containers_file, 'w', encoding='utf-8') as f:
+                json.dump(self.containers, f, ensure_ascii=False, indent=2)
 
             metadata_file = out_dir / "metadata.json"
             with open(metadata_file, 'w', encoding='utf-8') as f:

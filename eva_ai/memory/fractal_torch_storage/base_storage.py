@@ -212,8 +212,8 @@ class FractalWeightStorage:
                 "stats": self.stats
             }
             
-            with open(filepath, 'wb') as f:
-                pickle.dump(data, f)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
             
             logger.info(f"Хранилище сохранено: {filepath}")
     
@@ -226,10 +226,10 @@ class FractalWeightStorage:
             return
         
         with self._lock:
-            import pickle
+            import json
             
-            with open(filepath, 'rb') as f:
-                data = pickle.load(f)
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
             
             self._data = data.get("weights", {})
             self.index.from_dict(data.get("index", {}))
