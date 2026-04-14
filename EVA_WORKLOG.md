@@ -79,11 +79,14 @@ memory/ → reasoning/ → generation/ → core brain
 - **Проблема**: `Model A file not found: .../qwen2.5-3b-instruct-q4_k_m.gguf`
 - **Статус**: ⚠️ НЕАКТУАЛЬНО - Model A (qwen2.5-3b) не используется в текущей архитектуре (qwen3 4b + coder)
 
-### 2.2 Tokenizer не загружается
-- **Проблема**: `Tokenizer вернул False (опциональный компонент)` - WARNING в логах
+### 2.2 Tokenizer не загружается (qwen3.5-0.8b)
+- **Проблема**: Ошибки загрузки tokenizer из старой модели `qwen3.5-0.8b` (82 ссылки в коде)
 - **Статус**: ✅ ИСПРАВЛЕНО
-- **Файлы**: 
-  - `eva_ai/core/event_system.py` - изменён уровень логирования с WARNING на INFO для опциональных компонентов
+- **Файл**: `eva_ai/core/response_generator.py`
+- **Исправление**: 
+  - Изменён fallback tokenizer на использование путей из brain_config.json
+  - Изменён ERROR на INFO (токенизатор опционален)
+  - Используется правильный путь к модели: `ruadapt_qwen3_4b_q4_k_m.gguf`
 
 ### 2.3 System Memory Critical (95-99%)
 - **Проблема**: `High memory_percent level: 95.4%`, `CRITICAL memory_percent level: 99.4%`

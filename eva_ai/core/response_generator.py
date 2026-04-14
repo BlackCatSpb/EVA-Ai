@@ -429,20 +429,39 @@ class ResponseGenerator:
     def _create_fallback_tokenizer(self) -> None:
         """Создаёт fallback токенизатор если основной недоступен."""
         if not TRANSFORMERS_AVAILABLE:
-            logger.error("Transformers недоступен, невозможно создать fallback токенизатор")
+            logger.warning("Transformers недоступен, пропускаем создание fallback токенизатора")
             return
         
         base_path = getattr(self.brain, 'project_root', None) or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        model_paths_to_try = [
-            os.path.join(base_path, "eva", "mlearning", "eva_models", "qwen3.5-0.8b"),
-            os.path.join(base_path, "eva", "mlearning", "eva_models", "rugpt3_large"),
-        ]
+        
+        # Получаем путь к модели из brain_config.json
+        model_paths_to_try = []
+        try:
+            config_path = os.path.join(base_path, 'brain_config.json')
+            if os.path.exists(config_path):
+                import json
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                model_cfg = config.get('model', {})
+                # Пробуем logic_model_path и context_model_path
+                for key in ['logic_model_path', 'context_model_path', 'coder_model_path']:
+                    path = model_cfg.get(key)
+                    if path and os.path.exists(path):
+                        model_paths_to_try.append(path)
+        except Exception:
+            pass
+        
+        # Если в конфиге нет, используем старые пути как fallback
+        if not model_paths_to_try:
+            model_paths_to_try = [
+                os.path.join(base_path, "eva_pie_architecture", "models", "gguf_models", "ruadapt_qwen3_4b_q4_k_m.gguf"),
+            ]
         
         for model_path in model_paths_to_try:
             try:
                 if os.path.exists(model_path):
                     self.tokenizer = AutoTokenizer.from_pretrained(
-                        model_path, 
+                        os.path.dirname(model_path), 
                         local_files_only=True,
                         trust_remote_code=True
                     )
@@ -455,10 +474,10 @@ class ResponseGenerator:
                         logger.info(f"Создан fallback токенизатор из {os.path.basename(model_path)}")
                         return
             except Exception as e:
-                logger.warning(f"Не удалось загрузить токенизатор из {model_path}: {e}")
+                logger.debug(f"Не удалось загрузить токенизатор из {model_path}: {e}")
                 continue
         
-        logger.error("Не удалось загрузить токенизатор из всех доступных путей")
+        logger.info("Токенизатор не загружен (опциональный компонент)")
         self.tokenizer = None
     
     def _validate_tokenizer(self, tokenizer: Any) -> bool:
