@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (37 parallel agents across 7 cycles)  
+**Auditors:** AI Architect Agents (43 parallel agents across 8 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,13 +10,14 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 5.4/10 (снижена с 5.8)
+### Общая оценка системы: 5.2/10 (снижена с 5.4)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 7:**
-- **EntityExtractor: extract_ambiguous_terms() НЕ СУЩЕСТВУЕТ** (критический баг!)
-- FractalMemoryGraph: НЕТ get_clusters() метода
-- HybridCache: Pickle небезопасен, TTL частично
-- DualGenerator: мёртвый код dual_generator_pie.py
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 8:**
+- BackgroundCoordinator: Detectors НЕ зарегистрированы (автопилот сломан)
+- SnapshotManager: Per-request instantiation ломает персистентность
+- EmbeddingsManager: CPU fallback по умолчанию, hash() нестабилен
+- ResponseGenerator: extract_ambiguous_terms() критический баг подтверждён
+- component_managers.py: Все 8 классов - ЗАГЛУШКИ, рекомендуется удаление
 
 ---
 
@@ -244,6 +245,14 @@
 - audit_dual_generator.md (8/10) - dual_generator_pie.py мёртвый код, дублирование _clean_response
 - audit_fractal_memory_graph.md (5.6/10) - НЕТ get_clusters(), нет WAL, embedding fallback на случайные векторы
 
+**Цикл 8:** (фоновые системы и критические компоненты)
+- audit_background_coordinator.md (6/10) - Detectors НЕ зарегистрированы, автопилот сломан
+- audit_snapshot_manager.md (5/10) - Per-request instantiation, нет deep copy, коллизия имён
+- audit_embeddings_manager.md (3.7/10) - CPU fallback по умолчанию, hash() нестабилен, EmbeddingCache не подключен
+- audit_knowledge_curator.md (2/10) - KnowledgeCurator НЕ СУЩЕСТВУЕТ, GraphCurator изолирован
+- audit_response_generator.md (3/10) - extract_ambiguous_terms() критический баг подтверждён
+- audit_component_managers.md (3/10) - Все 8 классов ЗАГЛУШКИ, рекомендуется удаление
+
 ---
 
 ## 8. КРИТИЧЕСКИЕ ПРОБЛЕМЫ (НОВЫЕ)
@@ -345,22 +354,92 @@ core/response_generator.py: Line 191
 
 ---
 
-## 10. ВЫВОДЫ
+## 10. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 8)
+
+### 10.1 BackgroundCoordinator - АВТОПИЛОТ СЛОМАН (6/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Detectors НЕ зарегистрированы | `_detectors` пуст, автопилот не работает |
+| Jobs зарегистрированы | TrainingJob, WebIndexJob, ModuleRecoveryJob |
+| EventBus интеграция | Двойная (legacy + new) |
+
+**brain_components.py:486-512** - Detectors не зарегистрированы:
+```python
+# НЕ зарегистрированы:
+# brain.background.register_detector(LearningOpportunityDetector())
+# brain.background.register_detector(WebDiscoveryDetector())
+# brain.background.register_detector(ModuleRecoveryDetector())
+```
+
+### 10.2 SnapshotManager - PER-REQUEST INSTANTIATION (5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Создаётся каждый запрос | `HybridPipelineAdapter` создаёт новый инстанс |
+| Нет deep copy | Данные сохраняются по ссылке |
+| Два класса с одним именем | `snapshot_manager.py` и `graph_learning.py` |
+
+### 10.3 EmbeddingsManager - CPU ПО УМОЛЧАНИЮ (3.7/10)
+
+| Проблема | Описание |
+|----------|----------|
+| init_factories.py:469 | `embedding_device="cpu"` по умолчанию |
+| hash() нестабилен | `str(hash(text))` меняется между запусками |
+| EmbeddingCache не подключен | SQLite cache не используется |
+| Нет retry на CPU | При ошибке GPU - случайные векторы |
+
+### 10.4 KnowledgeCurator - НЕ СУЩЕСТВУЕТ (2/10)
+
+| Проблема | Описание |
+|----------|----------|
+| KnowledgeCurator не найден | Есть только GraphCurator |
+| SelfDialogLearning подписан | На события `curator.*` которых нет |
+| GraphCurator изолирован | Не публикует события |
+
+### 10.5 ResponseGenerator - КРИТИЧЕСКИЙ БАГ (3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| extract_ambiguous_terms() | НЕ СУЩЕСТВУЕТ, вызывается в 7+ местах |
+| brain_query не использует | ResponseGenerator вне fallback chain |
+| Fallback сломан | `_fallback_generation()` никогда не возвращается |
+
+### 10.6 component_managers.py - 8 ЗАГЛУШЕК (3/10)
+
+| Класс | Реализация |
+|-------|------------|
+| SecurityManager | Проксирует вызовы |
+| AuthManager | Принимает любой пароль |
+| AlertManager | Пустой класс |
+| MonitoringManager | Всегда "healthy" |
+| HealthChecker | Только обёртка |
+| MetricsCollector | Без истории |
+| RecoveryManager | Ничего не восстанавливает |
+| StateManager | Нет персистентности |
+
+**Рекомендация: УДАЛИТЬ component_managers.py полностью**
+
+---
+
+## 11. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Избыточности** — множественные дублирования
-- **Сломанности** — скрипты миграции не работают, extract_ambiguous_terms() не существует
+- **Избыточности** — 8 заглушек в component_managers.py
+- **Сломанности** — extract_ambiguous_terms() не существует, автопилот сломан
 - **Изоляции** — компоненты не интегрированы в EventBus
+- **Персистентности** — SnapshotManager создаётся на каждый запрос
 
 **Для production необходимо:**
-1. Удалить избыточные компоненты
+1. Удалить избыточные компоненты (component_managers.py)
 2. Починить сломанные миграции
 3. Интегрировать разрозненные системы
 4. Объединить дублирующиеся модули
 5. **ИСПРАВИТЬ КРИТИЧЕСКИЙ БАГ: extract_ambiguous_terms()**
+6. **ЗАРЕГИСТРИРОВАТЬ Detectors в BackgroundCoordinator**
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*37 специализированных агентов проверили 37+ компонентов*
+*43 специализированных агентов проверили 43+ компонентов*
 *April 14, 2026*
