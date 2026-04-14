@@ -203,8 +203,6 @@ class FractalWeightStorage:
         filepath = os.path.join(self.storage_dir, filename)
         
         with self._lock:
-            import pickle
-            
             data = {
                 "weights": self._data,
                 "index": self.index.to_dict(),

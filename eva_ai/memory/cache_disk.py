@@ -79,7 +79,6 @@ class TokenDiskCache:
                     self._remove_file(token_id)
                     return None
 
-                import pickle
                 import re
 
                 SAFE_TOKEN_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,128}$')

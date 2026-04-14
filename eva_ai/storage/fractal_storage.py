@@ -202,10 +202,8 @@ class FractalStorage:
             if hasattr(tokenizer, 'save_pretrained'):
                 tokenizer.save_pretrained(tokenizer_path, **kwargs)
             else:
-                # Для пользовательских токенизаторов
-                import pickle
-                with open(os.path.join(tokenizer_path, "tokenizer.pkl"), 'wb') as f:
-                    pickle.dump(tokenizer, f)
+                logger.warning(f"Токенизатор {model_name} не имеет save_pretrained, сохранение пропущено")
+                return False
             
             logger.info(f"Токенизатор {model_name} успешно сохранен в фрактальное хранилище")
             return True
