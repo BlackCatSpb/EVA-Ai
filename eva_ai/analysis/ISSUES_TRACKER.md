@@ -90,7 +90,7 @@
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
 | 1.3.1 | TaskScheduler дублирует DCS в distributed | [ВЫС] | [ ] | Удалить или использовать DCS |
-| 1.3.2 | BackgroundCoordinator Detectors не зарегистрированы | [КРИТ] | [ ] | brain_components.py:486-512 |
+| 1.3.2 | BackgroundCoordinator Detectors не зарегистрированы | [КРИТ] | [X] | ✅ Исправлено: добавлена регистрация LearningOpportunityDetector, WebDiscoveryDetector, ModuleRecoveryDetector |
 | 1.3.3 | MemoryManager deferred commands - hasattr check | [КРИТ] | [X] | ✅ Исправлено: manager_core.py добавлены hasattr проверки |
 | 1.3.4 | BackgroundCoordinator._lock not initialized | [КРИТ] | [X] | ✅ Исправлено: hasattr check в _deferred_start |
 | 1.3.5 | Coder model loading slow (debugging) | [СРЕД] | [X] | ✅ Добавлен EVA_SKIP_CODER=1 для отладки |
@@ -360,7 +360,8 @@
 |------|------|-----------|-------------|
 | 14.04.2026 | - | 0/68 | Начало работы |
 | 14.04.2026 | Фаза 1 | 9/68 | 7.1.1, 2.1.1, 1.1.4, 1.3.3, 3.1.1, 3.1.2, 8.2.3, 9.1.4, 9.1.5 |
-| 14.04.2026 | Отладка | 11/68 | +1.3.4 (BC._lock), +1.3.5 (skip coder) |
+| 14.04.2026 | Отладка | 12/68 | +1.3.4 (BC._lock), +1.3.5 (skip coder) |
+| 14.04.2026 | 1.3.2 | 12/68 | +1.3.2 (Detectors registered) |
 | | | | |
 | | | | |
 
@@ -374,7 +375,7 @@
 | КРИТ приоритет | ~20 |
 | ВЫС приоритет | ~25 |
 | СРЕД/НИЗК приоритет | ~23 |
-| Исправлено | 11 |
+| Исправлено | 12 |
 | В процессе | 2 |
 | Неактуально | 1 |
 
