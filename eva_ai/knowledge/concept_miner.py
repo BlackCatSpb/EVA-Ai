@@ -464,42 +464,32 @@ class ConceptMiner:
                         elif isinstance(group, dict) and 'node_ids' in group:
                             clusters[group_id] = group['node_ids']
                 
-                # Если нет групп, создаём кластеры из embedding'ов
+                # Если нет групп, используем кэшированные кластеры из FractalGraph
                 if not clusters and hasattr(storage, 'nodes'):
-                    # Простая кластеризация по схожести embedding'ов
-                    nodes_with_embeddings = []
-                    for node_id, node in storage.nodes.items():
-                        emb = getattr(node, 'embedding', None)
-                        if emb is not None:
-                            nodes_with_embeddings.append((node_id, emb))
-                    
-                    if nodes_with_embeddings:
-                        # Группируем по косинусному сходству > 0.7
-                        visited = set()
-                        cluster_id = 0
-                        for i, (node_id_i, emb_i) in enumerate(nodes_with_embeddings):
-                            if node_id_i in visited:
-                                continue
-                            cluster_nodes = [node_id_i]
-                            visited.add(node_id_i)
-                            
-                            for j, (node_id_j, emb_j) in enumerate(nodes_with_embeddings[i+1:], i+1):
-                                if node_id_j in visited:
+                    fg = getattr(self, 'fractal_graph', None) or getattr(self, '_fg', None)
+                    if fg and hasattr(fg, 'get_clusters'):
+                        clusters = fg.get_clusters()
+                    else:
+                        logger.warning("FractalGraph.get_clusters() не доступен, используем O(n²) вычисление")
+                        if nodes_with_embeddings := [
+                            (nid, np.array(emb)) for nid, n in storage.nodes.items() 
+                            if (emb := getattr(n, 'embedding', None)) is not None
+                        ]:
+                            visited = set()
+                            for i, (nid_i, emb_i) in enumerate(nodes_with_embeddings):
+                                if nid_i in visited:
                                     continue
-                                # Вычисляем косинусное сходство
-                                emb_i_np = np.array(emb_i)
-                                emb_j_np = np.array(emb_j)
-                                norm_i = np.linalg.norm(emb_i_np)
-                                norm_j = np.linalg.norm(emb_j_np)
-                                if norm_i > 0 and norm_j > 0:
-                                    similarity = np.dot(emb_i_np, emb_j_np) / (norm_i * norm_j)
-                                    if similarity > 0.7:
-                                        cluster_nodes.append(node_id_j)
-                                        visited.add(node_id_j)
-                            
-                            if len(cluster_nodes) >= 3:
-                                clusters[f"auto_cluster_{cluster_id}"] = cluster_nodes
-                                cluster_id += 1
+                                cl_nodes = [nid_i]
+                                visited.add(nid_i)
+                                for j, (nid_j, emb_j) in enumerate(nodes_with_embeddings[i+1:], i+1):
+                                    if nid_j in visited:
+                                        continue
+                                    n_i, n_j = np.linalg.norm(emb_i), np.linalg.norm(emb_j)
+                                    if n_i > 0 and n_j > 0 and np.dot(emb_i, emb_j) / (n_i * n_j) > 0.7:
+                                        cl_nodes.append(nid_j)
+                                        visited.add(nid_j)
+                                if len(cl_nodes) >= 3:
+                                    clusters[f"auto_cluster_{len(clusters)}"] = cl_nodes
 
         except Exception as e:
             logger.warning(f"Не удалось получить кластеры: {e}")

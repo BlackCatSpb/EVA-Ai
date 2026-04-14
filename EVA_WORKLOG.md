@@ -98,10 +98,12 @@ memory/ → reasoning/ → generation/ → core brain
 
 ## Приоритет 3: FractalGraph v2
 
-### 3.1 FractalGraphV2.get_clusters() - не существует
-- **Проблема**: ConceptMiner делает O(n²) на лету
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/memory/fractal_graph_v2/` - реализовать метод get_clusters()
+### 3.1 FractalGraphV2.get_clusters() - O(n²) оптимизация
+- **Проблема**: ConceptMiner делает O(n²) на лету при каждом вызове
+- **Статус**: ✅ ГОТОВО
+- **Файлы**: 
+  - `eva_ai/memory/fractal_graph_v2/__init__.py` - добавлен метод `get_clusters()` с кэшированием
+  - `eva_ai/knowledge/concept_miner.py` - использует кэшированный метод вместо O(n²) вычисления
 
 ### 3.2 Knowledge Graph Factory Not Found
 - **Проблема**: `[WARN] Factory for knowledge_graph not found - skipped`
@@ -158,6 +160,7 @@ memory/ → reasoning/ → generation/ → core brain
 | 6 | 2026-04-14 | Security backdoor removed - no default admin:admin | security_framework.py | ✅ DONE |
 | 7 | 2026-04-14 | KG adapter removed - replaced with create_knowledge_components | init_factories.py, component_initializer.py | ✅ DONE |
 | 8 | 2026-04-14 | Tokenizer fallback path fixed - use brain_config.json model | response_generator.py | ✅ DONE |
+| 9 | 2026-04-14 | FractalGraphV2.get_clusters() - caching to avoid O(n²) | fractal_graph_v2/__init__.py, concept_miner.py | ✅ DONE |
 
 ---
 

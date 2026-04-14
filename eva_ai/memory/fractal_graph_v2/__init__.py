@@ -1221,9 +1221,70 @@ class FractalMemoryGraph:
         Инвалидировать кэш при изменении узла.
         Простая реализация - очищает весь кэш.
         """
-        # TODO: Умная инвалидация по паттернам
         self._search_cache.clear()
+        self._clusters_cache = None
         logger.debug(f"Cache invalidated for node: {node_id}")
+    
+    def get_clusters(self, force_refresh: bool = False) -> Dict[str, List[str]]:
+        """
+        Получить кластеры узлов с кэшированием.
+        Это оптимизация для ConceptMiner - избегаем O(n²) вычисления при каждом запросе.
+        
+        Args:
+            force_refresh: Принудительно обновить кэш
+            
+        Returns:
+            Dict[str, List[str]]: {cluster_name: [node_ids]}
+        """
+        if hasattr(self, '_clusters_cache') and self._clusters_cache is not None and not force_refresh:
+            return self._clusters_cache
+        
+        import numpy as np
+        
+        clusters = {}
+        
+        if not hasattr(self.storage, 'nodes'):
+            return clusters
+        
+        nodes_with_embeddings = []
+        for node_id, node in self.storage.nodes.items():
+            emb = getattr(node, 'embedding', None)
+            if emb is not None:
+                nodes_with_embeddings.append((node_id, np.array(emb)))
+        
+        if not nodes_with_embeddings:
+            self._clusters_cache = clusters
+            return clusters
+        
+        visited = set()
+        cluster_id = 0
+        
+        for i, (node_id_i, emb_i) in enumerate(nodes_with_embeddings):
+            if node_id_i in visited:
+                continue
+            cluster_nodes = [node_id_i]
+            visited.add(node_id_i)
+            
+            for j, (node_id_j, emb_j) in enumerate(nodes_with_embeddings[i+1:], i+1):
+                if node_id_j in visited:
+                    continue
+                
+                norm_i = np.linalg.norm(emb_i)
+                norm_j = np.linalg.norm(emb_j)
+                if norm_i > 0 and norm_j > 0:
+                    similarity = np.dot(emb_i, emb_j) / (norm_i * norm_j)
+                    if similarity > 0.7:
+                        cluster_nodes.append(node_id_j)
+                        visited.add(node_id_j)
+            
+            if len(cluster_nodes) >= 3:
+                clusters[f"auto_cluster_{cluster_id}"] = cluster_nodes
+                cluster_id += 1
+        
+        self._clusters_cache = clusters
+        logger.debug(f"Clusters cached: {len(clusters)} clusters, {sum(len(v) for v in clusters.values())} nodes")
+        
+        return clusters
 
 
 def create_fractal_memory_graph(
