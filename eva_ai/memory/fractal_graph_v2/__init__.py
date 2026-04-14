@@ -188,7 +188,8 @@ class FractalMemoryGraph:
         storage_dir: str = None,
         embedding_model: str = "eva_ai/core/hf_cache/multilingual-e5-base",
         embedding_device: str = "cuda",
-        embedding_dim: int = 768
+        embedding_dim: int = 768,
+        event_bus = None
     ):
         self.storage_dir = storage_dir or os.path.join(
             os.path.dirname(__file__), "fractal_graph_v2_data"
@@ -212,8 +213,51 @@ class FractalMemoryGraph:
         self._background_thread = None
         self._running = False
         
+        # EventBus интеграция (1.1.3)
+        self._event_bus = event_bus
+        self._subscription_ids = []
+        
         logger.info(f"FractalMemoryGraph инициализирован: {self.storage_dir}")
         logger.info(f"Semantic search cache: maxsize={self._search_cache.maxsize}, ttl={self._search_cache.ttl}s")
+        if self._event_bus:
+            logger.info("EventBus интеграция активна")
+    
+    # === EventBus интеграция (1.1.3) ===
+    
+    def _publish_event(self, event_type: str, data: Dict):
+        """Публикация события в EventBus."""
+        if self._event_bus is None:
+            return
+        try:
+            from eva_ai.core.event_bus import Event, EventPriority
+            event = Event(
+                event_type=event_type,
+                source="fractal_graph_v2",
+                data=data,
+                priority=EventPriority.NORMAL
+            )
+            self._event_bus.publish(event)
+        except Exception as e:
+            logger.warning(f"Failed to publish event {event_type}: {e}")
+    
+    def start(self):
+        """Подписаться на системные события."""
+        if self._event_bus is None:
+            return
+        # Подписки на системные события
+        self._running = True
+        logger.info("FractalMemoryGraph подписан на EventBus")
+    
+    def stop(self):
+        """Отписаться от событий."""
+        self._running = False
+        for sub_id in self._subscription_ids:
+            try:
+                self._event_bus.unsubscribe(sub_id)
+            except:
+                pass
+        self._subscription_ids.clear()
+        logger.info("FractalMemoryGraph отписан от EventBus")
     
     # === ОСНОВНЫЕ ОПЕРАЦИИ ===
     
@@ -266,6 +310,14 @@ class FractalMemoryGraph:
                     self.storage._save_node(node)
                     if best_group in self.storage.semantic_groups:
                         self.storage.semantic_groups[best_group].member_count += 1
+        
+        # Публикуем событие о добавлении узла (1.1.3)
+        self._publish_event("memory.node_created", {
+            "node_id": node.id,
+            "node_type": node.node_type,
+            "level": node.level,
+            "content_preview": node.content[:100] if len(node.content) > 100 else node.content
+        })
         
         return node
     
@@ -1297,17 +1349,26 @@ class FractalMemoryGraph:
         self._clusters_cache = clusters
         logger.debug(f"Clusters cached: {len(clusters)} clusters, {sum(len(v) for v in clusters.values())} nodes")
         
+        # Публикуем событие о завершении кластеризации (1.1.3)
+        self._publish_event("memory.clustering_complete", {
+            "cluster_count": len(clusters),
+            "total_nodes": sum(len(v) for v in clusters.values()),
+            "force_refresh": force_refresh
+        })
+        
         return clusters
 
 
 def create_fractal_memory_graph(
     storage_dir: str = None,
-    embedding_device: str = "cuda"
+    embedding_device: str = "cuda",
+    event_bus = None
 ) -> FractalMemoryGraph:
     """Фабричная функция для создания фрактального графа памяти."""
     return FractalMemoryGraph(
         storage_dir=storage_dir,
-        embedding_device=embedding_device
+        embedding_device=embedding_device,
+        event_bus=event_bus
     )
 
 

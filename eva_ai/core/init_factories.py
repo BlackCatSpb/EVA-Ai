@@ -475,9 +475,12 @@ def create_fractal_graph_v2(initializer):
                 embedding_device = 'cpu'
                 initializer.logger.info("PyTorch not available, using CPU for embeddings")
         
+        event_bus = getattr(initializer.core_brain, 'event_bus', None)
+        
         fg = FractalMemoryGraph(
             storage_dir=config.get('storage_dir'),
-            embedding_device=embedding_device
+            embedding_device=embedding_device,
+            event_bus=event_bus
         )
         initializer.core_brain.fractal_graph_v2 = fg
         
