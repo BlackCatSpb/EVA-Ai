@@ -10,6 +10,8 @@ memory/ → reasoning/ → generation/ → core brain
   graph_v2   extractor   coordinator   model_access
 ```
 
+---
+
 ## Приоритет 1: Core Brain и EventBus
 
 ### 1.1 EventBus - Исправление подписки обработчиков
@@ -41,12 +43,17 @@ memory/ → reasoning/ → generation/ → core brain
 - **Статус**: ⏳ В ОЧЕРЕДИ
 - **Файл**: `eva_ai/core/brain_query.py` - исправить путь к Model A
 
-### 2.2 Sentence Transformers Loading
-- **Проблема**: `Invalid argument` при загрузке intfloat/multilingual-e5-base
+### 2.2 Tokenizer не загружается
+- **Проблема**: `Не удалось найти токенизатор ни в одном из источников`, `Токенизатор не прошел валидацию`
 - **Статус**: ⏳ В ОЧЕРЕДИ
 - **Файлы**: 
-  - `eva_ai/unified_text_processor.py`
-  - `eva_ai/fractal_graph_v2/embeddings.py`
+  - `eva_ai/response_generator.py`
+  - `eva_ai/mlearning/hybrid_model_manager.py`
+
+### 2.3 GPU Memory Critical (103.6%)
+- **Проблема**: `КРИТИЧЕСКИЙ уровень gpu_memory: 103.6%`
+- **Статус**: ⏳ В ОЧЕРЕДИ
+- **Файл**: `eva_ai/core/resource_manager.py` - оптимизация использования GPU
 
 ---
 
