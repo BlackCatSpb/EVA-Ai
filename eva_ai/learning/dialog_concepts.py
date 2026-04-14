@@ -518,7 +518,7 @@ class DialogConceptsMixin:
         return resolution
     
     def _save_concept_dialog_results(self, dialog: SelfDialog, concept: str):
-        """Сохраняет результаты диалога о концепте в кеш."""
+        """Сохраняет результаты диалога о концепте в кеш и hybrid_cache."""
         # Формируем сводку
         summary = {
             'type': 'concept_research',
@@ -537,11 +537,45 @@ class DialogConceptsMixin:
         
         self._save_to_context_cache(f"resolved_concept_{concept}", summary)
         
+        # СОХРАНЯЕМ В HYBRID_CACHE через специализированный метод
+        self._save_knowledge_to_cache(concept, summary, 'concept_research')
+        
         logger.info(f"Результаты исследования '{concept}' сохранены")
+    
+    def _save_knowledge_to_cache(self, concept: str, data: Dict, knowledge_type: str):
+        """Сохраняет знания в hybrid_cache через add_knowledge."""
+        if not self.brain or not hasattr(self.brain, 'hybrid_cache'):
+            return
+        
+        try:
+            cache = self.brain.hybrid_cache
+            if not hasattr(cache, 'add_knowledge'):
+                return
+            
+            knowledge_id = f"{knowledge_type}_{concept}_{int(time.time())}"
+            knowledge_data = {
+                'content': data.get('summary', '') or data.get('resolution', ''),
+                'source_node_id': data.get('dialog_id', '') or data.get('contradiction_id', ''),
+                'extraction_method': knowledge_type,
+                'confidence': 0.7,
+                'facts': [
+                    {
+                        'relation_type': knowledge_type,
+                        'value': data.get('dialog_content', '')[:500] if data.get('dialog_content') else data.get('dialog_summary', '')[:500],
+                        'source': 'self_dialog'
+                    }
+                ]
+            }
+            
+            cache.add_knowledge(knowledge_id, knowledge_data, ttl=86400)
+            logger.debug(f"Знание '{knowledge_id}' сохранено в hybrid_cache")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка сохранения знания в кеш: {e}")
     
     def _save_contradiction_resolution(self, contr_id: str, resolution: str,
                                       dialog: SelfDialog):
-        """Сохраняет разрешение противоречия."""
+        """Сохраняет разрешение противоречия в кеш и hybrid_cache."""
         summary = {
             'type': 'contradiction_resolution',
             'contradiction_id': contr_id,
@@ -557,6 +591,9 @@ class DialogConceptsMixin:
             self._resolved_knowledge = self._resolved_knowledge[-self.MAX_RESOLVED_KNOWLEDGE:]
         
         self._save_to_context_cache(f"resolved_contr_{contr_id}", summary)
+        
+        # СОХРАНЯЕМ В HYBRID_CACHE через специализированный метод
+        self._save_knowledge_to_cache(contr_id, summary, 'contradiction_resolution')
         
         # Обновляем статус противоречия
         self._update_contradiction_status(contr_id, 'resolved', resolution)

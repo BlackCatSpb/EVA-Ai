@@ -1139,6 +1139,31 @@ class UnifiedGenerator:
         
         return ""
     
+    def _get_knowledge_context(self, query: str) -> str:
+        """
+        Получает извлечённые знания из hybrid_cache для добавления в контекст.
+        
+        Returns:
+            Строка с контекстом знаний для промпта
+        """
+        if not self.brain:
+            return ""
+        
+        try:
+            cache = getattr(self.brain, 'hybrid_cache', None)
+            if not cache or not hasattr(cache, 'get_knowledge_for_prompt'):
+                return ""
+            
+            knowledge_context = cache.get_knowledge_for_prompt(query, limit=5)
+            if knowledge_context:
+                logger.debug(f"Добавлен контекст знаний: {len(knowledge_context)} символов")
+                return f"\nИзвлечённые знания:\n{knowledge_context}"
+            
+        except Exception as e:
+            logger.debug(f"Ошибка получения контекста знаний: {e}")
+        
+        return ""
+    
     def _build_context(self, query: str, provided_context: Optional[str]) -> str:
         """Построить контекст из FractalGraph и HybridTokenCache с асинхронной загрузкой."""
         if provided_context:
@@ -1150,6 +1175,11 @@ class UnifiedGenerator:
         concept_contr_context = self._build_concept_contradiction_context(query)
         if concept_contr_context:
             contexts.append(concept_contr_context)
+        
+        # === 0.5. Извлечённые знания из hybrid_cache ===
+        knowledge_context = self._get_knowledge_context(query)
+        if knowledge_context:
+            contexts.append(knowledge_context)
         
         # 1. FractalGraph через semantic search
         if self.fractal_graph:
