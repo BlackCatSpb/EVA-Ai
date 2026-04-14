@@ -476,10 +476,11 @@ class UnifiedCacheBridge:
         state_file = os.path.join(self.cache_dir, 'unified_bridge_state.json')
         if os.path.exists(state_file):
             try:
-                with open(state_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    self.stats.update(data.get('stats', {}))
-                    self._query_graph_index.update(data.get('query_index', {}))
+                with self._lock:
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        self.stats.update(data.get('stats', {}))
+                        self._query_graph_index.update(data.get('query_index', {}))
                 logger.info("Состояние UnifiedCacheBridge загружено")
             except Exception as e:
                 logger.warning(f"Не загружено состояние: {e}")
@@ -488,11 +489,12 @@ class UnifiedCacheBridge:
         """Сохранить состояние."""
         state_file = os.path.join(self.cache_dir, 'unified_bridge_state.json')
         try:
-            with open(state_file, 'w', encoding='utf-8') as f:
-                json.dump({
-                    'stats': self.stats,
-                    'query_index': self._query_graph_index,
-                }, f, indent=2, ensure_ascii=False)
+            with self._lock:
+                with open(state_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'stats': self.stats,
+                        'query_index': self._query_graph_index,
+                    }, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.warning(f"Не сохранено состояние: {e}")
     
