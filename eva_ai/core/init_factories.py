@@ -488,11 +488,42 @@ def create_fractal_graph_v2(initializer):
             initializer.core_brain.components['fractal_graph_v2'] = fg
         
         initializer.logger.info("[OK] FractalGraphV2 создан")
+        
+        _load_model_into_graph(fg, initializer)
+        
         return fg
     except Exception as e:
         initializer.logger.error(f"[FAIL] Ошибка создания fractal_graph_v2: {e}")
         initializer.failed_components.add('fractal_graph_v2')
         return None
+
+
+def _load_model_into_graph(fg, initializer):
+    """Загрузить данные модели в граф памяти."""
+    try:
+        model_config = initializer.core_brain.config.get('model', {}) if hasattr(initializer.core_brain, 'config') else {}
+        
+        model_paths = [
+            model_config.get('logic_model_path', ''),
+            model_config.get('context_model_path', ''),
+            model_config.get('model_a_gguf_path', '')
+        ]
+        
+        from eva_ai.memory.fractal_graph_v2.gguf_parser import extract_to_graph, clear_and_reload_model_graph
+        
+        for model_path in model_paths:
+            if model_path and os.path.exists(model_path):
+                initializer.logger.info(f"Загрузка данных модели в граф: {model_path}")
+                
+                try:
+                    result = extract_to_graph(model_path, fg)
+                    initializer.logger.info(f"Добавлено узлов модели: {result.get('nodes_added', 0)}")
+                except Exception as e:
+                    initializer.logger.warning(f"Ошибка загрузки модели {model_path}: {e}")
+        
+        initializer.logger.info("[OK] Данные модели загружены в граф")
+    except Exception as e:
+        initializer.logger.warning(f"Не удалось загрузить модель в граф: {e}")
 
 
 def create_knowledge_components(initializer):

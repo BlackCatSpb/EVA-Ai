@@ -386,27 +386,20 @@ class UnifiedGenerator:
             path = self._model_paths[model_type]
             logger.info(f"Loading {model_type.value} from {path}")
             
-            # Автоопределение оптимальных параметров CPU
             n_threads = self._detect_optimal_threads()
             
-            # Оптимальный контекст с учётом памяти для embedder (32768 = 2x16384)
-            if model_type == ModelType.CONTEXT:
-                n_ctx = 32768  # Extended context
-            elif model_type == ModelType.LOGIC:
-                n_ctx = 32768  # Оптимальный для RuadaptQwen3-4B
-            else:
-                n_ctx = 32768  # CODER - оставляем память для embedder
+            n_ctx = self._get_model_context_size(model_type)
             
             start = time.time()
             model = Llama(
                 model_path=str(path),
                 n_ctx=n_ctx,
                 n_threads=n_threads,
-                n_gpu_layers=0,  # CPU-only - GPU для embedder
-                use_mlock=True,   # Заблокировать модель в RAM
-                use_mmap=True,    # Memory-mapped файлы
-                n_batch=256,      # Batch для промпта
-                nUMA=False,       # Отключено для простоты
+                n_gpu_layers=0,
+                use_mlock=True,
+                use_mmap=True,
+                n_batch=256,
+                nUMA=False,
                 verbose=False
             )
             load_time = time.time() - start
@@ -418,6 +411,31 @@ class UnifiedGenerator:
         except Exception as e:
             logger.error(f"Failed to load {model_type.value}: {e}")
             return False
+    
+    def _get_model_context_size(self, model_type: ModelType) -> int:
+        """Получить оптимальный размер контекста для модели из графа памяти."""
+        default_ctx = self.n_ctx
+        
+        if self.fractal_graph is not None:
+            try:
+                for node_id, node in getattr(self.fractal_graph, 'nodes', {}).items():
+                    node_type = getattr(node, 'node_type', '')
+                    metadata = getattr(node, 'metadata', {})
+                    
+                    if node_type in ('MODEL_A', 'MODEL_B', 'MODEL_ROOT'):
+                        ctx = metadata.get('context_length', 0)
+                        if ctx > 0:
+                            logger.info(f"Using context from graph: {ctx}")
+                            return min(ctx, 32768)
+            except:
+                pass
+        
+        if model_type == ModelType.CONTEXT:
+            return min(default_ctx, 32768)
+        elif model_type == ModelType.LOGIC:
+            return min(default_ctx, 32768)
+        else:
+            return min(default_ctx, 32768)
     
     def generate(
         self,

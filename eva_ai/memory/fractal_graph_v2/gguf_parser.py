@@ -12,6 +12,8 @@ import logging
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 
+import numpy as np
+
 logger = logging.getLogger("eva_ai.fractal_graph_v2.gguf_parser")
 
 
@@ -56,22 +58,58 @@ class GGUFModelParser:
         self.file_size = os.path.getsize(model_path) if os.path.exists(model_path) else 0
     
     def _bytes_to_str(self, data) -> str:
-        """Конвертировать bytes в строку."""
+        """Конвертировать bytes/numpy array в строку."""
         if isinstance(data, bytes):
             return data.decode('utf-8', errors='replace').strip()
-        elif isinstance(data, (list, tuple)):
+        elif isinstance(data, bytearray):
+            return bytes(data).decode('utf-8', errors='replace').strip()
+        
+        dtype = getattr(data, 'dtype', None)
+        if dtype is not None:
+            dtype_str = str(dtype)
+            
+            if 'uint8' in dtype_str or 'int8' in dtype_str:
+                if hasattr(data, 'tolist'):
+                    byte_list = data.tolist()
+                elif hasattr(data, '__iter__'):
+                    byte_list = list(data)
+                else:
+                    return str(data)
+                
+                if len(byte_list) > 0:
+                    try:
+                        result_bytes = bytes(b for b in byte_list if isinstance(b, int))
+                        return result_bytes.decode('utf-8', errors='replace').strip()
+                    except:
+                        pass
+                    
+                    result = []
+                    for b in byte_list:
+                        if isinstance(b, (int, np.integer)):
+                            if 32 <= b <= 126:
+                                result.append(chr(b))
+                            elif b == 0:
+                                break
+                        else:
+                            result.append(str(b))
+                    return ''.join(result).strip()
+        
+        if isinstance(data, (list, tuple)):
             result = []
             for b in data:
                 if isinstance(b, int):
                     if 32 <= b <= 126:
                         result.append(chr(b))
+                    elif b == 0:
+                        break
                     else:
                         result.append(f'<{b}>')
                 elif isinstance(b, bytes):
                     result.append(b.decode('utf-8', errors='replace').strip())
                 else:
                     result.append(str(b))
-            return ''.join(result)
+            return ''.join(result).strip()
+        
         return str(data)
     
     def _get_field_value(self, field) -> Any:
@@ -80,14 +118,55 @@ class GGUFModelParser:
             return None
         value = field.parts[-1]
         
-        # Если numpy массив - берём скаляр
-        if hasattr(value, 'dtype') and hasattr(value, '__len__'):
-            try:
-                return int(value.flat[0])
-            except:
-                pass
+        if value is None:
+            return None
         
-        # Если bytes/bytearray - пробуем распаковать
+        dtype_name = getattr(value, 'dtype', None)
+        
+        if dtype_name is not None:
+            dtype_str = str(dtype_name)
+            
+            if 'uint8' in dtype_str or 'int8' in dtype_str:
+                arr_len = getattr(value, 'shape', ())[0] if hasattr(value, 'shape') else 0
+                if arr_len > 1:
+                    return bytes(value)
+                elif arr_len == 1:
+                    try:
+                        return chr(int(value.flat[0]))
+                    except:
+                        return int(value.flat[0])
+            
+            if hasattr(value, 'flat') and hasattr(value.flat, '__iter__'):
+                try:
+                    scalar = value.flat[0]
+                    
+                    if 'float' in dtype_str:
+                        return float(scalar)
+                    elif 'int' in dtype_str or 'uint' in dtype_str:
+                        return int(scalar)
+                    else:
+                        return scalar
+                except (IndexError, ValueError):
+                    pass
+            
+            if hasattr(value, 'shape') and len(getattr(value, 'shape', [])) == 1:
+                arr_len = value.shape[0] if hasattr(value, 'shape') else 0
+                
+                if arr_len == 1:
+                    try:
+                        return int(value.flat[0]) if 'int' in dtype_str or 'uint' in dtype_str else float(value.flat[0])
+                    except:
+                        pass
+                
+                if arr_len > 1 and arr_len <= 100:
+                    try:
+                        if 'uint8' in dtype_str or 'int8' in dtype_str:
+                            return bytes(value)
+                        else:
+                            return [int(v) if 'int' in dtype_str else float(v) for v in value]
+                    except:
+                        pass
+        
         if isinstance(value, (bytes, bytearray)):
             if len(value) <= 8:
                 try:
@@ -101,7 +180,9 @@ class GGUFModelParser:
                 except:
                     pass
             try:
-                return value.decode('utf-8').strip()
+                decoded = value.decode('utf-8').strip()
+                if len(decoded) <= 100:
+                    return decoded
             except:
                 pass
             return value.hex()

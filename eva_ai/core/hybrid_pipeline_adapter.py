@@ -17,7 +17,10 @@ HybridPipelineAdapter - Гибридный адаптер для FractalPipeline
 import os
 import time
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
 
 logger = logging.getLogger("eva_ai.core.hybrid_adapter")
 
@@ -80,7 +83,15 @@ class HybridPipelineAdapter:
         self.model_a_path = model_a_path
         self.model_b_path = model_b_path
         self.model_c_path = model_c_path
-        self.n_ctx = n_ctx
+        
+        # Получаем параметры модели из графа памяти если доступен
+        if fractal_graph is not None:
+            model_params = self._get_model_params_from_graph()
+            self.n_ctx = model_params.get('n_ctx', n_ctx)
+            logger.info(f"Model params from graph: n_ctx={self.n_ctx}")
+        else:
+            self.n_ctx = n_ctx
+        
         self.n_threads = n_threads or os.cpu_count() or 12  # Все ядра CPU
         self._models_loaded = False
         
@@ -103,6 +114,56 @@ class HybridPipelineAdapter:
         if load_models:
             self._init_pipelines(**kwargs)
     
+    def _get_model_params_from_graph(self) -> Dict[str, Any]:
+        """Получить параметры модели из графа памяти."""
+        params = {
+            'n_ctx': self.n_ctx,
+            'max_tokens': 4096,
+            'hidden_size': 2560,
+            'num_layers': 36,
+            'attention_heads': 32,
+            'kv_heads': 8,
+            'context_length': 262144
+        }
+        
+        if not self.fractal_graph:
+            return params
+        
+        try:
+            if hasattr(self.fractal_graph, 'storage') and hasattr(self.fractal_graph.storage, 'nodes'):
+                for node_id, node in self.fractal_graph.storage.nodes.items():
+                    node_type = getattr(node, 'node_type', '')
+                    content = getattr(node, 'content', '')
+                    metadata = getattr(node, 'metadata', {})
+                    
+                    if node_type == 'MODEL_ROOT' or 'MODEL_A' in node_type:
+                        ctx_len = metadata.get('context_length', 0)
+                        if ctx_len > 0:
+                            params['context_length'] = ctx_len
+                            params['n_ctx'] = min(ctx_len, 32768)
+                            logger.info(f"Graph model params: context_length={ctx_len}")
+                    
+                    elif node_type == 'FACT' and 'Контекстное окно' in content:
+                        for key in ['context_length', 'max_position_embeddings']:
+                            if key in metadata:
+                                params['context_length'] = metadata[key]
+                                params['n_ctx'] = min(metadata[key], 32768)
+                                logger.info(f"Graph FACT params: {key}={metadata[key]}")
+        except Exception as e:
+            logger.warning(f"Could not get model params from graph: {e}")
+        
+        return params
+    
+    def update_n_ctx_from_graph(self):
+        """Обновить n_ctx из графа памяти."""
+        if self._models_loaded:
+            logger.warning("Models already loaded, cannot update n_ctx")
+            return
+        
+        params = self._get_model_params_from_graph()
+        self.n_ctx = params['n_ctx']
+        logger.info(f"Updated n_ctx from graph: {self.n_ctx}")
+    
     def load_models(self):
         """Загрузить модели если ещё не загружены."""
         if self._models_loaded:
@@ -110,30 +171,27 @@ class HybridPipelineAdapter:
         
         from llama_cpp import Llama
         
-        # Определяем размер контекста
-        recommended_ctx = min(self.n_ctx, 4096)
-        
         if self.model_a is None and self.model_a_path:
-            logger.info(f"Loading Model A: {self.model_a_path}")
+            logger.info(f"Loading Model A: {self.model_a_path} (n_ctx={self.n_ctx})")
             self.model_a = Llama(
                 model_path=self.model_a_path,
                 chat_format="qwen",
-                n_ctx=recommended_ctx,
+                n_ctx=self.n_ctx,
                 n_threads=self.n_threads,
                 verbose=False
             )
-            logger.info(f"Model A loaded")
+            logger.info(f"Model A loaded (n_ctx={self.n_ctx})")
         
         if self.model_b is None and self.model_b_path:
-            logger.info(f"Loading Model B: {self.model_b_path}")
+            logger.info(f"Loading Model B: {self.model_b_path} (n_ctx={self.n_ctx})")
             self.model_b = Llama(
                 model_path=self.model_b_path,
                 chat_format="qwen",
-                n_ctx=recommended_ctx,
+                n_ctx=self.n_ctx,
                 n_threads=self.n_threads,
                 verbose=False
             )
-            logger.info(f"Model B loaded")
+            logger.info(f"Model B loaded (n_ctx={self.n_ctx})")
         
         if self.model_c is None and self.model_c_path and os.path.exists(self.model_c_path):
             logger.info(f"Model C path configured (lazy loading)")
