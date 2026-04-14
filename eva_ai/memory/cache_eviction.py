@@ -84,6 +84,9 @@ def _add_token_impl(cache, token_id: str, token_data: Any) -> None:
             cache._save_token_to_disk(token_id, actual_data)
             cache.token_metadata[token_id]["in_memory"] = False
 
+            cache.disk_cache.put(token_id, actual_data)
+            cache.token_metadata[token_id]["in_memory"] = False
+
             if len(cache.ram_cache) < cache.ram_cache.max_size:
                 cache.ram_cache.put(token_id, actual_data)
                 cache.token_metadata[token_id]["in_memory"] = True
