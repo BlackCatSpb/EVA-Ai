@@ -492,19 +492,41 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens: int = 512,
         temperature: float = 0.7,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        task_type: str = "default"
     ) -> GenerationResult:
         """Выполняет генерацию (вызывается через ModelAccessManager)."""
         start_time = time.time()
         logger.info(f"[GENERATE] Начало генерации для: {query[:30]}...")
         
-        # Определяем модель
+        # OpenVINO path - используем KV cache и оптимальную производительность
+        if self.use_openvino:
+            gen, model_type = self._get_generator_for_task(task_type)
+            if gen:
+                full_context = self._build_context(query, context)
+                prompt = self._format_prompt(query, full_context, system_prompt, model_type)
+                
+                result = gen.generate(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                
+                self._save_to_graph(query, result.text)
+                
+                return GenerationResult(
+                    text=result.text,
+                    model_used=f"openvino_{model_type.value if model_type else 'unknown'}",
+                    generation_time=result.generation_time,
+                    tokens_generated=result.tokens_generated,
+                    confidence=0.9 if model_type == ModelType.CODER else 0.85
+                )
+        
+        # Fallback: llama.cpp path
         model_type = self.router.route(query)
         logger.info(f"[GENERATE] Выбрана модель: {model_type}, длина запроса: {len(query)}")
         
-        # Загружаем модель
         if not self._load_model(model_type):
-            # Fallback на другую модель
             fallback_type = ModelType.CONTEXT if model_type == ModelType.LOGIC else ModelType.LOGIC
             if not self._load_model(fallback_type):
                 return GenerationResult(
@@ -518,14 +540,11 @@ class UnifiedGenerator:
         
         model = self.models[model_type]
         
-        # Асинхронно предзагружаем контекст
         self._prefetch_context_async(query)
         
-        # Формируем промпт с контекстом из FractalGraph и HybridCache
         full_context = self._build_context(query, context)
         prompt = self._format_prompt(query, full_context, system_prompt, model_type)
         
-        # Генерируем
         try:
             output = model(
                 prompt,
@@ -543,11 +562,9 @@ class UnifiedGenerator:
             text = output['choices'][0]['text']
             tokens = output['usage']['completion_tokens']
             
-            # Очищаем ответ от токенов-маркеров
             text = text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
             text = text.replace("<|endoftext|>", "").strip()
             
-            # Сохраняем в FractalGraph
             self._save_to_graph(query, text)
             
             return GenerationResult(
