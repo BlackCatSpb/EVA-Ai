@@ -134,7 +134,7 @@ class EventBus:
         self.max_history = max_history
         self._subscribers: Dict[str, List[Callable]] = defaultdict(list)
         self._event_history: deque = deque(maxlen=max_history)
-        self._event_queue: queue.Queue = queue.Queue()
+        self._event_queue: queue.PriorityQueue = queue.PriorityQueue()
         self._running = False
         self._worker_thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
@@ -146,7 +146,7 @@ class EventBus:
             'start_time': time.time()
         }
         
-        logger.info("EventBus инициализирован")
+        logger.info("EventBus инициализирован с PriorityQueue")
     
     def subscribe(self, event_type: str, handler: Callable[[Event], None], priority: int = 5) -> str:
         """
@@ -251,7 +251,7 @@ class EventBus:
     
     def publish(self, event: Event) -> bool:
         """
-        Публикация события с подробным логированием
+        Публикация события с приоритетной обработкой.
         
         Args:
             event: Событие для публикации
@@ -262,13 +262,15 @@ class EventBus:
         logger.debug("=== EVENT BUS: Publishing event ===")
         logger.debug("  Event type: {}".format(event.event_type))
         logger.debug("  Source: {}".format(event.source))
+        logger.debug("  Priority: {}".format(event.priority))
         
         try:
             with self._lock:
                 self._event_history.append(event)
                 self._stats['events_published'] += 1
             
-            self._event_queue.put(event)
+            priority_value = 5 - event.priority.value
+            self._event_queue.put((priority_value, event.timestamp, event))
             
             logger.info("EVENT published: {} from {}".format(event.event_type, event.source))
             logger.debug("  Queue size: {}".format(self._event_queue.qsize()))
@@ -411,18 +413,20 @@ class EventBus:
         return processed
     
     def _worker_loop(self):
-        """Рабочий цикл обработки событий"""
-        logger.info("EventBus worker loop запущен")
+        """Рабочий цикл обработки событий с приоритетами"""
+        logger.info("EventBus worker loop запущен с PriorityQueue")
         
         while self._running:
             try:
-                # Получаем событие с таймаутом
                 try:
-                    event = self._event_queue.get(timeout=1.0)
+                    item = self._event_queue.get(timeout=1.0)
+                    if isinstance(item, tuple) and len(item) == 3:
+                        _, _, event = item
+                    else:
+                        event = item
                 except queue.Empty:
                     continue
                 
-                # Обрабатываем событие
                 self._process_event(event)
                 
                 # Помечаем задачу как выполненную
