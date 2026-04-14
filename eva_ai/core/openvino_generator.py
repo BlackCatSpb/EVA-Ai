@@ -773,6 +773,88 @@ class OpenVINOCacheAdapter:
         except Exception as e:
             logger.debug(f"Cache store error: {e}")
     
+    def mark_context_processed(self, context_key: str, context_hash: str, 
+                                metadata: Optional[Dict] = None) -> None:
+        """
+        Отметить что контекст обработан (для KV cache tracking).
+        
+        Args:
+            context_key: Уникальный ключ контекста
+            context_hash: Хэш контекста
+            metadata: Дополнительные метаданные (tokens count, etc)
+        """
+        if not self.hybrid_cache:
+            return
+        
+        try:
+            if hasattr(self.hybrid_cache, 'add_kv_cache'):
+                kv_data = {
+                    'context_key': context_key,
+                    'context_hash': context_hash,
+                    'tokens': metadata.get('tokens', []) if metadata else [],
+                    'key_cache': [],
+                    'value_cache': [],
+                    'metadata': metadata or {},
+                    'processed_at': time.time()
+                }
+                self.hybrid_cache.add_kv_cache(context_key, kv_data, ttl=3600)
+                logger.debug(f"[KV CACHE MARK] context={context_key}")
+            else:
+                entry = {
+                    'context_key': context_key,
+                    'context_hash': context_hash,
+                    'timestamp': time.time(),
+                    'metadata': metadata or {}
+                }
+                self.hybrid_cache.add_token(f"kv_state_{context_key}", entry)
+                logger.debug(f"[KV STATE MARK] context={context_key}")
+        except Exception as e:
+            logger.debug(f"KV mark error: {e}")
+    
+    def was_context_processed(self, context_key: str) -> bool:
+        """
+        Проверить обрабатывался ли контекст ранее.
+        
+        Args:
+            context_key: Уникальный ключ контекста
+            
+        Returns:
+            True если контекст уже обрабатывался
+        """
+        if not self.hybrid_cache:
+            return False
+        
+        try:
+            if hasattr(self.hybrid_cache, 'get_kv_cache'):
+                kv_data = self.hybrid_cache.get_kv_cache(context_key)
+                if kv_data:
+                    logger.debug(f"[KV CACHE HIT] context={context_key}")
+                    return True
+            else:
+                cached = self.hybrid_cache.get_token(f"kv_state_{context_key}")
+                if cached:
+                    logger.debug(f"[KV STATE HIT] context={context_key}")
+                    return True
+        except Exception as e:
+            logger.debug(f"KV check error: {e}")
+        
+        return False
+    
+    def get_kv_cache_stats(self) -> Dict:
+        """Получить статистику KV cache."""
+        if not self.hybrid_cache:
+            return {'enabled': False}
+        
+        try:
+            if hasattr(self.hybrid_cache, 'get_cache_stats'):
+                stats = self.hybrid_cache.get_cache_stats()
+                stats['enabled'] = True
+                return stats
+        except:
+            pass
+        
+        return {'enabled': True, 'note': 'Stats not available'}
+    
     def get_context_for_generation(self, query: str, max_context_tokens: int = 2000) -> str:
         """
         Получить релевантный контекст из кеша для генерации.
