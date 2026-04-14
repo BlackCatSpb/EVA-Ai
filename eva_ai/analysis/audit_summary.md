@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (64 parallel agents across 12 cycles)  
+**Auditors:** AI Architect Agents (68 parallel agents across 13 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,13 +10,13 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 4.2/10 (снижена с 4.4)
+### Общая оценка системы: 4.0/10 (снижена с 4.2)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 12:**
-- Analytics: Дубликат ContradictionAnalyzer, missing methods, вызывает runtime errors
-- Tools: 3 мёртвых файла из 5, 2 используются (document_reader, import_pipeline)
-- Training: КРИТИЧЕСКИЙ БАГ - self.output_dir НЕ определён, AttributeError
-- MemorySubsystem: 2 критических дубликата (LRUCache, TokenDiskCache), 5 Pickle случаев
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 13:**
+- MLearning: 8 Model Manager классов (дубликаты), ~70% кода - мёртвый, EventBus НЕ интегрирован
+- HotDeployment: 10 из 12 файлов - мёртвый код, 3 версии OpenVINOGenerator
+- Fractal: eva_ai/fractal/ - 0 импортов, полностью изолирован, рекомендуется удаление
+- Cache: Дублирование TokenDiskCache vs DiskCache, Pickle в 4 местах
 
 ---
 
@@ -280,6 +280,12 @@
 - audit_tools.md (4.4/10) - 3 мёртвых файла, 2 используются
 - audit_training.md (3.5/10) - КРИТИЧЕСКИЙ БАГ: self.output_dir НЕ определён
 - audit_memory_subsystem.md (4/10) - 2 критических дубликата, 5 Pickle случаев
+
+**Цикл 13:** (mlearning, hot_deployment, fractal, cache)
+- audit_mlearning.md (3/10) - 8 Model Manager, ~70% мёртвый код, EventBus НЕ интегрирован
+- audit_hot_deployment.md (3/10) - 10/12 файлов мёртвый код, 3 версии OpenVINOGenerator
+- audit_fractal.md (2.3/10) - eva_ai/fractal/ имеет 0 импортов, изолирован
+- audit_cache.md (4.7/10) - TokenDiskCache vs DiskCache дублирование, Pickle в 4 местах
 
 ---
 
@@ -602,24 +608,67 @@ core/response_generator.py: Line 191
 
 ---
 
-## 14. ВЫВОДЫ
+## 14. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 13)
+
+### 14.1 MLearning - 8 MODEL MANAGERS (3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| 8 Model Manager классов | Qwen, Fractal, Hybrid, Universal, BitNet, Model, etc. |
+| ~70% мёртвый код | universal_model_manager, bitnet_model_manager, text_quality_* |
+| EventBus | НЕ ИНТЕГРИРОВАН в mlearning/ |
+
+### 14.2 HotDeployment - 10/12 ФАЙЛОВ МЁРТВЫЕ (3/10)
+
+| Файл | Статус |
+|------|--------|
+| llama_cpp_hot.py | ✅ АКТИВЕН |
+| __init__.py | ❌ Не используется |
+| optimized_inference.py | ❌ МЁРТВЫЙ |
+| openvino_inference.py | ❌ ДУБЛИКАТ core/openvino_generator.py |
+| openvino_via_optimum.py | ❌ МЁРТВЫЙ |
+| onnx_runtime.py | ❌ МЁРТВЫЙ |
+| llama_cpp_wrapper.py | ❌ ДУБЛИКАТ llama_cpp_hot.py |
+
+### 14.3 Fractal - 0 ИМПОРТОВ (2.3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| eva_ai/fractal/ | 0 импортов в системе |
+| Полная изоляция | Нет EventBus, нет интеграции |
+| FractalGraphV2 | Имеет 212+ импортов - используется |
+
+**Рекомендация: УДАЛИТЬ eva_ai/fractal/**
+
+### 14.4 Cache - TOKEN DISK CACHE vs DISK CACHE (4.7/10)
+
+| Характеристика | TokenDiskCache | DiskCache |
+|----------------|----------------|-----------|
+| Индекс | JSON | SQLite |
+| Компрессия | Нет | zlib |
+| Pickle | Да | Да |
+| Используется | HybridTokenCache | напрямую |
+
+---
+
+## 15. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, 10+ Pickle случаев
-- **Мёртвого кода** — 10+ файлов не используются
-- **Дублирования** — LRUCache, ContradictionAnalyzer, EthicsFramework
+- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, 15+ Pickle случаев
+- **Мёртвого кода** — 30+ файлов не используются (eva_ai/fractal/, runtime/, mlearning/*)
+- **Дублирования** — 8 ModelManagers, 3 OpenVINOGenerator, 2 дисковых кэша
 - **Критических багов** — self.output_dir НЕ определён, extract_ambiguous_terms()
 - **Изоляции** — большинство компонентов без EventBus
 
 **Для production необходимо:**
 1. **УДАЛИТЬ backdoor admin:admin** из SecurityFramework
-2. **Заменить Pickle** на JSON/msgpack (10+ случаев)
+2. **Заменить Pickle** на JSON/msgpack (15+ случаев)
 3. **ИСПРАВИТЬ БАГИ** — self.output_dir, extract_ambiguous_terms()
-4. **УДАЛИТЬ мёртвый код** — 10+ файлов
-5. **Устранить дублирование** — LRUCache, ContradictionAnalyzer
+4. **УДАЛИТЬ мёртвый код** — 30+ файлов (fractal/, runtime/, mlearning/...)
+5. **Устранить дублирование** — 8 ModelManagers, 3 OpenVINOGenerator
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*64 специализированных агентов проверили 64+ компонентов*
+*68 специализированных агентов проверили 68+ компонентов*
 *April 14, 2026*
