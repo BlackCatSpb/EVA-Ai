@@ -437,6 +437,62 @@ class FractalGraphV2:
         
         return edge
     
+    def remove_edges_for_node(self, node_id: str) -> int:
+        """Удалить все связи связанные с узлом. Возвращает количество удалённых."""
+        edges_to_remove = [
+            edge_id for edge_id, edge in self.edges.items()
+            if edge.source_id == node_id or edge.target_id == node_id
+        ]
+        
+        for edge_id in edges_to_remove:
+            del self.edges[edge_id]
+            self._delete_edge_from_db(edge_id)
+        
+        logger.debug(f"Удалено связей для узла {node_id}: {len(edges_to_remove)}")
+        return len(edges_to_remove)
+    
+    def _delete_edge_from_db(self, edge_id: str):
+        """Удаление связи из БД."""
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("DELETE FROM edges WHERE id = ?", (edge_id,))
+        conn.commit()
+        conn.close()
+    
+    def remove_node_from_indexes(self, node_id: str, node: 'FractalNode'):
+        """Удалить узел из всех поисковых индексов."""
+        # Удаление из nodes_by_type
+        if node.node_type in self.nodes_by_type:
+            if node_id in self.nodes_by_type[node.node_type]:
+                self.nodes_by_type[node.node_type].remove(node_id)
+        
+        # Удаление из nodes_by_level
+        if node.level in self.nodes_by_level:
+            if node_id in self.nodes_by_level[node.level]:
+                self.nodes_by_level[node.level].remove(node_id)
+        
+        # Удаление из nodes_by_group
+        if node.parent_group_id in self.nodes_by_group:
+            if node_id in self.nodes_by_group[node.parent_group_id]:
+                self.nodes_by_group[node.parent_group_id].remove(node_id)
+            # Уменьшаем счётчик группы
+            if node.parent_group_id in self.semantic_groups:
+                self.semantic_groups[node.parent_group_id].member_count = max(
+                    0, self.semantic_groups[node.parent_group_id].member_count - 1
+                )
+        
+        # Удаление из word_index
+        for word in node.content.lower().split():
+            if len(word) > 2 and word in self.word_index:
+                self.word_index[word].discard(node_id)
+                if not self.word_index[word]:
+                    del self.word_index[word]
+        
+        # Удаление из normalized embeddings cache
+        if node_id in self._normalized_embeddings:
+            del self._normalized_embeddings[node_id]
+        
+        logger.debug(f"Узел {node_id} удалён из индексов")
+    
     def create_semantic_group(
         self,
         name: str,

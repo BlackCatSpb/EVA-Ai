@@ -408,7 +408,236 @@ class FractalMemoryGraph:
         elapsed = time.time() - start_time
         logger.info(f"Batch добавление завершено: {len(nodes)} узлов за {elapsed:.2f}s")
         
+        # Публикуем событие о batch добавлении (1.1.3)
+        self._publish_event("memory.nodes_batch_created", {
+            "count": len(nodes),
+            "node_type": node_type,
+            "level": level,
+            "time_elapsed": elapsed
+        })
+        
         return nodes
+    
+    def update_node(
+        self,
+        node_id: str,
+        content: Optional[str] = None,
+        node_type: Optional[str] = None,
+        level: Optional[int] = None,
+        confidence: Optional[float] = None,
+        metadata: Optional[Dict] = None,
+        is_static: Optional[bool] = None,
+        is_contradiction: Optional[bool] = None,
+        recompute_embedding: bool = True,
+        recluster: bool = True
+    ) -> Optional[FractalNode]:
+        """
+        Обновить существующий узел.
+        
+        Args:
+            node_id: ID узла для обновления
+            content: Новый текст (если изменился - пересчитается embedding)
+            node_type: Новый тип узла
+            level: Новый уровень
+            confidence: Новая уверенность
+            metadata: Новые метаданные (мержится с существующими)
+            is_static: Изменить статус статичности
+            is_contradiction: Изменить статус противоречия
+            recompute_embedding: Пересчитать embedding при изменении content
+            recluster: Ре-кластеризовать при изменении embedding
+            
+        Returns:
+            Обновлённый узел или None если не найден
+        """
+        node = self.storage.get_node(node_id)
+        if node is None:
+            logger.warning(f"Узел не найден для обновления: {node_id}")
+            return None
+        
+        old_content = node.content
+        old_embedding = node.embedding.copy() if node.embedding else None
+        old_group = node.parent_group_id
+        
+        # Обновляем поля
+        if content is not None and content != node.content:
+            node.content = content
+            node.updated_at = time.time()
+            node.version += 1
+            
+            # Обновляем word_index (удаляем старые слова)
+            for word in old_content.lower().split():
+                if len(word) > 2 and word in self.storage.word_index:
+                    self.storage.word_index[word].discard(node_id)
+                    if not self.storage.word_index[word]:
+                        del self.storage.word_index[word]
+            # Добавляем новые слова
+            for word in content.lower().split():
+                if len(word) > 2:
+                    if word not in self.storage.word_index:
+                        self.storage.word_index[word] = set()
+                    self.storage.word_index[word].add(node_id)
+        
+        if node_type is not None:
+            if node_type != node.node_type:
+                # Обновляем nodes_by_type
+                if node.node_type in self.storage.nodes_by_type:
+                    if node_id in self.storage.nodes_by_type[node.node_type]:
+                        self.storage.nodes_by_type[node.node_type].remove(node_id)
+                if node_type not in self.storage.nodes_by_type:
+                    self.storage.nodes_by_type[node_type] = []
+                self.storage.nodes_by_type[node_type].append(node_id)
+            node.node_type = node_type
+        
+        if level is not None and level != node.level:
+            if node.level in self.storage.nodes_by_level:
+                if node_id in self.storage.nodes_by_level[node.level]:
+                    self.storage.nodes_by_level[node.level].remove(node_id)
+            if level not in self.storage.nodes_by_level:
+                self.storage.nodes_by_level[level] = []
+            self.storage.nodes_by_level[level].append(node_id)
+            node.level = level
+        
+        if confidence is not None:
+            node.confidence = confidence
+        
+        if metadata is not None:
+            node.metadata.update(metadata)
+        
+        if is_static is not None:
+            node.is_static = is_static
+        
+        if is_contradiction is not None:
+            node.is_contradiction = is_contradiction
+        
+        # Пересчёт embedding если content изменился
+        embedding_changed = content is not None and content != old_content
+        if recompute_embedding and embedding_changed:
+            self._vectorize_single_node(node_id)
+            node = self.storage.get_node(node_id)  # Получаем обновлённый узел
+            if node and node.embedding:
+                # Обновляем нормализованный embedding cache
+                import numpy as np
+                v = np.array(node.embedding)
+                v = v / (np.linalg.norm(v) + 1e-8)
+                self.storage._normalized_embeddings[node_id] = v
+        
+        # Ре-кластеризация если embedding изменился
+        if recluster and node and node.embedding:
+            new_embedding = node.embedding
+            if old_group and old_group in self.storage.semantic_groups:
+                # Уменьшаем счётчик старой группы
+                self.storage.semantic_groups[old_group].member_count = max(
+                    0, self.storage.semantic_groups[old_group].member_count - 1
+                )
+                # Удаляем из nodes_by_group старой группы
+                if old_group in self.storage.nodes_by_group and node_id in self.storage.nodes_by_group[old_group]:
+                    self.storage.nodes_by_group[old_group].remove(node_id)
+            
+            # Находим новую ближайшую группу
+            best_group = self.storage._find_nearest_group(
+                new_embedding, node.level, cluster_threshold=0.6
+            )
+            if best_group:
+                node.parent_group_id = best_group
+                if best_group in self.storage.semantic_groups:
+                    self.storage.semantic_groups[best_group].member_count += 1
+                if best_group not in self.storage.nodes_by_group:
+                    self.storage.nodes_by_group[best_group] = []
+                if node_id not in self.storage.nodes_by_group[best_group]:
+                    self.storage.nodes_by_group[best_group].append(node_id)
+        
+        # Сохраняем изменения
+        if node:
+            node.updated_at = time.time()
+            self.storage._save_node(node)
+        
+        # Инвалидируем кэш поиска
+        self._search_cache.invalidate(node_id)
+        
+        # Публикуем событие (1.1.3)
+        self._publish_event("memory.node_updated", {
+            "node_id": node_id,
+            "content_changed": embedding_changed,
+            "reclustered": recluster and embedding_changed,
+            "old_group": old_group,
+            "new_group": node.parent_group_id if node else None,
+            "version": node.version if node else None
+        })
+        
+        logger.info(f"Узел обновлён: {node_id}, v{node.version if node else '?'}")
+        return node
+    
+    def delete_node(
+        self,
+        node_id: str,
+        force: bool = False
+    ) -> bool:
+        """
+        Удалить узел из графа.
+        
+        Args:
+            node_id: ID узла для удаления
+            force: Принудительное удаление (игнорирует is_static)
+            
+        Returns:
+            True если удалён, False если не найден или защищён
+        """
+        node = self.storage.get_node(node_id)
+        if node is None:
+            logger.warning(f"Узел не найден для удаления: {node_id}")
+            return False
+        
+        # Проверка защищённых узлов
+        if node.is_static and not force:
+            logger.warning(f"Узел защищён (is_static=True): {node_id}. Используйте force=True")
+            self._publish_event("memory.node_delete_blocked", {
+                "node_id": node_id,
+                "reason": "protected_static"
+            })
+            return False
+        
+        # Запоминаем данные для события
+        old_group = node.parent_group_id
+        node_type = node.node_type
+        content_preview = node.content[:100] if len(node.content) > 100 else node.content
+        
+        # Удаляем связи
+        edges_removed = self.storage.remove_edges_for_node(node_id)
+        
+        # Удаляем из индексов
+        self.storage.remove_node_from_indexes(node_id, node)
+        
+        # Удаляем из nodes dict
+        del self.storage.nodes[node_id]
+        
+        # Удаляем из БД
+        conn = self.storage._get_connection()
+        conn.execute("DELETE FROM nodes WHERE id = ?", (node_id,))
+        conn.commit()
+        conn.close()
+        
+        # Удаляем embedding из кэша
+        if node_id in self.storage._normalized_embeddings:
+            del self.storage._normalized_embeddings[node_id]
+        
+        # Инвалидируем кэш поиска
+        self._search_cache.invalidate(node_id)
+        
+        # Инвалидируем кэш кластеров
+        if hasattr(self, '_clusters_cache'):
+            self._clusters_cache = None
+        
+        # Публикуем событие (1.1.3)
+        self._publish_event("memory.node_deleted", {
+            "node_id": node_id,
+            "node_type": node_type,
+            "old_group": old_group,
+            "edges_removed": edges_removed,
+            "content_preview": content_preview
+        })
+        
+        logger.info(f"Узел удалён: {node_id}, связей: {edges_removed}")
+        return True
     
     def add_knowledge(
         self,
