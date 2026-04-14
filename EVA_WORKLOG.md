@@ -71,12 +71,12 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 2.1 Model A File Not Found
 - **Проблема**: `Model A file not found: .../qwen2.5-3b-instruct-q4_k_m.gguf`
-- **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/core/brain_query.py` - исправить путь к Model A
+- **Статус**: ⚠️ НЕАКТУАЛЬНО - Model A (qwen2.5-3b) не используется в текущей архитектуре (qwen3 4b + coder)
+- **Файл**: Архитектура использует другую систему генерации
 
 ### 2.2 Tokenizer не загружается
-- **Проблема**: `Could not find tokenizer in any source`, `Tokenizer did not pass validation`
-- **Статус**: ⏳ В ОЧЕРЕДИ
+- **Проблема**: `Tokenizer вернул False (опциональный компонент)`
+- **Статус**: ⚠️ WARNING - токенизатор опциональный, система работает
 - **Файлы**: 
   - `eva_ai/response_generator.py`
   - `eva_ai/mlearning/hybrid_model_manager.py`
