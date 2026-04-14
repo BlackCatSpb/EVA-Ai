@@ -123,7 +123,7 @@ class UnifiedGenerator:
         logic_model_path: Optional[Path] = None,
         context_model_path: Optional[Path] = None,
         coder_model_path: Optional[Path] = None,
-        n_ctx: int = 16384,
+        n_ctx: int = 32768,
         n_threads: int = 4,
         fractal_graph=None,
         brain=None,
@@ -312,10 +312,11 @@ class UnifiedGenerator:
                 self._openvino_coder = OpenVINOGenerator(
                     model_path=coder_model,
                     device=self.gpu_device,
+                    max_tokens=4096,
                     performance_hint="THROUGHPUT",
                     scheduler_config=gpu_scheduler
                 )
-                logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog)")
+                logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096)")
             
             return True
             
@@ -383,13 +384,13 @@ class UnifiedGenerator:
             # Автоопределение оптимальных параметров CPU
             n_threads = self._detect_optimal_threads()
             
-            # Оптимальный контекст с учётом памяти для embedder
+            # Оптимальный контекст с учётом памяти для embedder (32768 = 2x16384)
             if model_type == ModelType.CONTEXT:
-                n_ctx = 16384  # Extended context
+                n_ctx = 32768  # Extended context
             elif model_type == ModelType.LOGIC:
-                n_ctx = 16384  # Оптимальный для RuadaptQwen3-4B
+                n_ctx = 32768  # Оптимальный для RuadaptQwen3-4B
             else:
-                n_ctx = 16384  # CODER - оставляем память для embedder
+                n_ctx = 32768  # CODER - оставляем память для embedder
             
             start = time.time()
             model = Llama(
