@@ -142,8 +142,10 @@ model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base",
             except Exception as e:
                 logger.warning(f"Ошибка векторизации через model: {e}")
         
-        # Fallback - случайные векторы (для тестирования)
-        return self._random_embeddings(len(texts), normalize)
+        # Fallback - возвращаем None вместо случайных векторов
+        # Случайные векторы ломают семантический поиск
+        logger.warning("Embedding model недоступен, возвращаю None")
+        return None
     
     def encode_single(
         self,

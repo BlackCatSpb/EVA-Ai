@@ -329,12 +329,16 @@ class FractalMemoryGraph:
             for i in range(0, len(contents_to_vectorize), batch_size):
                 batch = contents_to_vectorize[i:i + batch_size]
                 batch_embeddings = self.embeddings.encode(batch, normalize=True, show_progress=False)
+                if batch_embeddings is None:
+                    logger.warning("Embedding model недоступен, пропускаем векторизацию")
+                    break
                 all_embeddings.extend(batch_embeddings)
             
             # Присваиваем эмбеддинги узлам
             for idx, emb in zip(node_indices, all_embeddings):
-                nodes[idx].embedding = emb.tolist()
-                self.storage._save_node(nodes[idx])
+                if emb is not None:
+                    nodes[idx].embedding = emb.tolist()
+                    self.storage._save_node(nodes[idx])
         
         # Инкрементальная кластеризация
         if auto_cluster:
@@ -563,6 +567,10 @@ class FractalMemoryGraph:
         logger.debug(f"Batch encoding для {len(queries_to_process)} запросов...")
         query_embeddings = self.embeddings.encode(queries_to_process, normalize=True)
         
+        if query_embeddings is None:
+            logger.warning("Embedding model недоступен, возвращаю пустые результаты")
+            return results
+        
         # Поиск для каждого запроса
         for query, query_emb in zip(queries_to_process, query_embeddings):
             # Поиск в графе
@@ -690,9 +698,14 @@ class FractalMemoryGraph:
         texts = [node.content for node in nodes_to_vectorize]
         embeddings = self.embeddings.encode(texts, normalize=True)
         
+        if embeddings is None:
+            logger.warning("Embedding model недоступен, пропускаем векторизацию")
+            return
+        
         for node, emb in zip(nodes_to_vectorize, embeddings):
-            node.embedding = emb.tolist()
-            self.storage._save_node(node)
+            if emb is not None:
+                node.embedding = emb.tolist()
+                self.storage._save_node(node)
         
         logger.info("Векторизация завершена")
     
