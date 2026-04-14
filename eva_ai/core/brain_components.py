@@ -507,6 +507,15 @@ def _init_background(brain):
             brain.background.register_job_type(ModuleRecoveryJob)
         except Exception:
             pass
+        try:
+            from .opportunities.learning_detector import LearningOpportunityDetector
+            from .opportunities.web_discovery_detector import WebDiscoveryDetector
+            from .opportunities.recovery_detector import ModuleRecoveryDetector
+            brain.background.register_detector(LearningOpportunityDetector())
+            brain.background.register_detector(WebDiscoveryDetector())
+            brain.background.register_detector(ModuleRecoveryDetector())
+        except Exception as e:
+            logger.warning(f"Не удалось зарегистрировать Detectors: {e}")
     except Exception as e:
         logger.warning(f"Не удалось инициализировать BackgroundCoordinator: {e}")
         brain.background = None
