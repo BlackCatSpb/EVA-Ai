@@ -187,7 +187,7 @@
 ## 6.1 HybridCache / TokenCache
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 6.1.1 | **Pickle в 15+ местах без валидации** | [КРИТ] | [P] | 🔄 Частично: cache_disk.py, disk_cache.py заменены на JSON |
+| 6.1.1 | **Pickle в 15+ местах без валидации** | [КРИТ] | [P] | 🔄 Заменено: cache, disk_cache, fractal_torch_storage, fractal_weight_store. Осталось: storage/fractal_storage.py (tokenizer) |
 | 6.1.2 | 2 дубликата дискового кэша | [ВЫС] | [ ] | TokenDiskCache vs DiskCache |
 | 6.1.3 | LRUCache дублируется | [ВЫС] | [ ] | cache_ram.py == memory_cache.py |
 | 6.1.4 | Race conditions в UnifiedCacheBridge | [КРИТ] | [X] | ✅ Исправлено: добавлены locks в _load_state и save_state |
