@@ -254,14 +254,11 @@ class SystemStateManager:
             logger.error(f"Ошибка публикации события {event_type}: {e}")
     
     # Обработчики событий
-    def _handle_component_initialized(self, event=None):
+    def _handle_component_initialized(self, event):
         """Обработчик инициализации компонента"""
         component_name = None
         
-        if event is None:
-            # Вызов без аргументов
-            pass
-        elif isinstance(event, str):
+        if isinstance(event, str):
             component_name = event
         elif hasattr(event, 'data'):
             component_name = event.data.get('component')
@@ -271,14 +268,11 @@ class SystemStateManager:
         if component_name:
             self.update_component_state(component_name, ComponentState.READY)
     
-    def _handle_component_started(self, event=None):
+    def _handle_component_started(self, event):
         """Обработчик запуска компонента"""
         component_name = None
         
-        if event is None:
-            # Вызов без аргументов
-            pass
-        elif isinstance(event, str):
+        if isinstance(event, str):
             component_name = event
         elif hasattr(event, 'data'):
             component_name = event.data.get('component')
@@ -288,14 +282,11 @@ class SystemStateManager:
         if component_name:
             self.update_component_state(component_name, ComponentState.RUNNING)
     
-    def _handle_component_stopped(self, event=None):
+    def _handle_component_stopped(self, event):
         """Обработчик остановки компонента"""
         component_name = None
         
-        if event is None:
-            # Вызов без аргументов
-            pass
-        elif isinstance(event, str):
+        if isinstance(event, str):
             component_name = event
         elif hasattr(event, 'data'):
             component_name = event.data.get('component')

@@ -93,11 +93,8 @@ class EventBusBridge:
         for event_type in new_events:
             self.new_bus.subscribe(event_type, self._on_new_event)
     
-    def _on_new_event(self, event=None):
+    def _on_new_event(self, event):
         """Обработка нового события для old системы"""
-        if event is None:
-            return  # Silently ignore None events
-        
         if hasattr(event, 'event_type') and hasattr(event, 'source'):
             if self.old_system:
                 old_event = self._convert_to_old_format(event)
