@@ -87,8 +87,9 @@ memory/ → reasoning/ → generation/ → core brain
 
 ### 2.3 System Memory Critical (95-99%)
 - **Проблема**: `High memory_percent level: 95.4%`, `CRITICAL memory_percent level: 99.4%`
-- **Статус**: 🔨 В РАБОТЕ
-- **Файл**: `eva_ai/core/resource_manager.py` - оптимизация использования памяти
+- **Статус**: ⚠️ HARDWARE LIMITATION - 16GB RAM with 4B model + embeddings is at limit
+- **Файл**: `eva_ai/core/resource_manager.py` - пороги уже оптимизированы (95% warning)
+- **Примечание**: Требуется либо больше RAM, либо освободить память закрытием других приложений
 
 ---
 
