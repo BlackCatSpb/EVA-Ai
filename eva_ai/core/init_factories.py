@@ -510,9 +510,17 @@ def _load_model_into_graph(fg, initializer):
             model_config.get('model_a_gguf_path', '')
         ]
         
+        # Дедупликация путей
+        seen = set()
+        unique_paths = []
+        for p in model_paths:
+            if p and p not in seen:
+                seen.add(p)
+                unique_paths.append(p)
+        
         from eva_ai.memory.fractal_graph_v2.gguf_parser import extract_to_graph, clear_and_reload_model_graph
         
-        for model_path in model_paths:
+        for model_path in unique_paths:
             if model_path and os.path.exists(model_path):
                 initializer.logger.info(f"Загрузка данных модели в граф: {model_path}")
                 
