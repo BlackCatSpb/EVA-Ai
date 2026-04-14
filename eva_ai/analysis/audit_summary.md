@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (49 parallel agents across 9 cycles)  
+**Auditors:** AI Architect Agents (55 parallel agents across 10 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,14 +10,15 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 4.8/10 (снижена с 5.2)
+### Общая оценка системы: 4.6/10 (снижена с 4.8)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 9:**
-- SecurityFramework: SHA256 без соли, HARDCODED пароль admin:admin
-- FaultTolerance: 3 RecoveryManager, заглушка не используется
-- HealthMonitor: Нет EventBus интеграции, дублирование с SystemMonitor
-- SystemState: 3 копии SystemState enum, state_history не работает
-- UnifiedCacheBridge: Race conditions, nested deadlock, Pickle уязвимость
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 10:**
+- TokenDiskCache: Pickle уязвимость, 2 дубликата файла
+- TokenCacheManager: 6 компонентов создают НОВЫЕ инстансы вместо переиспользования
+- MemoryCacheIntegration: Создаёт РАЗНЫЕ экземпляры для brain и memory_manager
+- KnowledgeGraphCore: KG это обёртка над FGv2, баг в kg_adapter.py
+- CacheEvictionPolicy: 6 реализаций, TTL только частично, нет фоновой очистки
+- SelfReasoningEngine: НЕТ EventBus интеграции, 3 движка рассуждения
 
 ---
 
@@ -261,6 +262,14 @@
 - audit_security_framework.md (4/10) - SHA256 без соли, HARDCODED admin:admin (CVSS 9.8)
 - audit_fault_tolerance.md (2.5/10) - 3 RecoveryManager, заглушка FaultTolerance не используется
 
+**Цикл 10:** (кэширование, рассуждения)
+- audit_token_disk_cache.md (5/10) - Pickle уязвимость, нет TTL, 2 дубликата файла
+- audit_token_cache_manager.md (5.7/10) - 6 компонентов создают НОВЫЕ инстансы вместо переиспользования
+- audit_memory_cache_integration.md (5.25/10) - Brain и MemoryManager создают РАЗНЫЕ экземпляры
+- audit_knowledge_graph_core.md (7/10) - KG обёртка над FGv2, kg_adapter.py баг с edge_type
+- audit_cache_eviction.md (5.7/10) - 6 реализаций политик, TTL частично, нет фоновой очистки
+- audit_self_reasoning_engine.md (5.8/10) - НЕТ EventBus интеграции, 3 движка рассуждения
+
 ---
 
 ## 8. КРИТИЧЕСКИЕ ПРОБЛЕМЫ (НОВЫЕ)
@@ -493,22 +502,22 @@ core/response_generator.py: Line 191
 ## 12. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin
-- **Избыточности** — 3 RecoveryManager, 3 SystemState enum, 2 мониторинга
+- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, Pickle
+- **Избыточности** — 6 политик eviction, 3 движка рассуждения, 2 TokenDiskCache
 - **Сломанности** — extract_ambiguous_terms() не существует, FaultTolerance заглушка
-- **Изоляции** — компоненты не интегрированы в EventBus
+- **Изоляции** — SelfReasoningEngine без EventBus, компоненты не интегрированы
 - **Race conditions** — UnifiedCacheBridge без блокировок
 
 **Для production необходимо:**
 1. **УДАЛИТЬ backdoor admin:admin** из SecurityFramework
-2. Починить сломанные миграции
-3. Интегрировать разрозненные системы
-4. Объединить дублирующиеся модули
+2. **Заменить Pickle** на JSON/msgpack во всех кэшах
+3. **Добавить EventBus** в SelfReasoningEngine и FractalGraphV2
+4. **Устранить дублирование** — 6 eviction policy, 3 reasoning engines
 5. **ИСПРАВИТЬ КРИТИЧЕСКИЙ БАГ: extract_ambiguous_terms()**
 6. **ЗАРЕГИСТРИРОВАТЬ Detectors в BackgroundCoordinator**
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*49 специализированных агентов проверили 50+ компонентов*
+*55 специализированных агентов проверили 55+ компонентов*
 *April 14, 2026*
