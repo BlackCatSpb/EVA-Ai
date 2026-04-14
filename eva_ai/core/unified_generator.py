@@ -214,12 +214,13 @@ class UnifiedGenerator:
         try:
             from eva_ai.core.pie_model_paths import get_pie_model_path
             
-            # LOGIC и CONTEXT - одна модель ruadapt_qwen3_4b
+            # LOGIC - ruadapt_qwen3_4b condensed
             if logic_path is None:
                 logic_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
+            
+            # CONTEXT - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ: ruadapt_qwen3_4b_extended
             if context_path is None:
-                # CONTEXT использует тот же файл, но с другим n_ctx
-                context_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
+                context_path = get_pie_model_path('ruadapt_qwen3_4b_extended', 'extended')
             
             # CODER - отдельная модель
             if coder_path is None:
@@ -232,7 +233,7 @@ class UnifiedGenerator:
             if logic_path is None:
                 logic_path = base / "ruadapt_qwen3_4b_q4_k_m.gguf"
             if context_path is None:
-                context_path = base / "ruadapt_qwen3_4b_q4_k_m.gguf"
+                context_path = base / "ruadapt_qwen3_4b_extended" / "ruadapt_qwen3_4b_q4_k_m.gguf"
             if coder_path is None:
                 coder_path = base / "qwen2.5-coder-1.5b-instruct" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
         
@@ -244,6 +245,8 @@ class UnifiedGenerator:
             
         if coder_path and coder_path.exists():
             self._model_paths[ModelType.CODER] = coder_path
+        else:
+            logger.warning(f"CONTEXT model path not found: {context_path}")
     
     def _init_openvino(self, device: str = "CPU") -> bool:
         """Инициализировать OpenVINO Generator на указанном устройстве."""
@@ -269,10 +272,11 @@ class UnifiedGenerator:
     
     def _init_openvino_devices(self) -> bool:
         """
-        Инициализировать OpenVINO генераторы на CPU и GPU.
+        Инициализировать OpenVINO генераторы:
         
-        CPU: Logic/Context модель (основная генерация)
-        GPU: Coder модель (код + self-dialog)
+        CPU: Logic модель (краткие ответы)
+        GPU.0: Context модель (развёрнутые ответы)  
+        GPU.1: Coder модель (код + self-dialog)
         """
         try:
             import os
@@ -282,6 +286,7 @@ class UnifiedGenerator:
             logger.info(f"CPU cores detected: {cpu_count}")
             
             logic_model = self._model_paths.get(ModelType.LOGIC)
+            context_model = self._model_paths.get(ModelType.CONTEXT)
             coder_model = self._model_paths.get(ModelType.CODER)
             
             cpu_scheduler = {
@@ -298,6 +303,7 @@ class UnifiedGenerator:
                 'enable_prefix_caching': True
             }
             
+            # LOGIC - CPU (краткие логичные ответы)
             if logic_model:
                 self._openvino_cpu = OpenVINOGenerator(
                     model_path=logic_model,
@@ -306,10 +312,24 @@ class UnifiedGenerator:
                     scheduler_config=cpu_scheduler,
                     num_streams="AUTO"
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic/Context)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model)")
             
+            # CONTEXT - GPU.0 (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
+            if context_model:
+                context_device = "GPU.0"
+                self._openvino_gpu = OpenVINOGenerator(
+                    model_path=context_model,
+                    device=context_device,
+                    max_tokens=4096,
+                    performance_hint="THROUGHPUT",
+                    scheduler_config=gpu_scheduler
+                )
+                logger.info(f"GPU OpenVINO ready: {context_device} (Context model)")
+            else:
+                logger.warning(f"Context model not found: {context_model}")
+            
+            # CODER - GPU.1 (код + self-dialog)
             if coder_model:
-                # DEBUG: Skip coder model loading for faster startup
                 import os
                 if os.environ.get("EVA_SKIP_CODER", "0") != "1":
                     self._openvino_coder = OpenVINOGenerator(
@@ -319,7 +339,7 @@ class UnifiedGenerator:
                         performance_hint="THROUGHPUT",
                         scheduler_config=gpu_scheduler
                     )
-                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096)")
+                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog)")
                 else:
                     logger.info("DEBUG: Skipping coder model loading (EVA_SKIP_CODER=1)")
             
@@ -334,33 +354,43 @@ class UnifiedGenerator:
         Определить устройство и тип генератора для задачи.
         
         GPU → Coder: task_type=coder, task_type=self_dialog
-        CPU → Logic/Context: всё остальное
+        CPU → Logic: task_type=logic
+        GPU.0 → Context: task_type=context
         """
-        gpu_tasks = {'coder', 'self_dialog'}
+        task_device_map = {
+            'coder': ('gpu', 'coder'),
+            'self_dialog': ('gpu', 'coder'),
+            'context': ('gpu.0', 'context'),
+            'logic': ('cpu', 'logic'),
+        }
         
-        if task_type in gpu_tasks:
-            return ('gpu', task_type)
-        
-        return ('cpu', 'logic')
+        return task_device_map.get(task_type, ('cpu', 'logic'))
     
     def _get_generator_for_task(self, task_type: str):
         """
         Получить генератор для типа задачи.
         
         Args:
-            task_type: coder, self_dialog, или default
+            task_type: coder, self_dialog, context, logic, или default
             
         Returns:
             Tuple (generator, model_type)
         """
+        # CODER - GPU
         if task_type in ('coder', 'self_dialog') and self._openvino_coder:
             return (self._openvino_coder, ModelType.CODER)
         
+        # CONTEXT - GPU.0 (ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ)
+        if task_type == 'context' and self._openvino_gpu:
+            return (self._openvino_gpu, ModelType.CONTEXT)
+        
+        # LOGIC - CPU
         if self._openvino_cpu:
             return (self._openvino_cpu, ModelType.LOGIC)
         
-        if self._openvino_coder:
-            return (self._openvino_coder, ModelType.CODER)
+        # Fallback: если нет Context, используем CPU
+        if self._openvino_cpu:
+            return (self._openvino_cpu, ModelType.LOGIC)
         
         return (None, None)
     

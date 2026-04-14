@@ -17,9 +17,13 @@ PIE_MODELS_BASE = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_archi
 
 # Пути к конкретным моделям
 PIE_MODEL_PATHS = {
-    # Основная модель: ruadapt_qwen3_4b (используется для LOGIC и CONTEXT)
+    # Основная модель: ruadapt_qwen3_4b - CONDENSED (Logic)
     "ruadapt_qwen3_4b": {
         "condensed": PIE_MODELS_BASE / "gguf_models" / "ruadapt_qwen3_4b_q4_k_m.gguf",
+    },
+    # Extended модель: ruadapt_qwen3_4b - EXTENDED (Context) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
+    "ruadapt_qwen3_4b_extended": {
+        "extended": PIE_MODELS_BASE / "gguf_models" / "ruadapt_qwen3_4b_extended" / "ruadapt_qwen3_4b_q4_k_m.gguf",
     },
     # Модель для кода: qwen_coder_1_5b
     "qwen_coder_1_5b": {
