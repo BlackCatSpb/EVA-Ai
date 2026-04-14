@@ -74,6 +74,7 @@ class PipelineAdapter:
             temperature = params.get('temperature', 0.7)
             
             # Используем итеративную генерацию с проверкой противоречий
+            # task_type='query' для CRITICAL приоритета в ModelAccessManager
             result = self._generator.generate_iterative(
                 query=query,
                 context=None,
@@ -81,7 +82,8 @@ class PipelineAdapter:
                 max_tokens_context=4096,
                 temperature=temperature,
                 check_contradictions=True,
-                check_concepts=True
+                check_concepts=True,
+                task_type='query'
             )
             
             # Формируем ответ в формате TwoModelPipeline
