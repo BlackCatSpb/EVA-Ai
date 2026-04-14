@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (60 parallel agents across 11 cycles)  
+**Auditors:** AI Architect Agents (64 parallel agents across 12 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,14 +10,13 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 4.4/10 (снижена с 4.6)
+### Общая оценка системы: 4.2/10 (снижена с 4.4)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 11:**
-- EthicsFramework: 2 версии класса (framework_core vs ethics_core), конфликт имён
-- GenerationSubsystem: ТРОЙНАЯ абстракция без добавленной ценности
-- StorageSubsystem: 8 случаев Pickle, мёртвый код storage/fractal_storage.py
-- Runtime: НЕ ИСПОЛЬЗУЕТСЯ, конкурирует с DeferredCommandSystem
-- Adapters: 9 адаптеров, 3 из них orphaned,central adapters без EventBus
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 12:**
+- Analytics: Дубликат ContradictionAnalyzer, missing methods, вызывает runtime errors
+- Tools: 3 мёртвых файла из 5, 2 используются (document_reader, import_pipeline)
+- Training: КРИТИЧЕСКИЙ БАГ - self.output_dir НЕ определён, AttributeError
+- MemorySubsystem: 2 критических дубликата (LRUCache, TokenDiskCache), 5 Pickle случаев
 
 ---
 
@@ -275,6 +274,12 @@
 - audit_storage_subsystem.md (3.7/10) - 8 Pickle случаев, мёртвый код storage/fractal_storage.py
 - audit_runtime.md (3/10) - НЕ ИСПОЛЬЗУЕТСЯ, конкурирует с DeferredCommandSystem
 - audit_adapters.md (6.5/10) - 9 адаптеров, 3 orphaned, центральные без EventBus
+
+**Цикл 12:** (tools, analytics, training, memory)
+- audit_analytics.md (4.7/10) - Дубликат ContradictionAnalyzer, missing methods, runtime errors
+- audit_tools.md (4.4/10) - 3 мёртвых файла, 2 используются
+- audit_training.md (3.5/10) - КРИТИЧЕСКИЙ БАГ: self.output_dir НЕ определён
+- audit_memory_subsystem.md (4/10) - 2 критических дубликата, 5 Pickle случаев
 
 ---
 
@@ -560,25 +565,61 @@ core/response_generator.py: Line 191
 
 ---
 
-## 13. ВЫВОДЫ
+## 13. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 12)
+
+### 13.1 Analytics - DUPLICATE ContradictionAnalyzer (4.7/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Дубликат | contradiction_analyzer.py vs contradiction_analysis.py |
+| Missing methods | get_system_analytics(), get_metrics() не реализованы |
+| Runtime errors | engine_analysis.py вызывает несуществующие методы |
+
+### 13.2 Tools - 3 МЁРТВЫХ ФАЙЛА (4.4/10)
+
+| Файл | Статус |
+|------|--------|
+| document_reader.py | ✅ Используется |
+| import_pipeline.py | ✅ Используется |
+| system_generation_analysis.py | ❌ МЁРТВЫЙ |
+| layer_expertise_analysis.py | ❌ МЁРТВЫЙ |
+| dependency_scan.py | ❌ МЁРТВЫЙ |
+
+### 13.3 Training - КРИТИЧЕСКИЙ БАГ (3.5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| **self.output_dir НЕ определён** | AttributeError при вызове _save_lora_adapters() |
+| TrainingJob ссылается на удалённый | memory_graph_trainer = None |
+| Hardcoded Windows путь | os.getcwd() + "eva" |
+
+### 13.4 MemorySubsystem - 2 КРИТИЧЕСКИХ ДУБЛИКАТА (4/10)
+
+| Дубликат | Файлы |
+|----------|--------|
+| LRUCache | cache_ram.py == memory_cache.py |
+| TokenDiskCache | cache_disk.py vs disk_cache.py |
+
+---
+
+## 14. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, 8 Pickle случаев
-- **Избыточности** — 6 политик eviction, 3 движка рассуждения, 3 orphaned adapters
-- **Сломанности** — extract_ambiguous_terms() не существует, Runtime не используется
-- **Изоляции** — SelfReasoningEngine без EventBus, EthicsFramework конфликт имён
-- **Race conditions** — UnifiedCacheBridge без блокировок
+- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin, 10+ Pickle случаев
+- **Мёртвого кода** — 10+ файлов не используются
+- **Дублирования** — LRUCache, ContradictionAnalyzer, EthicsFramework
+- **Критических багов** — self.output_dir НЕ определён, extract_ambiguous_terms()
+- **Изоляции** — большинство компонентов без EventBus
 
 **Для production необходимо:**
 1. **УДАЛИТЬ backdoor admin:admin** из SecurityFramework
-2. **Заменить Pickle** на JSON/msgpack во всех кэшах (8 случаев)
-3. **Добавить EventBus** в SelfReasoningEngine и FractalGraphV2
-4. **Устранить дублирование** — EthicsFramework, 3 reasoning engines
-5. **УДАЛИТЬ мёртвый код** — runtime/, storage/fractal_storage.py
-6. **ИСПРАВИТЬ extract_ambiguous_terms()** или удалить вызовы
+2. **Заменить Pickle** на JSON/msgpack (10+ случаев)
+3. **ИСПРАВИТЬ БАГИ** — self.output_dir, extract_ambiguous_terms()
+4. **УДАЛИТЬ мёртвый код** — 10+ файлов
+5. **Устранить дублирование** — LRUCache, ContradictionAnalyzer
 
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*60 специализированных агентов проверили 60+ компонентов*
+*64 специализированных агентов проверили 64+ компонентов*
 *April 14, 2026*
