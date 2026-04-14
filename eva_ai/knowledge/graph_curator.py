@@ -78,6 +78,11 @@ class GraphCurator:
         self.cleanup_enabled = self.config.get('cleanup_enabled', True)
         self.promotion_enabled = self.config.get('promotion_enabled', True)
         
+        # EventBus
+        self._event_bus = None
+        if self.brain and hasattr(self.brain, 'events'):
+            self._event_bus = self.brain.events
+        
         logger.info(f"GraphCurator initialized (FGv2)")
     
     def _get_fractal_graph(self):
@@ -189,6 +194,14 @@ class GraphCurator:
                 
                 logger.debug(f"Curation completed: cycle #{self.metrics['cycles_completed']}")
                 
+                if self._event_bus:
+                    self._event_bus.publish("curator.graph_optimized", {
+                        "cycles": self.metrics['cycles_completed'],
+                        "nodes_promoted": self.metrics.get('nodes_promoted', 0),
+                        "nodes_demoted": self.metrics.get('nodes_demoted', 0),
+                        "nodes_consolidated": self.metrics.get('nodes_consolidated', 0)
+                    })
+                
             except Exception as e:
                 logger.error(f"Curation error: {e}")
                 self.metrics['last_error'] = str(e)
@@ -251,6 +264,11 @@ class GraphCurator:
         
         if nodes_to_remove:
             logger.info(f"Cleaned up {len(nodes_to_remove)} garbage nodes")
+            if self._event_bus:
+                self._event_bus.publish("curator.cleanup_done", {
+                    "nodes_removed": len(nodes_to_remove),
+                    "total_removed": self.metrics.get('nodes_removed', 0)
+                })
     
     def _process_level_promotions(self, storage):
         """
