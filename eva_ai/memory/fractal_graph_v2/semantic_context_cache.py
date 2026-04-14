@@ -121,8 +121,14 @@ class SemanticContextCache:
         
         return embedding
     
-    def _compute_embedding(self, text: str) -> np.ndarray:
-        """Вычислить эмбеддинг (CPU эмбеддер)."""
+    def _compute_embedding(self, text: str) -> Optional[np.ndarray]:
+        """
+        Вычислить эмбеддинг (CPU эмбеддер).
+        
+        Returns:
+            np.ndarray или None если эмбеддинг не работает.
+            Случайные векторы НЕ возвращаются - они ломают семантический поиск.
+        """
         try:
             from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
             
@@ -139,20 +145,20 @@ class SemanticContextCache:
             return emb.astype(np.float32)
             
         except Exception as e:
-            logger.debug(f"Embedding failed: {e}")
-            return np.random.randn(self.embedding_dim).astype(np.float32) * 0.1
+            logger.warning(f"Embedding failed: {e} - context will not be indexed")
+            return None
     
     def add(
         self, 
         text: str, 
         session_id: str = None,
         metadata: Dict[str, Any] = None
-    ) -> str:
+    ) -> Optional[str]:
         """
         Добавить контекст в кэш.
         
         Returns:
-            context_id
+            context_id или None если embedding недоступен.
         """
         with self._lock:
             context_id = hashlib.sha256(text.encode()).hexdigest()[:16]
@@ -165,6 +171,11 @@ class SemanticContextCache:
                 return context_id
             
             embedding = self._get_embedding(text)
+            
+            # Если embedding не работает - не добавляем в индекс
+            if embedding is None:
+                logger.warning(f"Skipping index for context {context_id[:8]}... - embedding unavailable")
+                return None
             
             entry = ContextEntry(
                 text=text,
