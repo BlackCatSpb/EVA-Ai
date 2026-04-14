@@ -270,7 +270,9 @@ class FractalMemoryGraph:
         metadata: Optional[Dict] = None,
         auto_vectorize: bool = True,
         auto_cluster: bool = True,
-        cluster_threshold: float = 0.6
+        cluster_threshold: float = 0.6,
+        is_static: bool = False,
+        is_contradiction: bool = False
     ) -> FractalNode:
         """
         Добавить узел в граф.
@@ -284,6 +286,8 @@ class FractalMemoryGraph:
             auto_vectorize: Автоматически вычислить эмбеддинг
             auto_cluster: Автоматически присоединить к ближайшей группе
             cluster_threshold: Порог similarity для кластеризации
+            is_static: Защищённый узел (не удаляется без force)
+            is_contradiction: Узел-противоречие
             
         Returns:
             FractalNode
@@ -294,7 +298,9 @@ class FractalMemoryGraph:
             level=level,
             confidence=confidence,
             metadata=metadata,
-            auto_cluster=False  # Кластеризация после векторизации
+            auto_cluster=False,  # Кластеризация после векторизации
+            is_static=is_static,
+            is_contradiction=is_contradiction
         )
         
         if auto_vectorize:
@@ -582,7 +588,7 @@ class FractalMemoryGraph:
         Returns:
             True если удалён, False если не найден или защищён
         """
-        node = self.storage.get_node(node_id)
+        node = self.get_node(node_id)
         if node is None:
             logger.warning(f"Узел не найден для удаления: {node_id}")
             return False

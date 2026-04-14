@@ -77,6 +77,10 @@ class FractalGraphV2:
         
         logger.info(f"FractalGraphV2 инициализирован: {len(self.nodes)} узлов, {len(self.semantic_groups)} групп")
     
+    def _get_connection(self):
+        """Получить соединение с БД."""
+        return sqlite3.connect(self.db_path)
+    
     def _init_database(self):
         """Инициализация SQLite БД с таблицами для фрактального графа."""
         conn = sqlite3.connect(self.db_path)
