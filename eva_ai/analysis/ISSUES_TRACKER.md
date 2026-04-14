@@ -77,7 +77,7 @@
 |---|----------|----------|--------|-------------|
 | 1.1.1 | Priority игнорируется - FIFO вместо приоритетов | [КРИТ] | [X] | ✅ Исправлено: PriorityQueue с (priority, timestamp, event) |
 | 1.1.2 | EventBus синглтон anti-pattern | [ВЫС] | [ ] | Рекомендуется dependency injection |
-| 1.1.3 | 90% компонентов не интегрированы | [КРИТ] | [P] | 🔄 FractalMemoryGraph ✅, осталось: SelfReasoningEngine, EthicsFramework |
+| 1.1.3 | 90% компонентов не интегрированы | [КРИТ] | [X] | ✅ SelfReasoningEngine (pipeline.start/complete/failed), EthicsFramework (ethics.assessment/violation/warning), IntegratedEthicsFramework |
 | 1.1.4 | Signal handler signatures (event=None → event) | [КРИТ] | [X] | Исправлено: brain_coordination, system_state, event_bus_bridge |
 
 ## 1.2 ModelAccessManager
