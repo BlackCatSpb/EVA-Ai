@@ -120,9 +120,11 @@ memory/ → reasoning/ → generation/ → core brain
 - **Файл**: `eva_ai/contradiction/contradiction_generator.py`
 
 ### 4.3 Tavily API Key Not Found
-- **Проблема**: `Tavily API key not found` - все web search запросы падают
-- **Статус**: 🔨 В РАБОТЕ
-- **Файл**: `eva_ai/websearch.py` - проверить конфигурацию API key
+- **Проблема**: `Tavily API key not found` - API key искался в корне конфига, а лежит в `web_search.tavily_api_key`
+- **Статус**: ✅ ГОТОВО
+- **Файлы**: 
+  - `eva_ai/websearch/web_search_integrated.py` - исправлен путь к tavily_api_key
+  - `eva_ai/gui/web_gui/server_api_wikipedia.py` - исправлен путь к tavily_api_key
 
 ---
 
@@ -142,3 +144,4 @@ memory/ → reasoning/ → generation/ → core brain
 | 1 | - | EventBus 3-element tuple fix | event_bus.py | ✅ DONE |
 | 2 | 2026-04-14 | Signal handler signatures (4 метода) | brain_coordination.py, system_state.py, event_bus_bridge.py | ✅ DONE |
 | 3 | 2026-04-14 | MemoryManager deferred commands with hasattr check | manager_core.py | ✅ DONE |
+| 4 | 2026-04-14 | Tavily API Key path fix (config.web_search.tavily_api_key) | web_search_integrated.py, server_api_wikipedia.py | ✅ DONE |

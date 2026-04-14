@@ -52,7 +52,7 @@ def tavily_search(query: str, api_key: str = None, max_results: int = 5) -> Dict
     """Выполняет поиск через Tavily API (синхронная версия)"""
     if not api_key:
         config = load_brain_config()
-        api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+        api_key = config.get('web_search', {}).get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
         logger.info(f"Loaded config, checking for tavily_api_key: found={bool(api_key)}")
     
     if not api_key:
@@ -109,7 +109,7 @@ async def tavily_search_async(
     """
     if not api_key:
         config = load_brain_config()
-        api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+        api_key = config.get('web_search', {}).get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
         logger.info(f"[ASYNC] Loaded config, checking for tavily_api_key: found={bool(api_key)}")
     
     if not api_key:

@@ -66,7 +66,7 @@ def increment_quota():
 
 def tavily_search(query: str, max_results: int = 5):
     config = load_brain_config()
-    api_key = config.get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
+    api_key = config.get('web_search', {}).get('tavily_api_key') or os.environ.get('TAVILY_API_KEY')
     if not api_key:
         return {"error": "Tavily API key не найден", "results": []}
 
