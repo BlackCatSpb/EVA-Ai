@@ -10,8 +10,6 @@ from typing import Dict, List, Optional, Any, Set
 from enum import Enum
 from collections import defaultdict
 
-from eva_ai.core.event_bus import Event, EventPriority
-
 logger = logging.getLogger("eva_ai.graph_curator")
 
 
@@ -197,18 +195,13 @@ class GraphCurator:
                 logger.debug(f"Curation completed: cycle #{self.metrics['cycles_completed']}")
                 
                 if self._event_bus:
-                    event = Event(
-                        event_type="curator.graph_optimized",
-                        source="graph_curator",
-                        data={
-                            "cycles": self.metrics['cycles_completed'],
-                            "nodes_promoted": self.metrics.get('nodes_promoted', 0),
-                            "nodes_demoted": self.metrics.get('nodes_demoted', 0),
-                            "nodes_consolidated": self.metrics.get('nodes_consolidated', 0)
-                        },
-                        priority=EventPriority.LOW
-                    )
-                    self._event_bus.publish(event)
+                    event_data = {
+                        "cycles": self.metrics['cycles_completed'],
+                        "nodes_promoted": self.metrics.get('nodes_promoted', 0),
+                        "nodes_demoted": self.metrics.get('nodes_demoted', 0),
+                        "nodes_consolidated": self.metrics.get('nodes_consolidated', 0)
+                    }
+                    self._event_bus.publish(event_data)
                 
             except Exception as e:
                 logger.error(f"Curation error: {e}")
@@ -273,16 +266,11 @@ class GraphCurator:
         if nodes_to_remove:
             logger.info(f"Cleaned up {len(nodes_to_remove)} garbage nodes")
             if self._event_bus:
-                event = Event(
-                    event_type="curator.cleanup_done",
-                    source="graph_curator",
-                    data={
-                        "nodes_removed": len(nodes_to_remove),
-                        "total_removed": self.metrics.get('nodes_removed', 0)
-                    },
-                    priority=EventPriority.LOW
-                )
-                self._event_bus.publish(event)
+                event_data = {
+                    "nodes_removed": len(nodes_to_remove),
+                    "total_removed": self.metrics.get('nodes_removed', 0)
+                }
+                self._event_bus.publish(event_data)
     
     def _process_level_promotions(self, storage):
         """
