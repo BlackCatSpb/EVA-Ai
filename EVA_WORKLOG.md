@@ -75,16 +75,16 @@ memory/ → reasoning/ → generation/ → core brain
 - **Файл**: `eva_ai/core/brain_query.py` - исправить путь к Model A
 
 ### 2.2 Tokenizer не загружается
-- **Проблема**: `Не удалось найти токенизатор ни в одном из источников`, `Токенизатор не прошел валидацию`
+- **Проблема**: `Could not find tokenizer in any source`, `Tokenizer did not pass validation`
 - **Статус**: ⏳ В ОЧЕРЕДИ
 - **Файлы**: 
   - `eva_ai/response_generator.py`
   - `eva_ai/mlearning/hybrid_model_manager.py`
 
-### 2.3 GPU Memory Critical (103.6%)
-- **Проблема**: `КРИТИЧЕСКИЙ уровень gpu_memory: 103.6%`
+### 2.3 System Memory Critical (95-99%)
+- **Проблема**: `High memory_percent level: 95.4%`, `CRITICAL memory_percent level: 99.4%`
 - **Статус**: ⏳ В ОЧЕРЕДИ
-- **Файл**: `eva_ai/core/resource_manager.py` - оптимизация использования GPU
+- **Файл**: `eva_ai/core/resource_manager.py` - оптимизация использования памяти
 
 ---
 
@@ -94,6 +94,11 @@ memory/ → reasoning/ → generation/ → core brain
 - **Проблема**: ConceptMiner делает O(n²) на лету
 - **Статус**: ⏳ В ОЧЕРЕДИ
 - **Файл**: `eva_ai/memory/fractal_graph_v2/` - реализовать метод get_clusters()
+
+### 3.2 Knowledge Graph Factory Not Found
+- **Проблема**: `[WARN] Factory for knowledge_graph not found - skipped`
+- **Статус**: ⏳ В ОЧЕРЕДИ
+- **Файл**: `eva_ai/component_initializer.py` - проверить регистрацию factory
 
 ---
 
@@ -108,6 +113,11 @@ memory/ → reasoning/ → generation/ → core brain
 - **Проблема**: Создан, но не интегрирован в brain_query
 - **Статус**: ⏳ В ОЧЕРЕДИ
 - **Файл**: `eva_ai/contradiction/contradiction_generator.py`
+
+### 4.3 Tavily API Key Not Found
+- **Проблема**: `Tavily API key not found` - все web search запросы падают
+- **Статус**: ⏳ В ОЧЕРЕДИ
+- **Файл**: `eva_ai/websearch.py` - проверить конфигурацию API key
 
 ---
 
