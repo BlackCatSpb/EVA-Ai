@@ -104,7 +104,7 @@
 |---|----------|----------|--------|-------------|
 | 2.1.1 | **Метод `get_clusters()` НЕ СУЩЕСТВУЕТ** | [КРИТ] | [X] | ✅ Исправлено: добавлен get_clusters() с кэшированием |
 | 2.1.2 | SQLite без WAL | [ВЫС] | [ ] | Блокировка записи при чтении |
-| 2.1.3 | Embedding fallback на случайные векторы | [КРИТ] | [ ] | Ломает семантический поиск |
+| 2.1.3 | Embedding fallback на случайные векторы | [КРИТ] | [X] | ✅ Исправлено: SemanticContextCache._compute_embedding() возвращает None |
 | 2.1.4 | kg_adapter.py - баг `edge_type` vs `relation_type` | [ВЫС] | [P] | Частично: KG адаптер удалён, create_knowledge_components |
 | 2.1.5 | FractalMemoryGraph не публикует события | [ВЫС] | [ ] | Нет memory.node_created, memory.graph_updated |
 
