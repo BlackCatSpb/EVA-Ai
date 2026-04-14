@@ -16,6 +16,8 @@ from dataclasses import dataclass
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from eva_ai.core.event_bus import Event, EventPriority
+
 logger = logging.getLogger("eva_ai.model_access")
 
 
@@ -196,12 +198,17 @@ class ModelAccessManager:
         logger.debug(f"Queued request {request_id}: priority={priority.name}, task={task_type}")
         
         if self.event_bus:
-            self.event_bus.publish("model.request", {
-                'request_id': request_id,
-                'priority': priority.name,
-                'task_type': task_type,
-                'queue_size': self.request_queue.qsize()
-            })
+            self.event_bus.publish(Event(
+                event_type="model.request",
+                source="model_access_manager",
+                data={
+                    'request_id': request_id,
+                    'priority': priority.name,
+                    'task_type': task_type,
+                    'queue_size': self.request_queue.qsize()
+                },
+                priority=EventPriority.HIGH
+            ))
         
         return request_id
     
@@ -275,11 +282,16 @@ class ModelAccessManager:
                     self.stats['completed'] += 1
                     
                     if self.event_bus:
-                        self.event_bus.publish("model.completed", {
-                            'request_id': request_id,
-                            'task_type': request.task_type,
-                            'elapsed': time.time() - request.created_at
-                        })
+                        self.event_bus.publish(Event(
+                            event_type="model.completed",
+                            source="model_access_manager",
+                            data={
+                                'request_id': request_id,
+                                'task_type': request.task_type,
+                                'elapsed': time.time() - request.created_at
+                            },
+                            priority=EventPriority.NORMAL
+                        ))
                     
                 except Exception as e:
                     logger.error(f"Request {request_id} failed: {e}")
@@ -288,11 +300,16 @@ class ModelAccessManager:
                     self.stats['failed'] += 1
                     
                     if self.event_bus:
-                        self.event_bus.publish("model.failed", {
-                            'request_id': request_id,
-                            'task_type': request.task_type,
-                            'error': str(e)
-                        })
+                        self.event_bus.publish(Event(
+                            event_type="model.failed",
+                            source="model_access_manager",
+                            data={
+                                'request_id': request_id,
+                                'task_type': request.task_type,
+                                'error': str(e)
+                            },
+                            priority=EventPriority.HIGH
+                        ))
                 
                 finally:
                     with self._access_lock:
@@ -375,7 +392,12 @@ class ModelAccessContext:
     
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.event_bus and self.request_id:
-            self.event_bus.publish("model.release", {'request_id': self.request_id})
+            self.event_bus.publish(Event(
+                event_type="model.release",
+                source="model_access_manager",
+                data={'request_id': self.request_id},
+                priority=EventPriority.NORMAL
+            ))
         return False
     
     def _dummy_callback(self):
