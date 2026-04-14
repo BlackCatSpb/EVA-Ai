@@ -1,7 +1,7 @@
 # EVA System Architecture Audit Report
 
 **Date:** April 14, 2026  
-**Auditors:** AI Architect Agents (43 parallel agents across 8 cycles)  
+**Auditors:** AI Architect Agents (49 parallel agents across 9 cycles)  
 **Document reviewed:** `system_flow_v2.md`
 
 ---
@@ -10,14 +10,14 @@
 
 Полный аудит системы EVA выявил критические проблемы: избыточные компоненты, заглушки, сломанные миграции и отсутствие интеграции.
 
-### Общая оценка системы: 5.2/10 (снижена с 5.4)
+### Общая оценка системы: 4.8/10 (снижена с 5.2)
 
-**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 8:**
-- BackgroundCoordinator: Detectors НЕ зарегистрированы (автопилот сломан)
-- SnapshotManager: Per-request instantiation ломает персистентность
-- EmbeddingsManager: CPU fallback по умолчанию, hash() нестабилен
-- ResponseGenerator: extract_ambiguous_terms() критический баг подтверждён
-- component_managers.py: Все 8 классов - ЗАГЛУШКИ, рекомендуется удаление
+**КРИТИЧЕСКИЕ ПРОБЛЕМЫ ВЫЯВЛЕНЫ В ЦИКЛЕ 9:**
+- SecurityFramework: SHA256 без соли, HARDCODED пароль admin:admin
+- FaultTolerance: 3 RecoveryManager, заглушка не используется
+- HealthMonitor: Нет EventBus интеграции, дублирование с SystemMonitor
+- SystemState: 3 копии SystemState enum, state_history не работает
+- UnifiedCacheBridge: Race conditions, nested deadlock, Pickle уязвимость
 
 ---
 
@@ -253,6 +253,14 @@
 - audit_response_generator.md (3/10) - extract_ambiguous_terms() критический баг подтверждён
 - audit_component_managers.md (3/10) - Все 8 классов ЗАГЛУШКИ, рекомендуется удаление
 
+**Цикл 9:** (безопасность, устойчивость, кэширование)
+- audit_lru_cache.md (6.5/10) - Нет фоновой очистки TTL,invalidate чистит весь кэш
+- audit_system_state.md (5.5/10) - 3 копии SystemState enum, state_history не работает
+- audit_health_monitor.md (3/10) - Нет EventBus, дублирование с SystemMonitor
+- audit_unified_cache_bridge.md (4.5/10) - Race conditions, nested deadlock, Pickle уязвимость
+- audit_security_framework.md (4/10) - SHA256 без соли, HARDCODED admin:admin (CVSS 9.8)
+- audit_fault_tolerance.md (2.5/10) - 3 RecoveryManager, заглушка FaultTolerance не используется
+
 ---
 
 ## 8. КРИТИЧЕСКИЕ ПРОБЛЕМЫ (НОВЫЕ)
@@ -422,16 +430,77 @@ core/response_generator.py: Line 191
 
 ---
 
-## 11. ВЫВОДЫ
+## 11. НОВЫЕ КРИТИЧЕСКИЕ ПРОБЛЕМЫ (ЦИКЛ 9)
+
+### 11.1 SecurityFramework - КРИТИЧЕСКАЯ УЯЗВИМОСТЬ (4/10)
+
+| Уязвимость | Файл | Строка | CVSS |
+|------------|------|--------|------|
+| SHA256 без соли | security_framework.py | 137 | 9.1 |
+| **HARDCODED `admin:admin`** | security_framework.py | 141 | **9.8** |
+| Нет salt | security_framework.py | 137 | 8.2 |
+| Нет key stretching | security_framework.py | 137 | 8.5 |
+
+**Рекомендация:** УДАЛИТЬ backdoor, заменить SHA256 на PBKDF2/bcrypt
+
+### 11.2 FaultTolerance - 3 RECOVERY MANAGER (2.5/10)
+
+| Компонент | Путь | Статус |
+|-----------|------|--------|
+| FaultTolerance | system/fault_tolerance.py | ЗАГЛУШКА - НЕ ИСПОЛЬЗУЕТСЯ |
+| RecoveryManager | recovery/recovery_system.py | ПОЛНАЯ РЕАЛИЗАЦИЯ - ORPHAN |
+| RecoveryManager | distributed/distributed_recovery_manager.py | Частично интегрирован |
+| RecoveryManager | core/component_managers.py | ЗАГЛУШКА |
+
+**Рекомендация:** Интегрировать recovery_system.py, удалить дубликаты
+
+### 11.3 HealthMonitor - НЕТ EVENTBUS (3/10)
+
+| Проблема | Описание |
+|----------|----------|
+| HealthMonitor | Нет EventBus интеграции |
+| SystemMonitor | Создаётся но НЕ ИСПОЛЬЗУЕТСЯ |
+| Дублирование | 2 независимых системы мониторинга |
+
+### 11.4 SystemState - 3 КОПИИ ENUM (5.5/10)
+
+| Файл | SystemState enum |
+|------|-----------------|
+| core/system_state.py | 8 состояний |
+| core/core_brain_types.py | 14 состояний (расширенный) |
+| core/brain_state.py | fallback |
+
+**Проблема:** state_history объявлен но НИКОГДА не заполняется
+
+### 11.5 UnifiedCacheBridge - RACE CONDITIONS (4.5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Race conditions | _load_state(), save_state() без блокировок |
+| Nested deadlock | _add_token_impl() → _save_token_to_disk() → deadlock |
+| Pickle | cache_disk.py использует pickle.loads() |
+
+### 11.6 LRUCacheWithTTL - НЕТ ФОНОВОЙ ОЧИСТКИ (6.5/10)
+
+| Проблема | Описание |
+|----------|----------|
+| Нет фоновой очистки | Просроченные записи удаляются только при get() |
+| invalidate_all | Чистит весь кэш вместо паттернов |
+| TTL eviction | Не учитывает TTL при вытеснении |
+
+---
+
+## 12. ВЫВОДЫ
 
 Система EVA имеет хороший фундамент, но страдает от:
-- **Избыточности** — 8 заглушек в component_managers.py
-- **Сломанности** — extract_ambiguous_terms() не существует, автопилот сломан
+- **Уязвимостей** — SHA256 без соли, HARDCODED admin:admin
+- **Избыточности** — 3 RecoveryManager, 3 SystemState enum, 2 мониторинга
+- **Сломанности** — extract_ambiguous_terms() не существует, FaultTolerance заглушка
 - **Изоляции** — компоненты не интегрированы в EventBus
-- **Персистентности** — SnapshotManager создаётся на каждый запрос
+- **Race conditions** — UnifiedCacheBridge без блокировок
 
 **Для production необходимо:**
-1. Удалить избыточные компоненты (component_managers.py)
+1. **УДАЛИТЬ backdoor admin:admin** из SecurityFramework
 2. Починить сломанные миграции
 3. Интегрировать разрозненные системы
 4. Объединить дублирующиеся модули
@@ -441,5 +510,5 @@ core/response_generator.py: Line 191
 ---
 
 *Отчёт подготовлен AI Architect Agents*
-*43 специализированных агентов проверили 43+ компонентов*
+*49 специализированных агентов проверили 50+ компонентов*
 *April 14, 2026*
