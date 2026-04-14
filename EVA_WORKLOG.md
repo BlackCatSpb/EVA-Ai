@@ -80,11 +80,10 @@ memory/ → reasoning/ → generation/ → core brain
 - **Статус**: ⚠️ НЕАКТУАЛЬНО - Model A (qwen2.5-3b) не используется в текущей архитектуре (qwen3 4b + coder)
 
 ### 2.2 Tokenizer не загружается
-- **Проблема**: `Tokenizer вернул False (опциональный компонент)`
-- **Статус**: 🔨 В РАБОТЕ
+- **Проблема**: `Tokenizer вернул False (опциональный компонент)` - WARNING в логах
+- **Статус**: ✅ ИСПРАВЛЕНО
 - **Файлы**: 
-  - `eva_ai/response_generator.py`
-  - `eva_ai/mlearning/hybrid_model_manager.py`
+  - `eva_ai/core/event_system.py` - изменён уровень логирования с WARNING на INFO для опциональных компонентов
 
 ### 2.3 System Memory Critical (95-99%)
 - **Проблема**: `High memory_percent level: 95.4%`, `CRITICAL memory_percent level: 99.4%`
@@ -145,3 +144,4 @@ memory/ → reasoning/ → generation/ → core brain
 | 2 | 2026-04-14 | Signal handler signatures (4 метода) | brain_coordination.py, system_state.py, event_bus_bridge.py | ✅ DONE |
 | 3 | 2026-04-14 | MemoryManager deferred commands with hasattr check | manager_core.py | ✅ DONE |
 | 4 | 2026-04-14 | Tavily API Key path fix (config.web_search.tavily_api_key) | web_search_integrated.py, server_api_wikipedia.py | ✅ DONE |
+| 5 | 2026-04-14 | Tokenizer optional component logging - WARNING to INFO | event_system.py | ✅ DONE |
