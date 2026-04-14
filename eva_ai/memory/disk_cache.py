@@ -4,7 +4,7 @@
 """
 
 import os
-import pickle
+import json
 import sqlite3
 import time
 import zlib
@@ -246,8 +246,8 @@ class DiskCache:
         try:
             file_path = os.path.join(self.cache_dir, f"{key}.pkl")
             
-            # Сериализация и сжатие
-            serialized = pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
+            # Сериализация и сжатие (JSON вместо pickle для безопасности)
+            serialized = json.dumps(data, ensure_ascii=False).encode('utf-8')
             compressed = zlib.compress(serialized)
             # Глобальный системный троттлинг IO (если доступен)
             try:
@@ -341,8 +341,8 @@ class DiskCache:
                     logger.error(f"Ошибка декомпрессии для ключа {key}: {e}")
                     return None
                 try:
-                    return pickle.loads(decompressed, fix_imports=True, encoding='bytes', errors='strict')
-                except (pickle.UnpicklingError, AttributeError, ValueError) as e:
+                    return json.loads(decompressed.decode('utf-8'))
+                except (json.JSONDecodeError, UnicodeDecodeError) as e:
                     logger.error(f"Ошибка десериализации для ключа {key}: {e}")
                     return None
                 

@@ -94,12 +94,12 @@ class TokenDiskCache:
                     return None
 
                 try:
-                    token_data = pickle.loads(data, fix_imports=True, encoding='bytes', errors='strict')
+                    token_data = json.loads(data.decode('utf-8'))
                     if not isinstance(token_data, dict):
                         logger.error(f"Invalid token data type: {type(token_data)}")
                         self._remove_file(token_id)
                         return None
-                except (pickle.UnpicklingError, AttributeError, ValueError) as e:
+                except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as e:
                     logger.error(f"Ошибка десериализации токена {token_id}: {e}")
                     self._remove_file(token_id)
                     return None
@@ -118,8 +118,7 @@ class TokenDiskCache:
     def put(self, token_id: str, token_data: Dict) -> bool:
         with self._lock:
             try:
-                import pickle
-                data = pickle.dumps(token_data)
+                data = json.dumps(token_data, ensure_ascii=False).encode('utf-8')
                 data_size = len(data)
 
                 if data_size > 100 * 1024 * 1024:
