@@ -21,6 +21,12 @@ from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("eva_ai.core.hybrid_adapter")
 
+try:
+    from .model_access_manager import ModelAccessManager, AccessPriority
+except ImportError:
+    ModelAccessManager = None
+    AccessPriority = None
+
 
 class HybridPipelineAdapter:
     """
@@ -82,6 +88,17 @@ class HybridPipelineAdapter:
         self.fractal_pipeline = None
         self.dual_generator = None
         self.recursive_pipeline = None
+        
+        # ModelAccessManager для координации доступа к модели
+        self._model_access = None
+        if ModelAccessManager is not None:
+            try:
+                event_bus = getattr(brain, 'events', None) if brain else None
+                self._model_access = ModelAccessManager(event_bus=event_bus, max_workers=2)
+                logger.info("HybridPipelineAdapter: ModelAccessManager initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize ModelAccessManager: {e}")
+                self._model_access = None
         
         if load_models:
             self._init_pipelines(**kwargs)
@@ -344,7 +361,22 @@ class HybridPipelineAdapter:
             })
             step_num += 1
             
-            gen_result = self.dual_generator.generate(query, mode=generation_mode, return_details=True)
+            if self._model_access is not None:
+                request_id = self._model_access.request_access(
+                    priority=AccessPriority.CRITICAL,
+                    task_type='query',
+                    callback=self._do_dual_generate,
+                    query=query,
+                    generation_mode=generation_mode,
+                    timeout=60.0
+                )
+                try:
+                    gen_result = self._model_access.get_result(request_id, timeout=60.0)
+                except Exception as e:
+                    logger.warning(f"ModelAccessManager error, falling back to direct call: {e}")
+                    gen_result = self.dual_generator.generate(query, mode=generation_mode, return_details=True)
+            else:
+                gen_result = self.dual_generator.generate(query, mode=generation_mode, return_details=True)
             
             if isinstance(gen_result, dict):
                 response = gen_result.get('response', '')
@@ -403,6 +435,10 @@ class HybridPipelineAdapter:
         except Exception as e:
             logger.error(f"Ошибка DualGenerator: {e}")
             return self._error_response(query, str(e))
+    
+    def _do_dual_generate(self, query: str, generation_mode: str) -> Any:
+        """Выполняет генерацию через DualGenerator (вызывается через ModelAccessManager)."""
+        return self.dual_generator.generate(query, mode=generation_mode, return_details=True)
     
     def _process_recursive(
         self, 
