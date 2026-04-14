@@ -272,7 +272,7 @@ class ConceptExtractor:
     
     def save_concept_to_graph(self, concept: Concept) -> Optional[str]:
         """
-        Сохраняет концепт в FractalGraph v2.
+        Сохраняет концепт в FractalGraph v2 и hybrid_cache.
         
         Args:
             concept: Концепт для сохранения
@@ -305,12 +305,43 @@ class ConceptExtractor:
                 self._save_concept_facts(node.id, concept.facts)
                 
                 logger.debug(f"Концепт '{concept.name}' сохранён с ID {node.id}")
+                
+                # СОХРАНЯЕМ В HYBRID_CACHE
+                self._save_concept_to_cache(concept)
+                
                 return node.id
             
         except Exception as e:
             logger.error(f"Ошибка сохранения концепта '{concept.name}': {e}")
         
         return None
+    
+    def _save_concept_to_cache(self, concept: Concept) -> None:
+        """Сохраняет концепт в hybrid_cache для быстрого поиска."""
+        if not self.brain:
+            return
+        
+        try:
+            hybrid_cache = getattr(self.brain, 'hybrid_cache', None)
+            if not hybrid_cache:
+                return
+            
+            concept_data = {
+                'name': concept.name,
+                'description': concept.description,
+                'domain': concept.domain,
+                'confidence': concept.confidence,
+                'related_terms': concept.related_terms,
+                'facts': concept.facts,
+                'status': 'extracted'
+            }
+            
+            concept_id = f"{concept.name}_{int(time.time())}"
+            hybrid_cache.add_concept(concept_id, concept_data, ttl=86400)
+            logger.debug(f"Концепт '{concept.name}' сохранён в hybrid_cache")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка сохранения концепта в кеш: {e}")
     
     def _save_concept_facts(self, concept_id: str, facts: List[Dict[str, Any]]):
         """Сохраняет факты о концепте как свойства узла."""
@@ -354,6 +385,8 @@ class ConceptExtractor:
         """
         Извлекает концепты из запроса и формирует промпт для генерации.
         
+        Сначала ищет в FractalGraph, затем в hybrid_cache.
+        
         Args:
             query: Запрос пользователя
             max_concepts: Максимум концептов
@@ -371,17 +404,24 @@ class ConceptExtractor:
             prompt_parts = []
             found_count = 0
             
-            for term in terms[:max_concepts * 2]:  # Берём с запасом
-                if found_count >= max_concepts:
-                    break
+            # 1. СНАЧАЛА ищем в гибридном кеше (быстрый поиск)
+            cache_context = self._get_concepts_from_cache(query, terms, max_concepts)
+            if cache_context:
+                prompt_parts.append(cache_context)
+                found_count = len(cache_context.split('\n')) - 2  # Примерное количество
+            
+            # 2. Затем добираем из FractalGraph если нужно
+            if found_count < max_concepts:
+                for term in terms[:max_concepts * 2]:
+                    if found_count >= max_concepts:
+                        break
                     
-                # Ищем концепт в графе
-                facts = self.get_concept_facts(term)
-                if facts:
-                    fact_texts = [f.get('value', '') for f in facts[:2]]
-                    if fact_texts:
-                        prompt_parts.append(f"[{term}]: {', '.join(fact_texts)}")
-                        found_count += 1
+                    facts = self.get_concept_facts(term)
+                    if facts:
+                        fact_texts = [f.get('value', '') for f in facts[:2]]
+                        if fact_texts:
+                            prompt_parts.append(f"[{term}]: {', '.join(fact_texts)}")
+                            found_count += 1
             
             if prompt_parts:
                 return "\n".join(["Известные концепты:", *prompt_parts, ""])
@@ -391,6 +431,27 @@ class ConceptExtractor:
         except Exception as e:
             logger.debug(f"Ошибка формирования промпта концептов: {e}")
             return ""
+    
+    def _get_concepts_from_cache(self, query: str, terms: List[str], max_concepts: int) -> str:
+        """Получает концепты из hybrid_cache."""
+        if not self.brain:
+            return ""
+        
+        try:
+            hybrid_cache = getattr(self.brain, 'hybrid_cache', None)
+            if not hybrid_cache or not hasattr(hybrid_cache, 'get_concepts_for_prompt'):
+                return ""
+            
+            # Используем метод кеша для поиска
+            cache_result = hybrid_cache.get_concepts_for_prompt(query, limit=max_concepts)
+            if cache_result:
+                logger.debug(f"Концепты из кеша: {len(cache_result)}")
+                return cache_result
+            
+        except Exception as e:
+            logger.debug(f"Ошибка получения концептов из кеша: {e}")
+        
+        return ""
     
     def save_learned_concept(self, concept_name: str, new_facts: List[str], source: str = "dialog"):
         """

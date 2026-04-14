@@ -330,6 +330,8 @@ class ContradictionGenerator:
         """
         Получает противоречия для концепта и формирует промпт.
         
+        Сначала ищет в ContradictionManager, затем в hybrid_cache.
+        
         Args:
             concept_name: Имя концепта
             
@@ -338,6 +340,63 @@ class ContradictionGenerator:
         """
         if not self.brain:
             return ""
+        
+        try:
+            # 1. СНАЧАЛА ищем в ContradictionManager
+            cm = getattr(self.brain, 'contradiction_manager', None)
+            if cm and hasattr(cm, 'contradictions'):
+                relevant_contradictions = []
+                for c in cm.contradictions:
+                    if isinstance(c, dict) and c.get('concept') == concept_name:
+                        if c.get('status') == 'detected':
+                            facts = c.get('conflicting_facts', [])
+                            if len(facts) >= 2:
+                                relevant_contradictions.append({
+                                    'view_a': facts[0].get('value', ''),
+                                    'view_b': facts[1].get('value', '')
+                                })
+                
+                if relevant_contradictions:
+                    return self._format_contradiction_prompt(concept_name, relevant_contradictions)
+            
+            # 2. Если не нашли - ищем в hybrid_cache
+            cache_result = self._get_contradictions_from_cache(concept_name)
+            if cache_result:
+                return cache_result
+            
+            return ""
+            
+        except Exception as e:
+            logger.debug(f"Ошибка формирования промпта противоречий: {e}")
+            return ""
+    
+    def _get_contradictions_from_cache(self, concept_name: str) -> str:
+        """Получает противоречия из hybrid_cache."""
+        try:
+            hybrid_cache = getattr(self.brain, 'hybrid_cache', None)
+            if not hybrid_cache or not hasattr(hybrid_cache, 'get_contradictions_for_prompt'):
+                return ""
+            
+            cache_result = hybrid_cache.get_contradictions_for_prompt(concept_name, limit=3)
+            if cache_result:
+                logger.debug(f"Противоречия из кеша для '{concept_name}'")
+                return cache_result
+            
+        except Exception as e:
+            logger.debug(f"Ошибка получения противоречий из кеша: {e}")
+        
+        return ""
+    
+    def _format_contradiction_prompt(self, concept_name: str, contradictions: list) -> str:
+        """Форматирует противоречия в промпт."""
+        prompt_parts = [f"Известные противоречивые точки зрения по '{concept_name}':"]
+        for i, contr in enumerate(contradictions[:2], 1):
+            prompt_parts.append(f"  {i}A. {contr['view_a'][:100]}")
+            prompt_parts.append(f"  {i}B. {contr['view_b'][:100]}")
+        
+        prompt_parts.append("При ответе учитывай обе точки зрения и предложи сбалансированный подход.")
+        
+        return "\n".join(prompt_parts)
         
         try:
             cm = getattr(self.brain, 'contradiction_manager', None)

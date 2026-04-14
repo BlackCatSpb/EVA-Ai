@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from ..core.base_component import BaseComponent
 from .contradiction_core import OptimizedContradictionDetector
@@ -96,7 +97,7 @@ class ContradictionManager(BaseComponent):
 
     def add_contradiction(self, contradiction: Dict[str, Any]):
         """
-        Добавляет новое противоречие в список
+        Добавляет новое противоречие в список и hybrid_cache
         
         Args:
             contradiction: Словарь с данными о противоречии
@@ -112,6 +113,45 @@ class ContradictionManager(BaseComponent):
         # Добавляем концепции в known_concepts
         if 'concepts' in contradiction:
             self.known_concepts.update(contradiction['concepts'])
+        
+        # СОХРАНЯЕМ В HYBRID_CACHE
+        self._save_contradiction_to_cache(contradiction)
+    
+    def _save_contradiction_to_cache(self, contradiction: Dict[str, Any]) -> None:
+        """Сохраняет противоречие в hybrid_cache."""
+        if not self.brain:
+            return
+        
+        try:
+            hybrid_cache = getattr(self.brain, 'hybrid_cache', None)
+            if not hybrid_cache:
+                return
+            
+            contradiction_id = contradiction.get('id', f"contr_{int(time.time())}")
+            
+            contradiction_data = {
+                'concept': contradiction.get('concept', ''),
+                'viewpoint_a': '',
+                'viewpoint_b': '',
+                'divergence_level': contradiction.get('divergence_level', 0.5),
+                'reasoning_a': '',
+                'reasoning_b': '',
+                'status': contradiction.get('status', 'pending'),
+                'resolution': contradiction.get('resolution', '')
+            }
+            
+            conflicting_facts = contradiction.get('conflicting_facts', [])
+            if len(conflicting_facts) >= 2:
+                contradiction_data['viewpoint_a'] = conflicting_facts[0].get('value', '')
+                contradiction_data['viewpoint_b'] = conflicting_facts[1].get('value', '')
+                contradiction_data['reasoning_a'] = conflicting_facts[0].get('reasoning', '')
+                contradiction_data['reasoning_b'] = conflicting_facts[1].get('reasoning', '')
+            
+            hybrid_cache.add_contradiction(contradiction_id, contradiction_data, ttl=86400)
+            logger.debug(f"Противоречие '{contradiction_id}' сохранено в hybrid_cache")
+            
+        except Exception as e:
+            logger.debug(f"Ошибка сохранения противоречия в кеш: {e}")
 
     def get_contradictions(self) -> List[Dict[str, Any]]:
         """Возвращает список всех обнаруженных противоречий"""
