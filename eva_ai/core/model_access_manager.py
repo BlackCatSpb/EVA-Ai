@@ -113,8 +113,9 @@ class ModelAccessManager:
         except Exception as e:
             logger.debug(f"EventBus subscription error: {e}")
     
-    def _on_model_request(self, data: Dict[str, Any]):
+    def _on_model_request(self, event):
         """Обработка запроса на модель от EventBus."""
+        data = event.data if hasattr(event, 'data') else event
         request_id = data.get('request_id')
         priority = data.get('priority', 'NORMAL')
         task_type = data.get('task_type', 'query')
@@ -125,14 +126,15 @@ class ModelAccessManager:
         
         self.stats['total_requests'] += 1
     
-    def _on_model_release(self, data: Dict[str, Any]):
+    def _on_model_release(self, event):
         """Обработка освобождения модели."""
+        data = event.data if hasattr(event, 'data') else event
         request_id = data.get('request_id')
         if request_id == self._current_request_id:
             self._model_busy = False
             self._current_request_id = None
     
-    def _on_model_status(self, data: Dict[str, Any]):
+    def _on_model_status(self, event):
         """Обработка запроса статуса."""
         pass
     
