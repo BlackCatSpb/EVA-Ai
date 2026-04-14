@@ -94,10 +94,14 @@ class SelfReasoningEngine:
         }
     }
 
-    def __init__(self, brain, config: Optional[Dict[str, Any]] = None, two_model_pipeline=None):
+    def __init__(self, brain, config: Optional[Dict[str, Any]] = None, two_model_pipeline=None, event_bus=None):
         self.brain = brain
         self.config = config or {}
         self.two_model_pipeline = two_model_pipeline
+        
+        self._event_bus = event_bus
+        if self._event_bus is None and brain:
+            self._event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
 
         self.max_iterations = self.config.get('max_iterations', MAX_ITERATIONS)
         self.confidence_threshold = self.config.get('confidence_threshold', CONFIDENCE_THRESHOLD)
@@ -132,7 +136,64 @@ class SelfReasoningEngine:
         self.total_iterations = 0
         self.recursive_calls = 0
 
+        self._subscription_ids: List[str] = []
+        self._setup_event_bus_subscriptions()
+
         logger.info(f"SelfReasoningEngine инициализирован: max_iterations={self.max_iterations}, recursion_depth={self.max_recursion_depth}")
+    
+    def _setup_event_bus_subscriptions(self):
+        """Подписка на события EventBus."""
+        if not self._event_bus:
+            return
+        
+        try:
+            events_to_subscribe = [
+                ("system.idle", "_on_system_idle"),
+            ]
+            
+            for event_type, handler_name in events_to_subscribe:
+                if hasattr(self, handler_name):
+                    handler = getattr(self, handler_name)
+                    sub_id = self._event_bus.subscribe(event_type, handler, priority=5)
+                    self._subscription_ids.append(sub_id)
+                    logger.debug(f"SRE подписка на {event_type}: {sub_id}")
+            
+            if self._subscription_ids:
+                logger.info(f"SelfReasoningEngine подписан на {len(self._subscription_ids)} событий шины")
+        except Exception as e:
+            logger.debug(f"Ошибка подписки SelfReasoningEngine на события: {e}")
+    
+    def _on_system_idle(self, event):
+        """При простое системы - можно выполнить фоновые задачи reasoning."""
+        if self._event_bus:
+            try:
+                from eva_ai.core.event_bus import Event, EventPriority
+                self._event_bus.publish(Event(
+                    event_type="reasoning.idle_check",
+                    source="self_reasoning_engine",
+                    data={'status': 'ready'},
+                    priority=EventPriority.LOW
+                ))
+            except Exception as e:
+                logger.debug(f"Не удалось опубликовать reasoning.idle_check: {e}")
+    
+    def _publish_pipeline_event(self, event_type: str, data: Dict[str, Any], priority=None):
+        """Публикует событие pipeline в EventBus."""
+        if not self._event_bus:
+            return
+        
+        try:
+            from eva_ai.core.event_bus import Event, EventPriority
+            if priority is None:
+                priority = EventPriority.NORMAL
+            self._event_bus.publish(Event(
+                event_type=event_type,
+                source="self_reasoning_engine",
+                data=data,
+                priority=priority
+            ))
+        except Exception as e:
+            logger.debug(f"Не удалось опубликовать событие {event_type}: {e}")
 
     def _init_fractal_components(self):
         """Инициализация FractalRetriever и FractalEmbedder"""
@@ -158,6 +219,8 @@ class SelfReasoningEngine:
     def process_query(self, query: str, user_context: Optional[Dict] = None) -> Dict[str, Any]:
         start_time = time.time()
         self.total_queries += 1
+
+        self._publish_pipeline_event("pipeline.start", {'query': query[:100], 'source': 'self_reasoning_engine'})
 
         conversation_history = []
         if user_context and 'conversation_history' in user_context:
@@ -289,6 +352,12 @@ class SelfReasoningEngine:
 
                 logger.info(f"Two-Model Pipeline завершён: {decision_reason}")
 
+                self._publish_pipeline_event("pipeline.complete", {
+                    'query_type': query_type,
+                    'confidence': final_confidence,
+                    'processing_time': time.time() - start_time
+                })
+
                 return {
                     "response": final_response,
                     "text": final_response,
@@ -305,11 +374,19 @@ class SelfReasoningEngine:
             except Exception as e:
                 logger.error(f"Ошибка Two-Model Pipeline в SelfReasoningEngine: {e}", exc_info=True)
                 logger.warning("Падение Two-Model Pipeline - пробуем fallback")
+                self._publish_pipeline_event("pipeline.failed", {
+                    'error': str(e),
+                    'fallback': 'recursive_or_simple'
+                }, priority=3)
         else:
             logger.error("Two-Model Pipeline НЕДОСТУПЕН - нет резервного метода генерации")
             logger.error(f"self.two_model_pipeline: {self.two_model_pipeline is not None}")
             if self.brain:
                 logger.error(f"brain.two_model_pipeline: {hasattr(self.brain, 'two_model_pipeline')}")
+            self._publish_pipeline_event("pipeline.failed", {
+                'error': 'pipeline_unavailable',
+                'reason': 'Two-Model Pipeline не инициализирован'
+            }, priority=4)
             return {
                 "response": "Ошибка: Two-Model Pipeline недоступен.",
                 "text": "Ошибка: Two-Model Pipeline недоступен.",

@@ -422,7 +422,8 @@ def create_adaptation_manager(initializer):
 def create_ethics_framework(initializer):
     try:
         from eva_ai.ethics.ethics_framework import EthicsFramework
-        ethics_framework = EthicsFramework(brain=initializer.core_brain)
+        event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
+        ethics_framework = EthicsFramework(brain=initializer.core_brain, event_bus=event_bus)
         initializer.core_brain.ethics_framework = ethics_framework
         initializer.logger.info("[OK] EthicsFramework создан")
         return ethics_framework
@@ -687,10 +688,13 @@ def create_self_reasoning_engine(initializer):
         fractal_storage = getattr(initializer.core_brain, 'fractal_storage', None)
 
         two_model_pipeline = getattr(initializer.core_brain, 'two_model_pipeline', None)
+        
+        event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
 
         self_reasoning_engine = SelfReasoningEngine(
             brain=initializer.core_brain,
             two_model_pipeline=two_model_pipeline,
+            event_bus=event_bus,
             config={
                 'max_iterations': reasoning_config.get('max_iterations', 5),
                 'confidence_threshold': reasoning_config.get('confidence_threshold', 0.75),

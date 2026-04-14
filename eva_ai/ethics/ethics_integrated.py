@@ -36,7 +36,7 @@ class IntegratedEthicsFramework(BaseComponent):
         self._original_framework = None
         if ORIGINAL_AVAILABLE:
             try:
-                self._original_framework = EthicsFramework()
+                self._original_framework = EthicsFramework(brain=brain, event_bus=event_bus)
                 logger.info("Оригинальный EthicsFramework инициализирован")
             except Exception as e:
                 logger.error(f"Ошибка инициализации оригинального фреймворка: {e}")

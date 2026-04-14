@@ -24,19 +24,24 @@ class EthicsFramework(EthicsPrinciplesMixin, EthicsChecksMixin, EthicsViolations
     - Отслеживание и анализ этических решений
     """
 
-    def __init__(self, brain=None, cache_dir: Optional[str] = None):
+    def __init__(self, brain=None, cache_dir: Optional[str] = None, event_bus=None):
         """
         Инициализирует этическую рамку.
 
         Args:
             brain: Ссылка на ядро ЕВА (опционально)
             cache_dir: Путь к директории кэша (опционально)
+            event_bus: EventBus для публикации событий (опционально)
         """
         self.brain = brain
         self.cache_dir = cache_dir or os.path.join(os.getcwd(), "ethics_cache")
         self.initialized = False
         self.running = False
         self.stop_event = threading.Event()
+
+        self._event_bus = event_bus
+        if self._event_bus is None and brain:
+            self._event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
 
         os.makedirs(self.cache_dir, exist_ok=True)
 

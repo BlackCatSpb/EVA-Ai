@@ -132,7 +132,7 @@ class RecursiveModelPipeline:
     def _init_ethics_framework(self):
         try:
             from eva_ai.ethics.ethics_core import EthicsFramework
-            self.ethics_framework = EthicsFramework()
+            self.ethics_framework = EthicsFramework(brain=None, event_bus=self.event_bus)
             logger.info("EthicsFramework инициализирован")
         except ImportError as e:
             logger.warning(f"EthicsFramework не найден: {e}")

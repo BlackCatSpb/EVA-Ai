@@ -16,17 +16,23 @@ logger = logging.getLogger("eva_ai.ethics.core")
 class EthicsFramework:
     """Основной модуль этической рамки ЕВА."""
     
-    def __init__(self, brain=None, cache_dir: Optional[str] = None):
+    def __init__(self, brain=None, cache_dir: Optional[str] = None, event_bus=None):
         """
         Инициализирует этическую рамку.
         
         Args:
             brain: Ссылка на ядро ЕВА (опционально)
             cache_dir: Путь к директории кэша (опционально)
+            event_bus: EventBus для публикации событий (опционально)
         """
         self.brain = brain
         self.cache_dir = cache_dir or os.path.join(os.path.dirname(__file__), "eva_ethics_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
+        
+        # EventBus для публикации событий
+        self._event_bus = event_bus
+        if self._event_bus is None and brain:
+            self._event_bus = getattr(brain, 'event_bus', None) or getattr(brain, '_new_event_bus', None)
         
         # Блокировка ресурсов
         self.lock = threading.Lock()
@@ -115,6 +121,8 @@ class EthicsFramework:
                     self.stats["high_risk_situations"] += 1
             
             logger.info(f"Этическая оценка завершена. Решение: {decision.decision}")
+            
+            self._publish_assessment_event(decision, context)
             return decision
             
         except Exception as e:
@@ -134,6 +142,49 @@ class EthicsFramework:
             assessment=[],
             requires_human_review=True
         )
+    
+    def _publish_assessment_event(self, decision: 'EthicalDecision', context: Dict[str, Any]):
+        """Публикует события этической оценки в EventBus."""
+        if not self._event_bus:
+            return
+        
+        try:
+            from eva_ai.core.event_bus import Event, EventPriority
+            
+            data = {
+                'decision': decision.decision,
+                'confidence': decision.confidence,
+                'requires_human_review': decision.requires_human_review,
+                'query': context.get('query', ''),
+                'assessment_count': len(decision.assessment)
+            }
+            
+            self._event_bus.publish(Event(
+                event_type="ethics.assessment",
+                source="ethics_framework",
+                data=data,
+                priority=EventPriority.NORMAL
+            ))
+            
+            for assessment in decision.assessment:
+                if assessment.violation_detected:
+                    violation_data = {
+                        'severity': assessment.severity,
+                        'principle': assessment.principle,
+                        'description': assessment.description,
+                        'query': context.get('query', '')
+                    }
+                    
+                    event_type = "ethics.violation" if assessment.severity == "high" else "ethics.warning"
+                    self._event_bus.publish(Event(
+                        event_type=event_type,
+                        source="ethics_framework",
+                        data=violation_data,
+                        priority=EventPriority.HIGH if assessment.severity == "high" else EventPriority.NORMAL
+                    ))
+                    
+        except Exception as e:
+            logger.debug(f"Не удалось опубликовать событие этической оценки: {e}")
     
     def needs_ethical_review(self, context: Dict[str, Any]) -> bool:
         """

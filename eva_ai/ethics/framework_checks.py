@@ -129,6 +129,7 @@ class EthicsChecksMixin:
                 logger.warning(f"Обнаружено {len(violations)} этических нарушений в запросе")
                 for violation in violations:
                     logger.warning(f"Нарушение: {violation.principle} (серьезность: {violation.severity:.2f})")
+                self._publish_ethics_events(violations, context)
             else:
                 logger.info("Запрос прошел этическую проверку успешно")
 
@@ -478,3 +479,37 @@ class EthicsChecksMixin:
         prompt += "\n\nПереформулируй ответ, устранив нарушения. Будь этичной."
 
         return prompt
+    
+    def _publish_ethics_events(self, violations: List['EthicalDecision'], context: Optional[Dict[str, Any]]):
+        """Публикует события этических нарушений в EventBus."""
+        event_bus = getattr(self, '_event_bus', None)
+        if not event_bus:
+            return
+        
+        try:
+            from eva_ai.core.event_bus import Event, EventPriority
+            
+            for violation in violations:
+                violation_data = {
+                    'principle': violation.principle,
+                    'severity': violation.severity,
+                    'description': violation.description,
+                    'context': context
+                }
+                
+                if violation.severity > 0.9:
+                    event_type = "ethics.violation"
+                    priority = EventPriority.HIGH
+                else:
+                    event_type = "ethics.warning"
+                    priority = EventPriority.NORMAL
+                
+                event_bus.publish(Event(
+                    event_type=event_type,
+                    source="ethics_framework",
+                    data=violation_data,
+                    priority=priority
+                ))
+                
+        except Exception as e:
+            logger.debug(f"Не удалось опубликовать событие этического нарушения: {e}")
