@@ -464,9 +464,20 @@ def create_fractal_graph_v2(initializer):
         
         from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
         config = initializer.core_brain.config.get('fractal_graph_v2', {}) if hasattr(initializer.core_brain, 'config') else {}
+        
+        embedding_device = config.get('embedding_device', None)
+        if embedding_device is None:
+            try:
+                import torch
+                embedding_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                initializer.logger.info(f"Auto-detected embedding device: {embedding_device}")
+            except ImportError:
+                embedding_device = 'cpu'
+                initializer.logger.info("PyTorch not available, using CPU for embeddings")
+        
         fg = FractalMemoryGraph(
             storage_dir=config.get('storage_dir'),
-            embedding_device=config.get('embedding_device', 'cpu')
+            embedding_device=embedding_device
         )
         initializer.core_brain.fractal_graph_v2 = fg
         
