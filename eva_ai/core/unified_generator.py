@@ -292,26 +292,27 @@ class UnifiedGenerator:
             coder_model = self._model_paths.get(ModelType.CODER)
             
             # LOGIC scheduler - оптимизирован для LATENCY (краткие ответы)
+            # cache_size в GB - уменьшено для экономии RAM (ранее было до 4GB)
             logic_scheduler = {
-                'cache_size': min(4, cpu_count // 2),  # Большой кэш для повторных запросов
-                'max_num_seqs': min(4, cpu_count // 2),  # Меньше параллельных для быстрого отклика
+                'cache_size': 2,  # 2GB KV cache (было до 4GB на 8+ ядрах)
+                'max_num_seqs': 2,  # Меньше параллельных для быстрого отклика
                 'max_num_batched_tokens': 1152,  # 36 слоёв * 8 KV heads * 2 = 576 минимум
                 'enable_prefix_caching': True
             }
             
             # CONTEXT scheduler - оптимизирован для длинных контекстов
             context_scheduler = {
-                'cache_size': min(2, cpu_count // 4),
-                'max_num_seqs': min(8, cpu_count),  # Больше параллельных
+                'cache_size': 2,  # 2GB KV cache (было до 2GB)
+                'max_num_seqs': 4,  # Умеренно параллельных
                 'max_num_batched_tokens': 2048,  # Больше для длинных запросов
                 'enable_prefix_caching': True
             }
             
             # CODER scheduler - оптимизирован для THROUGHPUT (код)
             coder_scheduler = {
-                'cache_size': 2,
-                'max_num_seqs': 8,  # Максимум параллельных
-                'max_num_batched_tokens': 3072,  # Больше для кода
+                'cache_size': 1,  # 1GB KV cache - достаточно для кода
+                'max_num_seqs': 4,  # Умеренно параллельных
+                'max_num_batched_tokens': 2048,  # Для кода
                 'enable_prefix_caching': True
             }
             

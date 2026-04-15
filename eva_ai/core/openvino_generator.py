@@ -385,6 +385,8 @@ class OpenVINOGenerator:
             elif self.device == "CPU":
                 config["NUM_STREAMS"] = "AUTO"
             
+            # Оптимизация памяти для Intel iGPU/CPU
+            # cache_size в GB - уменьшено для экономии RAM
             if self.scheduler_config:
                 scheduler = ov_genai.SchedulerConfig()
                 if 'cache_size' in self.scheduler_config:
