@@ -165,34 +165,16 @@ def register_chat_routes(app, web_gui_instance):
                     
                     # Используем HybridKnowledgeDialogManager если доступен
                     if dialog_manager:
-                        logger.info("Processing with HybridKnowledgeDialogManager...")
+                        logger.info("Processing with HybridKnowledgeDialogManager streaming...")
                         try:
-                            # Добавляем сообщение пользователя
-                            dialog_manager.add_message("user", message)
-                            
-                            # Генерируем ответ
-                            import asyncio
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            
-                            async def gen():
-                                return await dialog_manager.process_user_input(message)
-                            
-                            result = loop.run_until_complete(gen())
-                            loop.close()
-                            
-                            # Отправляем чанки
-                            words = result.response.split()
-                            for word in words:
-                                chunk_data = json.dumps({
-                                    'type': 'chunk', 
-                                    'text': word + ' ',
-                                    'validated': result.validated
-                                })
-                                yield f"data: {chunk_data}\n\n"
-                            
-                            # Отправляем конец
-                            yield f"data: {json.dumps({'type': 'end', 'validated': result.validated, 'processing_time': result.processing_time})}\n\n"
+                            # Используем streaming метод
+                            for chunk_data in dialog_manager.generate_streaming(
+                                user_input=message,
+                                max_tokens=4096,
+                                temperature=0.6,
+                                chunk_size=50
+                            ):
+                                yield f"data: {json.dumps(chunk_data)}\n\n"
                             return
                             
                         except Exception as e:
@@ -260,7 +242,7 @@ def register_chat_routes(app, web_gui_instance):
                         prompt=enhanced_message,
                         max_tokens=4096,
                         temperature=0.6,
-                        chunk_size=30,
+                        chunk_size=50,
                         task_type="context"
                     ):
                         chunk_type = chunk_data.get('type', 'chunk')

@@ -386,10 +386,26 @@ class WebGUI:
                 response_text = result.get('response', response_text)
                 document_mode = True
         
-        if not document_mode and self.brain and hasattr(self.brain, 'process_query'):
-            result = self.brain.process_query(query, user_context)
-            if result and isinstance(result, dict):
-                response_text = result.get('response', result.get('text', response_text))
+        # Используем HybridKnowledgeDialogManager если доступен
+        if not document_mode and self.brain:
+            # 1. Пробуем HybridKnowledgeDialogManager
+            if (hasattr(self.brain, 'hybrid_dialog_manager') and 
+                self.brain.hybrid_dialog_manager and 
+                self.brain.hybrid_dialog_manager.initialized):
+                try:
+                    logger.info("Using HybridKnowledgeDialogManager for response")
+                    dialog_result = self.brain.hybrid_dialog_manager.process(query)
+                    if dialog_result:
+                        response_text = dialog_result
+                        result = {'response': response_text, 'source': 'hybrid_dialog_manager'}
+                except Exception as e:
+                    logger.warning(f"HybridKnowledgeDialogManager error: {e}")
+            
+            # 2. Fallback на process_query
+            elif hasattr(self.brain, 'process_query'):
+                result = self.brain.process_query(query, user_context)
+                if result and isinstance(result, dict):
+                    response_text = result.get('response', result.get('text', response_text))
         
         # Извлечение reasoning из результата
         reasoning_steps = []

@@ -1639,7 +1639,7 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        chunk_size: int = 30,
+        chunk_size: int = 50,
         task_type: str = "default"
     ) -> Generator[Dict[str, Any], None, None]:
         """Выполняет генерацию со стримингом (вызывается через ModelAccessManager)."""
@@ -1771,7 +1771,7 @@ class UnifiedGenerator:
         temperature: float = 0.7,
         generator=None,
         model_type=None,
-        chunk_size: int = 30
+        chunk_size: int = 40
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Генерация со стримингом через OpenVINO.
@@ -1783,7 +1783,7 @@ class UnifiedGenerator:
             temperature: Температура (будет заменена на оптимальную для модели)
             generator: OpenVINOGenerator
             model_type: ModelType для форматирования промпта
-            chunk_size: Размер чанка для буферизации (30 символов оптимально)
+            chunk_size: Размер чанка для буферизации (40 символов - оптимально для плавного отображения)
             
         Yields:
             Dict с данными чанка

@@ -726,6 +726,159 @@ class HybridKnowledgeDialogManager:
         return False
     
     # =========================================================================
+    # Streaming интерфейс
+    # =========================================================================
+    
+    def generate_streaming(
+        self,
+        user_input: str,
+        system_prompt: str = None,
+        max_tokens: int = None,
+        temperature: float = None,
+        chunk_size: int = 40
+    ):
+        """
+        Генерация со стримингом для SSE.
+        
+        Args:
+            user_input: Текст сообщения пользователя
+            system_prompt: Системный промпт (если не стандартный)
+            max_tokens: Максимум токенов
+            temperature: Температура генерации
+            chunk_size: Размер чанка для буферизации
+            
+        Yields:
+            Dict с данными чанка для SSE
+        """
+        if not self._initialized or not self._pipeline:
+            yield {'type': 'error', 'text': 'Система не готова', 'is_final': True}
+            return
+        
+        start_time = time.time()
+        max_tokens = max_tokens or self.max_tokens
+        temperature = temperature or self.temperature
+        
+        try:
+            # Добавляем сообщение пользователя
+            self.add_message("user", user_input)
+            
+            # Получаем историю и форматируем
+            history = self.get_history()
+            prompt = self._format_chat_prompt(history, add_generation_prompt=True)
+            
+            # Получаем контекст знаний
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            knowledge_context = loop.run_until_complete(self._get_knowledge_context())
+            loop.close()
+            
+            # Вставляем виртуальные токены
+            if knowledge_context.virtual_tokens:
+                prompt = self._insert_knowledge_tokens(prompt, knowledge_context.virtual_tokens)
+            
+            # Настройка генерации
+            config = ov_genai.GenerationConfig()
+            config.max_new_tokens = max_tokens
+            config.temperature = temperature
+            config.do_sample = temperature > 0
+            
+            buffer = ""
+            full_text = []
+            chunk_count = 0
+            
+            def streamer(text: str) -> bool:
+                full_text.append(text)
+                return False
+            
+            # Запускаем генерацию в потоке
+            import queue
+            result_queue = queue.Queue()
+            
+            def generate():
+                try:
+                    self._pipeline.generate(prompt, config, streamer=streamer)
+                except Exception as e:
+                    result_queue.put(('error', str(e)))
+                finally:
+                    result_queue.put(None)
+            
+            thread = threading.Thread(target=generate, daemon=True)
+            thread.start()
+            
+            # Ожидаем и отправляем чанки
+            while True:
+                try:
+                    item = result_queue.get(timeout=60)
+                except queue.Empty:
+                    break
+                    
+                if item is None:
+                    break
+                    
+                if isinstance(item, tuple) and item[0] == 'error':
+                    yield {'type': 'error', 'text': item[1], 'is_final': True}
+                    return
+            
+            # Собираем полный текст
+            full_response = ''.join(full_text)
+            
+            # Разбиваем на чанки для стриминга
+            chunks = self._split_text_chunks(full_response, chunk_size)
+            
+            for i, chunk in enumerate(chunks):
+                elapsed = int((time.time() - start_time) * 1000)
+                yield {
+                    'type': 'chunk',
+                    'text': chunk,
+                    'is_final': i == len(chunks) - 1,
+                    'tokens_count': len(full_response.split()),
+                    'elapsed_ms': elapsed,
+                    'chunk_index': i,
+                    'total_chunks': len(chunks)
+                }
+            
+            # Сохраняем в историю
+            self.add_message("assistant", full_response)
+            
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield {'type': 'error', 'text': str(e), 'is_final': True}
+    
+    def _split_text_chunks(self, text: str, chunk_size: int) -> List[str]:
+        """Разбивает текст на чанки для стриминга."""
+        if len(text) <= chunk_size:
+            return [text] if text else []
+        
+        chunks = []
+        remaining = text
+        delimiters = '.!?\n'
+        
+        while remaining:
+            chunk_end = min(chunk_size, len(remaining))
+            
+            if chunk_end < len(remaining):
+                found = False
+                for delim in delimiters:
+                    pos = remaining[:chunk_end].rfind(delim)
+                    if pos > chunk_size // 2:
+                        chunk_end = pos + 1
+                        found = True
+                        break
+                
+                if not found:
+                    space_pos = remaining[:chunk_end].rfind(' ')
+                    if space_pos > chunk_size // 3:
+                        chunk_end = space_pos + 1
+            
+            chunk = remaining[:chunk_end].strip()
+            if chunk:
+                chunks.append(chunk)
+            
+            remaining = remaining[chunk_end:].lstrip()
+        
+        return chunks if chunks else [text]
+    
+    # =========================================================================
     # Синхронный интерфейс (для обратной совместимости)
     # =========================================================================
     

@@ -480,7 +480,7 @@ class OpenVINOGenerator:
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         stop_tokens: Optional[List[str]] = None,
-        chunk_size: int = 25
+        chunk_size: int = 40
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Генерация со стримингом.
@@ -490,7 +490,7 @@ class OpenVINOGenerator:
             max_tokens: Максимум токенов
             temperature: Температура
             stop_tokens: Список стоп-токенов
-            chunk_size: Размер чанка для буферизации
+            chunk_size: Размер чанка для буферизации (40 символов - оптимально для плавного отображения)
             
         Yields:
             Dict с данными чанка

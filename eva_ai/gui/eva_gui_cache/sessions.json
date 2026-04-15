@@ -5904,6 +5904,26 @@
       ],
       "context_nodes": [],
       "entities": []
+    },
+    "6d50b3a7-4e0f-4bac-bfc7-4876ada4d5f8": {
+      "id": "6d50b3a7-4e0f-4bac-bfc7-4876ada4d5f8",
+      "user_id": "45e89baa-c030-4bf1-959e-c6d0fa6f7cfb",
+      "name": "Сессия admin",
+      "created_at": "2026-04-15T17:10:21.791784",
+      "last_active": "2026-04-15T17:10:21.791791",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "93af4883-e78b-4fe1-8f23-ae03c096c090": {
+      "id": "93af4883-e78b-4fe1-8f23-ae03c096c090",
+      "user_id": "805a5812-6a1a-481c-82d6-df78741435e3",
+      "name": "Сессия admin",
+      "created_at": "2026-04-15T17:34:35.962404",
+      "last_active": "2026-04-15T17:34:35.962415",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }
