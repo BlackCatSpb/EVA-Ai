@@ -1,6 +1,6 @@
 """
 Fractal Embedder для ЕВА Self-Reasoning
-Генерация 384-мерных эмбеддингов для фрактальной адресации
+Генерация эмбеддингов через multilingual-e5-base (768 dim)
 """
 
 import hashlib
@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("eva_ai.reasoning.fractal_embedder")
 
-EMBEDDING_DIM = 384
+EMBEDDING_DIM = 768
 
 
 class FractalEmbedder:
@@ -24,13 +24,13 @@ class FractalEmbedder:
         self._init_model()
     
     def _init_model(self):
-        """Инициализация модели sentence-transformers."""
+        """Инициализация модели sentence-transformers через singleton кеш."""
         if self._use_st:
             try:
                 from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
-                self._model = get_sentence_transformer('all-MiniLM-L6-v2', device='cpu')
+                self._model = get_sentence_transformer(device='cpu')
                 if self._model:
-                    logger.info("FractalEmbedder инициализирован с sentence-transformers (cached)")
+                    logger.info("FractalEmbedder инициализирован с multilingual-e5-base (768d)")
             except ImportError:
                 logger.warning("sentence-transformers недоступен, используем hash-based эмбеддинги")
                 self._use_st = False

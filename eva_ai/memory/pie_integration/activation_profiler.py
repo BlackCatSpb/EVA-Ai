@@ -15,12 +15,6 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 import logging
 
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-
 from .fractal_graph_l1_l2 import FractalGraphL1L2, ActivationProfileData
 
 logger = logging.getLogger("eumi.profiler")
@@ -64,14 +58,17 @@ class ActivationProfiler:
         self.graph = graph
         self.embedding_dim = 768
         self._embedder = None
-        self._embedder_model = embedder_model or 'all-MiniLM-L6-v2'
+        self._embedder_model = embedder_model
         
     def _get_embedder(self) -> Optional[Any]:
-        """Ленивая инициализация embedder'а."""
-        if self._embedder is None and SENTENCE_TRANSFORMERS_AVAILABLE:
+        """Ленивая инициализация embedder'а через singleton кеш."""
+        if self._embedder is None:
             try:
-                self._embedder = SentenceTransformer(self._embedder_model)
-                logger.info(f"Loaded embedder: {self._embedder_model}")
+                from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
+                self._embedder = get_sentence_transformer(device='auto')
+                if self._embedder:
+                    self.embedding_dim = getattr(self._embedder, 'get_sentence_embedding_dimension', lambda: 768)()
+                    logger.info(f"Loaded embedder via singleton: multilingual-e5-base ({self.embedding_dim}d)")
             except Exception as e:
                 logger.warning(f"Failed to load embedder: {e}")
         return self._embedder

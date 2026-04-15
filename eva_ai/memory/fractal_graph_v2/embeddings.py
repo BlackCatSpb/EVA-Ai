@@ -256,8 +256,8 @@ class EmbeddingsManager:
 
 
 def create_embeddings_manager(
-    model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
+    model_name: str = None,
     device: str = "cuda"
 ) -> EmbeddingsManager:
-    """Фабричная функция."""
+    """Фабричная функция - использует singleton кеш с multilingual-e5-base."""
     return EmbeddingsManager(model_name=model_name, device=device)

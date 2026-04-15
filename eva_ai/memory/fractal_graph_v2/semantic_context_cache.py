@@ -44,7 +44,7 @@ class SemanticContextCache:
     def __init__(
         self,
         max_contexts: int = 1000,
-        embedding_dim: int = 384,
+        embedding_dim: int = 768,
         use_faiss: bool = True,
         cache_dir: str = None
     ):
@@ -133,7 +133,10 @@ class SemanticContextCache:
             from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
             
             if not hasattr(self, '_embedder'):
-                self._embedder = get_sentence_transformer('all-MiniLM-L6-v2', device='cpu')
+                self._embedder = get_sentence_transformer(device='cpu')
+            
+            if self._embedder is None:
+                return None
             
             emb = self._embedder.encode(text, convert_to_numpy=True)
             
