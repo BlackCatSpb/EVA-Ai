@@ -151,7 +151,7 @@ class PipelineAdapter:
         )
         return result.text
     
-    def generate_streaming(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7, chunk_size: int = 80):
+    def generate_streaming(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.7, chunk_size: int = 30, task_type: str = "default"):
         """
         Генерация со стримингом чанков.
         
@@ -159,7 +159,8 @@ class PipelineAdapter:
             prompt: Запрос
             max_tokens: Максимум токенов
             temperature: Температура
-            chunk_size: Размер чанка для выдачи
+            chunk_size: Размер чанка для выдачи (30 символов оптимально)
+            task_type: Тип задачи для роутинга (context, logic, coder, self_dialog)
             
         Yields:
             Dict с 'type', 'text', 'is_final', 'tokens_count', 'elapsed_ms'
@@ -179,7 +180,8 @@ class PipelineAdapter:
             context=None,
             max_tokens=max_tokens,
             temperature=temperature,
-            chunk_size=chunk_size
+            chunk_size=chunk_size,
+            task_type=task_type
         )
     
     def generate_with_context(self, query: str, context: str = "", max_tokens: int = 1024, temperature: float = 0.7):

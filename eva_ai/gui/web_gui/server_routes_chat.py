@@ -160,24 +160,58 @@ def register_chat_routes(app, web_gui_instance):
                     # Отправляем начало
                     yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
                     
-                    # Получаем контекст из FractalGraph
-                    context = ""
-                    fractal_graph = None
-                    hybrid_cache = None
+                    # Проверяем нужен ли веб-поиск
+                    search_results = []
+                    enhanced_message = message
                     
-                    if web_gui_instance.brain:
-                        fractal_graph = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
-                        hybrid_cache = getattr(web_gui_instance.brain, 'hybrid_cache', None)
+                    try:
+                        from eva_ai.core.brain_query import needs_web_search
+                        web_search = None
+                        
+                        if web_gui_instance and web_gui_instance.brain:
+                            web_search = getattr(web_gui_instance.brain, 'web_search_engine', None)
+                        
+                        need_search, search_reason = needs_web_search(message)
+                        logger.info(f"[STREAM] Web search check: need_search={need_search}, reason={search_reason}")
+                        
+                        if web_search and hasattr(web_search, 'search') and need_search:
+                            try:
+                                search_result = web_search.search(message[:200], max_results=3)
+                                if search_result:
+                                    raw_results = search_result.get('results', []) if isinstance(search_result, dict) else []
+                                    for sr in raw_results:
+                                        if hasattr(sr, 'title'):
+                                            search_results.append({
+                                                'title': str(sr.title) if sr.title else '',
+                                                'url': str(sr.url) if sr.url else '',
+                                                'snippet': str(sr.snippet) if sr.snippet else ''
+                                            })
+                                        elif isinstance(sr, dict):
+                                            search_results.append(sr)
+                                    
+                                    if search_results:
+                                        web_context = "\n\nИнформация из интернета:\n"
+                                        for i, sr in enumerate(search_results[:3]):
+                                            title = sr.get('title', 'No title')[:100]
+                                            snippet = sr.get('snippet', '')[:300]
+                                            web_context += f"\n{i+1}. {title}: {snippet}..."
+                                        enhanced_message = f"{message}\n\n{web_context}\n\nДай ответ используя эту информацию."
+                                        logger.info(f"[STREAM] Web search found {len(search_results)} results, enhanced prompt")
+                            except Exception as e:
+                                logger.error(f"[STREAM] Web search error: {e}")
+                    except ImportError:
+                        logger.warning("[STREAM] Could not import needs_web_search")
                     
                     # Генерируем со стримингом чанков
                     full_text = ""
                     chunk_count = 0
                     
                     for chunk_data in pipeline.generate_streaming(
-                        prompt=message,
-                        max_tokens=4096,  # Увеличено для длинных рассказов
-                        temperature=0.7,
-                        chunk_size=20  # ~20 символов для плавного появления
+                        prompt=enhanced_message,
+                        max_tokens=4096,
+                        temperature=0.6,
+                        chunk_size=30,
+                        task_type="context"
                     ):
                         chunk_type = chunk_data.get('type', 'chunk')
                         chunk_text = chunk_data.get('text', '')

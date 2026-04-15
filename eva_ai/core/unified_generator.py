@@ -1629,7 +1629,7 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        chunk_size: int = 80,
+        chunk_size: int = 30,
         task_type: str = "default"
     ) -> Generator[Dict[str, Any], None, None]:
         """Выполняет генерацию со стримингом (вызывается через ModelAccessManager)."""
@@ -1637,12 +1637,14 @@ class UnifiedGenerator:
         
         start_time = time.time()
         
-        # OpenVINO path
+        gen_params = self._get_generation_params(task_type)
+        
+        # OpenVINO path - использует оптимальные параметры для модели
         if self.use_openvino:
             gen, model_type = self._get_generator_for_task(task_type)
             if gen:
                 yield from self._generate_streaming_openvino(
-                    query, context, max_tokens, temperature, gen, model_type
+                    query, context, max_tokens, temperature, gen, model_type, chunk_size
                 )
                 return
         
@@ -1758,7 +1760,8 @@ class UnifiedGenerator:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         generator=None,
-        model_type=None
+        model_type=None,
+        chunk_size: int = 30
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Генерация со стримингом через OpenVINO.
@@ -1767,15 +1770,18 @@ class UnifiedGenerator:
             query: Запрос
             context: Дополнительный контекст
             max_tokens: Максимум токенов
-            temperature: Температура
+            temperature: Температура (будет заменена на оптимальную для модели)
             generator: OpenVINOGenerator
             model_type: ModelType для форматирования промпта
+            chunk_size: Размер чанка для буферизации (30 символов оптимально)
             
         Yields:
             Dict с данными чанка
         """
         if model_type is None:
             model_type = self.router.route(query)
+        
+        gen_params = self._get_generation_params(model_type)
         
         full_context = self._build_context(query, context)
         prompt = self._format_prompt(query, full_context, None, model_type)
@@ -1784,9 +1790,9 @@ class UnifiedGenerator:
             for chunk in generator.generate_streaming(
                 prompt,
                 max_tokens=max_tokens,
-                temperature=temperature,
+                temperature=gen_params.get('temperature', temperature),
                 stop_tokens=["<|im_end|>", "<|im_start|>", "<|endoftext|>"],
-                chunk_size=25
+                chunk_size=chunk_size
             ):
                 if chunk['type'] == 'complete':
                     yield {
@@ -1797,7 +1803,9 @@ class UnifiedGenerator:
                         'elapsed_ms': chunk.get('elapsed_ms', 0),
                         'chunk_index': 0,
                         'total_chunks': 1,
-                        'progress': 1.0
+                        'progress': 1.0,
+                        'model_type': model_type.value if model_type else 'unknown',
+                        'params_used': gen_params
                     }
                 else:
                     yield chunk
