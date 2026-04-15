@@ -274,9 +274,8 @@ class UnifiedGenerator:
         """
         Инициализировать OpenVINO генераторы:
         
-        CPU: Logic модель (краткие ответы)
-        GPU.0: Context модель (развёрнутые ответы)  
-        GPU.1: Coder модель (код + self-dialog)
+        CPU: Logic + Context модели (две физические модели)
+        GPU: Coder модель (код + self-dialog)
         """
         try:
             import os
@@ -314,21 +313,20 @@ class UnifiedGenerator:
                 )
                 logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model)")
             
-            # CONTEXT - GPU.0 (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
+            # CONTEXT - CPU (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
             if context_model:
-                context_device = "GPU.0"
                 self._openvino_gpu = OpenVINOGenerator(
                     model_path=context_model,
-                    device=context_device,
+                    device=self.cpu_device,
                     max_tokens=4096,
-                    performance_hint="THROUGHPUT",
-                    scheduler_config=gpu_scheduler
+                    performance_hint="LATENCY",
+                    scheduler_config=cpu_scheduler
                 )
-                logger.info(f"GPU OpenVINO ready: {context_device} (Context model)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model - second physical model)")
             else:
                 logger.warning(f"Context model not found: {context_model}")
             
-            # CODER - GPU.1 (код + self-dialog)
+            # CODER - GPU (код + self-dialog)
             if coder_model:
                 import os
                 if os.environ.get("EVA_SKIP_CODER", "0") != "1":
