@@ -80,12 +80,16 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
         try:
             logger.info("Инициализация NLP-модели для обнаружения противоречий...")
             if get_sentence_transformer is not None:
-                model = get_sentence_transformer('eva_ai/core/hf_cache/multilingual-e5-base')
+                model = get_sentence_transformer(device='auto')
                 if model is not None:
                     logger.info("NLP-модель загружена через singleton")
                     return model
+            
+            logger.warning("sentence_transformers_cache недоступен, используем fallback")
             if SENTENCE_TRANSFORMERS_AVAILABLE and SentenceTransformer is not None:
-                return SentenceTransformer('eva_ai/core/hf_cache/multilingual-e5-base')
+                model = SentenceTransformer('intfloat/multilingual-e5-base')
+                logger.info("NLP-модель загружена напрямую (fallback)")
+                return model
             else:
                 raise ImportError("sentence_transformers not available")
         except Exception as e:

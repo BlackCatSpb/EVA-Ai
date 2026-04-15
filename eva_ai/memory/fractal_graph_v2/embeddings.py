@@ -29,12 +29,12 @@ class EmbeddingsManager:
     """
     Менеджер эмбеддингов для фрактального графа.
     
-    Использует sentence-transformers для получения векторов.
+    Использует sentence-transformers через singleton кеш.
     """
     
     def __init__(
         self,
-        model_name: str = "intfloat/multilingual-e5-base",
+        model_name: str = None,
         device: str = "cpu",
         cache_dir: str = None,
         batch_size: int = 32,
@@ -42,9 +42,7 @@ class EmbeddingsManager:
     ):
         self.model_name = model_name
         self.device = device
-        self.cache_dir = cache_dir or os.path.join(
-            os.path.dirname(__file__), "models"
-        )
+        self.cache_dir = cache_dir
         self.batch_size = batch_size
         self.max_length = max_length
         
@@ -54,28 +52,25 @@ class EmbeddingsManager:
         self._embedding_cache: Dict[str, List[float]] = {}
         self._cache_lock = threading.Lock()
         
-        # Загружаем модель
         self._load_model()
     
     def _load_model(self):
-        """Ленивая загрузка модели эмбеддингов."""
+        """Загрузка модели через singleton кеш."""
         try:
-            from sentence_transformers import SentenceTransformer
+            from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
             
-            logger.info(f"Загрузка модели эмбеддингов: {self.model_name} на {self.device}")
+            logger.info(f"Загрузка модели эмбеддингов через singleton кеш на {self.device}")
             
-            self.model = SentenceTransformer(
-                self.model_name,
-                device=self.device,
-                cache_folder=self.cache_dir
-            )
-            self.tokenizer = self.model.tokenizer
-            
-            logger.info(f"Модель эмбеддингов загружена: {self.model.get_sentence_embedding_dimension()}d")
-            
+            self.model = get_sentence_transformer(device=self.device)
+            if self.model:
+                self.tokenizer = getattr(self.model, 'tokenizer', None)
+                emb_dim = getattr(self.model, 'get_sentence_embedding_dimension', lambda: 768)()
+                logger.info(f"Модель эмбеддингов загружена: {emb_dim}d")
+            else:
+                logger.warning("SentenceTransformer не доступен")
+                
         except Exception as e:
             logger.error(f"Ошибка загрузки модели эмбеддингов: {e}")
-            # Fallback - используем случайные векторы
             self.model = None
     
     def encode(
