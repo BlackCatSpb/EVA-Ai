@@ -954,36 +954,23 @@ def _init_unified_generator(brain):
         # Получаем пути к трем моделям: LOGIC, CONTEXT и CODER
         logic_model_path = model_config.get('logic_model_path')
         context_model_path = model_config.get('context_model_path')
-        coder_model_path = model_config.get('coder_model_path')
         
         # Если пути не указаны, используем defaults
-        if not logic_model_path or not context_model_path or not coder_model_path:
+        if not logic_model_path or not context_model_path:
             try:
                 from eva_ai.core.pie_model_paths import get_pie_model_path
-                
                 # LOGIC и CONTEXT - ruadapt_qwen3_4b
                 if not logic_model_path:
                     logic_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
                 if not context_model_path:
                     context_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
-                
-                # CODER - qwen_coder_1_5b
-                if not coder_model_path:
-                    coder_model_path = get_pie_model_path('qwen_coder_1_5b', 'condensed')
-                    
             except Exception as e:
                 query_logger.warning(f'Could not load model paths: {e}')
-                # Default paths
                 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 if not logic_model_path:
-                    logic_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 
-                                                    'ruadapt_qwen3_4b_q4_k_m.gguf')
+                    logic_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 'Q4_K_M.gguf')
                 if not context_model_path:
-                    context_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 
-                                                      'ruadapt_qwen3_4b_q4_k_m.gguf')
-                if not coder_model_path:
-                    coder_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models',
-                                                    'qwen2.5-coder-1.5b-instruct', 'qwen2.5-coder-1.5b-instruct-q4_k_m.gguf')
+                    context_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 'Q4_K_M.gguf')
         
         # Проверяем существование файлов
         if not os.path.exists(logic_model_path):
@@ -991,9 +978,6 @@ def _init_unified_generator(brain):
             return
         if not os.path.exists(context_model_path):
             query_logger.error(f'CONTEXT model not found: {context_model_path}')
-            return
-        if not os.path.exists(coder_model_path):
-            query_logger.error(f'CODER model not found: {coder_model_path}')
             return
         
         n_ctx = model_config.get('llama_cpp_n_ctx', 32768)
@@ -1009,7 +993,6 @@ def _init_unified_generator(brain):
         adapter = create_pipeline_adapter(
             logic_model_path=logic_model_path,
             context_model_path=context_model_path,
-            coder_model_path=coder_model_path,
             n_ctx=n_ctx,
             n_threads=n_threads,
             fractal_graph=getattr(brain, 'fractal_graph_v2', None),
@@ -1022,14 +1005,12 @@ def _init_unified_generator(brain):
         if adapter:
             brain.two_model_pipeline = adapter
             brain.two_model_pipeline_ready = True
-            query_logger.info('UnifiedGenerator (Pie-based) инициализирован успешно')
+            query_logger.info('UnifiedGenerator инициализирован')
             query_logger.info(f'  OpenVINO: {use_openvino}')
-            if use_openvino:
-                query_logger.info(f'  CPU device: {cpu_device} (Logic/Context)')
-                query_logger.info(f'  GPU device: {gpu_device} (Coder/Self-dialog)')
-            query_logger.info(f'  LOGIC (RuadaptQwen3-4B condensed): {logic_model_path}')
-            query_logger.info(f'  CONTEXT (RuadaptQwen3-4B extended): {context_model_path}')
-            query_logger.info(f'  CODER (Qwen Coder 1.5B): {coder_model_path}')
+            query_logger.info(f'  CPU device: {cpu_device} (Logic/Context)')
+            query_logger.info(f'  GPU device: {gpu_device} (Embeddings)')
+            query_logger.info(f'  LOGIC: {logic_model_path}')
+            query_logger.info(f'  CONTEXT: {context_model_path}')
         else:
             query_logger.error('Failed to create PipelineAdapter')
             

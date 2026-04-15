@@ -122,7 +122,6 @@ class UnifiedGenerator:
         self,
         logic_model_path: Optional[Path] = None,
         context_model_path: Optional[Path] = None,
-        coder_model_path: Optional[Path] = None,
         n_ctx: int = 32768,
         n_threads: int = 4,
         fractal_graph=None,
@@ -135,18 +134,11 @@ class UnifiedGenerator:
         """
         Инициализация Unified Generator.
         
-        Args:
-            logic_model_path: Путь к LOGIC модели (CPU)
-            context_model_path: Путь к CONTEXT модели (CPU)
-            coder_model_path: Путь к CODER модели (GPU)
-            n_ctx: Размер контекста
-            n_threads: Количество потоков
-            fractal_graph: FractalGraph V2 для контекста
-            brain: Ссылка на CoreBrain
-            use_openvino: Использовать OpenVINO вместо llama.cpp
-            cpu_device: Устройство для Logic/Context
-            gpu_device: Устройство для Coder/Self-dialog
-            event_bus: EventBus для интеграции с ModelAccessManager
+        Две модели на CPU:
+        - LOGIC (RuadaptQwen3-4B): для логики/рассуждений
+        - CONTEXT (RuadaptQwen3-4B): для длинных контекстов
+        
+        GPU для эмбеддингов.
         """
         self.n_ctx = n_ctx
         self.n_threads = n_threads
@@ -162,12 +154,11 @@ class UnifiedGenerator:
         self._model_paths: Dict[ModelType, Path] = {}
         self._openvino_cpu: Optional['OpenVINOGenerator'] = None
         self._openvino_gpu: Optional['OpenVINOGenerator'] = None
-        self._openvino_coder: Optional['OpenVINOGenerator'] = None
         
         self._model_access: Optional[ModelAccessManager] = None
         self._init_model_access_manager()
         
-        self._load_model_paths(logic_model_path, context_model_path, coder_model_path)
+        self._load_model_paths(logic_model_path, context_model_path)
         
         if use_openvino:
             self._init_openvino_devices()
@@ -175,10 +166,9 @@ class UnifiedGenerator:
         logger.info(f"UnifiedGenerator initialized")
         logger.info(f"  use_openvino={use_openvino}")
         logger.info(f"  CPU device: {cpu_device} (Logic/Context)")
-        logger.info(f"  GPU device: {gpu_device} (Coder/Self-dialog)")
+        logger.info(f"  GPU device: {gpu_device} (Embeddings)")
         logger.info(f"  LOGIC model: {self._model_paths.get(ModelType.LOGIC)}")
         logger.info(f"  CONTEXT model: {self._model_paths.get(ModelType.CONTEXT)}")
-        logger.info(f"  CODER model: {self._model_paths.get(ModelType.CODER)}")
         logger.info(f"  ModelAccessManager: {'enabled' if self._model_access else 'disabled'}")
     
     def _init_model_access_manager(self):
@@ -209,42 +199,32 @@ class UnifiedGenerator:
         }
         return priority_map.get(task_type, AccessPriority.NORMAL)
     
-    def _load_model_paths(self, logic_path: Optional[Path], context_path: Optional[Path], coder_path: Optional[Path] = None):
-        """Загрузить пути к трем моделям: LOGIC, CONTEXT и CODER."""
+    def _load_model_paths(self, logic_path: Optional[Path], context_path: Optional[Path]):
+        """Загрузить пути к двум моделям: LOGIC и CONTEXT (обе на CPU)."""
         try:
             from eva_ai.core.pie_model_paths import get_pie_model_path
             
-            # LOGIC - ruadapt_qwen3_4b condensed
+            # LOGIC
             if logic_path is None:
                 logic_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
             
-            # CONTEXT - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ: ruadapt_qwen3_4b_extended
+            # CONTEXT - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
             if context_path is None:
                 context_path = get_pie_model_path('ruadapt_qwen3_4b_extended', 'extended')
-            
-            # CODER - отдельная модель
-            if coder_path is None:
-                coder_path = get_pie_model_path('qwen_coder_1_5b', 'condensed')
                 
         except Exception as e:
             logger.warning(f"Could not load model paths from config: {e}")
-            # Default paths
-            base = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models")
+            base = Path(r"C:\Users\black\OneDrive\Desktop\EVA-Ai\eva_pie_architecture\models\gguf_models")
             if logic_path is None:
-                logic_path = base / "ruadapt_qwen3_4b_q4_k_m.gguf"
+                logic_path = base / "Q4_K_M.gguf"
             if context_path is None:
-                context_path = base / "ruadapt_qwen3_4b_extended" / "ruadapt_qwen3_4b_q4_k_m.gguf"
-            if coder_path is None:
-                coder_path = base / "qwen2.5-coder-1.5b-instruct" / "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf"
+                context_path = base / "Q4_K_M.gguf"
         
-        if logic_path and logic_path.exists():
-            self._model_paths[ModelType.LOGIC] = logic_path
+        if logic_path and Path(logic_path).exists():
+            self._model_paths[ModelType.LOGIC] = Path(logic_path)
         
-        if context_path and context_path.exists():
-            self._model_paths[ModelType.CONTEXT] = context_path
-            
-        if coder_path and coder_path.exists():
-            self._model_paths[ModelType.CODER] = coder_path
+        if context_path and Path(context_path).exists():
+            self._model_paths[ModelType.CONTEXT] = Path(context_path)
         else:
             logger.warning(f"CONTEXT model path not found: {context_path}")
     
@@ -289,30 +269,20 @@ class UnifiedGenerator:
             
             logic_model = self._model_paths.get(ModelType.LOGIC)
             context_model = self._model_paths.get(ModelType.CONTEXT)
-            coder_model = self._model_paths.get(ModelType.CODER)
             
-            # LOGIC scheduler - оптимизирован для LATENCY (краткие ответы)
-            # cache_size в GB - уменьшено для экономии RAM (ранее было до 4GB)
+            # LOGIC scheduler - оптимизирован для LATENCY
             logic_scheduler = {
-                'cache_size': 2,  # 2GB KV cache (было до 4GB на 8+ ядрах)
-                'max_num_seqs': 2,  # Меньше параллельных для быстрого отклика
-                'max_num_batched_tokens': 1152,  # 36 слоёв * 8 KV heads * 2 = 576 минимум
+                'cache_size': 2,
+                'max_num_seqs': 2,
+                'max_num_batched_tokens': 1152,
                 'enable_prefix_caching': True
             }
             
             # CONTEXT scheduler - оптимизирован для длинных контекстов
             context_scheduler = {
-                'cache_size': 2,  # 2GB KV cache (было до 2GB)
-                'max_num_seqs': 4,  # Умеренно параллельных
-                'max_num_batched_tokens': 2048,  # Больше для длинных запросов
-                'enable_prefix_caching': True
-            }
-            
-            # CODER scheduler - оптимизирован для THROUGHPUT (код)
-            coder_scheduler = {
-                'cache_size': 1,  # 1GB KV cache - достаточно для кода
-                'max_num_seqs': 4,  # Умеренно параллельных
-                'max_num_batched_tokens': 2048,  # Для кода
+                'cache_size': 2,
+                'max_num_seqs': 4,
+                'max_num_batched_tokens': 2048,
                 'enable_prefix_caching': True
             }
             
@@ -321,40 +291,25 @@ class UnifiedGenerator:
                 self._openvino_cpu = OpenVINOGenerator(
                     model_path=logic_model,
                     device=self.cpu_device,
-                    max_tokens=1024,  # Оптимально для кратких ответов
+                    max_tokens=1024,
                     performance_hint="LATENCY",
                     scheduler_config=logic_scheduler,
                     num_streams="AUTO"
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model, max_tokens=1024, scheduler: {logic_scheduler})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic, max_tokens=1024)")
             
-            # CONTEXT - CPU (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
+            # CONTEXT - CPU (развёрнутые ответы, max_tokens=4096)
             if context_model:
                 self._openvino_gpu = OpenVINOGenerator(
                     model_path=context_model,
                     device=self.cpu_device,
-                    max_tokens=4096,  # Оптимально для развёрнутых ответов
+                    max_tokens=4096,
                     performance_hint="LATENCY",
                     scheduler_config=context_scheduler
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model, max_tokens=4096, scheduler: {context_scheduler})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context, max_tokens=4096)")
             else:
                 logger.warning(f"Context model not found: {context_model}")
-            
-            # CODER - GPU (код + self-dialog, max_tokens=4096)
-            if coder_model:
-                import os
-                if os.environ.get("EVA_SKIP_CODER", "0") != "1":
-                    self._openvino_coder = OpenVINOGenerator(
-                        model_path=coder_model,
-                        device=self.gpu_device,
-                        max_tokens=4096,  # Оптимально для кода
-                        performance_hint="THROUGHPUT",
-                        scheduler_config=coder_scheduler
-                    )
-                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096, scheduler: {coder_scheduler})")
-                else:
-                    logger.info("DEBUG: Skipping coder model loading (EVA_SKIP_CODER=1)")
             
             return True
             

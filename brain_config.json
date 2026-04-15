@@ -7,16 +7,15 @@
     "pipeline_mode": "dual",
     "model_a_gguf_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\Q4_K_M.gguf",
     "model_b_gguf_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\Q4_K_M.gguf",
-    "model_c_gguf_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\qwen2.5-coder-1.5b-instruct\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
     "logic_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\Q4_K_M.gguf",
     "context_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\Q4_K_M.gguf",
-    "coder_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\qwen2.5-coder-1.5b-instruct\\qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
     "llama_cpp_n_ctx": 16384,
     "llama_cpp_threads": 8,
     "language_mode": "russian_only",
     "use_openvino": true,
     "cpu_device": "CPU",
-    "gpu_device": "GPU.0"
+    "gpu_device": "GPU.0",
+    "embeddings_device": "GPU.0"
   },
   "system": {
     "log_level": "INFO",
