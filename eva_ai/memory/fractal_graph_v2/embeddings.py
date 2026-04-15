@@ -18,6 +18,12 @@ import numpy as np
 
 logger = logging.getLogger("eva_ai.fractal_graph_v2.embeddings")
 
+# Устанавливаем HF_HOME на локальный кеш если не установлен
+_HF_CACHE_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), 'core', 'hf_cache')
+if not os.environ.get('HF_HOME'):
+    os.environ['HF_HOME'] = _HF_CACHE_DEFAULT
+    os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+
 
 class EmbeddingsManager:
     """
@@ -28,8 +34,8 @@ class EmbeddingsManager:
     
     def __init__(
         self,
-model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base",
-        device: str = "cuda",
+        model_name: str = "intfloat/multilingual-e5-base",
+        device: str = "cpu",
         cache_dir: str = None,
         batch_size: int = 32,
         max_length: int = 512

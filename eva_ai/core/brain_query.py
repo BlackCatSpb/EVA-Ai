@@ -516,25 +516,10 @@ class QueryMixin:
         
         # === FALLBACK: Template Response ===
         query_logger.info("FG empty - using template fallback")
-        return self._handle_fallback(query, user_context, start_time, max_new_tokens)
+        return self._handle_fallback(query, user_context, start_time, max_new_tokens,
+                                     0.7, 0.9, 1.1, False)
     
-    def _handle_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
-                         max_new_tokens: int) -> Dict[str, Any]:
-        """Simple fallback using templates when primary generation fails."""
-        query_logger.info("Using template fallback")
-        
-        response_text = self._generate_template_response(query)
-        
-        return {
-            "response": response_text,
-            "text": response_text,
-            "status": "ok",
-            "confidence": 0.3,
-            "source": "template_fallback",
-            "processing_time": time.time() - start_time,
-            "timestamp": time.time()
-        }
-
+    
     def _generate_template_response(self, query: str, context: Optional[str] = None) -> str:
         """Generate response using FG context and templates."""
         query_lower = query.lower().strip()
@@ -922,31 +907,109 @@ class QueryMixin:
     def _handle_fallback(self, query: str, user_context: Optional[Dict], start_time: float,
                           max_new_tokens: int, temperature: float, top_p: float,
                           repetition_penalty: float, disable_pytorch: bool) -> Dict[str, Any]:
-        """Handles the legacy fallback chain for non-qwen-only mode."""
-        error_chain: List[Dict[str, Any]] = []
-
-        reasoning_engine = getattr(self, 'self_reasoning_engine', None)
-        if reasoning_engine is None and hasattr(self, 'reasoning_integration') and self.reasoning_integration:
-            reasoning_engine = getattr(self.reasoning_integration, 'reasoning_engine', None)
-        if reasoning_engine:
+        """
+        Упрощённая цепочка генерации:
+        1. two_model_pipeline (UnifiedGenerator) - главный
+        2. llama_cpp_deployment - fallback
+        3. memory - последний fallback
+        4. basic_fallback - крайний
+        """
+        # 1. two_model_pipeline (UnifiedGenerator) - главный генератор
+        pipeline = getattr(self, 'two_model_pipeline', None)
+        if pipeline:
             try:
-                query_logger.info("Using SelfReasoningEngine for generation with reasoning")
-                reasoning_result = reasoning_engine.process_query(query, user_context)
-                formatted_reasoning = self._format_reasoning_for_gui(reasoning_result)
-                sre_confidence = reasoning_result.get('confidence', 0.0)
-                if reasoning_result.get('response') or reasoning_result.get('text'):
-                    response_text = reasoning_result.get('response') or reasoning_result.get('text', '')
+                # Пробуем streaming интерфейс
+                if hasattr(pipeline, 'generate_streaming'):
+                    query_logger.info("Using two_model_pipeline.generate_streaming")
+                    chunks = []
+                    for chunk in pipeline.generate_streaming(
+                        prompt=query,
+                        max_tokens=max_new_tokens or 2048,
+                        temperature=temperature or 0.7,
+                        chunk_size=25,
+                        task_type="context"
+                    ):
+                        if chunk.get('type') == 'chunk' and chunk.get('text'):
+                            chunks.append(chunk['text'])
+                        elif chunk.get('type') == 'complete':
+                            chunks.append(chunk.get('text', ''))
+                        elif chunk.get('type') == 'error':
+                            raise RuntimeError(chunk.get('text', 'Unknown error'))
+                    
+                    if chunks:
+                        response_text = ''.join(chunks)
+                        self._save_to_fractal_graph(query, response_text)
+                        return {
+                            "response": response_text, "text": response_text,
+                            "status": "ok", "confidence": 0.9,
+                            "source": "two_model_pipeline",
+                            "processing_time": time.time() - start_time
+                        }
+                # Fallback на обычный generate
+                elif hasattr(pipeline, 'generate'):
+                    query_logger.info("Using two_model_pipeline.generate")
+                    result = pipeline.generate(
+                        prompt=query,
+                        max_tokens=max_new_tokens or 2048,
+                        temperature=temperature or 0.7
+                    )
+                    if result:
+                        response_text = result if isinstance(result, str) else result.get('response', str(result))
+                        self._save_to_fractal_graph(query, response_text)
+                        return {
+                            "response": response_text, "text": response_text,
+                            "status": "ok", "confidence": 0.9,
+                            "source": "two_model_pipeline",
+                            "processing_time": time.time() - start_time
+                        }
+            except Exception as e:
+                query_logger.warning(f"two_model_pipeline error: {e}")
+
+        # 2. llama_cpp_deployment - fallback
+        if self.llama_cpp_ready and self.llama_cpp_deployment:
+            try:
+                query_logger.info("Using llama_cpp_deployment.generate")
+                response_text, gen_err = self._generate_with_timeout(
+                    lambda: self.llama_cpp_deployment.generate(
+                        prompt=query,
+                        max_new_tokens=max_new_tokens or 2048,
+                        temperature=temperature or 0.7,
+                        top_p=top_p or 0.9,
+                        repeat_penalty=repetition_penalty or 1.1
+                    )
+                )
+                if not gen_err and response_text:
                     self._save_to_fractal_graph(query, response_text)
                     return {
-                        "response": response_text, "text": response_text, "status": "ok",
-                        "confidence": sre_confidence, "reasoning": formatted_reasoning,
-                        "reasoning_raw": reasoning_result,
-                        "reasoning_steps": reasoning_result.get('reasoning_steps', []),
-                        "model_a_response": reasoning_result.get('model_a_response', ''),
-                        "model_b_response": reasoning_result.get('model_b_response', ''),
-                        "source": "self_reasoning_engine", "fallback_level": 0,
+                        "response": response_text, "text": response_text,
+                        "status": "ok", "confidence": 0.8,
+                        "source": "llama_cpp",
                         "processing_time": time.time() - start_time
                     }
+            except Exception as e:
+                query_logger.warning(f"llama_cpp error: {e}")
+
+        # 3. memory - последний fallback
+        try:
+            memory_manager = getattr(self, 'memory_manager', None)
+            if memory_manager and getattr(memory_manager, 'initialized', True):
+                query_logger.info("Using memory_manager fallback")
+                recent = memory_manager.get_recent_interactions(limit=3)
+                if recent:
+                    for item in recent:
+                        text = item.get('response') if isinstance(item, dict) else getattr(item, 'response', None)
+                        if text:
+                            return {
+                                "response": text, "text": text,
+                                "confidence": 0.5, "source": "memory",
+                                "processing_time": time.time() - start_time
+                            }
+        except Exception as e:
+            query_logger.warning(f"memory error: {e}")
+
+        # 4. basic_fallback - крайний
+        query_logger.warning("Using basic_fallback")
+        return self._generate_basic_fallback_response(query)
                 else:
                     query_logger.info(f"SelfReasoningEngine empty response, fallback to GGUF")
             except Exception as e:

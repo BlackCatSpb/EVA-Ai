@@ -28,6 +28,10 @@ venv/
 ENV/
 env/
 
+# HuggingFace cache
+**/hf_cache/
+**/.cache/huggingface/
+
 # IDE
 .vscode/
 .idea/

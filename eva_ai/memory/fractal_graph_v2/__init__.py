@@ -186,8 +186,8 @@ class FractalMemoryGraph:
     def __init__(
         self,
         storage_dir: str = None,
-        embedding_model: str = "eva_ai/core/hf_cache/multilingual-e5-base",
-        embedding_device: str = "cuda",
+        embedding_model: str = "intfloat/multilingual-e5-base",
+        embedding_device: str = "cpu",
         embedding_dim: int = 768,
         event_bus = None
     ):
