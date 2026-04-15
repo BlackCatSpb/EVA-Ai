@@ -14,8 +14,8 @@
     "language_mode": "russian_only",
     "use_openvino": true,
     "cpu_device": "CPU",
-    "gpu_device": "GPU.0",
-    "embeddings_device": "GPU.0"
+    "gpu_device": "CPU",
+    "embeddings_device": "CPU"
   },
   "system": {
     "log_level": "INFO",
