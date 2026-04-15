@@ -315,42 +315,43 @@ class UnifiedGenerator:
                 'enable_prefix_caching': True
             }
             
-            # LOGIC - CPU (краткие логичные ответы)
+            # LOGIC - CPU (краткие логичные ответы, max_tokens=1024)
             if logic_model:
                 self._openvino_cpu = OpenVINOGenerator(
                     model_path=logic_model,
                     device=self.cpu_device,
+                    max_tokens=1024,  # Оптимально для кратких ответов
                     performance_hint="LATENCY",
                     scheduler_config=logic_scheduler,
                     num_streams="AUTO"
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model, scheduler: {logic_scheduler})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model, max_tokens=1024, scheduler: {logic_scheduler})")
             
             # CONTEXT - CPU (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
             if context_model:
                 self._openvino_gpu = OpenVINOGenerator(
                     model_path=context_model,
                     device=self.cpu_device,
-                    max_tokens=4096,
+                    max_tokens=4096,  # Оптимально для развёрнутых ответов
                     performance_hint="LATENCY",
                     scheduler_config=context_scheduler
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model, scheduler: {context_scheduler})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model, max_tokens=4096, scheduler: {context_scheduler})")
             else:
                 logger.warning(f"Context model not found: {context_model}")
             
-            # CODER - GPU (код + self-dialog)
+            # CODER - GPU (код + self-dialog, max_tokens=4096)
             if coder_model:
                 import os
                 if os.environ.get("EVA_SKIP_CODER", "0") != "1":
                     self._openvino_coder = OpenVINOGenerator(
                         model_path=coder_model,
                         device=self.gpu_device,
-                        max_tokens=4096,
+                        max_tokens=4096,  # Оптимально для кода
                         performance_hint="THROUGHPUT",
                         scheduler_config=coder_scheduler
                     )
-                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, scheduler: {coder_scheduler})")
+                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, max_tokens=4096, scheduler: {coder_scheduler})")
                 else:
                     logger.info("DEBUG: Skipping coder model loading (EVA_SKIP_CODER=1)")
             
@@ -483,9 +484,13 @@ class UnifiedGenerator:
         Получить оптимальные параметры генерации для qwen3 4B Q4_K_M.
         
         Оптимизировано для:
-        - Logic: краткие логичные ответы (temperature низкий)
-        - Context: развёрнутые ответы (temperature выше)
-        - Coder: генерация кода (repeat penalty выше)
+        - Logic: краткие логичные ответы (temperature низкий, max_tokens меньше)
+        - Context: развёрнутые ответы (temperature выше, max_tokens больше)
+        - Coder: генерация кода (repeat penalty выше, max_tokens больше)
+        
+        Расчёт max_tokens:
+        - qwen3 4B имеет context 262144 токенов
+        - Для безопасности используем 32768 max_tokens
         """
         base_params = {
             'temperature': 0.7,
@@ -493,7 +498,8 @@ class UnifiedGenerator:
             'top_k': 40,
             'repeat_penalty': 1.1,
             'presence_penalty': 0.0,
-            'frequency_penalty': 0.0
+            'frequency_penalty': 0.0,
+            'max_tokens': 2048  # Базовое значение
         }
         
         if model_type == ModelType.LOGIC:
@@ -502,7 +508,8 @@ class UnifiedGenerator:
                 'temperature': 0.4,  # Ниже для логичных ответов
                 'top_p': 0.85,
                 'top_k': 30,
-                'repeat_penalty': 1.1
+                'repeat_penalty': 1.1,
+                'max_tokens': 1024  # Краткие ответы
             }
         elif model_type == ModelType.CONTEXT:
             return {
@@ -510,7 +517,8 @@ class UnifiedGenerator:
                 'temperature': 0.6,  # Выше для разнообразия
                 'top_p': 0.90,
                 'top_k': 40,
-                'repeat_penalty': 1.05  # Ниже для длинных ответов
+                'repeat_penalty': 1.05,  # Ниже для длинных ответов
+                'max_tokens': 4096  # Развёрнутые ответы
             }
         elif model_type == ModelType.CODER:
             return {
@@ -518,7 +526,8 @@ class UnifiedGenerator:
                 'temperature': 0.3,  # Ниже для кода
                 'top_p': 0.95,
                 'top_k': 50,
-                'repeat_penalty': 1.15  # Выше для кода
+                'repeat_penalty': 1.15,  # Выше для кода
+                'max_tokens': 4096  # Код может быть длинным
             }
         
         return base_params
