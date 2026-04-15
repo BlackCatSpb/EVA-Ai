@@ -276,6 +276,9 @@ class UnifiedGenerator:
         
         CPU: Logic + Context модели (две физические модели)
         GPU: Coder модель (код + self-dialog)
+        
+        Оптимальные параметры для qwen3 (36 слоёв, 8 KV heads, GQA):
+        - batched_tokens = layers * kv_heads * 2 = 36 * 8 * 2 = 576 минимум
         """
         try:
             import os
@@ -288,17 +291,27 @@ class UnifiedGenerator:
             context_model = self._model_paths.get(ModelType.CONTEXT)
             coder_model = self._model_paths.get(ModelType.CODER)
             
-            cpu_scheduler = {
-                'cache_size': min(4, cpu_count // 2),
-                'max_num_seqs': min(8, cpu_count),
-                'max_num_batched_tokens': cpu_count * 512,
+            # LOGIC scheduler - оптимизирован для LATENCY (краткие ответы)
+            logic_scheduler = {
+                'cache_size': min(4, cpu_count // 2),  # Большой кэш для повторных запросов
+                'max_num_seqs': min(4, cpu_count // 2),  # Меньше параллельных для быстрого отклика
+                'max_num_batched_tokens': 1152,  # 36 слоёв * 8 KV heads * 2 = 576 минимум
                 'enable_prefix_caching': True
             }
             
-            gpu_scheduler = {
+            # CONTEXT scheduler - оптимизирован для длинных контекстов
+            context_scheduler = {
+                'cache_size': min(2, cpu_count // 4),
+                'max_num_seqs': min(8, cpu_count),  # Больше параллельных
+                'max_num_batched_tokens': 2048,  # Больше для длинных запросов
+                'enable_prefix_caching': True
+            }
+            
+            # CODER scheduler - оптимизирован для THROUGHPUT (код)
+            coder_scheduler = {
                 'cache_size': 2,
-                'max_num_seqs': 4,
-                'max_num_batched_tokens': 2048,
+                'max_num_seqs': 8,  # Максимум параллельных
+                'max_num_batched_tokens': 3072,  # Больше для кода
                 'enable_prefix_caching': True
             }
             
@@ -308,10 +321,10 @@ class UnifiedGenerator:
                     model_path=logic_model,
                     device=self.cpu_device,
                     performance_hint="LATENCY",
-                    scheduler_config=cpu_scheduler,
+                    scheduler_config=logic_scheduler,
                     num_streams="AUTO"
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic model, scheduler: {logic_scheduler})")
             
             # CONTEXT - CPU (развёрнутые ответы с контекстом) - ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ
             if context_model:
@@ -320,9 +333,9 @@ class UnifiedGenerator:
                     device=self.cpu_device,
                     max_tokens=4096,
                     performance_hint="LATENCY",
-                    scheduler_config=cpu_scheduler
+                    scheduler_config=context_scheduler
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model - second physical model)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context model, scheduler: {context_scheduler})")
             else:
                 logger.warning(f"Context model not found: {context_model}")
             
@@ -335,9 +348,9 @@ class UnifiedGenerator:
                         device=self.gpu_device,
                         max_tokens=4096,
                         performance_hint="THROUGHPUT",
-                        scheduler_config=gpu_scheduler
+                        scheduler_config=coder_scheduler
                     )
-                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog)")
+                    logger.info(f"GPU OpenVINO ready: {self.gpu_device} (Coder/Self-dialog, scheduler: {coder_scheduler})")
                 else:
                     logger.info("DEBUG: Skipping coder model loading (EVA_SKIP_CODER=1)")
             
@@ -465,6 +478,51 @@ class UnifiedGenerator:
         else:
             return min(default_ctx, 32768)
     
+    def _get_generation_params(self, model_type: ModelType) -> Dict[str, Any]:
+        """
+        Получить оптимальные параметры генерации для qwen3 4B Q4_K_M.
+        
+        Оптимизировано для:
+        - Logic: краткие логичные ответы (temperature низкий)
+        - Context: развёрнутые ответы (temperature выше)
+        - Coder: генерация кода (repeat penalty выше)
+        """
+        base_params = {
+            'temperature': 0.7,
+            'top_p': 0.9,
+            'top_k': 40,
+            'repeat_penalty': 1.1,
+            'presence_penalty': 0.0,
+            'frequency_penalty': 0.0
+        }
+        
+        if model_type == ModelType.LOGIC:
+            return {
+                **base_params,
+                'temperature': 0.4,  # Ниже для логичных ответов
+                'top_p': 0.85,
+                'top_k': 30,
+                'repeat_penalty': 1.1
+            }
+        elif model_type == ModelType.CONTEXT:
+            return {
+                **base_params,
+                'temperature': 0.6,  # Выше для разнообразия
+                'top_p': 0.90,
+                'top_k': 40,
+                'repeat_penalty': 1.05  # Ниже для длинных ответов
+            }
+        elif model_type == ModelType.CODER:
+            return {
+                **base_params,
+                'temperature': 0.3,  # Ниже для кода
+                'top_p': 0.95,
+                'top_k': 50,
+                'repeat_penalty': 1.15  # Выше для кода
+            }
+        
+        return base_params
+    
     def generate(
         self,
         query: str,
@@ -534,10 +592,12 @@ class UnifiedGenerator:
                 full_context = self._build_context(query, context)
                 prompt = self._format_prompt(query, full_context, system_prompt, model_type)
                 
+                gen_params = self._get_generation_params(model_type)
+                
                 result = gen.generate(
                     prompt=prompt,
                     max_tokens=max_tokens,
-                    temperature=temperature
+                    temperature=gen_params.get('temperature', temperature)
                 )
                 
                 self._save_to_graph(query, result.text)
