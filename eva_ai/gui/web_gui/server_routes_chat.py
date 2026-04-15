@@ -131,26 +131,76 @@ def register_chat_routes(app, web_gui_instance):
             def generate_stream():
                 """Генератор для SSE со стримингом чанков."""
                 try:
-                    # Получаем PipelineAdapter с UnifiedGenerator
+                    # Получаем HybridKnowledgeDialogManager (приоритет) или PipelineAdapter
+                    dialog_manager = None
                     pipeline = None
                     
                     logger.info(f"web_gui_instance: {web_gui_instance}")
                     logger.info(f"web_gui_instance.brain: {getattr(web_gui_instance, 'brain', 'NO ATTR')}")
                     
+                    # 1. Проверяем HybridKnowledgeDialogManager
                     if (web_gui_instance and 
+                        hasattr(web_gui_instance, 'brain') and
+                        web_gui_instance.brain and
+                        hasattr(web_gui_instance.brain, 'hybrid_dialog_manager') and
+                        web_gui_instance.brain.hybrid_dialog_manager and
+                        web_gui_instance.brain.hybrid_dialog_manager.initialized):
+                        dialog_manager = web_gui_instance.brain.hybrid_dialog_manager
+                        logger.info(f"Using HybridKnowledgeDialogManager: {type(dialog_manager)}")
+                    
+                    # 2. Fallback на two_model_pipeline
+                    elif (web_gui_instance and 
                         hasattr(web_gui_instance, 'brain') and
                         web_gui_instance.brain and
                         hasattr(web_gui_instance.brain, 'two_model_pipeline') and
                         web_gui_instance.brain.two_model_pipeline):
                         pipeline = web_gui_instance.brain.two_model_pipeline
-                        logger.info(f"Pipeline type: {type(pipeline)}")
+                        logger.info(f"Using PipelineAdapter: {type(pipeline)}")
                     
-                    if not pipeline:
+                    if not dialog_manager and not pipeline:
                         error_msg = 'Pipeline не найден - GUI brain не инициализирован'
                         logger.error(error_msg)
                         yield f"data: {json.dumps({'type': 'error', 'text': error_msg})}\n\n"
                         return
                     
+                    # Используем HybridKnowledgeDialogManager если доступен
+                    if dialog_manager:
+                        logger.info("Processing with HybridKnowledgeDialogManager...")
+                        try:
+                            # Добавляем сообщение пользователя
+                            dialog_manager.add_message("user", message)
+                            
+                            # Генерируем ответ
+                            import asyncio
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            async def gen():
+                                return await dialog_manager.process_user_input(message)
+                            
+                            result = loop.run_until_complete(gen())
+                            loop.close()
+                            
+                            # Отправляем чанки
+                            words = result.response.split()
+                            for word in words:
+                                chunk_data = json.dumps({
+                                    'type': 'chunk', 
+                                    'text': word + ' ',
+                                    'validated': result.validated
+                                })
+                                yield f"data: {chunk_data}\n\n"
+                            
+                            # Отправляем конец
+                            yield f"data: {json.dumps({'type': 'end', 'validated': result.validated, 'processing_time': result.processing_time})}\n\n"
+                            return
+                            
+                        except Exception as e:
+                            logger.error(f"HybridKnowledgeDialogManager error: {e}")
+                            yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
+                            return
+                    
+                    # Fallback на streaming
                     if not hasattr(pipeline, 'generate_streaming'):
                         error_msg = 'Pipeline не поддерживает streaming'
                         logger.error(error_msg)

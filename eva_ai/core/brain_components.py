@@ -1038,3 +1038,89 @@ def _init_unified_generator(brain):
         brain.two_model_pipeline = None
         brain.two_model_pipeline_ready = False
 
+
+def _init_hybrid_dialog_manager(brain):
+    """
+    Инициализация HybridKnowledgeDialogManager.
+    
+    Этот менеджер обеспечивает:
+    - Chat template форматирование для Qwen3-4B
+    - Prefix caching для истории диалога
+    - Виртуальные токены знаний из FractalGraphV2
+    - Интеграция с ConceptExtractor и ContradictionMiner
+    - Валидация ответов
+    """
+    brain.hybrid_dialog_manager = None
+    
+    try:
+        from eva_ai.core.hybrid_dialog_manager import create_hybrid_dialog_manager
+        
+        model_config = brain.config.get('model', {})
+        
+        # Получаем путь к модели
+        model_path = model_config.get('logic_model_path', '')
+        
+        if not model_path or not os.path.exists(model_path):
+            # Пробуем альтернативные пути
+            if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
+                # Берём из существующего pipeline
+                try:
+                    if hasattr(brain.two_model_pipeline, '_openvino_cpu'):
+                        model_path = getattr(brain.two_model_pipeline._openvino_cpu, '_model_path', '')
+                    elif hasattr(brain.two_model_pipeline, 'model_a_path'):
+                        model_path = brain.two_model_pipeline.model_a_path
+                except:
+                    pass
+        
+        if not model_path:
+            query_logger.warning('Путь к модели не найден для HybridKnowledgeDialogManager')
+            return
+        
+        # Получаем устройство
+        device = model_config.get('cpu_device', 'CPU')
+        
+        # Получаем компоненты графа памяти
+        fractal_graph = getattr(brain, 'fractal_graph', None)
+        
+        # Получаем concept_extractor
+        concept_extractor = None
+        if hasattr(brain, 'concept_extractor'):
+            concept_extractor = brain.concept_extractor
+        elif hasattr(brain, 'knowledge') and hasattr(brain.knowledge, 'concept_extractor'):
+            concept_extractor = brain.knowledge.concept_extractor
+        
+        # Получаем contradiction_manager
+        contradiction_manager = None
+        if hasattr(brain, 'contradiction_manager'):
+            contradiction_manager = brain.contradiction_manager
+        elif hasattr(brain, 'knowledge') and hasattr(brain.knowledge, 'contradiction_manager'):
+            contradiction_manager = brain.knowledge.contradiction_manager
+        
+        # Создаём менеджер
+        manager = create_hybrid_dialog_manager(
+            brain=brain,
+            fractal_graph=fractal_graph,
+            concept_extractor=concept_extractor,
+            contradiction_manager=contradiction_manager,
+            model_path=model_path,
+            device=device,
+            enable_validation=True,
+            max_history=50,
+            max_tokens=512,
+            temperature=0.7
+        )
+        
+        if manager.initialize():
+            brain.hybrid_dialog_manager = manager
+            query_logger.info(f'HybridKnowledgeDialogManager инициализирован: {model_path} на {device}')
+            query_logger.info(f'  concept_extractor: {concept_extractor is not None}')
+            query_logger.info(f'  contradiction_manager: {contradiction_manager is not None}')
+            query_logger.info(f'  fractal_graph: {fractal_graph is not None}')
+        else:
+            query_logger.error('HybridKnowledgeDialogManager не удалось инициализировать')
+            
+    except ImportError as e:
+        query_logger.warning(f'HybridKnowledgeDialogManager не доступен: {e}')
+    except Exception as e:
+        query_logger.error(f'Ошибка инициализации HybridKnowledgeDialogManager: {e}')
+
