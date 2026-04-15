@@ -25,6 +25,7 @@ import hashlib
 import logging
 import asyncio
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple, Callable
 from dataclasses import dataclass, field
 from collections import OrderedDict
@@ -241,22 +242,51 @@ class HybridKnowledgeDialogManager:
             return False
         
         try:
-            # Настройка планировщика с prefix caching
-            self._scheduler_config = ov_genai.SchedulerConfig()
-            self._scheduler_config.enable_prefix_caching = True
-            self._scheduler_config.cache_size = 2  # GB
-            self._scheduler_config.max_num_seqs = 4
-            self._scheduler_config.max_num_batched_tokens = 2048
+            # Проверяем есть ли уже загруженный генератор в Registry
+            from eva_ai.core.openvino_generator import get_openvino_registry
             
-            # Создание pipeline
-            config = {"scheduler_config": self._scheduler_config}
-            self._pipeline = ov_genai.LLMPipeline(self.model_path, self.device, config=config)
+            registry = get_openvino_registry()
             
-            # Токенизатор (используем chat template из модели)
-            self._tokenizer = self._pipeline.get_tokenizer()
+            # Настройка планировщика
+            scheduler_config = ov_genai.SchedulerConfig()
+            scheduler_config.enable_prefix_caching = True
+            scheduler_config.cache_size = 2
+            scheduler_config.max_num_seqs = 4
+            scheduler_config.max_num_batched_tokens = 2048
+            
+            config = {"scheduler_config": scheduler_config}
+            
+            # Пробуем получить из Registry (шарит GPU модель)
+            model_path_obj = Path(self.model_path) if self.model_path else None
+            
+            def creator_fn(gen):
+                gen._pipeline = ov_genai.LLMPipeline(self.model_path, self.device, config=config)
+                gen._tokenizer = gen._pipeline.get_tokenizer() if hasattr(gen._pipeline, 'get_tokenizer') else None
+            
+            # Пытаемся использовать Registry для шаринга модели
+            shared_gen = None
+            if model_path_obj:
+                try:
+                    shared_gen = registry.get_or_create(
+                        model_path=model_path_obj,
+                        device=self.device,
+                        creator_fn=creator_fn,
+                        config_hash=f"hdialog_{self.max_tokens}_{self.temperature}"
+                    )
+                except Exception as e:
+                    logger.debug(f"Registry недоступен: {e}")
+            
+            if shared_gen and shared_gen._pipeline:
+                self._pipeline = shared_gen._pipeline
+                self._tokenizer = shared_gen._tokenizer if hasattr(shared_gen, '_tokenizer') else None
+                logger.info(f"Используем шаренный pipeline из Registry: {self.model_path} на {self.device}")
+            else:
+                # Fallback - создаём свой pipeline
+                self._pipeline = ov_genai.LLMPipeline(self.model_path, self.device, config=config)
+                self._tokenizer = self._pipeline.get_tokenizer() if hasattr(self._pipeline, 'get_tokenizer') else None
+                logger.info(f"Создан локальный pipeline: {self.model_path} на {self.device}")
             
             self._initialized = True
-            logger.info(f"Pipeline инициализирован: {self.model_path} на {self.device}")
             return True
             
         except Exception as e:
