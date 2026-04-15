@@ -12,6 +12,13 @@ from .resource_manager import ResourceManager
 from .config_manager import ConfigManager
 from .unified_generator import UnifiedGenerator, create_unified_generator, ModelType
 from .pipeline_adapter import PipelineAdapter, create_pipeline_adapter
+from .hybrid_dialog_manager import (
+    HybridKnowledgeDialogManager,
+    create_hybrid_dialog_manager,
+    KnowledgeContext,
+    GenerationResult,
+    DialogMessage,
+)
 
 __all__ = [
     "CoreBrain",
@@ -27,4 +34,9 @@ __all__ = [
     "ModelType",
     "PipelineAdapter",
     "create_pipeline_adapter",
+    "HybridKnowledgeDialogManager",
+    "create_hybrid_dialog_manager",
+    "KnowledgeContext",
+    "GenerationResult",
+    "DialogMessage",
 ]
