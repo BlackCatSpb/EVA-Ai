@@ -23,10 +23,12 @@ from eva_ai.core.api_compat import API_VERSION, API_PREFIX, api_version
 logger = logging.getLogger("eva_ai.webgui")
 
 TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+TESSDATA_PREFIX = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'tessdata')
 try:
     import pytesseract
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-    logger.info("Tesseract configured at: {}".format(TESSERACT_PATH))
+    os.environ['TESSDATA_PREFIX'] = TESSDATA_PREFIX
+    logger.info("Tesseract configured at: {} with tessdata: {}".format(TESSERACT_PATH, TESSDATA_PREFIX))
 except Exception as e:
     logger.warning("Failed to configure Tesseract: {}".format(e))
 

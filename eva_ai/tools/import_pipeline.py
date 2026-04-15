@@ -31,8 +31,12 @@ PIL = _safe_import("PIL")
 # Configure Tesseract path for OCR
 if pytesseract:
     try:
-        pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-        logger.info("Tesseract path configured in import_pipeline")
+        import os as _os
+        tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        tessdata_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'tessdata')
+        pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        _os.environ['TESSDATA_PREFIX'] = tessdata_path
+        logger.info(f"Tesseract configured: {tesseract_path}, tessdata: {tessdata_path}")
     except Exception as e:
         logger.warning(f"Failed to configure Tesseract path: {e}")
 
