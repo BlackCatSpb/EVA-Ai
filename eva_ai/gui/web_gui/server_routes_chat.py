@@ -172,7 +172,7 @@ def register_chat_routes(app, web_gui_instance):
                                 user_input=message,
                                 max_tokens=4096,
                                 temperature=0.6,
-                                chunk_size=50
+                                chunk_size=25
                             ):
                                 yield f"data: {json.dumps(chunk_data)}\n\n"
                             return
@@ -242,7 +242,7 @@ def register_chat_routes(app, web_gui_instance):
                         prompt=enhanced_message,
                         max_tokens=4096,
                         temperature=0.6,
-                        chunk_size=50,
+                        chunk_size=20,
                         task_type="context"
                     ):
                         chunk_type = chunk_data.get('type', 'chunk')

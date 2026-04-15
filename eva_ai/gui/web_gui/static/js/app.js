@@ -1392,8 +1392,10 @@
         // Blockquotes
         html = html.replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
         
-        // Horizontal rule
-        html = html.replace(/^---$/gm, '<hr>');
+        // Horizontal rule - более гибкий паттерн
+        html = html.replace(/^[\s]*---[\s]*$/gm, '<hr>');
+        html = html.replace(/\n---[\s]*\n/g, '\n<hr>\n');
+        html = html.replace(/---/g, '<hr>');
         
         // Checkboxes / Task lists (unchecked and checked) - handle inline and multiline
         html = html.replace(/^- \[ \] (.+)$/gm, '<div class="checkbox unchecked"><span class="checkbox-box"></span>$1</div>');

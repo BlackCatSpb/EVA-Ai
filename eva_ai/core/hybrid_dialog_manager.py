@@ -735,10 +735,10 @@ class HybridKnowledgeDialogManager:
         system_prompt: str = None,
         max_tokens: int = None,
         temperature: float = None,
-        chunk_size: int = 40
+        chunk_size: int = 25
     ):
         """
-        Генерация со стримингом для SSE.
+        Генерация со стримингом для SSE - отправляет чанки ПО МЕРЕ генерации.
         
         Args:
             user_input: Текст сообщения пользователя
@@ -759,85 +759,99 @@ class HybridKnowledgeDialogManager:
         temperature = temperature or self.temperature
         
         try:
-            # Добавляем сообщение пользователя
             self.add_message("user", user_input)
             
-            # Получаем историю и форматируем
             history = self.get_history()
             prompt = self._format_chat_prompt(history, add_generation_prompt=True)
             
-            # Получаем контекст знаний
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             knowledge_context = loop.run_until_complete(self._get_knowledge_context())
             loop.close()
             
-            # Вставляем виртуальные токены
             if knowledge_context.virtual_tokens:
                 prompt = self._insert_knowledge_tokens(prompt, knowledge_context.virtual_tokens)
             
-            # Настройка генерации
             config = ov_genai.GenerationConfig()
             config.max_new_tokens = max_tokens
             config.temperature = temperature
             config.do_sample = temperature > 0
             
             buffer = ""
-            full_text = []
             chunk_count = 0
+            full_text = []
+            
+            import queue
+            token_queue = queue.Queue()
+            is_complete = [False]
+            error_msg = [None]
             
             def streamer(text: str) -> bool:
+                """Callback вызывается для каждого токена - отправляем сразу."""
                 full_text.append(text)
+                token_queue.put(text)
                 return False
-            
-            # Запускаем генерацию в потоке
-            import queue
-            result_queue = queue.Queue()
             
             def generate():
                 try:
                     self._pipeline.generate(prompt, config, streamer=streamer)
                 except Exception as e:
-                    result_queue.put(('error', str(e)))
+                    error_msg[0] = str(e)
+                    token_queue.put(('error', str(e)))
                 finally:
-                    result_queue.put(None)
+                    is_complete[0] = True
+                    token_queue.put(None)
             
             thread = threading.Thread(target=generate, daemon=True)
             thread.start()
             
-            # Ожидаем и отправляем чанки
             while True:
                 try:
-                    item = result_queue.get(timeout=60)
+                    item = token_queue.get(timeout=60)
                 except queue.Empty:
-                    break
-                    
+                    if not thread.is_alive():
+                        break
+                    continue
+                
                 if item is None:
                     break
-                    
+                
                 if isinstance(item, tuple) and item[0] == 'error':
                     yield {'type': 'error', 'text': item[1], 'is_final': True}
                     return
+                
+                buffer += item
+                
+                if len(buffer) >= chunk_size:
+                    elapsed = int((time.time() - start_time) * 1000)
+                    yield {
+                        'type': 'chunk',
+                        'text': buffer,
+                        'is_final': False,
+                        'tokens_count': len(''.join(full_text)),
+                        'elapsed_ms': elapsed
+                    }
+                    buffer = ""
+                    chunk_count += 1
             
-            # Собираем полный текст
-            full_response = ''.join(full_text)
-            
-            # Разбиваем на чанки для стриминга
-            chunks = self._split_text_chunks(full_response, chunk_size)
-            
-            for i, chunk in enumerate(chunks):
-                elapsed = int((time.time() - start_time) * 1000)
+            if buffer:
                 yield {
                     'type': 'chunk',
-                    'text': chunk,
-                    'is_final': i == len(chunks) - 1,
-                    'tokens_count': len(full_response.split()),
-                    'elapsed_ms': elapsed,
-                    'chunk_index': i,
-                    'total_chunks': len(chunks)
+                    'text': buffer,
+                    'is_final': False,
+                    'tokens_count': len(''.join(full_text)),
+                    'elapsed_ms': int((time.time() - start_time) * 1000)
                 }
             
-            # Сохраняем в историю
+            full_response = ''.join(full_text)
+            yield {
+                'type': 'complete',
+                'text': full_response,
+                'is_final': True,
+                'tokens_count': len(full_response.split()),
+                'elapsed_ms': int((time.time() - start_time) * 1000)
+            }
+            
             self.add_message("assistant", full_response)
             
         except Exception as e:
