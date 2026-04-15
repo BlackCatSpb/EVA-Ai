@@ -2,7 +2,7 @@
   "model": {
     "use_unified_generator": true,
     "use_two_model_pipeline": true,
-    "disable_pytorch": true,
+    "disable_pytorch": false,
     "qwen_only_mode": false,
     "pipeline_mode": "dual",
     "model_a_gguf_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\Q4_K_M.gguf",
@@ -14,8 +14,8 @@
     "language_mode": "russian_only",
     "use_openvino": true,
     "cpu_device": "CPU",
-    "gpu_device": "CPU",
-    "embeddings_device": "CPU"
+    "gpu_device": "GPU.0",
+    "embeddings_device": "GPU.0"
   },
   "system": {
     "log_level": "INFO",

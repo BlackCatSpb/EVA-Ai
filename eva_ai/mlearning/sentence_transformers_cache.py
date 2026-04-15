@@ -9,12 +9,11 @@ from typing import Optional, List
 
 logger = logging.getLogger("eva_ai.sentence_transformers_cache")
 
-# Устанавливаем HF_HOME на локальный кеш
-_DEFAULT_HF_CACHE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'hf_cache')
-if not os.environ.get('HF_HOME'):
-    os.environ['HF_HOME'] = _DEFAULT_HF_CACHE
-    os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-    logger.info(f"HF_HOME установлен: {_DEFAULT_HF_CACHE}")
+# Устанавливаем HF_HOME на локальный кеш - используем models-- формат
+_HF_CACHE_BASE = os.environ.get('HF_HOME') or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'hf_cache')
+os.environ['HF_HOME'] = _HF_CACHE_BASE
+os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
+logger.info(f"HF_HOME: {_HF_CACHE_BASE}")
 
 _SENTENCE_TRANSFORMER_CACHE: Optional[object] = None
 _CACHE_MODEL_NAME: Optional[str] = None
