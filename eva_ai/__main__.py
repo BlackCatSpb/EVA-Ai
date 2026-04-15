@@ -6,6 +6,8 @@ import os
 import sys
 import logging
 import io
+import signal
+import threading
 
 # Fix Windows console Unicode encoding
 if sys.platform == 'win32':
@@ -54,15 +56,49 @@ logging.basicConfig(
 logger = logging.getLogger("eva_ai.__main__")
 logger.info(f"Project root: {project_root}")
 
+# Глобальная переменная для хранилища core_brain
+_core_instance = None
+
+def _handle_shutdown(signum, frame):
+    """Обработчик сигнала завершения (Ctrl+C, закрытие терминала)."""
+    logger.info(f"Получен сигнал завершения ({signum})...")
+    if _core_instance is not None:
+        try:
+            logger.info("Останавливаем EVA...")
+            _core_instance.stop()
+        except Exception as e:
+            logger.error(f"Ошибка при остановке: {e}")
+    sys.exit(0)
+
+# Регистрируем обработчики сигналов
+signal.signal(signal.SIGINT, _handle_shutdown)
+signal.signal(signal.SIGTERM, _handle_shutdown)
+
 def main():
     """Основная функция запуска системы."""
+    global _core_instance
+    
     try:
         from eva_ai.run import main as run_main
-        return run_main()
+        result = run_main()
+        
+        # Пробуем получить core_instance для shutdown
+        try:
+            from eva_ai.core.core_brain import get_core_instance
+            _core_instance = get_core_instance()
+        except:
+            pass
+        
+        return result
     except ImportError as e:
         logger.error(f"Ошибка импорта: {e}")
         print("Убедитесь, что все зависимости установлены: pip install -r requirements.txt")
         return False
+    except KeyboardInterrupt:
+        logger.info("Получен KeyboardInterrupt")
+        if _core_instance is not None:
+            _core_instance.stop()
+        return True
     except Exception as e:
         logger.error(f"Ошибка запуска: {e}", exc_info=True)
         return False

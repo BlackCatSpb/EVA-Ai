@@ -34,6 +34,10 @@ def _set_global_brain(brain):
     global _global_brain_instance_ref
     _global_brain_instance_ref = weakref.ref(brain)
 
+def get_core_instance():
+    """Получить глобальный экземпляр CoreBrain для shutdown."""
+    return _get_global_brain()
+
 try:
     from .query_processor import QueryProcessor
 except Exception:

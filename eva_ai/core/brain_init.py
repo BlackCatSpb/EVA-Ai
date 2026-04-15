@@ -201,11 +201,32 @@ def _stop_components(brain):
             brain.background.stop()
     except Exception as e:
         query_logger.warning(f"Ошибка остановки BackgroundCoordinator: {e}")
+    
     if brain.resource_manager:
         brain.resource_manager.stop_monitoring()
+    
+    # Останавливаем все компоненты КРОМЕ web_gui
+    web_gui_component = None
     for name, component in brain.components.items():
         try:
+            if name == 'web_gui' or name == 'flask_server':
+                web_gui_component = (name, component)
+                continue
             if hasattr(component, 'stop'):
                 component.stop()
         except Exception as e:
             query_logger.error(f"Ошибка остановки компонента {name}: {e}")
+    
+    # Останавливаем web_gui ПОСЛЕДНИМ
+    if web_gui_component:
+        name, component = web_gui_component
+        try:
+            query_logger.info(f"Остановка {name}...")
+            if hasattr(component, 'stop'):
+                component.stop()
+            else:
+                # Прямой вызов shutdown для Flask
+                if hasattr(component, 'shutdown'):
+                    component.shutdown()
+        except Exception as e:
+            query_logger.error(f"Ошибка остановки {name}: {e}")

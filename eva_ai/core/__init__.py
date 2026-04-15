@@ -2,7 +2,7 @@
 Core subpackage for ЕВА.
 Contains the central brain and coordination components.
 """
-from .core_brain import CoreBrain
+from .core_brain import CoreBrain, get_core_instance
 from .query_processor import QueryProcessor
 from .response_generator import ResponseGenerator
 from .event_system import EventSystem
@@ -22,6 +22,7 @@ from .hybrid_dialog_manager import (
 
 __all__ = [
     "CoreBrain",
+    "get_core_instance",
     "QueryProcessor",
     "ResponseGenerator",
     "EventSystem",
