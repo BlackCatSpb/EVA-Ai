@@ -910,15 +910,13 @@ class QueryMixin:
         """
         Упрощённая цепочка генерации:
         1. two_model_pipeline (UnifiedGenerator) - главный
-        2. llama_cpp_deployment - fallback
-        3. memory - последний fallback
-        4. basic_fallback - крайний
+        2. memory - fallback
+        3. basic_fallback - крайний
         """
         # 1. two_model_pipeline (UnifiedGenerator) - главный генератор
         pipeline = getattr(self, 'two_model_pipeline', None)
         if pipeline:
             try:
-                # Пробуем streaming интерфейс
                 if hasattr(pipeline, 'generate_streaming'):
                     query_logger.info("Using two_model_pipeline.generate_streaming")
                     chunks = []
@@ -945,7 +943,6 @@ class QueryMixin:
                             "source": "two_model_pipeline",
                             "processing_time": time.time() - start_time
                         }
-                # Fallback на обычный generate
                 elif hasattr(pipeline, 'generate'):
                     query_logger.info("Using two_model_pipeline.generate")
                     result = pipeline.generate(
@@ -965,31 +962,7 @@ class QueryMixin:
             except Exception as e:
                 query_logger.warning(f"two_model_pipeline error: {e}")
 
-        # 2. llama_cpp_deployment - fallback
-        if self.llama_cpp_ready and self.llama_cpp_deployment:
-            try:
-                query_logger.info("Using llama_cpp_deployment.generate")
-                response_text, gen_err = self._generate_with_timeout(
-                    lambda: self.llama_cpp_deployment.generate(
-                        prompt=query,
-                        max_new_tokens=max_new_tokens or 2048,
-                        temperature=temperature or 0.7,
-                        top_p=top_p or 0.9,
-                        repeat_penalty=repetition_penalty or 1.1
-                    )
-                )
-                if not gen_err and response_text:
-                    self._save_to_fractal_graph(query, response_text)
-                    return {
-                        "response": response_text, "text": response_text,
-                        "status": "ok", "confidence": 0.8,
-                        "source": "llama_cpp",
-                        "processing_time": time.time() - start_time
-                    }
-            except Exception as e:
-                query_logger.warning(f"llama_cpp error: {e}")
-
-        # 3. memory - последний fallback
+        # 2. memory - fallback
         try:
             memory_manager = getattr(self, 'memory_manager', None)
             if memory_manager and getattr(memory_manager, 'initialized', True):
@@ -1007,7 +980,7 @@ class QueryMixin:
         except Exception as e:
             query_logger.warning(f"memory error: {e}")
 
-        # 4. basic_fallback - крайний
+        # 3. basic_fallback - крайний
         query_logger.warning("Using basic_fallback")
         return self._generate_basic_fallback_response(query)
                 else:
