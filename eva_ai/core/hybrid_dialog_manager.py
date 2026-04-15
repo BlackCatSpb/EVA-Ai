@@ -253,21 +253,21 @@ class HybridKnowledgeDialogManager:
                 return False
             
             # Получаем или создаём генератор через Registry
-            def creator_fn(gen):
-                gen._load_model()
-                gen._tokenizer = gen._pipeline.get_tokenizer() if gen._pipeline else None
-            
             shared_gen = registry.get_or_create(
                 model_path=model_path_obj,
                 device=self.device,
-                creator_fn=creator_fn,
+                creator_fn=None,
                 config_hash=f"hdialog_{self.max_tokens}_{self.temperature}"
             )
             
             # Берём pipeline из шаренного генератора
             if shared_gen and shared_gen._pipeline:
                 self._pipeline = shared_gen._pipeline
-                self._tokenizer = shared_gen._tokenizer
+                # Получаем токенизатор из pipeline
+                try:
+                    self._tokenizer = self._pipeline.get_tokenizer()
+                except:
+                    self._tokenizer = None
                 logger.info(f"Используем шаренный pipeline из Registry: {self.model_path} на {self.device}")
             else:
                 logger.error("Не удалось получить pipeline из Registry")
