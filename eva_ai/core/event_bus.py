@@ -138,6 +138,7 @@ class EventBus:
         self._running = False
         self._worker_thread: Optional[threading.Thread] = None
         self._lock = threading.RLock()
+        self._event_counter = 0
         self._stats = {
             'events_published': 0,
             'events_processed': 0,
@@ -268,9 +269,11 @@ class EventBus:
             with self._lock:
                 self._event_history.append(event)
                 self._stats['events_published'] += 1
+                counter = self._event_counter
+                self._event_counter += 1
             
             priority_value = 5 - event.priority.value
-            self._event_queue.put((priority_value, event.timestamp, event))
+            self._event_queue.put((priority_value, event.timestamp, counter, event))
             
             logger.info("EVENT published: {} from {}".format(event.event_type, event.source))
             logger.debug("  Queue size: {}".format(self._event_queue.qsize()))
@@ -420,8 +423,8 @@ class EventBus:
             try:
                 try:
                     item = self._event_queue.get(timeout=1.0)
-                    if isinstance(item, tuple) and len(item) == 3:
-                        _, _, event = item
+                    if isinstance(item, tuple) and len(item) >= 4:
+                        _, _, _, event = item
                     else:
                         event = item
                 except queue.Empty:
