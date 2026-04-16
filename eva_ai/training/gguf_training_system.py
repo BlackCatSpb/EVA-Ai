@@ -80,6 +80,10 @@ class GGUFTrainingSystem:
         self.brain = brain
         self.config = config or {}
         
+        # Директория для сохранения output
+        self.output_dir = self.config.get('output_dir', 
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'training_output'))
+        
         # Пути к моделям (используем ruadapt_qwen3_4b)
         base_dir = r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models"
         self.base_model_path = self.config.get('base_model_path', 
@@ -116,6 +120,7 @@ class GGUFTrainingSystem:
         # Создаем директории
         os.makedirs(self.lora_path, exist_ok=True)
         os.makedirs(os.path.dirname(self.training_model_path), exist_ok=True)
+        os.makedirs(self.output_dir, exist_ok=True)
         
         # Настройки автозапуска
         self.auto_start = self.config.get('auto_start', True)
