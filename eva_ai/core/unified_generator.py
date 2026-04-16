@@ -270,19 +270,22 @@ class UnifiedGenerator:
             logic_model = self._model_paths.get(ModelType.LOGIC)
             context_model = self._model_paths.get(ModelType.CONTEXT)
             
-            # LOGIC scheduler - оптимизирован для LATENCY
+            # NUM_STREAMS = cpu_count для максимальной загрузки
+            num_streams = cpu_count
+            
+            # LOGIC scheduler - оптимизирован для THROUGHPUT (загрузка CPU)
             logic_scheduler = {
-                'cache_size': 2,
-                'max_num_seqs': 2,
-                'max_num_batched_tokens': 1152,
+                'cache_size': 4,
+                'max_num_seqs': 4,
+                'max_num_batched_tokens': 2048,
                 'enable_prefix_caching': True
             }
             
             # CONTEXT scheduler - оптимизирован для длинных контекстов
             context_scheduler = {
-                'cache_size': 2,
-                'max_num_seqs': 4,
-                'max_num_batched_tokens': 2048,
+                'cache_size': 4,
+                'max_num_seqs': 8,
+                'max_num_batched_tokens': 4096,
                 'enable_prefix_caching': True
             }
             
@@ -292,11 +295,11 @@ class UnifiedGenerator:
                     model_path=logic_model,
                     device=self.cpu_device,
                     max_tokens=1024,
-                    performance_hint="LATENCY",
+                    performance_hint="THROUGHPUT",
                     scheduler_config=logic_scheduler,
-                    num_streams="AUTO"
+                    num_streams=num_streams
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic, max_tokens=1024)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic, streams={num_streams})")
             
             # CONTEXT - CPU (развёрнутые ответы, max_tokens=4096)
             if context_model:
@@ -304,10 +307,11 @@ class UnifiedGenerator:
                     model_path=context_model,
                     device=self.cpu_device,
                     max_tokens=4096,
-                    performance_hint="LATENCY",
-                    scheduler_config=context_scheduler
+                    performance_hint="THROUGHPUT",
+                    scheduler_config=context_scheduler,
+                    num_streams=num_streams
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context, max_tokens=4096)")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context, streams={num_streams})")
             else:
                 logger.warning(f"Context model not found: {context_model}")
             
