@@ -236,6 +236,7 @@
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
 | 8.1.1 | Thread leak | [СРЕД] | [ ] | Требует профилирования |
+| 8.1.2 | Reasoning UI: scroll + auto-collapse | [ВЫС] | [X] | ✅ Реализовано: Grok-like collapsible reasoning panel, scrollable content, auto-collapse after generation, live streaming steps |
 
 ## 8.2 WebSearch
 | # | Проблема | Приоритет | Статус | Комментарий |

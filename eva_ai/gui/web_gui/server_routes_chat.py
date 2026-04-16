@@ -237,6 +237,7 @@ def register_chat_routes(app, web_gui_instance):
                     # Генерируем со стримингом чанков
                     full_text = ""
                     chunk_count = 0
+                    reasoning_steps = []
                     
                     for chunk_data in pipeline.generate_streaming(
                         prompt=enhanced_message,
@@ -251,6 +252,14 @@ def register_chat_routes(app, web_gui_instance):
                         if chunk_text:
                             full_text += chunk_text
                             chunk_count += 1
+                        
+                        # Extract reasoning steps if present in chunk
+                        if chunk_data.get('reasoning_step'):
+                            reasoning_steps.append(chunk_data['reasoning_step'])
+                            yield f"data: {json.dumps({
+                                'type': 'reasoning_step',
+                                'step': chunk_data['reasoning_step']
+                            })}\n\n"
                         
                         # Отправляем чанк клиенту
                         yield f"data: {json.dumps({
@@ -274,8 +283,13 @@ def register_chat_routes(app, web_gui_instance):
                             session_id, 'assistant', full_text
                         )
                     
-                    # Отправляем завершение
-                    yield f"data: {json.dumps({'type': 'done', 'full_text': full_text, 'chunks_sent': chunk_count})}\n\n"
+                    # Отправляем завершение с reasoning
+                    yield f"data: {json.dumps({
+                        'type': 'done',
+                        'full_text': full_text,
+                        'chunks_sent': chunk_count,
+                        'reasoning': reasoning_steps if reasoning_steps else None
+                    })}\n\n"
                     
                 except Exception as e:
                     logger.error(f"Streaming error: {e}", exc_info=True)
