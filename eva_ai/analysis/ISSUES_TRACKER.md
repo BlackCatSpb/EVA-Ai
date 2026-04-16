@@ -305,7 +305,7 @@
 | 12.4 | ModelManager | 8 | [ ] | Только 2-3 активны |
 | 12.5 | OpenVINOGenerator | 3 | [ ] | mlearning, core, hot_deployment |
 | 12.6 | FractalStore | 3 | [ ] | |
-| 12.7 | DiskCache | 2 | [ ] | TokenDiskCache vs DiskCache |
+| 12.7 | DiskCache | 2 | [P] | Частично: DiskCache (async_text_generator), TokenDiskCache (HybridTokenCache) - требует рефакторинга |
 | 12.8 | LRUCache | 2 | [ ] | cache_ram.py == memory_cache.py |
 | 12.9 | SystemState enum | 3 | [X] | ✅ Исправлено: system_state.py + brain_state.py активны, core_brain_types.py удалён (0 импортов) |
 | 12.10 | ContradictionAnalyzer | 2 | [X] | ✅ Исправлено: analytics/contradiction_analyzer.py удалён (0 импортов), используется только contradiction/ |
