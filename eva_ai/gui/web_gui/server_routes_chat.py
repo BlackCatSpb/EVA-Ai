@@ -239,6 +239,11 @@ def register_chat_routes(app, web_gui_instance):
                     chunk_count = 0
                     reasoning_steps = []
                     
+                    # State machine для парсинга reasoning из стрима
+                    in_reasoning = False
+                    reasoning_buffer = ""
+                    reasoning_step_num = 0
+                    
                     for chunk_data in pipeline.generate_streaming(
                         prompt=enhanced_message,
                         max_tokens=4096,
@@ -250,32 +255,88 @@ def register_chat_routes(app, web_gui_instance):
                         chunk_text = chunk_data.get('text', '')
                         
                         if chunk_text:
-                            full_text += chunk_text
-                            chunk_count += 1
+                            # Парсим reasoning tags из стрима
+                            remaining = chunk_text
+                            while remaining:
+                                if not in_reasoning:
+                                    # Ищем начало reasoning
+                                    start_idx = remaining.find('<think>')
+                                    if start_idx != -1:
+                                        in_reasoning = True
+                                        reasoning_buffer = ""
+                                        remaining = remaining[start_idx + len('<think>'):]
+                                    else:
+                                        # Это часть ответа — накапливаем
+                                        full_text += remaining
+                                        chunk_count += 1
+                                        remaining = ""
+                                else:
+                                    # Внутри reasoning — ищем конец
+                                    end_idx = remaining.find('</think>')
+                                    if end_idx != -1:
+                                        reasoning_buffer += remaining[:end_idx]
+                                        remaining = remaining[end_idx + len('</think>'):]
+                                        in_reasoning = False
+                                        # Отправляем reasoning step
+                                        reasoning_step_num += 1
+                                        step_data = {
+                                            'step': reasoning_step_num,
+                                            'phase': 'thinking',
+                                            'thought': reasoning_buffer.strip(),
+                                            'confidence': 0.8
+                                        }
+                                        reasoning_steps.append(step_data)
+                                        yield f"data: {json.dumps({
+                                            'type': 'reasoning_step',
+                                            'step': step_data
+                                        })}\n\n"
+                                    else:
+                                        reasoning_buffer += remaining
+                                        remaining = ""
                         
-                        # Extract reasoning steps if present in chunk
-                        if chunk_data.get('reasoning_step'):
-                            reasoning_steps.append(chunk_data['reasoning_step'])
+                        # Отправляем чанк клиенту (только текст ответа, без reasoning)
+                        if chunk_text and not in_reasoning:
                             yield f"data: {json.dumps({
-                                'type': 'reasoning_step',
-                                'step': chunk_data['reasoning_step']
+                                'type': chunk_type,
+                                'text': chunk_text,
+                                'is_final': chunk_data.get('is_final', False),
+                                'tokens_count': chunk_data.get('tokens_count', 0),
+                                'elapsed_ms': chunk_data.get('elapsed_ms', 0),
+                                'chunk_index': chunk_data.get('chunk_index', 0),
+                                'total_chunks': chunk_data.get('total_chunks', 0),
+                                'progress': chunk_data.get('progress', 0)
                             })}\n\n"
-                        
-                        # Отправляем чанк клиенту
-                        yield f"data: {json.dumps({
-                            'type': chunk_type,
-                            'text': chunk_text,
-                            'is_final': chunk_data.get('is_final', False),
-                            'tokens_count': chunk_data.get('tokens_count', 0),
-                            'elapsed_ms': chunk_data.get('elapsed_ms', 0),
-                            'chunk_index': chunk_data.get('chunk_index', 0),
-                            'total_chunks': chunk_data.get('total_chunks', 0),
-                            'progress': chunk_data.get('progress', 0)
-                        })}\n\n"
+                        elif chunk_text and in_reasoning:
+                            # Внутри reasoning — отправляем пустой чанк чтобы не ломать стрим
+                            yield f"data: {json.dumps({
+                                'type': 'chunk',
+                                'text': '',
+                                'is_final': False,
+                                'tokens_count': 0,
+                                'elapsed_ms': chunk_data.get('elapsed_ms', 0),
+                            })}\n\n"
                         
                         # Если это финальный чанк - выходим
                         if chunk_data.get('is_final', False):
                             break
+                    
+                    # Если reasoning не был закрыт — добавляем как есть
+                    if in_reasoning and reasoning_buffer.strip():
+                        reasoning_step_num += 1
+                        step_data = {
+                            'step': reasoning_step_num,
+                            'phase': 'thinking',
+                            'thought': reasoning_buffer.strip(),
+                            'confidence': 0.8
+                        }
+                        reasoning_steps.append(step_data)
+                    
+                    # Очищаем full_text от остатков reasoning tags
+                    import re
+                    full_text = re.sub(r'<think>.*?</think>', '', full_text, flags=re.DOTALL)
+                    full_text = re.sub(r'<think>', '', full_text)
+                    full_text = re.sub(r'</think>', '', full_text)
+                    full_text = full_text.strip()
                     
                     # Сохраняем в историю
                     if session_id and full_text:
