@@ -32,6 +32,14 @@ class HybridTokenCache:
     Многоуровневая архитектура: GPU (VRAM) → RAM → SSD
     """
 
+    def __new__(cls, brain, _cache_name: str = "default", **kwargs):
+        with _registry_lock:
+            if _cache_name in _cache_registry:
+                return _cache_registry[_cache_name]
+            instance = super().__new__(cls)
+            _cache_registry[_cache_name] = instance
+            return instance
+
     def __init__(
         self,
         brain,
@@ -48,6 +56,9 @@ class HybridTokenCache:
         _cache_name: str = "default",
         **kwargs
     ):
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+        self._initialized = True
         self.brain = brain
         self.gpu_available = torch.cuda.is_available()
 
