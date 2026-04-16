@@ -78,8 +78,8 @@ class PipelineAdapter:
             result = self._generator.generate_iterative(
                 query=query,
                 context=None,
-                max_tokens_logic=4096,
-                max_tokens_context=4096,
+                max_tokens_logic=512,
+                max_tokens_context=1024,
                 temperature=temperature,
                 check_contradictions=True,
                 check_concepts=True,

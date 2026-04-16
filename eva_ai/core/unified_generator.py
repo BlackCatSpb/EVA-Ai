@@ -645,8 +645,8 @@ class UnifiedGenerator:
         self,
         query: str,
         context: Optional[str] = None,
-        max_tokens_logic: int = 4096,
-        max_tokens_context: int = 4096,
+        max_tokens_logic: int = 512,
+        max_tokens_context: int = 1024,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None
     ) -> GenerationResult:
@@ -658,8 +658,8 @@ class UnifiedGenerator:
         Args:
             query: Запрос пользователя
             context: Дополнительный контекст из FractalGraph
-            max_tokens_logic: Максимум токенов для LOGIC модели (1024)
-            max_tokens_context: Максимум токенов для CONTEXT модели (4096)
+            max_tokens_logic: Максимум токенов для LOGIC модели (512)
+            max_tokens_context: Максимум токенов для CONTEXT модели (1024)
             temperature: Температура
             system_prompt: Системный промпт
             
@@ -891,8 +891,8 @@ class UnifiedGenerator:
         self,
         query: str,
         context: Optional[str] = None,
-        max_tokens_logic: int = 4096,
-        max_tokens_context: int = 4096,
+        max_tokens_logic: int = 512,
+        max_tokens_context: int = 1024,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
         check_contradictions: bool = True,
@@ -908,8 +908,8 @@ class UnifiedGenerator:
         Args:
             query: Запрос пользователя
             context: Дополнительный контекст из FractalGraph
-            max_tokens_logic: Максимум токенов для LOGIC модели (1024)
-            max_tokens_context: Максимум токенов для CONTEXT модели (4096)
+            max_tokens_logic: Максимум токенов для LOGIC модели (512)
+            max_tokens_context: Максимум токенов для CONTEXT модели (1024)
             temperature: Температура
             system_prompt: Системный промпт
             check_contradictions: Включить противоречия в контекст
