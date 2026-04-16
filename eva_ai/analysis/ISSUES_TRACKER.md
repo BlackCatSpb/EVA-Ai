@@ -198,7 +198,7 @@
 ## 6.2 FractalCache / Storage
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 6.2.1 | storage/fractal_storage.py - мёртвый код | [ВЫС] | [ ] | 0 импортов |
+| 6.2.1 | eva_ai/storage/ - мёртвый код | [ВЫС] | [X] | ✅ Исправлено: удалена вся директория (fractal_storage.py, storage_types.py) |
 | 6.2.2 | 8 случаев Pickle в storage | [КРИТ] | [ ] | fractal_torch_storage, etc. |
 
 ## 6.3 Embeddings
@@ -224,9 +224,9 @@
 ## 7.2 ComponentManagers
 | # | Класс | Проблема | Статус | Комментарий |
 |---|-------|----------|--------|-------------|
-| 7.2.1 | AuthManager | Принимает любой пароль | [ ] | |
-| 7.2.2 | RecoveryManager | Ничего не восстанавливает | [ ] | Рекомендуется удалить |
-| 7.2.3 | SecurityManager | Проксирует вызовы | [ ] | |
+| 7.2.1 | AuthManager | Принимает любой пароль | [X] | ✅ Исправлено: component_managers.py удалён (не использовался) |
+| 7.2.2 | RecoveryManager | Ничего не восстанавливает | [X] | ✅ Исправлено: component_managers.py удалён |
+| 7.2.3 | SecurityManager | Проксирует вызовы | [X] | ✅ Исправлено: component_managers.py удалён |
 
 ---
 
@@ -275,13 +275,13 @@
 | # | Директория/Файл | Причина | Статус | Комментарий |
 |---|-----------------|---------|--------|-------------|
 | 10.1.1 | **eva_ai/fractal/** | 0 импортов, изолирован | [ ] | Полностью мёртвый |
-| 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [ ] | Конкурирует с DCS |
-| 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [ ] | _init_distributed_system НЕ СУЩЕСТВУЕТ |
+| 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [X] | ✅ Исправлено: используется в tests и hot_deployment/openvino_convert.py |
+| 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [X] | ✅ Исправлено: удалена вся директория (DistributedSystem не создаётся) |
 | 10.1.4 | **eva_ai/adaptation/** (4 версии) | 2,200 строк мёртвого кода | [ ] | 4 AdaptationManager |
 | 10.1.5 | **component_managers.py** | 8 заглушек | [ ] | Рекомендуется удалить |
 | 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [P] | В процессе: LlamaCppHotDeployment не используется (use_llama_cpp=false), но удаление требует проверки |
 | 10.1.7 | storage/fractal_storage.py | 0 импортов | [ ] | |
-| 10.1.8 | dual_generator_pie.py | Не используется | [ ] | |
+| 10.1.8 | dual_generator_pie.py | Не используется | [X] | ✅ Исправлено: удалён (только self-reference, не экспортируется) |
 
 ---
 
