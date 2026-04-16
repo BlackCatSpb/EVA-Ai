@@ -85,18 +85,13 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
                     logger.info("NLP-модель загружена через singleton")
                     return model
             
-            logger.warning("sentence_transformers_cache недоступен, используем fallback")
-            if SENTENCE_TRANSFORMERS_AVAILABLE and SentenceTransformer is not None:
-                model = SentenceTransformer('intfloat/multilingual-e5-base')
-                logger.info("NLP-модель загружена напрямую (fallback)")
-                return model
-            else:
-                raise ImportError("sentence_transformers not available")
+            logger.error("sentence_transformers_cache недоступен!")
+            raise ImportError("sentence_transformers_cache not available")
         except Exception as e:
             logger.error(f"Ошибка инициализации NLP-модели: {e}")
             class DummyNLPModel:
                 def encode(self, texts):
-                    return np.random.rand(len(texts), 384)
+                    return np.random.rand(len(texts), 768)
             return DummyNLPModel()
     
     def detect_contradictions(self, concept: Optional[str] = None,

@@ -190,19 +190,14 @@ class UnifiedTextProcessor(BaseComponent):
             # Используем singleton для загрузки sentence-transformers модели
             if get_sentence_transformer is not None:
                 logger.info(f"Загружаем модель эмбеддингов через singleton (устройство: {device})")
-                self.embedder = get_sentence_transformer(self.model_name, device=device)
+                self.embedder = get_sentence_transformer(device=device)
                 if self.embedder is not None:
                     logger.info("Модель эмбеддингов загружена успешно (через singleton)")
                 else:
                     logger.warning("Не удалось загрузить модель эмбеддингов через singleton")
             elif SentenceTransformer is not None:
-                logger.info(f"Загружаем модель эмбеддингов напрямую: {self.model_name}")
-                try:
-                    self.embedder = SentenceTransformer(self.model_name, device=device)
-                    logger.info("Модель эмбеддингов загружена успешно")
-                except Exception as e:
-                    logger.warning(f"Ошибка загрузки модели эмбеддингов: {e}")
-                    self.embedder = None
+                logger.warning("sentence_transformers_cache недоступен, используем прямой вызов (НЕ ДОЛЖНО происходить)")
+                self.embedder = None
             else:
                 logger.warning("SentenceTransformer не доступен. Функции эмбеддингов отключены.")
                 self.embedder = None

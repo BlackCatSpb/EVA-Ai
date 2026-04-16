@@ -215,7 +215,7 @@ class WikipediaKnowledgeBase:
         if self._embedder is None:
             try:
                 from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
-                self._embedder = get_sentence_transformer('intfloat/multilingual-e5-base', device='cpu')
+                self._embedder = get_sentence_transformer(device='cpu')
             except Exception as e:
                 logger.warning(f"Эмбеддер недоступен: {e}")
         return self._embedder

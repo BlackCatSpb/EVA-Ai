@@ -108,7 +108,6 @@ class MemoryGraphML:
         self._hybrid_cache = None
         
         self._st_model = None
-        self._st_model_name = self.config.get('st_model', 'eva_ai/core/hf_cache/multilingual-e5-base')
         self._init_st_model()
         
         self._graph = self.embeddings
@@ -126,12 +125,13 @@ class MemoryGraphML:
             return
         try:
             from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
-            self._st_model = get_sentence_transformer(self._st_model_name, device='auto')
+            self._st_model = get_sentence_transformer(device='auto')
             if self._st_model is None:
-                self._st_model = SentenceTransformer(self._st_model_name, device='cpu')
-            self.embedding_dim = self._st_model.get_sentence_embedding_dimension()
-            device = next(self._st_model.parameters()).device if hasattr(self._st_model, 'parameters') else 'cpu'
-            logger.info(f"Sentence-transformer загружен: {self._st_model_name}, dim={self.embedding_dim}, device={device}")
+                logger.warning("sentence_transformers_cache недоступен")
+            else:
+                self.embedding_dim = self._st_model.get_sentence_embedding_dimension()
+                device = next(self._st_model.parameters()).device if hasattr(self._st_model, 'parameters') else 'cpu'
+                logger.info(f"Sentence-transformer загружен: multilingual-e5-base, dim={self.embedding_dim}, device={device}")
         except Exception as e:
             logger.warning(f"Не удалось загрузить sentence-transformer: {e}")
             self._st_model = None
