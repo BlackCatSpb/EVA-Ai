@@ -178,7 +178,7 @@
 |---|----------|----------|--------|-------------|
 | 5.3.1 | 10 из 12 файлов - мёртвый код | [КРИТ] | [ ] | Удалить или использовать |
 | 5.3.2 | **3 версии OpenVINOGenerator** | [ВЫС] | [ ] | mlearning, core, hot_deployment |
-| 5.3.3 | llama_cpp_wrapper.py = llama_cpp_hot.py | [СРЕД] | [ ] | Дубликат |
+| 5.3.3 | llama_cpp_wrapper.py = llama_cpp_hot.py | [СРЕД] | [X] | ✅ Исправлено: удалён неиспользуемый llama_cpp_wrapper.py |
 
 ---
 
