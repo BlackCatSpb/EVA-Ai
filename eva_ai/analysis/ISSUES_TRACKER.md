@@ -277,7 +277,7 @@
 | 10.1.1 | **eva_ai/fractal/** | MemoryGraphML отключен | [X] | ✅ Исправлено: удалены fractal/ (3 файла), graph_ml_*.py (5 файлов) - 0 импортов |
 | 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [X] | ✅ Исправлено: используется в tests и hot_deployment/openvino_convert.py |
 | 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [X] | ✅ Исправлено: удалена вся директория (DistributedSystem не создаётся) |
-| 10.1.4 | **eva_ai/adaptation/** (4 версии) | 2,200 строк мёртвого кода | [ ] | 4 AdaptationManager |
+| 10.1.4 | **eva_ai/adaptation/** (5 файлов) | Неиспользуемый код | [X] | ✅ Исправлено: удалены adaptation_manager.py, adaptation_integrated.py, adaptation_integration.py, adaptation_types.py, adaptation_analytics.py (5 файлов, ~1500 строк) |
 | 10.1.5 | **component_managers.py** | 8 заглушек | [ ] | Рекомендуется удалить |
 | 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [P] | В процессе: LlamaCppHotDeployment не используется (use_llama_cpp=false), но удаление требует проверки |
 | 10.1.7 | storage/fractal_storage.py | 0 импортов | [ ] | |
