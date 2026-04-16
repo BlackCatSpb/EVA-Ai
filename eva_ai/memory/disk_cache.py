@@ -244,7 +244,7 @@ class DiskCache:
     def put(self, key: str, data: Any):
         """Сохраняет данные в кэш с компрессией."""
         try:
-            file_path = os.path.join(self.cache_dir, f"{key}.pkl")
+            file_path = os.path.join(self.cache_dir, f"{key}.jsonc")
             
             # Сериализация и сжатие (JSON вместо pickle для безопасности)
             serialized = json.dumps(data, ensure_ascii=False).encode('utf-8')
