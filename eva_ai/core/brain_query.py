@@ -9,6 +9,8 @@ import random
 import threading
 from typing import Dict, Any, Optional, List
 
+from eva_ai.core.model_access_manager import ModelAccessManager, AccessPriority
+
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 logger = logging.getLogger("eva_ai.core_brain")
 
@@ -386,7 +388,23 @@ class QueryMixin:
             query_logger.info(f"Query enhanced with {len(search_results)} web results")
         
         try:
-            result = pipeline.process_query(enhanced_query)
+            # Используем ModelAccessManager для координации доступа к модели
+            mam = getattr(pipeline, '_model_access', None)
+            if mam and hasattr(mam, 'request_access'):
+                try:
+                    request_id = mam.request_access(
+                        priority=AccessPriority.CRITICAL,
+                        task_type='query',
+                        callback=pipeline.process_query,
+                        query=enhanced_query,
+                        timeout=60.0
+                    )
+                    result = mam.get_result(request_id, timeout=60.0)
+                except Exception as mam_err:
+                    query_logger.warning(f"MAM error, falling back to direct call: {mam_err}")
+                    result = pipeline.process_query(enhanced_query)
+            else:
+                result = pipeline.process_query(enhanced_query)
             
             # Добавляем результаты поиска к результату
             if result and search_results:
