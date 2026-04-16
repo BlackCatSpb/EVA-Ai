@@ -308,7 +308,7 @@
 | 12.7 | DiskCache | 2 | [ ] | TokenDiskCache vs DiskCache |
 | 12.8 | LRUCache | 2 | [ ] | cache_ram.py == memory_cache.py |
 | 12.9 | SystemState enum | 3 | [X] | ✅ Исправлено: system_state.py + brain_state.py активны, core_brain_types.py удалён (0 импортов) |
-| 12.10 | ContradictionAnalyzer | 2 | [ ] | analytics vs contradiction |
+| 12.10 | ContradictionAnalyzer | 2 | [X] | ✅ Исправлено: analytics/contradiction_analyzer.py удалён (0 импортов), используется только contradiction/ |
 
 ---
 
@@ -383,7 +383,7 @@
 | КРИТ приоритет | ~20 |
 | ВЫС приоритет | ~25 |
 | СРЕД/НИЗК приоритет | ~23 |
-| Исправлено | 29 |
+| Исправлено | 30 |
 | В процессе | 2 |
 | Неактуально | 1 |
 
