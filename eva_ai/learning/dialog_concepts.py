@@ -117,6 +117,34 @@ class DialogConceptsMixin:
             logger.debug(f"Could not get unified generator: {e}")
         return None
     
+    def _get_model_access_manager(self):
+        """Получить ModelAccessManager из brain.two_model_pipeline."""
+        try:
+            if self.brain and hasattr(self.brain, 'two_model_pipeline'):
+                return getattr(self.brain.two_model_pipeline, '_model_access', None)
+        except Exception as e:
+            logger.debug(f"Could not get model access manager: {e}")
+        return None
+    
+    def _generate_with_mam(self, generator, query: str, **kwargs):
+        """Безопасная генерация через ModelAccessManager с приоритетом HIGH."""
+        mam = self._get_model_access_manager()
+        if mam is None:
+            return generator.generate_iterative(query=query, **kwargs)
+        
+        try:
+            request_id = mam.request_access(
+                priority=mam.AccessPriority.HIGH,
+                task_type='self_dialog',
+                callback=generator.generate_iterative,
+                query=query,
+                **kwargs
+            )
+            return mam.get_result(request_id, timeout=120.0)
+        except Exception as e:
+            logger.warning(f"MAM error, falling back to direct call: {e}")
+            return generator.generate_iterative(query=query, **kwargs)
+    
     def _run_concept_dialog(self, dialog: SelfDialog, concept_data: Dict[str, Any]):
         """
         Выполняет самодиалог для исследования концепта.
@@ -138,7 +166,6 @@ class DialogConceptsMixin:
         generator = self._get_unified_generator()
         
         if generator:
-            # Turn 1: ASSISTANT - базовое определение через LLM
             prompt_intro = f"""Ты исследуешь концепт "{concept_name}". 
 
 Домен: {concept_info.get('domain', 'общий')}
@@ -146,7 +173,8 @@ class DialogConceptsMixin:
 
 Дай краткое, но информативное определение этого концепта. Включи ключевые характеристики и применение."""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_intro,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -171,7 +199,8 @@ class DialogConceptsMixin:
 
 Выяви возможные проблемы, противоречия или неполноту в определении. Какие аспекты требуют уточнения?"""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_critic,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -196,7 +225,8 @@ class DialogConceptsMixin:
 
 Какие шаги нужно предпринять для полного понимания этого концепта?"""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_learner,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -222,7 +252,8 @@ class DialogConceptsMixin:
 
 Сформулируй практические рекомендации для использования этого знания."""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_teacher,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -275,7 +306,8 @@ class DialogConceptsMixin:
 
 Сформулируй это противоречие чётко и объективно."""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_assistant,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -300,7 +332,8 @@ class DialogConceptsMixin:
 
 Какие сильные и слабые стороны у каждой точки зрения?"""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_critic,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -326,7 +359,8 @@ class DialogConceptsMixin:
 
 Предложи третий путь или компромисс."""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_learner,
                 max_tokens_logic=128,
                 max_tokens_context=256,
@@ -352,7 +386,8 @@ class DialogConceptsMixin:
 
 Дай чёткую резолюцию, которая объединяет обе точки зрения."""
             
-            result = generator.generate_iterative(
+            result = self._generate_with_mam(
+                generator,
                 query=prompt_teacher,
                 max_tokens_logic=128,
                 max_tokens_context=256,
