@@ -1474,7 +1474,7 @@
     document.addEventListener('mousedown', function(e) {
         if (selectionPopup && !selectionPopup.contains(e.target)) {
             selectionPopup.remove();
-            selectionPopup = null;
+            selectionPopup.style.display = 'none';
         }
     });
 

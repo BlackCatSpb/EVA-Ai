@@ -5934,6 +5934,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "c4a4de9f-5154-4ebd-8043-0aba4d974529": {
+      "id": "c4a4de9f-5154-4ebd-8043-0aba4d974529",
+      "user_id": "95421dc5-38e5-448e-814d-d65e8f31d6ca",
+      "name": "Сессия admin",
+      "created_at": "2026-04-17T00:24:53.321582",
+      "last_active": "2026-04-17T00:24:53.321582",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }
