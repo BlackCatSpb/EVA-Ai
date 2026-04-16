@@ -188,8 +188,8 @@
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
 | 6.1.1 | **Pickle в 15+ местах без валидации** | [КРИТ] | [X] | ✅ Исправлено: cache_disk, disk_cache, fractal_torch_storage, fractal_weight_store, storage/fractal_storage |
-| 6.1.2 | 2 дубликата дискового кэша | [ВЫС] | [ ] | TokenDiskCache vs DiskCache |
-| 6.1.3 | LRUCache дублируется | [ВЫС] | [ ] | cache_ram.py == memory_cache.py |
+| 6.1.2 | 2 дубликата дискового кэша | [ВЫС] | [X] | ✅ Исправлено: удалён неиспользуемый token_disk_cache.py |
+| 6.1.3 | LRUCache дублируется | [ВЫС] | [X] | ✅ Исправлено: удалён неиспользуемый memory_cache.py |
 | 6.1.4 | Race conditions в UnifiedCacheBridge | [КРИТ] | [X] | ✅ Исправлено: добавлены locks в _load_state и save_state |
 | 6.1.5 | Nested deadlock | [КРИТ] | [X] | ✅ Исправлено: используем disk_cache.put напрямую без лока |
 | 6.1.6 | Нет фоновой очистки TTL | [СРЕД] | [ ] | Только при get() |
@@ -279,7 +279,7 @@
 | 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [ ] | _init_distributed_system НЕ СУЩЕСТВУЕТ |
 | 10.1.4 | **eva_ai/adaptation/** (4 версии) | 2,200 строк мёртвого кода | [ ] | 4 AdaptationManager |
 | 10.1.5 | **component_managers.py** | 8 заглушек | [ ] | Рекомендуется удалить |
-| 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [ ] | Только llama_cpp_hot.py активен |
+| 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [P] | В процессе: LlamaCppHotDeployment не используется (use_llama_cpp=false), но удаление требует проверки |
 | 10.1.7 | storage/fractal_storage.py | 0 импортов | [ ] | |
 | 10.1.8 | dual_generator_pie.py | Не используется | [ ] | |
 
