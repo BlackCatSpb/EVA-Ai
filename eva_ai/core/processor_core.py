@@ -51,10 +51,13 @@ class QueryProcessor:
             logger.debug(f"Ошибка инициализации hybrid_cache: {e}")
 
         try:
+            import os
             if getattr(self.brain, "text_processor", None) and getattr(self.brain.text_processor, "executor", None):
                 self.executor = self.brain.text_processor.executor
             if self.executor is None:
-                self.executor = ThreadPoolExecutor(max_workers=4)
+                # OpenVINO использует CPU, оставляем 2 ядра для системы
+                workers = max(2, (os.cpu_count() or 4) - 2)
+                self.executor = ThreadPoolExecutor(max_workers=workers)
                 self._own_executor = True
         except (AttributeError, TypeError, RuntimeError, OSError) as e:
             logger.debug(f"Ошибка инициализации executor: {e}")

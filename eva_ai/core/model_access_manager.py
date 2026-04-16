@@ -66,13 +66,15 @@ class ModelAccessManager:
                     cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, event_bus=None, max_workers: int = 4):
+    def __init__(self, event_bus=None, max_workers: int = None):
         if hasattr(self, '_initialized') and self._initialized:
             return
         
+        import os
         self._initialized = True
         self.event_bus = event_bus
-        self.max_workers = max_workers
+        # OpenVINO использует CPU, оставляем 2 ядра для системы
+        self.max_workers = max_workers or max(2, (os.cpu_count() or 4) - 2)
         
         self._access_lock = threading.RLock()
         self._model_busy = False
