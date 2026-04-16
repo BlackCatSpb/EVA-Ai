@@ -75,18 +75,9 @@ def _init_model_manager(self):
             logger.info(f"Используется существующий fractal_model_manager из CoreBrain: {type(self.model_manager).__name__}")
             return True
         else:
-            try:
-                from eva_ai.mlearning.model_manager import ModelManager as _ModelManager
-            except ImportError as e:
-                logger.error(f"Не удалось импортировать ModelManager: {e}")
-                return False
-            self.model_manager = _ModelManager(
-                brain=self.brain,
-                cache_dir=os.path.join(self.cache_dir, "fractal_storage"),
-                model_dir=os.path.join(self.cache_dir, "fractal_storage", "models"),
-                use_gpu=self.use_gpu
-            )
-            logger.warning("Создан новый ModelManager (fallback), так как в CoreBrain не найден model_manager")
+            logger.warning("ModelManager not available - using UnifiedGenerator pipeline")
+            self.model_manager = None
+            return False
             
             if hasattr(self.brain, 'register_component'):
                 self.brain.register_component('model_manager', self.model_manager)

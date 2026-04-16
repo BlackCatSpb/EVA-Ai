@@ -42,20 +42,9 @@ class EntityExtractor:
         self.brain = brain
         self._fg = fractal_graph
         
-        # Пробуем импортировать полноценный извлекатель
-        try:
-            from eva_ai.reasoning.entity_extractor import (
-                EntityExtractor as ReasoningExtractor,
-                ExtractedEntity,
-                ExtractionResult
-            )
-            self._reasoning_extractor = ReasoningExtractor(brain)
-            self._ExtractedEntity = ExtractedEntity
-            self._ExtractionResult = ExtractionResult
-            logger.info("EntityExtractor: используется полноценный reasoning extractor")
-        except ImportError as e:
-            logger.warning(f"Не удалось загрузить reasoning extractor: {e}")
-            self._reasoning_extractor = None
+        # EntityExtractor removed with EnhancedReasoningEngine
+        self._reasoning_extractor = None
+        logger.info("EntityExtractor: using FGv2 fallback only")
         
         # Fallback на FGv2 если reasoning недоступен
         if brain and hasattr(brain, 'fractal_graph_v2'):

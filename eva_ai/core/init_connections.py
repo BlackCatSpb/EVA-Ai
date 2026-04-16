@@ -33,7 +33,6 @@ def define_dependencies() -> Dict[str, List[str]]:
         'gui': [],
         'fractal_storage': [],
         'self_reasoning_engine': ['fractal_storage', 'fractal_graph_v2'],
-        'enhanced_reasoning_engine': ['fractal_storage', 'fractal_graph_v2', 'contradiction_manager', 'ethics_framework', 'web_search_engine'],
     }
 
 
@@ -182,10 +181,7 @@ def post_initialize_connections(initializer):
                 response_generator.model_manager = model_manager
                 initializer.logger.info("   └─ response_generator → model_manager")
 
-            reasoning_engine = initializer.component_instances.get('reasoning_engine')
-            if reasoning_engine is not None and hasattr(response_generator, 'reasoning_engine'):
-                response_generator.reasoning_engine = reasoning_engine
-                initializer.logger.info("   └─ response_generator → reasoning_engine")
+            # reasoning_engine removed - SelfReasoningEngine used for self-dialog only
 
         initializer.logger.info("[OK] Все связи установлены")
 

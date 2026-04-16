@@ -5,9 +5,7 @@
 from .self_reasoning_engine import SelfReasoningEngine, create_reasoning_engine
 from .confidence_scorer import calculate_overall_confidence, should_terminate, CONFIDENCE_THRESHOLD, get_confidence_level
 from .clarification_generator import ClarificationGenerator
-from .reasoning_types import ReasoningStep, ReasoningResult, ReasoningPhase, AnalysisResult
 from .integration import ReasoningIntegration, integrate_reasoning
-from .enhanced_reasoning_engine import EnhancedReasoningEngine, ReasoningIteration
 
 from .fractal_ml import FractalStorage, FractalNode, FractalNodeType, FractalRetriever, FractalEmbedder
 
@@ -20,16 +18,8 @@ __all__ = [
     'CONFIDENCE_THRESHOLD',
     'get_confidence_level',
     'ClarificationGenerator',
-    'ReasoningStep',
-    'ReasoningResult',
-    'ReasoningPhase',
-    'AnalysisResult',
     'ReasoningIntegration',
     'integrate_reasoning',
-    
-    # Enhanced Reasoning
-    'EnhancedReasoningEngine',
-    'ReasoningIteration',
     
     # Fractal Storage
     'FractalStorage',

@@ -145,7 +145,7 @@
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
 | 4.1.1 | **НЕТ EventBus интеграции** | [КРИТ] | [X] | ✅ Уже исправлено: подписки на system.idle, публикации pipeline.*, reasoning.* |
-| 4.1.2 | 3 движка рассуждения | [ВЫС] | [ ] | SRE, Enhanced, Core |
+| 4.1.2 | 3 движка рассуждения | [ВЫС] | [X] | ✅ Удалены: EnhancedReasoningEngine + 6 суб-модулей, ReasoningEngine + 4 миксина, integration_adapters.py. Остался SelfReasoningEngine (active) |
 | 4.1.3 | Конфликт инициализации | [СРЕД] | [ ] | Дублирование создания SRE |
 
 ## 4.2 EthicsFramework
@@ -169,7 +169,7 @@
 ## 5.2 MLearning (8 Model Managers!)
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 5.2.1 | **8 Model Manager классов** | [КРИТ] | [P] | Удалены universal_model_manager.py, current_manager.py (мёртвый код). Осталось 8: Model, Qwen, Fractal, Hybrid, FractalQwen, Optimized, BitNet, UnifiedFractal |
+| 5.2.1 | **8 Model Manager классов** | [КРИТ] | [X] | ✅ Удалены 6 мёртвых файлов: qwen_model_manager.py, fractal_qwen_manager.py, bitnet_model_manager.py, hybrid_model_manager.py, model_manager.py, unified_fractal_manager.py. Осталось 3: FractalModelManager (active), ModelAccessManager (active), opt_core.py (partial) |
 | 5.2.2 | ~70% кода - мёртвый | [КРИТ] | [X] | ✅ Частично: text_quality.py используется (opt_core.py), удалены 2 мёртвых файла |
 | 5.2.3 | EventBus НЕ интегрирован | [ВЫС] | [ ] | Полная изоляция |
 

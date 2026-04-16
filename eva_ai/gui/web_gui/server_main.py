@@ -262,7 +262,7 @@ class WebGUI:
             for s in reasoning_steps:
                 reasoning_data += f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})\n"
         
-        elif source in ['llama_cpp_with_modules', 'self_reasoning_engine', 'enhanced_reasoning_engine']:
+        elif source in ['llama_cpp_with_modules', 'self_reasoning_engine']:
             if result.get('reasoning_steps'):
                 reasoning_steps = result.get('reasoning_steps', [])
             elif brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):

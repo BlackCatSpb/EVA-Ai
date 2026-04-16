@@ -237,19 +237,8 @@ class QueryMixin:
             if disable_pytorch:
                 query_logger.info("PyTorch disabled - skipping Qwen load in qwen_only_mode")
             else:
-                query_logger.info("Qwen-only mode: Loading QwenModelManager...")
-                try:
-                    from eva_ai.mlearning.qwen_model_manager import get_qwen_model_manager
-                    self.qwen_model_manager = get_qwen_model_manager(
-                        model_size=self._qwen_config.get('name', 'qwen3.5-0.8b'),
-                        device='cpu', load_in_8bit=False, load_in_4bit=False)
-                    if self.qwen_model_manager and self.qwen_model_manager.initialized:
-                        self.qwen_ready = True
-                        query_logger.info("QwenModelManager loaded for query processing")
-                    else:
-                        query_logger.error("QwenModelManager NOT loaded - configuration error")
-                except Exception as e:
-                    query_logger.error(f"Error loading Qwen: {e}")
+                query_logger.info("Qwen-only mode: QwenModelManager disabled - using UnifiedGenerator")
+                self.qwen_model_manager = None
 
         if not qwen_only_mode:
             if 'прикрепил файл' in query.lower():
@@ -636,7 +625,7 @@ class QueryMixin:
             if result:
                 return result
 
-        if not self.qwen_model_manager or not self.qwen_model_manager.initialized:
+        if True:  # QwenModelManager disabled - skip qwen_only_mode
             return {
                 "response": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
                 "text": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
@@ -645,7 +634,7 @@ class QueryMixin:
                 "processing_time": time.time() - start_time
             }
 
-        query_logger.info("Using QwenModelManager (qwen_only_mode)")
+        query_logger.info("Using LlamaCpp (qwen_only_mode)")
         gen_config = self.config.get('generation', {})
         temperature = gen_config.get('temperature', 0.7)
         top_p = gen_config.get('top_p', 0.9)

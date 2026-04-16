@@ -5,7 +5,6 @@ This module provides the core machine learning components for the ЕВА system,
 including the Fractal Transformer architecture and related utilities.
 """
 from . import storage
-from .model_manager import ModelManager
 from .ml_unit import MLUnit
 from .eva_tokenizer import ЕВАTokenizer
 from .async_text_generator import AsyncTextGenerator
@@ -17,40 +16,19 @@ from .tokenization_fractal import ExtendedFractalTokenizer
 from .neuromorphic_memory import NeuromorphicMemoryLayer
 from .fractal_trainer import FractalKnowledgeTrainer
 
-# Qwen model support
-from .qwen_model_manager import QwenModelManager, QWEN_MODELS, get_qwen_model_path, is_qwen_available
+# FractalModelManager - GGUF/fallback support
+from .fractal_model_manager import FractalModelManager
 
 __all__ = [
-    # Existing components
-    "ModelManager",
     "MLUnit",
     "ЕВАTokenizer",
     "AsyncTextGenerator",
     "UnifiedTextProcessor",
-    
-    # Fractal Transformer components
     "FractalTransformer",
     "FractalConfig",
     "ExtendedFractalTokenizer",
     "NeuromorphicMemoryLayer",
     "FractalKnowledgeTrainer",
     "storage",
-    
-    # Qwen model
-    "QwenModelManager",
-    "QWEN_MODELS",
-    "get_qwen_model_path",
-    "is_qwen_available",
+    "FractalModelManager",
 ]
-
-# Оптимизированные менеджеры
-from .unified_fractal_manager import UnifiedFractalManager
-
-# Для обратной совместимости
-def get_fractal_manager(model_path=None, config_path=None, use_optimized=True):
-    """Возвращает лучший доступный менеджер"""
-    return UnifiedFractalManager(
-        model_path=model_path, 
-        config_path=config_path, 
-        force_optimized=use_optimized
-    )

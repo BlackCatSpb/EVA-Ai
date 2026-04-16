@@ -65,7 +65,6 @@ class ComponentInitializer:
         'web_search_engine',
         'fractal_storage',
         'self_reasoning_engine',
-        'enhanced_reasoning_engine',
     ]
 
     OPTIONAL_COMPONENTS = {

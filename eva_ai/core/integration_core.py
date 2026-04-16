@@ -17,26 +17,14 @@ from .contradiction_resolver import ContradictionResolver
 from .learning_scheduler import LearningScheduler
 from .system_optimizer import SystemOptimizer
 from .response_generator import ResponseGenerator
-from .reasoning_engine import ReasoningEngine
+# ReasoningEngine removed - using SelfReasoningEngine only
 try:
     from eva_ai.generation.generation_coordinator import GenerationCoordinator
 except ImportError:
     from eva_ai.generation.generation_coordinator import UnifiedGenerationCoordinator as GenerationCoordinator
 from eva_ai.memory.memory_manager import MemoryManager
 from eva_ai.memory.fractal_graph_v2 import FractalGraphV2
-from .integration_adapters import (
-    _handle_query_received,
-    _handle_tokenize_request,
-    _handle_tokens_ready,
-    _handle_hot_window_ready,
-    _handle_response_generated,
-    _handle_contradiction_detected,
-    _handle_learning_opportunity,
-    _handle_self_dialog_request,
-    _handle_ethical_check_request,
-    _tokenize_text,
-    _enhance_prompt_with_reasoning,
-)
+# integration_adapters removed with ReasoningEngine
 from .integration_events import _setup_event_subscriptions
 from .integration_sync import (
     _learning_scheduler_worker,
@@ -155,12 +143,7 @@ class ЕВАIntegrator:
                 self.fractal_graph_v2 = self.core_brain.fractal_graph_v2
             logger.info("FractalGraphV2 готов")
 
-            reasoning_config = self.config.get('reasoning', {})
-            self.reasoning_engine = ReasoningEngine(
-                brain=self.core_brain,
-                config=reasoning_config
-            )
-            logger.info("ReasoningEngine готов")
+            # ReasoningEngine removed - using SelfReasoningEngine only
 
         except Exception as e:
             logger.error(f"Ошибка инициализации компонентов: {e}")

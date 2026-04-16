@@ -37,10 +37,9 @@ try:
 except ImportError:
     class CoreBrain: pass
 
-if TYPE_CHECKING:
-    from eva_ai.mlearning.model_manager import ModelMetadata
-else:
-    class ModelMetadata: pass
+class ModelMetadata:
+    """Stub for model metadata - ModelManager removed, using UnifiedGenerator"""
+    pass
 
 logger = logging.getLogger(__name__)
 

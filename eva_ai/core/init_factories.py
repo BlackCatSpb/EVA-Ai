@@ -249,47 +249,10 @@ def create_ml_unit(initializer):
 
 
 def create_model_manager(initializer):
-    try:
-        initializer.logger.info("Начало создания ModelManager...")
-        from eva_ai.mlearning.hybrid_model_manager import HybridModelManager
-
-        initializer.logger.info("Создание экземпляра HybridModelManager...")
-        model_manager = HybridModelManager(
-            brain=initializer.core_brain,
-            max_vram_gb=0.5,
-            max_ssd_gb=2.0
-        )
-
-        initializer.logger.info("Вызов initialize()...")
-        init_result = None
-        try:
-            if hasattr(model_manager, 'initialize'):
-                init_result = model_manager.initialize()
-            else:
-                init_result = True
-
-            if init_result is False:
-                initializer.logger.error("[FAIL] Не удалось инициализировать HybridModelManager - initialize() вернул False")
-                initializer.logger.warning("[WARN] Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
-                initializer.failed_components.add('model_manager')
-                return None
-
-            initializer.logger.info("[OK] ModelManager успешно инициализирован")
-
-        except Exception as init_error:
-            initializer.logger.error(f"[FAIL] Исключение при инициализации ModelManager: {init_error}", exc_info=True)
-            initializer.logger.warning("[WARN] Продолжаем без ModelManager (некоторые компоненты будут недоступны)")
-            initializer.failed_components.add('model_manager')
-            return None
-
-        initializer.model_manager = model_manager
-        initializer.core_brain.model_manager = model_manager
-        initializer.logger.info("[OK] ModelManager создан")
-        return model_manager
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания model_manager: {e}", exc_info=True)
-        initializer.failed_components.add('model_manager')
-        return None
+    """HybridModelManager removed - using UnifiedGenerator/FractalModelManager only"""
+    initializer.logger.info("HybridModelManager disabled - using UnifiedGenerator pipeline")
+    initializer.failed_components.add('model_manager')
+    return None
 
 
 def create_query_processor(initializer):
@@ -325,18 +288,10 @@ def create_response_generator(initializer):
 
 
 def create_reasoning_engine(initializer):
-    try:
-        from eva_ai.core.reasoning_engine import ReasoningEngine
-        reasoning_engine = ReasoningEngine(brain=initializer.core_brain)
-        if hasattr(reasoning_engine, 'initialize'):
-            reasoning_engine.initialize()
-        initializer.core_brain.reasoning_engine = reasoning_engine
-        initializer.logger.info("[OK] ReasoningEngine создан")
-        return reasoning_engine
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания reasoning_engine: {e}", exc_info=True)
-        initializer.failed_components.add('reasoning_engine')
-        return None
+    """ReasoningEngine removed - using SelfReasoningEngine only"""
+    initializer.logger.info("ReasoningEngine disabled - using SelfReasoningEngine")
+    initializer.failed_components.add('reasoning_engine')
+    return None
 
 
 def create_analytics_manager(initializer):
@@ -735,43 +690,10 @@ def create_self_reasoning_engine(initializer):
 
 
 def create_enhanced_reasoning_engine(initializer):
-    """Создает Enhanced Reasoning Engine с модульной регенерацией."""
-    try:
-        try:
-            from eva_ai.reasoning import EnhancedReasoningEngine
-        except ImportError:
-            initializer.logger.warning("[WARN] EnhancedReasoningEngine не найден - пропускаем")
-            initializer.failed_components.add('enhanced_reasoning_engine')
-            return None
-
-        reasoning_config = initializer.core_brain.config.get('reasoning', {}) if hasattr(initializer.core_brain, 'config') else {}
-
-        enhanced_config = reasoning_config.get('enhanced_reasoning', {})
-
-        if not enhanced_config.get('enabled', True):
-            initializer.logger.info("[SKIP] EnhancedReasoningEngine отключен в конфигурации")
-            return None
-
-        enhanced_engine = EnhancedReasoningEngine(
-            brain=initializer.core_brain,
-            config={
-                'max_iterations': enhanced_config.get('max_iterations', 5),
-                'stability_threshold': enhanced_config.get('stability_threshold', 0.95),
-                'improvement_threshold': enhanced_config.get('improvement_threshold', 0.05),
-                'min_confidence': enhanced_config.get('min_confidence', 0.7),
-                'use_self_learning': enhanced_config.get('use_self_learning', True),
-                'use_fractal_qwen': enhanced_config.get('use_fractal_qwen', True),
-            }
-        )
-
-        initializer.core_brain.enhanced_reasoning_engine = enhanced_engine
-
-        initializer.logger.info("[OK] EnhancedReasoningEngine создан")
-        return enhanced_engine
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания enhanced_reasoning_engine: {e}", exc_info=True)
-        initializer.failed_components.add('enhanced_reasoning_engine')
-        return None
+    """EnhancedReasoningEngine removed - dead code, never called"""
+    initializer.logger.info("EnhancedReasoningEngine disabled - dead code removed")
+    initializer.failed_components.add('enhanced_reasoning_engine')
+    return None
 
 
 def register_all_factories(initializer):

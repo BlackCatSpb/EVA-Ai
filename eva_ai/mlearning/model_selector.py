@@ -125,55 +125,19 @@ class ModelSelector:
         except Exception:
             pass
         
-        try:
-            from eva_ai.mlearning.qwen_model_manager import QwenModelManager
-            
-            logger.info(f"Загрузка Qwen: {model_name}")
-            
-            # Отображаем имя
-            qwen_size = model_name.replace("qwen3.5-", "qwen3.5-")
-            
-            self.loaded_model = QwenModelManager(
-                model_size=model_name,
-                quantize=True,
-                cache_dir=self.cache_dir
-            )
-            
-            if self.loaded_model.initialized:
-                MODEL_CONFIGS[model_name]["status"] = "ready"
-                logger.info(f"Модель {model_name} загружена")
-                return True
-            else:
-                MODEL_CONFIGS[model_name]["status"] = "error"
-                return False
-                
-        except Exception as e:
-            logger.error(f"Ошибка загрузки Qwen: {e}")
-            return False
+        logger.info("QwenModelManager disabled - using UnifiedGenerator")
+        MODEL_CONFIGS[model_name]["status"] = "disabled"
+        return False
     
     def _load_bitnet(self, model_name: str) -> bool:
         """Загружает BitNet модель"""
-        try:
-            from eva_ai.mlearning.bitnet_model_manager import BitNetModelManager
-            
-            logger.info(f"Загрузка BitNet: {model_name}")
-            
-            self.loaded_model = BitNetModelManager(
-                model_size="bitnet-b1.58-2b",
-                cache_dir=self.cache_dir
-            )
-            
-            if self.loaded_model.initialized:
-                MODEL_CONFIGS[model_name]["status"] = "ready"
-                logger.info(f"Модель {model_name} загружена")
-                return True
+        logger.info("BitNetModelManager disabled - not supported")
+        MODEL_CONFIGS[model_name]["status"] = "disabled"
+        return False
             else:
                 MODEL_CONFIGS[model_name]["status"] = "error"
                 return False
-                
-        except Exception as e:
-            logger.error(f"Ошибка загрузки BitNet: {e}")
-            return False
+        return False
     
     def unload_model(self):
         """Выгружает текущую модель из памяти"""
