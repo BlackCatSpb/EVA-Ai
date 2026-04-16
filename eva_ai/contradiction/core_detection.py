@@ -11,12 +11,6 @@ from collections import defaultdict, deque
 from datetime import datetime
 
 try:
-    from eva_ai.distributed.database_utils import get_connection, execute_query
-except ImportError:
-    get_connection = None
-    execute_query = None
-
-try:
     from eva_ai.knowledge.context_entity import EntityExtractor, AmbiguousEntity, AmbiguityType
 except ImportError:
     EntityExtractor = None
@@ -413,36 +407,32 @@ class StorageMixin:
             if self.cache_dir:
                 os.makedirs(self.cache_dir, exist_ok=True)
                 self.storage_path = os.path.join(self.cache_dir, "contradictions.db")
-                if get_connection:
-                    conn = get_connection(self.storage_path)
+                conn = sqlite3.connect(self.storage_path)
+                try:
+                    conn.row_factory = sqlite3.Row
+                except Exception:
+                    pass
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS contradictions (
+                        id TEXT PRIMARY KEY,
+                        data TEXT
+                    )
+                """)
+                cursor = conn.cursor()
+                cursor.execute("PRAGMA table_info(contradictions)")
+                cols_info = cursor.fetchall()
+                cols = [row[1] if isinstance(row, (list, tuple)) else row["name"] for row in cols_info]
+                logger.debug(f"Колонки в таблице contradictions: {cols}")
+                if "data" not in cols:
                     try:
-                        conn.row_factory = sqlite3.Row
-                    except Exception:
-                        pass
-                    execute_query(conn, """
-                        CREATE TABLE IF NOT EXISTS contradictions (
-                            id TEXT PRIMARY KEY,
-                            data TEXT
-                        )
-                    """)
-                    cursor = conn.cursor()
-                    cursor.execute("PRAGMA table_info(contradictions)")
-                    cols_info = cursor.fetchall()
-                    cols = [row[1] if isinstance(row, (list, tuple)) else row["name"] for row in cols_info]
-                    logger.debug(f"Колонки в таблице contradictions: {cols}")
-                    if "data" not in cols:
-                        try:
-                            logger.info("Колонка 'data' отсутствует — пытаемся добавить")
-                            cursor.execute("ALTER TABLE contradictions ADD COLUMN data TEXT")
-                            conn.commit()
-                            logger.info("Колонка 'data' успешно добавлена")
-                        except sqlite3.OperationalError as e:
-                            logger.warning(f"Не удалось добавить колонку 'data': {e}")
-                    cursor.close()
-                    conn.close()
-                else:
-                    logger.warning("database_utils недоступен — хранилище будет работать в памяти")
-                    self.storage_path = None
+                        logger.info("Колонка 'data' отсутствует — пытаемся добавить")
+                        cursor.execute("ALTER TABLE contradictions ADD COLUMN data TEXT")
+                        conn.commit()
+                        logger.info("Колонка 'data' успешно добавлена")
+                    except sqlite3.OperationalError as e:
+                        logger.warning(f"Не удалось добавить колонку 'data': {e}")
+                cursor.close()
+                conn.close()
                 self._load_contradictions()
             else:
                 self.storage_path = None
@@ -462,10 +452,7 @@ class StorageMixin:
             logger.debug("Хранилище противоречий не существует")
             return
         try:
-            if not get_connection:
-                logger.warning("database_utils недоступен — пропускаем загрузку из БД")
-                return
-            conn = get_connection(self.storage_path)
+            conn = sqlite3.connect(self.storage_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("PRAGMA table_info(contradictions)")
@@ -557,10 +544,10 @@ class StorageMixin:
             logger.error(f"Ошибка загрузки противоречий: {e}", exc_info=True)
     
     def _save_contradictions(self):
-        if not self.storage_path or not get_connection:
+        if not self.storage_path:
             return
         try:
-            conn = get_connection(self.storage_path)
+            conn = sqlite3.connect(self.storage_path)
             cur = conn.cursor()
             cur.execute("PRAGMA table_info(contradictions)")
             cols_info = cur.fetchall()
@@ -594,9 +581,9 @@ class StorageMixin:
         try:
             count_before = len(self.contradictions)
             self.contradictions.clear()
-            if self.storage_path and get_connection:
+            if self.storage_path:
                 try:
-                    conn = get_connection(self.storage_path)
+                    conn = sqlite3.connect(self.storage_path)
                     cur = conn.cursor()
                     cur.execute("CREATE TABLE IF NOT EXISTS contradictions (id TEXT PRIMARY KEY, data TEXT)")
                     cur.execute("DELETE FROM contradictions")
