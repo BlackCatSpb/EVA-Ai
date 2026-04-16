@@ -169,8 +169,8 @@
 ## 5.2 MLearning (8 Model Managers!)
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 5.2.1 | **8 Model Manager классов** | [КРИТ] | [ ] | Qwen, Fractal, Hybrid, Universal, BitNet, Model, etc. |
-| 5.2.2 | ~70% кода - мёртвый | [КРИТ] | [ ] | universal_model_manager, bitnet_model_manager, text_quality_* |
+| 5.2.1 | **8 Model Manager классов** | [КРИТ] | [P] | Удалены universal_model_manager.py, current_manager.py (мёртвый код). Осталось 8: Model, Qwen, Fractal, Hybrid, FractalQwen, Optimized, BitNet, UnifiedFractal |
+| 5.2.2 | ~70% кода - мёртвый | [КРИТ] | [X] | ✅ Частично: удалены 2 мёртвых файла |
 | 5.2.3 | EventBus НЕ интегрирован | [ВЫС] | [ ] | Полная изоляция |
 
 ## 5.3 HotDeployment (10/12 файлов мёртвые!)
