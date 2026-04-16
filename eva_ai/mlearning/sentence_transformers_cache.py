@@ -9,11 +9,30 @@ from typing import Optional, List
 
 logger = logging.getLogger("eva_ai.sentence_transformers_cache")
 
-# Устанавливаем HF_HOME на локальный кеш - используем models-- формат
-_HF_CACHE_BASE = os.environ.get('HF_HOME') or os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'hf_cache')
-os.environ['HF_HOME'] = _HF_CACHE_BASE
+# Путь к локальной модели
+_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'hf_cache')
+_LOCAL_MODEL_PATH = os.path.join(_CACHE_DIR, 'models--intfloat--multilingual-e5-base', 'snapshots')
+
+# Устанавливаем HF_HOME
+os.environ['HF_HOME'] = _CACHE_DIR
 os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
-logger.info(f"HF_HOME: {_HF_CACHE_BASE}")
+logger.info(f"HF_HOME: {_CACHE_DIR}")
+logger.info(f"LOCAL_MODEL_PATH: {_LOCAL_MODEL_PATH}")
+
+# Найти конкретную папку snapshots
+def _find_snapshot_path():
+    if os.path.exists(_LOCAL_MODEL_PATH):
+        for item in os.listdir(_LOCAL_MODEL_PATH):
+            snapshot_path = os.path.join(_LOCAL_MODEL_PATH, item)
+            if os.path.isdir(snapshot_path):
+                return snapshot_path
+    return None
+
+_SNAPSHOT_PATH = _find_snapshot_path()
+if _SNAPSHOT_PATH:
+    logger.info(f"Found model snapshot: {_SNAPSHOT_PATH}")
+else:
+    logger.warning("Model snapshot not found in local cache!")
 
 _SENTENCE_TRANSFORMER_CACHE: Optional[object] = None
 _CACHE_MODEL_NAME: Optional[str] = None
@@ -55,13 +74,13 @@ def _encode_with_cache(text: str, model) -> Optional[List[float]]:
         return emb.tolist() if hasattr(emb, 'tolist') else list(emb)
 
 
-def get_sentence_transformer(model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[object]:
+def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Optional[object]:
     """
-    Возвращает кэшированную модель sentence-transformers.
+    Возвращает кэшированную модель sentence-transformers из ЛОКАЛЬНОГО кеша.
     Если модель уже загружена - возвращает кэш, иначе загружает и кэширует.
     
     Args:
-        model_name: Путь к локальной модели или имя HF модели
+        model_name: Не используется (для совместимости), модель всегда загружается из локального кеша
         device: Устройство ('cpu', 'cuda', 'auto')
     
     Returns:
@@ -72,51 +91,58 @@ def get_sentence_transformer(model_name: str = "eva_ai/core/hf_cache/multilingua
     if device == "auto":
         device = _detect_device()
     
-    if _SENTENCE_TRANSFORMER_CACHE is not None and _CACHE_MODEL_NAME == model_name:
-        logger.debug(f"Используем кэшированную модель sentence-transformers: {model_name}")
+    # Всегда используем локальный путь
+    local_path = _SNAPSHOT_PATH
+    
+    if _SENTENCE_TRANSFORMER_CACHE is not None and _CACHE_MODEL_NAME == local_path:
+        logger.debug(f"Используем кэшированную модель: {local_path}")
         return _SENTENCE_TRANSFORMER_CACHE
     
     try:
         from sentence_transformers import SentenceTransformer
         
-        logger.info(f"Загрузка sentence-transformers модели: {model_name} (устройство: {device})")
-        _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer(model_name, device=device)
-        _CACHE_MODEL_NAME = model_name
-        logger.info(f"Модель sentence-transformers загружена и кэширована: {model_name} на {device}")
+        if local_path and os.path.exists(local_path):
+            logger.info(f"Загрузка модели из ЛОКАЛЬНОГО кеша: {local_path} (устройство: {device})")
+            _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer(local_path, device=device)
+        else:
+            logger.warning(f"Локальная модель не найдена: {local_path}, пробуем HF...")
+            _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
+        
+        _CACHE_MODEL_NAME = local_path
+        logger.info(f"Модель загружена на {device}")
         return _SENTENCE_TRANSFORMER_CACHE
         
     except Exception as e:
-        logger.warning(f"Не удалось загрузить sentence-transformers модель {model_name}: {e}")
+        logger.error(f"Не удалось загрузить sentence-transformers модель: {e}")
         return None
 
 
-def encode_text(text: str, model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[List[float]]:
+def encode_text(text: str, device: str = "auto") -> Optional[List[float]]:
     """
     Вычисляет эмбеддинг текста с автоматическим кешированием.
 
     Args:
         text: Текст для эмбеддинга
-        model_name: Путь к локальной модели
         device: Устройство
     
     Returns:
         Embedding vector или None
     """
-    model = get_sentence_transformer(model_name, device)
+    model = get_sentence_transformer(device=device)
     if model is None:
         return None
     
     return _encode_with_cache(text, model)
 
 
-def encode_batch(texts: List[str], model_name: str = "eva_ai/core/hf_cache/multilingual-e5-base", device: str = "auto") -> Optional[List[List[float]]]:
+def encode_batch(texts: List[str], device: str = "auto") -> Optional[List[List[float]]]:
     """
     Вычисляет эмбеддинги батча текстов с кешированием.
 
     Returns:
         List of embedding vectors
     """
-    model = get_sentence_transformer(model_name, device)
+    model = get_sentence_transformer(device=device)
     if model is None:
         return None
     
