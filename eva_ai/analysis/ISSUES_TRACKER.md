@@ -278,9 +278,9 @@
 | 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [X] | ✅ Исправлено: используется в tests и hot_deployment/openvino_convert.py |
 | 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [X] | ✅ Исправлено: удалена вся директория (DistributedSystem не создаётся) |
 | 10.1.4 | **eva_ai/adaptation/** (5 файлов) | Неиспользуемый код | [X] | ✅ Исправлено: удалены adaptation_manager.py, adaptation_integrated.py, adaptation_integration.py, adaptation_types.py, adaptation_analytics.py (5 файлов, ~1500 строк) |
-| 10.1.5 | **component_managers.py** | 8 заглушек | [ ] | Рекомендуется удалить |
-| 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [P] | В процессе: LlamaCppHotDeployment не используется (use_llama_cpp=false), но удаление требует проверки |
-| 10.1.7 | storage/fractal_storage.py | 0 импортов | [ ] | |
+| 10.1.5 | **component_managers.py** | 8 заглушек | [X] | ✅ Исправлено: удалён (не использовался в коде) |
+| 10.1.6 | **mlearning/hot_deployment/** (10/12) | Мёртвый код | [X] | ✅ Исправлено: удалён (11 файлов, ~5000 строк) - не использовался (use_llama_cpp=false) |
+| 10.1.7 | reasoning/fractal_ml/fractal_storage.py | Используется | [N/A] | fractal_storage.py ИСПОЛЬЗУЕТСЯ: fractal_ml/__init__.py, self_reasoning_engine.py, init_factories.py |
 | 10.1.8 | dual_generator_pie.py | Не используется | [X] | ✅ Исправлено: удалён (только self-reference, не экспортируется) |
 
 ---
@@ -369,7 +369,7 @@
 | 14.04.2026 | 6.1.1 | 17/68 | +6.1.1 (pickle → json in cache) |
 | 14.04.2026 | 3.3.1 | 18/68 | +3.3.1 (GraphCurator publishes curator.* events) |
 | 14.04.2026 | Архитектура | 21/68 | +1.1.1 (PriorityQueue), +1.2.1 (MAM), +6.1.1 (pickle) |
-| | | | |
+| 16.04.2026 | 10.1.x cleanup | 25/68 | +4: 10.1.1 (~6000 lines), 10.1.4 (~2200 lines), 10.1.5, 10.1.6, 10.1.7 fixed |
 | | | | |
 
 ---
@@ -382,7 +382,7 @@
 | КРИТ приоритет | ~20 |
 | ВЫС приоритет | ~25 |
 | СРЕД/НИЗК приоритет | ~23 |
-| Исправлено | 21 |
+| Исправлено | 25 |
 | В процессе | 2 |
 | Неактуально | 1 |
 
