@@ -2,6 +2,7 @@
 Quality checking and response sanitization for the Recursive Model Pipeline.
 """
 
+import os
 import re
 import logging
 import time
@@ -10,9 +11,12 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
-_generation_executor = ThreadPoolExecutor(max_workers=4)
+# OpenVINO использует все ядра CPU, оставляем 2 для системы
+_workers = max(2, (os.cpu_count() or 4) - 2)
+_generation_executor = ThreadPoolExecutor(max_workers=_workers, thread_name_prefix="Quality")
 import atexit
 atexit.register(lambda: _generation_executor.shutdown(wait=False))
+logger.info(f"Quality executor initialized with {_workers} workers")
 
 
 @staticmethod

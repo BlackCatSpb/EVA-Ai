@@ -178,8 +178,7 @@ class UnifiedGenerator:
         
         try:
             self._model_access = ModelAccessManager(
-                event_bus=self.event_bus,
-                max_workers=4
+                event_bus=self.event_bus
             )
             self._model_access.start()
             logger.info("ModelAccessManager initialized")
