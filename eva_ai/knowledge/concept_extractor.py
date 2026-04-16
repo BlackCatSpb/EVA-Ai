@@ -8,6 +8,8 @@ import logging
 from typing import Dict, List, Any, Optional, Set
 from dataclasses import dataclass
 
+from eva_ai.core.event_bus import Event, EventPriority
+
 logger = logging.getLogger("eva_ai.knowledge.concept_extractor")
 
 
@@ -39,6 +41,27 @@ class ConceptExtractor:
         self._fg = fractal_graph
         self._stop_words = self._load_stop_words()
         self._known_concepts: Set[str] = set()  # Кэш известных концептов
+        
+        # EventBus интеграция
+        self._event_bus = None
+        if brain and hasattr(brain, 'events'):
+            self._event_bus = brain.events
+        elif brain and hasattr(brain, 'event_bus'):
+            self._event_bus = brain.event_bus
+    
+    def _publish_event(self, event_type: str, data: Dict):
+        """Публикация события в EventBus."""
+        if not self._event_bus:
+            return
+        try:
+            self._event_bus.publish(Event(
+                event_type=event_type,
+                source="concept_extractor",
+                data=data,
+                priority=EventPriority.NORMAL
+            ))
+        except Exception as e:
+            logger.debug(f"Failed to publish event {event_type}: {e}")
         
     def _load_stop_words(self) -> Set[str]:
         """Загружает стоп-слова для русского и английского."""
@@ -308,6 +331,14 @@ class ConceptExtractor:
                 
                 # СОХРАНЯЕМ В HYBRID_CACHE
                 self._save_concept_to_cache(concept)
+                
+                # Публикуем событие для других компонентов
+                self._publish_event("concept.extracted", {
+                    "concept_name": concept.name,
+                    "node_id": node.id,
+                    "domain": concept.domain,
+                    "confidence": concept.confidence
+                })
                 
                 return node.id
             
