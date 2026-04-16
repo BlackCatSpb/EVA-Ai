@@ -92,6 +92,7 @@ def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Op
     Returns:
         SentenceTransformer instance или None если загрузка не удалась
     """
+    import traceback
     global _SENTENCE_TRANSFORMER_CACHE, _CACHE_MODEL_NAME
     
     if device == "auto":
@@ -102,8 +103,12 @@ def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Op
     
     # Быстрая проверка без блокировки
     if _SENTENCE_TRANSFORMER_CACHE is not None and _CACHE_MODEL_NAME == local_path:
-        logger.debug(f"Используем кэшированную модель: {local_path}")
+        logger.debug(f"Используем кэшированную модель: {local_path} (device={device})")
         return _SENTENCE_TRANSFORMER_CACHE
+    
+    # Логирование вызова для отладки
+    logger.warning(f"[EMBEDDING LOAD] First call or cache miss! device={device}, cached={_CACHE_MODEL_NAME}, path={local_path}")
+    logger.warning(f"[EMBEDDING LOAD] Stack trace:\n{''.join(traceback.format_stack()[:10])}")
     
     # Блокировка для предотвращения одновременной загрузки
     lock = _get_loading_lock()
