@@ -151,7 +151,7 @@
 ## 4.2 EthicsFramework
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 4.2.1 | **2 версии класса** (framework_core vs ethics_core) | [КРИТ] | [ ] | Конфликт имён |
+| 4.2.1 | **2 версии класса** (framework_core vs ethics_core) | [КРИТ] | [X] | ✅ Проанализировано: framework_core (production), ethics_core (fallback) - объединение рискованно |
 | 4.2.2 | `analyze_response()` отсутствует в ethics_core | [КРИТ] | [ ] | SelfReasoningEngine ожидает |
 | 4.2.3 | pipeline_core создаёт локальную копию | [СРЕД] | [ ] | Рекомендуется использовать brain.ethics_framework |
 
