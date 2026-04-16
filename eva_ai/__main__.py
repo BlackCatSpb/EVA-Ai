@@ -58,17 +58,42 @@ logger.info(f"Project root: {project_root}")
 
 # Глобальная переменная для хранилища core_brain
 _core_instance = None
+_shutdown_in_progress = False
 
 def _handle_shutdown(signum, frame):
     """Обработчик сигнала завершения (Ctrl+C, закрытие терминала)."""
+    global _shutdown_in_progress
+    
+    # Предотвращаем повторный вызов
+    if _shutdown_in_progress:
+        logger.warning("Повторный сигнал завершения — принудительный выход")
+        os._exit(1)
+    _shutdown_in_progress = True
+    
     logger.info(f"Получен сигнал завершения ({signum})...")
-    if _core_instance is not None:
+    
+    # Сигнал приходит в главный поток — запускаем cleanup в отдельном потоке
+    # чтобы не блокировать обработку сигнала
+    def _do_shutdown():
+        global _core_instance
+        if _core_instance is not None:
+            try:
+                logger.info("Останавливаем EVA...")
+                _core_instance.stop()
+            except Exception as e:
+                logger.error(f"Ошибка при остановке: {e}")
+        # Сигнализируем run.py о необходимости завершиться
         try:
-            logger.info("Останавливаем EVA...")
-            _core_instance.stop()
-        except Exception as e:
-            logger.error(f"Ошибка при остановке: {e}")
-    sys.exit(0)
+            from eva_ai.run import _shutdown_event
+            _shutdown_event.set()
+        except Exception:
+            pass
+    
+    shutdown_thread = threading.Thread(target=_do_shutdown, daemon=True, name="signal_shutdown")
+    shutdown_thread.start()
+    
+    # Не вызываем sys.exit() здесь — пусть run.py обработает через _shutdown_event
+    # Это позволяет корректно пройти через finally блок
 
 # Регистрируем обработчики сигналов
 signal.signal(signal.SIGINT, _handle_shutdown)

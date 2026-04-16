@@ -217,6 +217,25 @@ def _stop_components(brain):
         except Exception as e:
             query_logger.error(f"Ошибка остановки компонента {name}: {e}")
     
+    # Останавливаем EventBus (глобальный)
+    try:
+        from eva_ai.core.event_bus import get_event_bus
+        event_bus = get_event_bus()
+        if event_bus and hasattr(event_bus, 'stop'):
+            query_logger.info("Остановка EventBus...")
+            event_bus.stop()
+    except Exception as e:
+        query_logger.debug(f"EventBus stop error: {e}")
+    
+    # Останавливаем IntegrationCore threads если есть
+    try:
+        if hasattr(brain, 'integrator') and brain.integrator:
+            if hasattr(brain.integrator, 'shutdown'):
+                query_logger.info("Остановка IntegrationCore...")
+                brain.integrator.shutdown()
+    except Exception as e:
+        query_logger.debug(f"IntegrationCore stop error: {e}")
+    
     # Останавливаем web_gui ПОСЛЕДНИМ
     if web_gui_component:
         name, component = web_gui_component

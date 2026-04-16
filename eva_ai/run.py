@@ -43,25 +43,7 @@ def _cleanup_brain():
     logger.info("=== Начало корректного завершения ===")
     start_time = time.time()
     
-    # 1. Останавливаем WebGUI с таймаутом
-    if _webgui_instance is not None:
-        try:
-            logger.info("Остановка WebGUI...")
-            # Запускаем в отдельном потоке с таймаутом
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(_webgui_instance.stop)
-                try:
-                    future.result(timeout=5)  # 5 секунд максимум
-                    logger.info("WebGUI остановлен")
-                except concurrent.futures.TimeoutError:
-                    logger.warning("WebGUI не остановился за 5 сек, пропускаем...")
-                except Exception as ex:
-                    logger.warning(f"Ошибка при остановке WebGUI: {ex}")
-        except Exception as e:
-            logger.warning(f"Ошибка при остановке WebGUI: {e}")
-    
-    # 2. Останавливаем CoreBrain с таймаутом
+    # 1. Останавливаем CoreBrain (включает все компоненты, EventBus, IntegrationCore)
     if _brain_instance is not None:
         try:
             logger.info("Остановка CoreBrain...")
@@ -70,14 +52,31 @@ def _cleanup_brain():
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(_brain_instance.stop)
                     try:
-                        future.result(timeout=5)  # 5 секунд максимум
+                        future.result(timeout=8)  # 8 секунд максимум
                         logger.info("CoreBrain остановлен")
                     except concurrent.futures.TimeoutError:
-                        logger.warning("CoreBrain не остановился за 5 сек, пропускаем...")
+                        logger.warning("CoreBrain не остановился за 8 сек, пропускаем...")
                     except Exception as ex:
                         logger.warning(f"Ошибка при остановке CoreBrain: {ex}")
         except Exception as e:
             logger.warning(f"Ошибка при остановке CoreBrain: {e}")
+    
+    # 2. Останавливаем WebGUI (если не был остановлен через _stop_components)
+    if _webgui_instance is not None:
+        try:
+            logger.info("Остановка WebGUI (fallback)...")
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_webgui_instance.stop)
+                try:
+                    future.result(timeout=5)
+                    logger.info("WebGUI остановлен")
+                except concurrent.futures.TimeoutError:
+                    logger.warning("WebGUI не остановился за 5 сек, пропускаем...")
+                except Exception as ex:
+                    logger.debug(f"WebGUI уже остановлен: {ex}")
+        except Exception as e:
+            logger.debug(f"WebGUI cleanup error: {e}")
     
     # 3. Останавливаем GPU/CUDA если используется
     try:
@@ -96,7 +95,7 @@ def _cleanup_brain():
             logger.debug(f"Поток {t.name} завершается...")
     
     # Ждём немного чтобы потоки завершились
-    time.sleep(0.3)
+    time.sleep(0.5)
     
     elapsed = time.time() - start_time
     logger.info(f"=== Завершение выполнено за {elapsed:.2f} сек ===")
@@ -115,13 +114,12 @@ def _signal_handler(signum, frame):
     cleanup_thread.start()
     
     # Даём время на cleanup но не блокируем надолго
-    cleanup_thread.join(timeout=5)
+    cleanup_thread.join(timeout=8)
     
     if cleanup_thread.is_alive():
-        logger.warning("Cleanup не завершился за 5 сек, принудительное завершение...")
+        logger.warning("Cleanup не завершился за 8 сек, принудительное завершение...")
         _cleanup_pid()
-        import os
-        os._exit(1)
+        sys.exit(1)
     else:
         logger.info("Cleanup успешно завершён")
         sys.exit(0)
