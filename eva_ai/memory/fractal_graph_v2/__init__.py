@@ -422,6 +422,13 @@ class FractalMemoryGraph:
             "time_elapsed": elapsed
         })
         
+        # Публикуем событие об изменении графа для GraphCurator
+        self._publish_event("memory.graph_updated", {
+            "change_type": "batch_add",
+            "nodes_added": len(nodes),
+            "skip_curation": False
+        })
+        
         return nodes
     
     def update_node(

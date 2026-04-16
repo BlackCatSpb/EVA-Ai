@@ -215,6 +215,10 @@ class GraphCurator:
             self._thread.join(timeout=5)
         logger.info("GraphCurator stopped")
     
+    def is_running(self) -> bool:
+        """Проверить, запущен ли куратор."""
+        return self._running and self._thread is not None and self._thread.is_alive()
+    
     def _run_loop(self):
         """Главный цикл куратора"""
         while self._running:
