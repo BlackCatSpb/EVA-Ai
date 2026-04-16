@@ -1482,10 +1482,23 @@
         if (!text) return '';
         let html = text;
         
-        // Удаляем теги рассуждений модели (<think></think>)
-        html = html.replace(/<think>[\s\S]*?</think>/g, '');
-        html = html.replace(/<think>/g, '');
-        html = html.replace(/</think>/g, '');
+        // Удаляем теги рассуждений модели через substring (regex не работает с unicode)
+        while (true) {
+            const startTag = '<think>';
+            const endTag = '</think>';
+            const startIdx = html.indexOf(startTag);
+            if (startIdx === -1) break;
+            const endIdx = html.indexOf(endTag, startIdx);
+            if (endIdx !== -1) {
+                html = html.substring(0, startIdx) + html.substring(endIdx + endTag.length);
+            } else {
+                html = html.substring(0, startIdx);
+                break;
+            }
+        }
+        // Удаляем одиночные теги
+        html = html.split('<think>').join('');
+        html = html.split('</think>').join('');
         
         // Normalize Windows line endings
         html = html.replace(/\r\n/g, '\n');
