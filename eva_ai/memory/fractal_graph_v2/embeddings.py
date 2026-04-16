@@ -19,7 +19,7 @@ import numpy as np
 logger = logging.getLogger("eva_ai.fractal_graph_v2.embeddings")
 
 # Устанавливаем HF_HOME на локальный кеш если не установлен
-_HF_CACHE_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))), 'core', 'hf_cache')
+_HF_CACHE_DEFAULT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'hf_cache')
 if not os.environ.get('HF_HOME'):
     os.environ['HF_HOME'] = _HF_CACHE_DEFAULT
     os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'

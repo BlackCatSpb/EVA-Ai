@@ -9,8 +9,8 @@ from typing import Optional, List
 
 logger = logging.getLogger("eva_ai.sentence_transformers_cache")
 
-# Путь к локальной модели
-_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'hf_cache')
+# Путь к локальной модели (2 dirname = eva_ai, затем core/hf_cache)
+_CACHE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'hf_cache')
 _LOCAL_MODEL_PATH = os.path.join(_CACHE_DIR, 'models--intfloat--multilingual-e5-base', 'snapshots')
 
 # Устанавливаем HF_HOME

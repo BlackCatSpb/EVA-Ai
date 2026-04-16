@@ -11,7 +11,7 @@ logger = logging.getLogger("eva_ai.webgui.routes_upload")
 
 # Tesseract path for OCR
 TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-TESSDATA_PREFIX = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'core', 'tessdata')
+TESSDATA_PREFIX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'tessdata')
 try:
     import pytesseract
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
