@@ -240,8 +240,8 @@
 ## 8.2 WebSearch
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 8.2.1 | search_google() → DuckDuckGo | [ВЫС] | [ ] | Убрать подмену или документировать |
-| 8.2.2 | search_yandex() → Brave | [ВЫС] | [ ] | Убрать подмену или документировать |
+| 8.2.1 | search_google() → DuckDuckGo | [ВЫС] | [X] | ✅ Документировано: добавлены docstrings объясняющие fallback |
+| 8.2.2 | search_yandex() → Brave | [ВЫС] | [X] | ✅ Документировано: добавлены docstrings объясняющие fallback |
 | 8.2.3 | Tavily API Key path wrong | [КРИТ] | [X] | ✅ Исправлено: config.web_search.tavily_api_key |
 
 ---

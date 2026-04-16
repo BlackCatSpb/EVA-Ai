@@ -57,12 +57,22 @@ class SearchEngines:
         time.sleep(random.uniform(0.5, 2.0))
 
     def search_google(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Google (с ротацией и fallback на несколько систем)."""
+        """
+        Выполняет поиск через Google (fallback на DuckDuckGo HTML).
+        
+        Note: Due to Google API restrictions, this uses DuckDuckGo HTML as fallback.
+        The method name is kept for API compatibility.
+        """
         logger.info(f"Выполняем поиск для: {query[:30]}...")
         return self._search_duckduckgo_html(query, max_results)
 
     def search_yandex(self, query: str, max_results: int) -> List[SearchResult]:
-        """Выполняет поиск через Yandex (с ротацией и fallback на несколько систем)."""
+        """
+        Выполняет поиск через Yandex (fallback на Brave Search).
+        
+        Note: Due to Yandex API restrictions, this uses Brave Search as fallback.
+        The method name is kept for API compatibility.
+        """
         logger.info(f"Выполняем поиск для: {query[:30]}...")
         return self._search_brave(query, max_results)
 
