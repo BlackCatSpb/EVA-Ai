@@ -238,6 +238,7 @@
 | 8.1.1 | Thread leak | [СРЕД] | [ ] | Требует профилирования |
 | 8.1.2 | Reasoning UI: scroll + auto-collapse | [ВЫС] | [X] | ✅ Реализовано: Grok-like collapsible reasoning panel, scrollable content, auto-collapse after generation, live streaming steps |
 | 8.1.3 | Ctrl+C graceful shutdown | [КРИТ] | [X] | ✅ Исправлено: __main__.py signal handler (re-entrancy guard, async cleanup), run.py (removed os._exit, 8s timeout), brain_init.py (EventBus + IntegrationCore stop), proper shutdown chain |
+| 8.1.4 | Thinking tags leak to user | [КРИТ] | [X] | ✅ Исправлено: фильтрация <think></think> в response_generator.py (_postprocess_generated_text) и formatText() в app.js |
 
 ## 8.2 WebSearch
 | # | Проблема | Приоритет | Статус | Комментарий |

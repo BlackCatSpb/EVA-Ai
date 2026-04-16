@@ -1482,6 +1482,11 @@
         if (!text) return '';
         let html = text;
         
+        // Удаляем теги рассуждений модели (<think></think>)
+        html = html.replace(/<think>[\s\S]*?</think>/g, '');
+        html = html.replace(/<think>/g, '');
+        html = html.replace(/</think>/g, '');
+        
         // Normalize Windows line endings
         html = html.replace(/\r\n/g, '\n');
         

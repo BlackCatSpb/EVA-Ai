@@ -832,6 +832,11 @@ class ResponseGenerator:
         """Постобрабатывает сгенерированный текст."""
         if not text:
             return ""
+        # Удаляем теги рассуждений модели (<think></think>)
+        import re
+        text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        text = re.sub(r'<think>', '', text)
+        text = re.sub(r'</think>', '', text)
         return text.strip()
     
     def _safe_tokenize(self, tokenizer: Any, text: str) -> List[str]:
