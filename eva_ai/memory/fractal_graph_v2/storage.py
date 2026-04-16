@@ -86,6 +86,11 @@ class FractalGraphV2:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
+        # WAL mode для конкурентного доступа
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=5000")
+        
         # Таблица узлов
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS nodes (

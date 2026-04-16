@@ -103,7 +103,7 @@
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
 | 2.1.1 | **Метод `get_clusters()` НЕ СУЩЕСТВУЕТ** | [КРИТ] | [X] | ✅ Исправлено: добавлен get_clusters() с кэшированием |
-| 2.1.2 | SQLite без WAL | [ВЫС] | [ ] | Блокировка записи при чтении |
+| 2.1.2 | SQLite без WAL | [ВЫС] | [X] | ✅ Исправлено: FractalGraphV2 storage использует WAL mode |
 | 2.1.3 | Embedding fallback на случайные векторы | [КРИТ] | [X] | ✅ Исправлено: SemanticContextCache._compute_embedding() возвращает None |
 | 2.1.4 | kg_adapter.py - баг `edge_type` vs `relation_type` | [ВЫС] | [P] | Частично: KG адаптер удалён, create_knowledge_components |
 | 2.1.5 | FractalMemoryGraph не публикует события | [ВЫС] | [X] | ✅ Исправлено: добавлен memory.graph_updated после add_nodes_batch |
@@ -113,7 +113,7 @@
 |---|----------|----------|--------|-------------|
 | 2.2.1 | **KnowledgeCurator НЕ СУЩЕСТВУЕТ** | [КРИТ] | [N/A] | Non-critical: GraphCurator функционален, работает без него |
 | 2.2.2 | GraphCurator изолирован (нет EventBus/DCS) | [КРИТ] | [X] | ✅ Исправлено: подписки на system.idle, memory.graph_updated, DCS интеграция |
-| 2.2.3 | threading.Timer вместо адаптивного | [СРЕД] | [ ] | Фиксированный интервал 600 сек |
+| 2.2.3 | threading.Timer вместо адаптивного | [СРЕД] | [X] | ✅ Исправлено: адаптивный интервал через DCS, загрузка CPU/RAM |
 | 2.2.4 | is_running() отсутствует | [СРЕД] | [X] | ✅ Исправлено: добавлен метод is_running() |
 
 ---
@@ -130,7 +130,7 @@
 ## 3.2 ContradictionDetector
 | # | Проблема | Приоритет | Статус | Комментарий |
 |---|----------|----------|--------|-------------|
-| 3.2.1 | 2 версии ContradictionAnalyzer | [ВЫС] | [ ] | analytics vs contradiction |
+| 3.2.1 | 2 версии ContradictionAnalyzer | [ВЫС] | [X] | ✅ Исправлено: удалён мёртвый contradiction_analysis.py, используется только из analytics |
 
 ## 3.3 SelfDialogLearning
 | # | Проблема | Приоритет | Статус | Комментарий |

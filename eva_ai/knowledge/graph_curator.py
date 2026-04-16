@@ -220,20 +220,72 @@ class GraphCurator:
         return self._running and self._thread is not None and self._thread.is_alive()
     
     def _run_loop(self):
-        """Главный цикл куратора"""
+        """Главный цикл куратора с адаптивным интервалом."""
+        adaptive_interval = self.check_interval
+        
         while self._running:
             try:
                 if not self._paused:
                     self._do_curation()
                 
-                self.metrics['next_run'] = time.time() + self.check_interval
-                time.sleep(self.check_interval)
+                # Адаптивный интервал на основе активности графа
+                adaptive_interval = self._compute_adaptive_interval()
+                self.metrics['next_run'] = time.time() + adaptive_interval
+                self.metrics['adaptive_interval'] = adaptive_interval
+                
+                # Используем DCS для планирования если доступен
+                if self._deferred_system:
+                    self._deferred_system.defer(
+                        command=lambda: self._do_curation() if not self._paused else None,
+                        delay=adaptive_interval,
+                        priority='LOW',
+                        source='graph_curator'
+                    )
+                    # Выходим из цикла ожидания - DCS управляет таймингом
+                    while self._running and not self._paused:
+                        time.sleep(1.0)
+                        if not self._running:
+                            break
+                else:
+                    time.sleep(adaptive_interval)
                 
             except Exception as e:
                 logger.error(f"GraphCurator error: {e}")
                 self.metrics['last_error'] = str(e)
                 self.state = CuratorState.ERROR
                 time.sleep(60)
+    
+    def _compute_adaptive_interval(self) -> float:
+        """Вычисляет адаптивный интервал на основе активности системы."""
+        base = self.check_interval
+        
+        # Увеличиваем интервал при высокой нагрузке
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            memory = psutil.virtual_memory()
+            
+            # Если система под нагрузкой - увеличиваем интервал
+            if cpu_percent > 80 or memory.percent > 85:
+                return base * 2.0
+            if cpu_percent > 60 or memory.percent > 70:
+                return base * 1.5
+            
+        except ImportError:
+            pass
+        
+        # Уменьшаем интервал если граф большой и активный
+        fg = self._get_fractal_graph()
+        if fg and hasattr(fg, 'storage'):
+            node_count = len(getattr(fg.storage, 'nodes', {}))
+            
+            # Большой граф требует более частого курирования
+            if node_count > 10000:
+                return base * 0.5  # Вдвое чаще
+            elif node_count > 5000:
+                return base * 0.75  # На 25% чаще
+        
+        return base
     
     def _do_curation(self):
         """Выполнить цикл курирования"""
