@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Any, Set
 from enum import Enum
 from collections import defaultdict
 
+from eva_ai.core.event_bus import Event, EventPriority
+
 logger = logging.getLogger("eva_ai.graph_curator")
 
 
@@ -82,8 +84,76 @@ class GraphCurator:
         self._event_bus = None
         if self.brain and hasattr(self.brain, 'events'):
             self._event_bus = self.brain.events
+            self._subscribe_to_events()
+        
+        # DeferredCommandSystem
+        self._deferred_system = None
+        if self.brain and hasattr(self.brain, 'deferred_system'):
+            self._deferred_system = self.brain.deferred_system
         
         logger.info(f"GraphCurator initialized (FGv2)")
+    
+    def _subscribe_to_events(self):
+        """Подписка на события EventBus."""
+        if not self._event_bus:
+            return
+        
+        try:
+            self._event_bus.subscribe("system.idle", self._on_system_idle, priority=3)
+            self._event_bus.subscribe("memory.graph_updated", self._on_graph_updated, priority=5)
+            self._event_bus.subscribe("memory.node_created", self._on_node_created, priority=5)
+            logger.debug("GraphCurator subscribed to events")
+        except Exception as e:
+            logger.debug(f"Event subscription error: {e}")
+    
+    def _on_system_idle(self, event):
+        """Обработка события простоя системы - запуск курирования."""
+        if not self._running or self._paused:
+            return
+        
+        try:
+            logger.debug("System idle - running curation")
+            self._do_curation()
+        except Exception as e:
+            logger.error(f"Curation error on idle: {e}")
+    
+    def _on_graph_updated(self, event):
+        """Обработка обновления графа - отложенный запуск."""
+        if not self._running or self._paused:
+            return
+        
+        data = event.data if hasattr(event, 'data') else event
+        if data.get('skip_curation'):
+            return
+        
+        if self._deferred_system:
+            self._deferred_system.defer(
+                command=self._do_curation,
+                delay=60.0,
+                priority='NORMAL',
+                source='graph_curator'
+            )
+        else:
+            self.force_curation()
+    
+    def _on_node_created(self, event):
+        """Обработка создания узла - отложенная оптимизация."""
+        if not self._running or self._paused:
+            return
+        
+        data = event.data if hasattr(event, 'data') else event
+        node_type = data.get('node_type', '')
+        
+        if node_type in self.PROTECTED_TYPES:
+            return
+        
+        if self._deferred_system:
+            self._deferred_system.defer(
+                command=self._do_curation,
+                delay=300.0,
+                priority='LOW',
+                source='graph_curator'
+            )
     
     def _get_fractal_graph(self):
         """Получить ссылку на FGv2"""
@@ -195,13 +265,17 @@ class GraphCurator:
                 logger.debug(f"Curation completed: cycle #{self.metrics['cycles_completed']}")
                 
                 if self._event_bus:
-                    event_data = {
-                        "cycles": self.metrics['cycles_completed'],
-                        "nodes_promoted": self.metrics.get('nodes_promoted', 0),
-                        "nodes_demoted": self.metrics.get('nodes_demoted', 0),
-                        "nodes_consolidated": self.metrics.get('nodes_consolidated', 0)
-                    }
-                    self._event_bus.publish(event_data)
+                    self._event_bus.publish(Event(
+                        event_type="curator.curation_complete",
+                        source="graph_curator",
+                        data={
+                            "cycles": self.metrics['cycles_completed'],
+                            "nodes_promoted": self.metrics.get('nodes_promoted', 0),
+                            "nodes_demoted": self.metrics.get('nodes_demoted', 0),
+                            "nodes_consolidated": self.metrics.get('nodes_consolidated', 0)
+                        },
+                        priority=EventPriority.NORMAL
+                    ))
                 
             except Exception as e:
                 logger.error(f"Curation error: {e}")
@@ -266,11 +340,15 @@ class GraphCurator:
         if nodes_to_remove:
             logger.info(f"Cleaned up {len(nodes_to_remove)} garbage nodes")
             if self._event_bus:
-                event_data = {
-                    "nodes_removed": len(nodes_to_remove),
-                    "total_removed": self.metrics.get('nodes_removed', 0)
-                }
-                self._event_bus.publish(event_data)
+                self._event_bus.publish(Event(
+                    event_type="curator.cleanup_done",
+                    source="graph_curator",
+                    data={
+                        "nodes_removed": len(nodes_to_remove),
+                        "total_removed": self.metrics.get('nodes_removed', 0)
+                    },
+                    priority=EventPriority.LOW
+                ))
     
     def _process_level_promotions(self, storage):
         """
