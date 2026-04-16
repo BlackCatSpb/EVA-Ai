@@ -446,11 +446,12 @@ class RelevanceCalculator:
         self._initialize_model()
     
     def _initialize_model(self):
-        """Инициализирует модель эмбеддингов."""
+        """Инициализирует модель эмбеддингов через singleton кеш."""
         try:
-            from sentence_transformers import SentenceTransformer
-            self.model = SentenceTransformer(self.model_name)
-            logger.info(f"RelevanceCalculator: модель {self.model_name} загружена")
+            from eva_ai.mlearning.sentence_transformers_cache import get_sentence_transformer
+            self.model = get_sentence_transformer(device='cpu')
+            if self.model:
+                logger.info("RelevanceCalculator: использует singleton sentence-transformer")
         except ImportError:
             logger.warning("sentence-transformers не установлен, используем упрощённый метод")
             self.model = None

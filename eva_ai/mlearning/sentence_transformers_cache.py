@@ -36,11 +36,28 @@ else:
 
 _SENTENCE_TRANSFORMER_CACHE: Optional[object] = None
 _CACHE_MODEL_NAME: Optional[str] = None
+_LOADING_LOCK = None  # Блокировка для предотвращения одновременной загрузки
+
+
+def _get_loading_lock():
+    """Lazy initialization блокировки."""
+    global _LOADING_LOCK
+    if _LOADING_LOCK is None:
+        import threading
+        _LOADING_LOCK = threading.Lock()
+    return _LOADING_LOCK
 
 
 def _detect_device() -> str:
-    """Всегда CPU - OpenVINO использует GPU, память нужна для модели."""
-    logger.info("Embeddings: using CPU (GPU reserved for OpenVINO model)")
+    """GPU для embeddings - 1.2 Гб из 2 Гб доступно."""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            total_mb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 2)
+            logger.info(f"Embeddings: GPU detected ({total_mb:.0f}MB)")
+            return "cuda"
+    except Exception as e:
+        logger.warning(f"GPU detection failed: {e}")
     return "cpu"
 
 
@@ -66,6 +83,7 @@ def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Op
     """
     Возвращает кэшированную модель sentence-transformers из ЛОКАЛЬНОГО кеша.
     Если модель уже загружена - возвращает кэш, иначе загружает и кэширует.
+    Блокировка предотвращает одновременную загрузку из нескольких потоков.
     
     Args:
         model_name: Не используется (для совместимости), модель всегда загружается из локального кеша
@@ -82,27 +100,36 @@ def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Op
     # Всегда используем локальный путь
     local_path = _SNAPSHOT_PATH
     
+    # Быстрая проверка без блокировки
     if _SENTENCE_TRANSFORMER_CACHE is not None and _CACHE_MODEL_NAME == local_path:
         logger.debug(f"Используем кэшированную модель: {local_path}")
         return _SENTENCE_TRANSFORMER_CACHE
     
-    try:
-        from sentence_transformers import SentenceTransformer
+    # Блокировка для предотвращения одновременной загрузки
+    lock = _get_loading_lock()
+    with lock:
+        # Повторная проверка после получения блокировки
+        if _SENTENCE_TRANSFORMER_CACHE is not None and _CACHE_MODEL_NAME == local_path:
+            logger.debug(f"Модель уже загружена другим потоком: {local_path}")
+            return _SENTENCE_TRANSFORMER_CACHE
         
-        if local_path and os.path.exists(local_path):
-            logger.info(f"Загрузка модели из ЛОКАЛЬНОГО кеша: {local_path} (устройство: {device})")
-            _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer(local_path, device=device)
-        else:
-            logger.warning(f"Локальная модель не найдена: {local_path}, пробуем HF...")
-            _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
-        
-        _CACHE_MODEL_NAME = local_path
-        logger.info(f"Модель загружена на {device}")
-        return _SENTENCE_TRANSFORMER_CACHE
-        
-    except Exception as e:
-        logger.error(f"Не удалось загрузить sentence-transformers модель: {e}")
-        return None
+        try:
+            from sentence_transformers import SentenceTransformer
+            
+            if local_path and os.path.exists(local_path):
+                logger.info(f"Загрузка модели из ЛОКАЛЬНОГО кеша: {local_path} (устройство: {device})")
+                _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer(local_path, device=device)
+            else:
+                logger.warning(f"Локальная модель не найдена: {local_path}, пробуем HF...")
+                _SENTENCE_TRANSFORMER_CACHE = SentenceTransformer("intfloat/multilingual-e5-base", device=device)
+            
+            _CACHE_MODEL_NAME = local_path
+            logger.info(f"Модель sentence-transformers загружена на {device}")
+            return _SENTENCE_TRANSFORMER_CACHE
+            
+        except Exception as e:
+            logger.error(f"Не удалось загрузить sentence-transformers модель: {e}")
+            return None
 
 
 def encode_text(text: str, device: str = "auto") -> Optional[List[float]]:
