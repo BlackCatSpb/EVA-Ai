@@ -274,7 +274,7 @@
 ## 10.1 Рекомендуется к удалению
 | # | Директория/Файл | Причина | Статус | Комментарий |
 |---|-----------------|---------|--------|-------------|
-| 10.1.1 | **eva_ai/fractal/** | 0 импортов, изолирован | [P] | В процессе: FractalStore используется entity_fractal_store из core/graph_ml_core.py |
+| 10.1.1 | **eva_ai/fractal/** | MemoryGraphML отключен | [P] | brain.memory_graph_ml = None, но используется в engine_steps.py - требует анализа |
 | 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [X] | ✅ Исправлено: используется в tests и hot_deployment/openvino_convert.py |
 | 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [X] | ✅ Исправлено: удалена вся директория (DistributedSystem не создаётся) |
 | 10.1.4 | **eva_ai/adaptation/** (4 версии) | 2,200 строк мёртвого кода | [ ] | 4 AdaptationManager |
