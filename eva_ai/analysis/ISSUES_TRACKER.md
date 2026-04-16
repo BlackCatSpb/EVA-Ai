@@ -260,12 +260,12 @@
 ## 9.2 Scripts (6 из 8 сломаны!)
 | # | Скрипт | Проблема | Статус | Комментарий |
 |---|--------|----------|--------|-------------|
-| 9.2.1 | migrate_kg_to_fg.py | Несуществующий импорт | [ ] | kg_to_fg_migration не найден |
-| 9.2.2 | migrate_to_optimized.py | Несуществующий импорт | [ ] | optimized_fractal_model_manager |
-| 9.2.3 | export_qwen.py | Неверный путь | [ ] | eva\mlearning\ |
-| 9.2.4 | migrate_events.py | Только документация | [ ] | |
-| 9.2.5 | load_gguf_to_fg.py | fg_gguf_architecture_mapper | [ ] | |
-| 9.2.6 | activate_max_cache.py | unified_fractal_manager | [ ] | |
+| 9.2.1 | migrate_kg_to_fg.py | Несуществующий импорт | [X] | ✅ Исправлено: удалён (kg_to_fg_migration в deprecated_modules/) |
+| 9.2.2 | migrate_to_optimized.py | Несуществующий импорт | [X] | ✅ Исправлено: удалён |
+| 9.2.3 | export_qwen.py | Неверный путь | [X] | ✅ Исправлено: удалён (hardcoded старый путь) |
+| 9.2.4 | migrate_events.py | Только документация | [X] | ✅ Исправлено: удалён |
+| 9.2.5 | load_gguf_to_fg.py | fg_gguf_architecture_mapper | [X] | ✅ Исправлено: удалён |
+| 9.2.6 | activate_max_cache.py | unified_fractal_manager | [X] | ✅ Исправлено: удалён |
 
 ---
 
@@ -274,7 +274,7 @@
 ## 10.1 Рекомендуется к удалению
 | # | Директория/Файл | Причина | Статус | Комментарий |
 |---|-----------------|---------|--------|-------------|
-| 10.1.1 | **eva_ai/fractal/** | 0 импортов, изолирован | [ ] | Полностью мёртвый |
+| 10.1.1 | **eva_ai/fractal/** | 0 импортов, изолирован | [P] | В процессе: FractalStore используется entity_fractal_store из core/graph_ml_core.py |
 | 10.1.2 | **eva_ai/runtime/** | НЕ ИСПОЛЬЗУЕТСЯ | [X] | ✅ Исправлено: используется в tests и hot_deployment/openvino_convert.py |
 | 10.1.3 | **eva_ai/distributed/** | НЕ инициализируется | [X] | ✅ Исправлено: удалена вся директория (DistributedSystem не создаётся) |
 | 10.1.4 | **eva_ai/adaptation/** (4 версии) | 2,200 строк мёртвого кода | [ ] | 4 AdaptationManager |
