@@ -39,20 +39,8 @@ _CACHE_MODEL_NAME: Optional[str] = None
 
 
 def _detect_device() -> str:
-    """Автоматически определяет устройство для загрузки."""
-    try:
-        import torch
-        if torch.cuda.is_available():
-            total_mem = torch.cuda.get_device_properties(0).total_memory
-            total_mb = total_mem / (1024 ** 2)
-            if total_mb >= 1500:
-                logger.info(f"CUDA detected ({total_mb:.0f}MB), using GPU for embeddings")
-                return "cuda"
-            else:
-                logger.info(f"CUDA detected but low memory ({total_mb:.0f}MB), using CPU")
-                return "cpu"
-    except Exception:
-        pass
+    """Всегда CPU - OpenVINO использует GPU, память нужна для модели."""
+    logger.info("Embeddings: using CPU (GPU reserved for OpenVINO model)")
     return "cpu"
 
 
