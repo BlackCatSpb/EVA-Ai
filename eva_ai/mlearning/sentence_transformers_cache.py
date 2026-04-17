@@ -107,8 +107,7 @@ def get_sentence_transformer(model_name: str = None, device: str = "auto") -> Op
         return _SENTENCE_TRANSFORMER_CACHE
     
     # Логирование вызова для отладки
-    logger.warning(f"[EMBEDDING LOAD] First call or cache miss! device={device}, cached={_CACHE_MODEL_NAME}, path={local_path}")
-    logger.warning(f"[EMBEDDING LOAD] Stack trace:\n{''.join(traceback.format_stack()[:10])}")
+    logger.info(f"[EMBEDDING LOAD] Loading embeddings model: device={device}, path={local_path}")
     
     # Блокировка для предотвращения одновременной загрузки
     lock = _get_loading_lock()
