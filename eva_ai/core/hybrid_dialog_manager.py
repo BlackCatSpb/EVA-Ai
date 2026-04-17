@@ -904,6 +904,7 @@ class HybridKnowledgeDialogManager:
                 # Проверяем начало рассуждений
                 if not in_thinking and '<think>' in combined:
                     in_thinking = True
+                    
                     # Отправляем текст до <think> как часть ответа
                     before_think = combined.split('<think>')[0]
                     if before_think:
@@ -916,59 +917,60 @@ class HybridKnowledgeDialogManager:
                                 'tokens_count': len(''.join(full_text))
                             }
                             text_buffer = ""
-                    # Отправляем начало рассуждений
+                    
+                    # Отправляем начало рассуждений - сразу!
                     yield {'type': 'reasoning_start', 'is_final': False}
                     
                     after_think = combined.split('<think>')[1] if '<think>' in combined else ''
                     if '</think>' in after_think:
-                        # Короткое рассуждение - сразу закрывается
+                        # Короткое рассуждение - сразу отправляем каждый символ!
                         reasoning_content = after_think.split('</think>')[0]
-                        reasoning_buffer += reasoning_content
                         full_reasoning += reasoning_content
+                        # Отправляем сразу, без буферизации
                         yield {
-                            'type': 'reasoning_chunk',
-                            'text': reasoning_buffer,
+                            'type': 'reasoning_text',
+                            'text': reasoning_content,
                             'is_final': False
                         }
                         yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
-                        reasoning_buffer = ""
                         # Остаток после</think>
                         after_close = after_think.split('</think>')[1] if '</think>' in after_think else ''
                         text_buffer += after_close
                     else:
-                        reasoning_buffer += after_think
                         full_reasoning += after_think
+                        # Отправляем сразу
+                        yield {
+                            'type': 'reasoning_text',
+                            'text': after_think,
+                            'is_final': False
+                        }
                 
                 elif in_thinking:
                     # Мы внутри рассуждений
                     if '</think>' in combined:
                         # Конец рассуждений
                         reasoning_content = combined.split('</think>')[0]
-                        reasoning_buffer += reasoning_content
                         full_reasoning += reasoning_content
+                        # Отправляем сразу
                         yield {
-                            'type': 'reasoning_chunk',
-                            'text': reasoning_buffer,
+                            'type': 'reasoning_text',
+                            'text': reasoning_content,
                             'is_final': False
                         }
                         yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
-                        reasoning_buffer = ""
                         # Текст после рассуждений
                         after_close = combined.split('</think>')[1]
                         text_buffer += after_close
                     else:
-                        # Продолжаем рассуждения
-                        reasoning_buffer += combined
+                        # Продолжаем рассуждения - отправляем сразу!
                         full_reasoning += combined
-                        if len(reasoning_buffer) >= chunk_size:
-                            yield {
-                                'type': 'reasoning_chunk',
-                                'text': reasoning_buffer,
-                                'is_final': False
-                            }
-                            reasoning_buffer = ""
+                        yield {
+                            'type': 'reasoning_text',
+                            'text': combined,
+                            'is_final': False
+                        }
                 
                 else:
                     # Обычный текст
@@ -981,15 +983,6 @@ class HybridKnowledgeDialogManager:
                             'tokens_count': len(''.join(full_text))
                         }
                         text_buffer = ""
-            
-            # Отправляем остатки
-            if reasoning_buffer:
-                yield {
-                    'type': 'reasoning_chunk',
-                    'text': reasoning_buffer,
-                    'is_final': False
-                }
-                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
             
             if text_buffer:
                 yield {

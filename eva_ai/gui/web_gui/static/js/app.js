@@ -1269,13 +1269,17 @@
                             reasoningSteps = [];
                             reasoningText = '';
                             openReasoningPanel(msgId);
+                        } else if (data.type === 'reasoning_text') {
+                            // Новый текст рассуждений - добавляем к текущему
+                            reasoningText += data.text;
+                            updateLiveReasoningText(msgId, reasoningText);
                         } else if (data.type === 'reasoning_chunk') {
-                            // Новый контент рассуждений
+                            // Legacy: chunk рассуждений
                             reasoningText = data.text;
                             updateLiveReasoningText(msgId, reasoningText);
                         } else if (data.type === 'reasoning_end') {
-                            // Конец блока рассуждений - сохраняем полный текст
-                            closeReasoningPanel(msgId);
+                            // Конец блока рассуждений
+                            // Рассуждения уже видны в панели - просто закрываем панель для основного текста
                         } else if (data.type === 'reasoning_step') {
                             // Legacy: live reasoning step
                             reasoningSteps.push(data.step);
