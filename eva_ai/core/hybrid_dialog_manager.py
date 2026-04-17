@@ -879,7 +879,7 @@ class HybridKnowledgeDialogManager:
             reasoning_buffer = ""
             text_buffer = ""
             full_text = []
-            reasoning_steps = []
+            full_reasoning = ""
             
             while True:
                 try:
@@ -924,13 +924,13 @@ class HybridKnowledgeDialogManager:
                         # Короткое рассуждение - сразу закрывается
                         reasoning_content = after_think.split('</think>')[0]
                         reasoning_buffer += reasoning_content
-                        reasoning_steps.append(reasoning_content)
+                        full_reasoning += reasoning_content
                         yield {
                             'type': 'reasoning_chunk',
                             'text': reasoning_buffer,
                             'is_final': False
                         }
-                        yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+                        yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
                         reasoning_buffer = ""
                         # Остаток после</think>
@@ -938,6 +938,7 @@ class HybridKnowledgeDialogManager:
                         text_buffer += after_close
                     else:
                         reasoning_buffer += after_think
+                        full_reasoning += after_think
                 
                 elif in_thinking:
                     # Мы внутри рассуждений
@@ -945,13 +946,13 @@ class HybridKnowledgeDialogManager:
                         # Конец рассуждений
                         reasoning_content = combined.split('</think>')[0]
                         reasoning_buffer += reasoning_content
-                        reasoning_steps.append(reasoning_content)
+                        full_reasoning += reasoning_content
                         yield {
                             'type': 'reasoning_chunk',
                             'text': reasoning_buffer,
                             'is_final': False
                         }
-                        yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+                        yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
                         reasoning_buffer = ""
                         # Текст после рассуждений
@@ -960,6 +961,7 @@ class HybridKnowledgeDialogManager:
                     else:
                         # Продолжаем рассуждения
                         reasoning_buffer += combined
+                        full_reasoning += combined
                         if len(reasoning_buffer) >= chunk_size:
                             yield {
                                 'type': 'reasoning_chunk',
@@ -987,7 +989,7 @@ class HybridKnowledgeDialogManager:
                     'text': reasoning_buffer,
                     'is_final': False
                 }
-                yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
             
             if text_buffer:
                 yield {
@@ -1004,7 +1006,7 @@ class HybridKnowledgeDialogManager:
                 'is_final': True,
                 'tokens_count': len(full_response.split()),
                 'elapsed_ms': int((time.time() - start_time) * 1000),
-                'reasoning_steps': reasoning_steps
+                'reasoning': full_reasoning
             }
             
             self.add_message("assistant", full_response)

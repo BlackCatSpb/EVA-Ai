@@ -818,7 +818,7 @@
         const toggleText = reasoningContainer.querySelector('.reasoning-toggle-text');
         
         if (textEl) {
-            textEl.innerHTML = `<pre style="white-space: pre-wrap; word-break: break-word;">${esc(text)}</pre>`;
+            textEl.innerHTML = `<pre style="white-space: pre-wrap; word-break: break-word; margin: 0;">${esc(text)}</pre>`;
         }
         
         if (toggleText) {
@@ -849,11 +849,15 @@
             toggle.classList.remove('open');
             const toggleText = toggle.querySelector('.reasoning-toggle-text');
             if (toggleText) {
-                toggleText.textContent = 'Рассуждения завершены';
+                toggleText.textContent = 'Рассуждения';
             }
         }
         const body = reasoningContainer.querySelector('.reasoning-body');
         if (body) body.classList.remove('open');
+        
+        // Remove badge since we have full text
+        const badge = reasoningContainer.querySelector('.reasoning-collapsed-badge');
+        if (badge) badge.remove();
     }
     
     /**
@@ -861,54 +865,38 @@
      */
     function addReasoningToMessage(msgId, reasoning) {
         const msgEl = document.getElementById(msgId);
-        if (!msgEl || !reasoning || reasoning.length === 0) return;
+        if (!msgEl) return;
+        
+        // reasoning может быть строкой или массивом
+        let reasoningText = '';
+        if (typeof reasoning === 'string') {
+            reasoningText = reasoning;
+        } else if (Array.isArray(reasoning)) {
+            // Если массив объектов - извлекаем текст
+            reasoningText = reasoning.map(s => s.thought || s.text || '').join('\n');
+        } else if (reasoning && reasoning.full_text) {
+            reasoningText = reasoning.full_text;
+        }
+        
+        if (!reasoningText || reasoningText.length === 0) return;
         
         // Remove any existing reasoning
         const existing = msgEl.querySelector('.msg-reasoning');
         if (existing) existing.remove();
         
-        // Create new reasoning with the final data
+        // Create new reasoning with full text
         const reasoningContainer = document.createElement('div');
         reasoningContainer.className = 'msg-reasoning collapsed';
         reasoningContainer.id = 'reasoning-' + msgId;
         
-        const icons = {
-            'generation': '💭', 'model_a_generation': '🧠', 'model_b_generation': '💡',
-            'query_analysis': '🔍', 'model_selection': '⚙️', 'context_retrieval': '📚',
-            'condensed': '📝', 'extended': '📖', 'quality_check': '✅',
-            'final_synthesis': '📝', 'contradiction_check': '⚖️', 'ethics_check': '🛡️',
-            'web_search': '🌐', 'refinement': '✨', 'self_dialog': '💬'
-        };
-        
-        const stepsHtml = reasoning.map((step, idx) => {
-            const phase = step.phase || step.action || 'unknown';
-            const thought = step.thought || step.text || '';
-            const conf = step.confidence || 0;
-            const confClass = conf >= 0.7 ? 'high' : conf >= 0.4 ? 'medium' : 'low';
-            const confLabel = (conf * 100).toFixed(0) + '%';
-            const icon = step.icon || icons[phase] || '🔹';
-            return `
-                <div class="reasoning-step">
-                    <span class="step-icon">${icon}</span>
-                    <span class="step-num">${idx + 1}</span>
-                    <span class="step-phase">${esc(phase)}</span>
-                    <span class="step-thought">${esc(thought)}</span>
-                    <span class="step-conf ${confClass}">${confLabel}</span>
-                </div>
-            `;
-        }).join('');
-        
         reasoningContainer.innerHTML = `
             <button class="reasoning-toggle" onclick="toggleReasoning(this, '${msgId}')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                Рассуждения (${reasoning.length} шагов)
+                <span>Рассуждения модели</span>
             </button>
             <div class="reasoning-body">
-                <div class="reasoning-steps">${stepsHtml}</div>
+                <pre class="reasoning-full-text">${esc(reasoningText)}</pre>
             </div>
-            <span class="reasoning-collapsed-badge" onclick="toggleReasoning(this.parentElement.querySelector('.reasoning-toggle'), '${msgId}')">
-                🧠 ${reasoning.length} шагов рассуждений — показать
-            </span>
         `;
         
         // Insert before actions
@@ -1286,15 +1274,7 @@
                             reasoningText = data.text;
                             updateLiveReasoningText(msgId, reasoningText);
                         } else if (data.type === 'reasoning_end') {
-                            // Конец блока рассуждений - конвертируем в структурированные шаги
-                            if (data.steps && data.steps.length > 0) {
-                                reasoningSteps = data.steps.map((text, idx) => ({
-                                    step: idx + 1,
-                                    phase: 'reasoning',
-                                    thought: text,
-                                    confidence: 0.8
-                                }));
-                            }
+                            // Конец блока рассуждений - сохраняем полный текст
                             closeReasoningPanel(msgId);
                         } else if (data.type === 'reasoning_step') {
                             // Legacy: live reasoning step
