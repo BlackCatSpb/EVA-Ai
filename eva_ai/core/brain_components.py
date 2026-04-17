@@ -1011,6 +1011,23 @@ def _init_unified_generator(brain):
             query_logger.info(f'  GPU device: {gpu_device} (Embeddings)')
             query_logger.info(f'  LOGIC: {logic_model_path}')
             query_logger.info(f'  CONTEXT: {context_model_path}')
+            
+            # Инициализация LoRA адаптеров
+            try:
+                lora_config = brain.config.get('lora', {})
+                if lora_config.get('enabled', False):
+                    lora_dir = lora_config.get('adapters_dir')
+                    lora_alpha = lora_config.get('default_alpha', 0.7)
+                    if lora_dir and os.path.exists(lora_dir):
+                        results = brain.two_model_pipeline.init_lora_adapters(lora_dir, lora_alpha)
+                        loaded_count = sum(1 for v in results.values() if v)
+                        query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров из {lora_dir}')
+                    else:
+                        query_logger.info('[LoRA] Директория не найдена, LoRA отключены')
+                else:
+                    query_logger.info('[LoRA] Отключены в конфиге')
+            except Exception as e:
+                query_logger.warning(f'[LoRA] Ошибка инициализации: {e}')
         else:
             query_logger.error('Failed to create PipelineAdapter')
             

@@ -50,6 +50,108 @@ class GenerationResult:
     reasoning_steps: Optional[List[Dict]] = None  # Структурированные шаги рассуждений
 
 
+class LoRAAdapterType(Enum):
+    """
+    Типы LoRA адаптеров для EVA.
+    
+    Каждый адаптер оптимизирован для определённого типа задач:
+    - LOGIC: логические рассуждения, анализ
+    - CREATIVE: творческие задачи, текст
+    - KNOWLEDGE: факты, концепты, наука
+    - SELF_DIALOG: самодиалог EVA
+    - CODE: программирование
+    """
+    LOGIC = "logic"           # Для Model A (Logic) - анализ и рассуждения
+    CREATIVE = "creative"    # Для творческих ответов
+    KNOWLEDGE = "knowledge"   # Для работы с фактами и концептами
+    SELF_DIALOG = "self_dialog"  # Для самодиалога EVA
+    CODE = "code"             # Для кода
+
+
+class LoRAAutoSelector:
+    """
+    Автоматический выбор LoRA адаптера на основе контекста.
+    
+    Использует:
+    - Ключевые слова в запросе
+    - Тип задачи
+    - Историю диалога
+    """
+    
+    # Ключевые слова для определения типа задачи
+    KEYWORDS = {
+        LoRAAdapterType.LOGIC: [
+            'логика', 'рассуждение', 'анализ', 'сравни', 'почему', 'докажи',
+            'logic', 'reasoning', 'analyze', 'compare', 'why', 'prove',
+            'справедливо', 'верно', 'правильно', 'ошибка', 'противоречие'
+        ],
+        LoRAAdapterType.CREATIVE: [
+            'придумай', 'напиши', 'сочини', 'расскажи историю', 'стих',
+            'creative', 'imagine', 'write', 'story', 'poem', 'tale',
+            'эссе', 'статья', 'блог', 'сценарий'
+        ],
+        LoRAAdapterType.KNOWLEDGE: [
+            'что такое', 'кто такой', 'как работает', 'объясни',
+            'what is', 'who is', 'how does', 'explain',
+            'факт', 'история', 'наука', 'функция', 'принцип'
+        ],
+        LoRAAdapterType.CODE: [
+            'код', 'python', 'javascript', 'function', 'class',
+            'программа', 'алгоритм', 'debug', 'syntax', 'import',
+            'api', 'sql', 'html', 'css', 'регулярное'
+        ],
+        LoRAAdapterType.SELF_DIALOG: [
+            '[SELF]', 'самодиалог', 'система:', 'внутренний',
+            'contradiction', 'противоречие', 'концепт'
+        ]
+    }
+    
+    @classmethod
+    def select(cls, query: str, task_type: str = None) -> Optional[LoRAAdapterType]:
+        """
+        Выбрать LoRA адаптер для запроса.
+        
+        Args:
+            query: Текст запроса пользователя
+            task_type: Тип задачи (логический, контекстный, etc.)
+            
+        Returns:
+            Тип LoRA адаптера или None
+        """
+        query_lower = query.lower()
+        
+        # 1. Проверяем явно указанный тип задачи
+        if task_type:
+            type_mapping = {
+                'logic': LoRAAdapterType.LOGIC,
+                'coder': LoRAAdapterType.CODE,
+                'context': LoRAAdapterType.KNOWLEDGE,
+                'creative': LoRAAdapterType.CREATIVE,
+                'self_dialog': LoRAAdapterType.SELF_DIALOG
+            }
+            if task_type in type_mapping:
+                return type_mapping[task_type]
+        
+        # 2. Анализируем ключевые слова
+        scores = {}
+        for adapter_type, keywords in cls.KEYWORDS.items():
+            score = sum(1 for kw in keywords if kw.lower() in query_lower)
+            if score > 0:
+                scores[adapter_type] = score
+        
+        if scores:
+            # Возвращаем тип с наибольшим количеством совпадений
+            return max(scores, key=scores.get)
+        
+        # 3. По умолчанию используем KNOWLEDGE для общих вопросов
+        return LoRAAdapterType.LOGIC
+    
+    @classmethod
+    def get_adapter_name(cls, adapter_type: LoRAAdapterType) -> str:
+        """Получить имя файла адаптера по типу."""
+        return f"eva_{adapter_type.value}"
+
+
 class SimpleRouter:
     """L2 Роутер для выбора между LOGIC, CONTEXT и CODER моделями.
     
@@ -160,6 +262,10 @@ class UnifiedGenerator:
         
         self._model_access: Optional[ModelAccessManager] = None
         self._init_model_access_manager()
+        
+        # LoRA адаптеры
+        self._lora_enabled: bool = False
+        self._lora_dir: Optional[Path] = None
         
         self._load_model_paths(logic_model_path, context_model_path)
         
@@ -326,6 +432,143 @@ class UnifiedGenerator:
         except Exception as e:
             logger.error(f"Failed to init OpenVINO devices: {e}")
             return False
+    
+    # =========================================================================
+    # LoRA Methods
+    # =========================================================================
+    
+    def init_lora_adapters(self, lora_dir: str, default_alpha: float = 0.7) -> Dict[str, bool]:
+        """
+        Инициализировать LoRA адаптеры для всех моделей.
+        
+        Args:
+            lora_dir: Путь к директории с .safetensors файлами
+            default_alpha: Альфа по умолчанию для всех адаптеров
+            
+        Returns:
+            Словарь {имя_адаптера: успешно_загружен}
+        """
+        self._lora_enabled = True
+        self._lora_dir = Path(lora_dir) if lora_dir else None
+        
+        results = {}
+        
+        # Загружаем адаптеры для Model A (Logic)
+        if self._openvino_cpu:
+            loaded = self._openvino_cpu.load_lora_adapters_from_dir(
+                str(self._lora_dir), default_alpha
+            )
+            for name in loaded:
+                results[name] = True
+            logger.info(f"[LoRA] Model A loaded: {loaded}")
+        
+        # Загружаем адаптеры для Model B (Context)
+        if self._openvino_gpu:
+            loaded = self._openvino_gpu.load_lora_adapters_from_dir(
+                str(self._lora_dir), default_alpha
+            )
+            for name in loaded:
+                results[name] = results.get(name, False) or True
+            logger.info(f"[LoRA] Model B loaded: {loaded}")
+        
+        return results
+    
+    def set_lora_for_task(self, task_type: str) -> bool:
+        """
+        Установить LoRA адаптер для типа задачи.
+        
+        Args:
+            task_type: logic, coder, context, creative, knowledge
+            
+        Returns:
+            True если адаптер установлен
+        """
+        if not self._lora_enabled:
+            return False
+        
+        adapter_type = LoRAAutoSelector.select("", task_type)
+        adapter_name = LoRAAutoSelector.get_adapter_name(adapter_type)
+        
+        # Устанавливаем на обе модели
+        success = True
+        
+        if self._openvino_cpu:
+            if adapter_name in self._openvino_cpu.get_available_adapters():
+                self._openvino_cpu.set_active_lora(adapter_name)
+                logger.info(f"[LoRA] Model A set: {adapter_name}")
+            else:
+                success = False
+        
+        if self._openvino_gpu:
+            if adapter_name in self._openvino_gpu.get_available_adapters():
+                self._openvino_gpu.set_active_lora(adapter_name)
+                logger.info(f"[LoRA] Model B set: {adapter_name}")
+            else:
+                success = False
+        
+        return success
+    
+    def auto_select_lora(self, query: str) -> Optional[str]:
+        """
+        Автоматически выбрать LoRA адаптер на основе запроса.
+        
+        Args:
+            query: Текст запроса
+            
+        Returns:
+            Имя выбранного адаптера или None
+        """
+        if not self._lora_enabled:
+            return None
+        
+        # Выбираем тип адаптера
+        adapter_type = LoRAAutoSelector.select(query)
+        adapter_name = LoRAAutoSelector.get_adapter_name(adapter_type)
+        
+        # Проверяем что адаптер загружен
+        available = []
+        if self._openvino_cpu:
+            available.extend(self._openvino_cpu.get_available_adapters())
+        if self._openvino_gpu:
+            available.extend(self._openvino_gpu.get_available_adapters())
+        
+        if adapter_name in available:
+            # Устанавливаем на обе модели
+            if self._openvino_cpu:
+                self._openvino_cpu.set_active_lora(adapter_name)
+            if self._openvino_gpu:
+                self._openvino_gpu.set_active_lora(adapter_name)
+            logger.info(f"[LoRA] Auto-selected: {adapter_name}")
+            return adapter_name
+        
+        return None
+    
+    def disable_lora(self):
+        """Отключить все LoRA адаптеры."""
+        if self._openvino_cpu:
+            self._openvino_cpu.set_active_lora(None)
+        if self._openvino_gpu:
+            self._openvino_gpu.set_active_lora(None)
+        logger.info("[LoRA] All adapters disabled")
+    
+    def get_lora_status(self) -> Dict:
+        """Получить статус LoRA системы."""
+        model_a_adapters = []
+        model_b_adapters = []
+        
+        if self._openvino_cpu:
+            model_a_adapters = self._openvino_cpu.get_available_adapters()
+        if self._openvino_gpu:
+            model_b_adapters = self._openvino_gpu.get_available_adapters()
+        
+        return {
+            'enabled': self._lora_enabled,
+            'lora_dir': str(self._lora_dir) if self._lora_dir else None,
+            'model_a_adapters': model_a_adapters,
+            'model_b_adapters': model_b_adapters,
+            'model_a_active': self._openvino_cpu.get_active_lora() if self._openvino_cpu else None,
+            'model_b_active': self._openvino_gpu.get_active_lora() if self._openvino_gpu else None,
+        }
     
     def _route_device(self, query: str, task_type: str = "default") -> str:
         """

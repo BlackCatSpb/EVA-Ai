@@ -274,6 +274,13 @@ class OpenVINOGenerator:
         self.performance_hint = performance_hint
         self.num_streams = num_streams
         
+        # === LoRA Support ===
+        self._lora_adapters: Dict[str, Any] = {}  # name -> Adapter
+        self._lora_configs: Dict[str, Any] = {}   # name -> AdapterConfig
+        self._active_lora: Optional[str] = None  # Текущий активный адаптер
+        self._default_lora_alpha: float = 0.7    # Сильное влияние LoRA
+        # ====================
+        
         self._pipeline = None
         self._model_path_str = None
         self._lazy_load = True  # Lazy load by default
@@ -431,12 +438,164 @@ class OpenVINOGenerator:
             brain=brain
         )
     
+    # =========================================================================
+    # LoRA Methods
+    # =========================================================================
+    
+    def load_lora_adapter(
+        self,
+        path: str,
+        name: Optional[str] = None,
+        alpha: float = 0.7
+    ) -> Optional[str]:
+        """
+        Загрузить LoRA адаптер.
+        
+        Args:
+            path: Путь к .safetensors файлу адаптера
+            name: Имя адаптера (по умолчанию = имя файла)
+            alpha: Коэффициент влияния (0.0-1.0)
+            
+        Returns:
+            Имя загруженного адаптера или None при ошибке
+        """
+        if not self._pipeline:
+            logger.error("Pipeline not loaded - cannot load LoRA adapter")
+            return None
+        
+        try:
+            import openvino_genai as ov_genai
+            
+            adapter_name = name or Path(path).stem
+            
+            # Загружаем адаптер
+            adapter = ov_genai.Adapter(path)
+            
+            # Создаём конфиг
+            config = ov_genai.AdapterConfig()
+            config.add(adapter, alpha=alpha)
+            
+            self._lora_adapters[adapter_name] = adapter
+            self._lora_configs[adapter_name] = config
+            
+            logger.info(f"[LoRA] Loaded adapter: {adapter_name} (alpha={alpha})")
+            return adapter_name
+            
+        except Exception as e:
+            logger.error(f"[LoRA] Failed to load adapter from {path}: {e}")
+            return None
+    
+    def load_lora_adapters_from_dir(self, dir_path: str, default_alpha: float = 0.7) -> List[str]:
+        """
+        Загрузить все LoRA адаптеры из директории.
+        
+        Args:
+            dir_path: Путь к директории с .safetensors файлами
+            default_alpha: Альфа по умолчанию для всех адаптеров
+            
+        Returns:
+            Список загруженных имён адаптеров
+        """
+        loaded = []
+        dir_path = Path(dir_path)
+        
+        if not dir_path.exists():
+            logger.warning(f"[LoRA] Directory not found: {dir_path}")
+            return loaded
+        
+        for file in dir_path.glob("*.safetensors"):
+            name = file.stem  # Имя файла без расширения
+            result = self.load_lora_adapter(str(file), name=name, alpha=default_alpha)
+            if result:
+                loaded.append(result)
+        
+        logger.info(f"[LoRA] Loaded {len(loaded)} adapters from {dir_path}")
+        return loaded
+    
+    def set_active_lora(self, name: Optional[str] = None, alpha: Optional[float] = None) -> bool:
+        """
+        Активировать LoRA адаптер.
+        
+        Args:
+            name: Имя адаптера (None = отключить все)
+            alpha: Переопределить альфу для этого адаптера
+            
+        Returns:
+            True если успешно
+        """
+        if name is None:
+            self._active_lora = None
+            logger.info("[LoRA] All adapters deactivated")
+            return True
+        
+        if name not in self._lora_configs:
+            logger.warning(f"[LoRA] Unknown adapter: {name}")
+            return False
+        
+        # Создаём новый конфиг с переопределённой альфой
+        if alpha is not None and alpha != self._default_lora_alpha:
+            import openvino_genai as ov_genai
+            adapter = self._lora_adapters[name]
+            config = ov_genai.AdapterConfig()
+            config.add(adapter, alpha=alpha)
+            self._lora_configs[name] = config
+        
+        self._active_lora = name
+        logger.info(f"[LoRA] Active adapter: {name}")
+        return True
+    
+    def get_active_lora(self) -> Optional[str]:
+        """Получить имя текущего активного адаптера."""
+        return self._active_lora
+    
+    def get_available_adapters(self) -> List[str]:
+        """Получить список доступных адаптеров."""
+        return list(self._lora_adapters.keys())
+    
+    def _get_adapter_config(self, adapter_name: Optional[str] = None):
+        """Получить конфиг адаптера для генерации."""
+        if adapter_name and adapter_name in self._lora_configs:
+            return self._lora_configs[adapter_name]
+        elif self._active_lora and self._active_lora in self._lora_configs:
+            return self._lora_configs[self._active_lora]
+        return None
+    
+    def generate_with_lora(
+        self,
+        prompt: str,
+        adapter_name: str,
+        alpha: Optional[float] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Генерация с конкретным LoRA адаптером.
+        
+        Args:
+            prompt: Промпт
+            adapter_name: Имя адаптера
+            alpha: Альфа (если отличается от загруженной)
+            **kwargs: Параметры для generate()
+            
+        Returns:
+            Результат генерации
+        """
+        prev_active = self._active_lora
+        self.set_active_lora(adapter_name, alpha)
+        result = self.generate(prompt, **kwargs)
+        self.set_active_lora(prev_active)
+        return result
+    
+    # =========================================================================
+    # Generation Methods
+    # =========================================================================
+    
     def generate(
         self,
         prompt: str,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
-        stop_tokens: Optional[List[str]] = None
+        stop_tokens: Optional[List[str]] = None,
+        adapter_name: Optional[str] = None
     ) -> OpenVINOGenerationResult:
         """
         Генерация текста.
@@ -446,6 +605,7 @@ class OpenVINOGenerator:
             max_tokens: Максимум новых токенов
             temperature: Температура
             stop_tokens: Список стоп-токенов
+            adapter_name: Имя LoRA адаптера для этой генерации
             
         Returns:
             OpenVINOGenerationResult
@@ -464,10 +624,17 @@ class OpenVINOGenerator:
         
         config = self._create_config(max_tokens, temperature, stop_tokens)
         
+        # LoRA адаптер
+        adapter_config = self._get_adapter_config(adapter_name)
+        lora_used = self._active_lora or adapter_name or "none"
+        
         start_time = time.time()
         
         try:
-            result = self._pipeline.generate(prompt, config)
+            if adapter_config:
+                result = self._pipeline.generate(prompt, config, adapters=adapter_config)
+            else:
+                result = self._pipeline.generate(prompt, config)
             
             # Очищаем от служебных токенов
             text = self._clean_output(result)
@@ -477,7 +644,7 @@ class OpenVINOGenerator:
             
             return OpenVINOGenerationResult(
                 text=text,
-                model_used="openvino_gguf",
+                model_used=f"openvino_gguf{lora_used}",
                 generation_time=gen_time,
                 tokens_generated=tokens,
                 device=self.device
@@ -499,7 +666,8 @@ class OpenVINOGenerator:
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         stop_tokens: Optional[List[str]] = None,
-        chunk_size: int = 40
+        chunk_size: int = 40,
+        adapter_name: Optional[str] = None
     ) -> Generator[Dict[str, Any], None, None]:
         """
         Генерация со стримингом.
@@ -510,6 +678,7 @@ class OpenVINOGenerator:
             temperature: Температура
             stop_tokens: Список стоп-токенов
             chunk_size: Размер чанка для буферизации (40 символов - оптимально для плавного отображения)
+            adapter_name: Имя LoRA адаптера для этой генерации
             
         Yields:
             Dict с данными чанка
@@ -530,6 +699,10 @@ class OpenVINOGenerator:
         
         config = self._create_config(max_tokens, temperature, stop_tokens)
         
+        # LoRA адаптер
+        adapter_config = self._get_adapter_config(adapter_name)
+        lora_used = self._active_lora or adapter_name or "none"
+        
         chunk_queue = queue.Queue()
         full_text = []
         start_time = time.time()
@@ -541,7 +714,10 @@ class OpenVINOGenerator:
         
         def generate_in_thread():
             try:
-                self._pipeline.generate(prompt, config, streamer=streamer)
+                if adapter_config:
+                    self._pipeline.generate(prompt, config, streamer=streamer, adapters=adapter_config)
+                else:
+                    self._pipeline.generate(prompt, config, streamer=streamer)
             except Exception as e:
                 chunk_queue.put(('error', str(e)))
             finally:
@@ -604,7 +780,7 @@ class OpenVINOGenerator:
             'is_final': True,
             'tokens_count': len(final_text.split()),
             'elapsed_ms': elapsed_ms,
-            'chunk_count': chunk_count
+            'lora_adapter': lora_used
         }
     
     def _create_config(self, max_tokens: int, temperature: float, stop_tokens: Optional[List[str]]):

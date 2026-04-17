@@ -26,6 +26,42 @@
     "enabled": true,
     "auto_save": true
   },
+  "lora": {
+    "enabled": true,
+    "adapters_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\models\\lora",
+    "default_alpha": 0.7,
+    "auto_select": true,
+    "adapters": [
+      {
+        "name": "eva_logic",
+        "file": "eva_logic.safetensors",
+        "alpha": 0.8,
+        "type": "logic",
+        "description": "Для логических рассуждений и анализа"
+      },
+      {
+        "name": "eva_creative",
+        "file": "eva_creative.safetensors",
+        "alpha": 0.6,
+        "type": "creative",
+        "description": "Для творческих ответов"
+      },
+      {
+        "name": "eva_knowledge",
+        "file": "eva_knowledge.safetensors",
+        "alpha": 0.7,
+        "type": "knowledge",
+        "description": "Для работы с фактами и концептами"
+      },
+      {
+        "name": "eva_code",
+        "file": "eva_code.safetensors",
+        "alpha": 0.7,
+        "type": "code",
+        "description": "Для программирования"
+      }
+    ]
+  },
   "web_search": {
     "tavily_api_key": "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"
   }
