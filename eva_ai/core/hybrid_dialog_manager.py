@@ -454,20 +454,29 @@ class HybridKnowledgeDialogManager:
         # 1. Извлекаем концепты из графа
         if self.fractal_graph:
             try:
-                # Получаем недавние концепты
-                if hasattr(self.fractal_graph, 'get_recent_concepts'):
-                    recent_concepts = self.fractal_graph.get_recent_concepts(limit=10)
-                    context.concepts = [
-                        {"name": c.get('name', ''), "description": c.get('description', '')}
-                        for c in recent_concepts
-                    ]
+                # Используем FractalGraphV2 API
+                if hasattr(self.fractal_graph, 'get_context_for_query'):
+                    # Для FGv2 используем get_context_for_query
+                    knowledge_context_str = self.fractal_graph.get_context_for_query(
+                        query="",  # Пустой запрос = все концепты
+                        max_length=1000,
+                        min_similarity=0.3
+                    )
+                    if knowledge_context_str:
+                        context.virtual_tokens = knowledge_context_str
                 
-                # Получаем факты
-                if hasattr(self.fractal_graph, 'get_recent_facts'):
-                    context.recent_facts = self.fractal_graph.get_recent_facts(limit=5)
+                # Получаем узлы для концептов
+                if hasattr(self.fractal_graph, 'get_nodes_list'):
+                    nodes = self.fractal_graph.get_nodes_list(limit=20)
+                    # Фильтруем только concept nodes
+                    concept_nodes = [n for n in nodes if getattr(n, 'node_type', '') == 'concept']
+                    context.concepts = [
+                        {"name": getattr(n, 'content', '')[:100], "description": getattr(n, 'description', '')}
+                        for n in concept_nodes[:10]
+                    ]
                     
             except Exception as e:
-                logger.warning(f"Ошибка извлечения концептов: {e}")
+                logger.warning(f"Ошибка извлечения концептов из FractalGraphV2: {e}")
         
         # 2. Получаем противоречия
         if self.contradiction_manager:

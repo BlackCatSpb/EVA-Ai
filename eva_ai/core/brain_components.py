@@ -1077,8 +1077,8 @@ def _init_hybrid_dialog_manager(brain):
         # Получаем устройство
         device = model_config.get('cpu_device', 'CPU')
         
-        # Получаем компоненты графа памяти
-        fractal_graph = getattr(brain, 'fractal_graph', None)
+        # Получаем компоненты графа памяти (fractal_graph или fractal_graph_v2)
+        fractal_graph = getattr(brain, 'fractal_graph', None) or getattr(brain, 'fractal_graph_v2', None)
         
         # Получаем concept_extractor
         concept_extractor = None
