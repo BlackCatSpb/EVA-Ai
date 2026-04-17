@@ -244,32 +244,32 @@ class HybridKnowledgeDialogManager:
             return False
         
         try:
-            # Используем OpenVINOGenerator из Registry для шаринга модели
-            from eva_ai.core.openvino_generator import get_openvino_registry, OpenVINOGenerator
+            # Получаем генератор напрямую из UnifiedGenerator (без Registry)
+            from eva_ai.core.openvino_generator import OpenVINOGenerator
             
-            registry = get_openvino_registry()
             model_path_obj = Path(self.model_path) if self.model_path else None
             
             if not model_path_obj:
                 logger.error("model_path не указан")
                 return False
             
-            # Пытаемся получить генератор из UnifiedGenerator (Model A или Model B)
+            # Получаем генератор напрямую из two_model_pipeline
             generator = None
             
-            # Пробуем получить из brain
             if self.brain and hasattr(self.brain, 'two_model_pipeline'):
                 pipeline = self.brain.two_model_pipeline
-                if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu:
+                
+                # Приоритетно используем _openvino_cpu (Model A для логики)
+                if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
                     generator = pipeline._openvino_cpu
-                    logger.info("HybridKnowledgeDialogManager: используем _openvino_cpu из UnifiedGenerator")
-                elif hasattr(pipeline, '_openvino_gpu') and pipeline._openvino_gpu:
+                    logger.info("HybridKnowledgeDialogManager: используем Model A (_openvino_cpu)")
+                elif hasattr(pipeline, '_openvino_gpu') and pipeline._openvino_gpu and pipeline._openvino_gpu._pipeline:
                     generator = pipeline._openvino_gpu
-                    logger.info("HybridKnowledgeDialogManager: используем _openvino_gpu из UnifiedGenerator")
+                    logger.info("HybridKnowledgeDialogManager: используем Model B (_openvino_gpu)")
             
-            # Fallback: создаём независимый экземпляр
-            if not generator:
-                logger.info("HybridKnowledgeDialogManager: создаём независимый экземпляр (fallback)")
+            # Fallback: создаём независимый экземпляр если pipeline не готов
+            if not generator or not generator._pipeline:
+                logger.warning("HybridKnowledgeDialogManager: создаём независимый экземпляр (fallback)")
                 generator = OpenVINOGenerator(
                     model_path=model_path_obj,
                     device=self.device,
