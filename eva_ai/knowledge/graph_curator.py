@@ -122,14 +122,20 @@ class GraphCurator:
         if not self._running or self._paused:
             return
         
-        data = event.data if hasattr(event, 'data') else event
+        if hasattr(event, 'data'):
+            data = event.data
+        elif isinstance(event, dict):
+            data = event
+        else:
+            data = {}
+        
         if data.get('skip_curation'):
             return
         
         if self._deferred_system:
             from eva_ai.core.deferred_command_system import CommandPriority
             self._deferred_system.add_command(
-                command_func=self._do_curation,
+                command=self._do_curation,
                 priority=CommandPriority.NORMAL
             )
         else:
@@ -140,7 +146,13 @@ class GraphCurator:
         if not self._running or self._paused:
             return
         
-        data = event.data if hasattr(event, 'data') else event
+        if hasattr(event, 'data'):
+            data = event.data
+        elif isinstance(event, dict):
+            data = event
+        else:
+            data = {}
+        
         node_type = data.get('node_type', '')
         
         if node_type in self.PROTECTED_TYPES:
@@ -149,7 +161,7 @@ class GraphCurator:
         if self._deferred_system:
             from eva_ai.core.deferred_command_system import CommandPriority
             self._deferred_system.add_command(
-                command_func=self._do_curation,
+                command=self._do_curation,
                 priority=CommandPriority.LOW
             )
     
@@ -234,10 +246,8 @@ class GraphCurator:
                 # Используем DCS для планирования если доступен
                 if self._deferred_system:
                     self._deferred_system.add_command(
-                        command_func=lambda: self._do_curation() if not self._paused else None,
-                        priority='LOW',
-                        delay=adaptive_interval,
-                        source='graph_curator'
+                        command=lambda: self._do_curation() if not self._paused else None,
+                        priority='LOW'
                     )
                     # Выходим из цикла ожидания - DCS управляет таймингом
                     while self._running and not self._paused:
