@@ -767,6 +767,96 @@
     }
     
     /**
+     * Open reasoning panel during streaming
+     */
+    function openReasoningPanel(msgId) {
+        const msgEl = document.getElementById(msgId);
+        if (!msgEl) return;
+        
+        let reasoningContainer = msgEl.querySelector('.msg-reasoning');
+        
+        if (!reasoningContainer) {
+            reasoningContainer = document.createElement('div');
+            reasoningContainer.className = 'msg-reasoning open';  // Open by default during generation
+            reasoningContainer.id = 'reasoning-' + msgId;
+            reasoningContainer.innerHTML = `
+                <button class="reasoning-toggle open" onclick="toggleReasoning(this, '${msgId}')">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    <span class="reasoning-toggle-text">Рассуждения...</span>
+                </button>
+                <div class="reasoning-body open">
+                    <div class="reasoning-text"></div>
+                </div>
+            `;
+            
+            const actions = msgEl.querySelector('.msg-actions');
+            if (actions) {
+                msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, actions);
+            } else {
+                msgEl.querySelector('.msg-inner').appendChild(reasoningContainer);
+            }
+        } else {
+            reasoningContainer.classList.add('open');
+            const toggle = reasoningContainer.querySelector('.reasoning-toggle');
+            if (toggle) toggle.classList.add('open');
+            const body = reasoningContainer.querySelector('.reasoning-body');
+            if (body) body.classList.add('open');
+        }
+    }
+    
+    /**
+     * Update live reasoning text during streaming
+     */
+    function updateLiveReasoningText(msgId, text) {
+        const msgEl = document.getElementById(msgId);
+        if (!msgEl) return;
+        
+        const reasoningContainer = msgEl.querySelector('.msg-reasoning');
+        if (!reasoningContainer) return;
+        
+        const textEl = reasoningContainer.querySelector('.reasoning-text');
+        const toggleText = reasoningContainer.querySelector('.reasoning-toggle-text');
+        
+        if (textEl) {
+            textEl.innerHTML = `<pre style="white-space: pre-wrap; word-break: break-word;">${esc(text)}</pre>`;
+        }
+        
+        if (toggleText) {
+            toggleText.textContent = 'Рассуждения...';
+        }
+        
+        // Auto-scroll
+        const body = reasoningContainer.querySelector('.reasoning-body');
+        if (body) {
+            body.scrollTop = body.scrollHeight;
+        }
+    }
+    
+    /**
+     * Close reasoning panel after streaming completes
+     */
+    function closeReasoningPanel(msgId) {
+        const msgEl = document.getElementById(msgId);
+        if (!msgEl) return;
+        
+        const reasoningContainer = msgEl.querySelector('.msg-reasoning');
+        if (!reasoningContainer) return;
+        
+        // Collapse the panel
+        reasoningContainer.classList.add('collapsed');
+        const toggle = reasoningContainer.querySelector('.reasoning-toggle');
+        if (toggle) {
+            toggle.classList.remove('open');
+            const toggleText = toggle.querySelector('.reasoning-toggle-text');
+            if (toggleText) {
+                toggleText.textContent = 'Рассуждения завершены';
+            }
+        }
+        const body = reasoningContainer.querySelector('.reasoning-body');
+        if (body) body.classList.remove('open');
+    }
+    
+    /**
      * Add reasoning to an existing message (after generation completes)
      */
     function addReasoningToMessage(msgId, reasoning) {
@@ -1152,6 +1242,7 @@
         // Live reasoning container (shown during generation)
         let liveReasoningId = 'live-reasoning-' + msgId;
         let reasoningSteps = [];
+        let reasoningText = '';
         
         const body = {
             message: messageWithContext || `Проанализируй файл ${currentFileData?.filename || ''}`,
@@ -1185,8 +1276,28 @@
                         if (data.type === 'chunk') {
                             fullText += data.text;
                             updateMessageText(msgId, fullText, false, data.elapsed_ms);
+                        } else if (data.type === 'reasoning_start') {
+                            // Начало блока рассуждений
+                            reasoningSteps = [];
+                            reasoningText = '';
+                            openReasoningPanel(msgId);
+                        } else if (data.type === 'reasoning_chunk') {
+                            // Новый контент рассуждений
+                            reasoningText = data.text;
+                            updateLiveReasoningText(msgId, reasoningText);
+                        } else if (data.type === 'reasoning_end') {
+                            // Конец блока рассуждений - конвертируем в структурированные шаги
+                            if (data.steps && data.steps.length > 0) {
+                                reasoningSteps = data.steps.map((text, idx) => ({
+                                    step: idx + 1,
+                                    phase: 'reasoning',
+                                    thought: text,
+                                    confidence: 0.8
+                                }));
+                            }
+                            closeReasoningPanel(msgId);
                         } else if (data.type === 'reasoning_step') {
-                            // Live reasoning step during generation
+                            // Legacy: live reasoning step
                             reasoningSteps.push(data.step);
                             updateLiveReasoning(msgId, reasoningSteps);
                         } else if (data.type === 'complete') {
@@ -1197,6 +1308,8 @@
                             // If reasoning came with complete, add it to the message
                             if (data.reasoning && data.reasoning.length > 0) {
                                 addReasoningToMessage(msgId, data.reasoning);
+                            } else if (data.reasoning_steps && data.reasoning_steps.length > 0) {
+                                addReasoningToMessage(msgId, data.reasoning_steps);
                             }
                         } else if (data.type === 'done') {
                             updateMessageText(msgId, fullText, true);

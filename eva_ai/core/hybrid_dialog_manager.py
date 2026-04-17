@@ -811,6 +811,13 @@ class HybridKnowledgeDialogManager:
         """
         Генерация со стримингом для SSE - отправляет чанки ПО МЕРЕ генерации.
         
+        Streamed events:
+        - reasoning_start: начало блока рассуждений
+        - reasoning_chunk: часть рассуждений
+        - reasoning_end: конец блока рассуждений
+        - chunk: часть основного ответа
+        - complete: генерация завершена
+        
         Args:
             user_input: Текст сообщения пользователя
             system_prompt: Системный промпт (если не стандартный)
@@ -848,18 +855,11 @@ class HybridKnowledgeDialogManager:
             config.temperature = temperature
             config.do_sample = temperature > 0
             
-            buffer = ""
-            chunk_count = 0
-            full_text = []
-            
             import queue
             token_queue = queue.Queue()
-            is_complete = [False]
-            error_msg = [None]
             
             def streamer(text: str) -> bool:
-                """Callback вызывается для каждого токена - отправляем сразу."""
-                full_text.append(text)
+                """Callback вызывается для каждого токена."""
                 token_queue.put(text)
                 return False
             
@@ -867,14 +867,19 @@ class HybridKnowledgeDialogManager:
                 try:
                     self._pipeline.generate(prompt, config, streamer=streamer)
                 except Exception as e:
-                    error_msg[0] = str(e)
                     token_queue.put(('error', str(e)))
                 finally:
-                    is_complete[0] = True
                     token_queue.put(None)
             
             thread = threading.Thread(target=generate, daemon=True)
             thread.start()
+            
+            # Состояние для отслеживания рассуждений
+            in_thinking = False
+            reasoning_buffer = ""
+            text_buffer = ""
+            full_text = []
+            reasoning_steps = []
             
             while True:
                 try:
@@ -891,27 +896,105 @@ class HybridKnowledgeDialogManager:
                     yield {'type': 'error', 'text': item[1], 'is_final': True}
                     return
                 
-                buffer += item
+                full_text.append(item)
                 
-                if len(buffer) >= chunk_size:
-                    elapsed = int((time.time() - start_time) * 1000)
-                    yield {
-                        'type': 'chunk',
-                        'text': buffer,
-                        'is_final': False,
-                        'tokens_count': len(''.join(full_text)),
-                        'elapsed_ms': elapsed
-                    }
-                    buffer = ""
-                    chunk_count += 1
+                # Ищем <think> и</think>
+                combined = item
+                
+                # Проверяем начало рассуждений
+                if not in_thinking and '<think>' in combined:
+                    in_thinking = True
+                    # Отправляем текст до <think> как часть ответа
+                    before_think = combined.split('<think>')[0]
+                    if before_think:
+                        text_buffer += before_think
+                        if len(text_buffer) >= chunk_size:
+                            yield {
+                                'type': 'chunk',
+                                'text': text_buffer,
+                                'is_final': False,
+                                'tokens_count': len(''.join(full_text))
+                            }
+                            text_buffer = ""
+                    # Отправляем начало рассуждений
+                    yield {'type': 'reasoning_start', 'is_final': False}
+                    
+                    after_think = combined.split('<think>')[1] if '<think>' in combined else ''
+                    if '</think>' in after_think:
+                        # Короткое рассуждение - сразу закрывается
+                        reasoning_content = after_think.split('</think>')[0]
+                        reasoning_buffer += reasoning_content
+                        reasoning_steps.append(reasoning_content)
+                        yield {
+                            'type': 'reasoning_chunk',
+                            'text': reasoning_buffer,
+                            'is_final': False
+                        }
+                        yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+                        in_thinking = False
+                        reasoning_buffer = ""
+                        # Остаток после</think>
+                        after_close = after_think.split('</think>')[1] if '</think>' in after_think else ''
+                        text_buffer += after_close
+                    else:
+                        reasoning_buffer += after_think
+                
+                elif in_thinking:
+                    # Мы внутри рассуждений
+                    if '</think>' in combined:
+                        # Конец рассуждений
+                        reasoning_content = combined.split('</think>')[0]
+                        reasoning_buffer += reasoning_content
+                        reasoning_steps.append(reasoning_content)
+                        yield {
+                            'type': 'reasoning_chunk',
+                            'text': reasoning_buffer,
+                            'is_final': False
+                        }
+                        yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+                        in_thinking = False
+                        reasoning_buffer = ""
+                        # Текст после рассуждений
+                        after_close = combined.split('</think>')[1]
+                        text_buffer += after_close
+                    else:
+                        # Продолжаем рассуждения
+                        reasoning_buffer += combined
+                        if len(reasoning_buffer) >= chunk_size:
+                            yield {
+                                'type': 'reasoning_chunk',
+                                'text': reasoning_buffer,
+                                'is_final': False
+                            }
+                            reasoning_buffer = ""
+                
+                else:
+                    # Обычный текст
+                    text_buffer += combined
+                    if len(text_buffer) >= chunk_size:
+                        yield {
+                            'type': 'chunk',
+                            'text': text_buffer,
+                            'is_final': False,
+                            'tokens_count': len(''.join(full_text))
+                        }
+                        text_buffer = ""
             
-            if buffer:
+            # Отправляем остатки
+            if reasoning_buffer:
+                yield {
+                    'type': 'reasoning_chunk',
+                    'text': reasoning_buffer,
+                    'is_final': False
+                }
+                yield {'type': 'reasoning_end', 'is_final': False, 'steps': reasoning_steps}
+            
+            if text_buffer:
                 yield {
                     'type': 'chunk',
-                    'text': buffer,
+                    'text': text_buffer,
                     'is_final': False,
-                    'tokens_count': len(''.join(full_text)),
-                    'elapsed_ms': int((time.time() - start_time) * 1000)
+                    'tokens_count': len(''.join(full_text))
                 }
             
             full_response = ''.join(full_text)
@@ -920,7 +1003,8 @@ class HybridKnowledgeDialogManager:
                 'text': full_response,
                 'is_final': True,
                 'tokens_count': len(full_response.split()),
-                'elapsed_ms': int((time.time() - start_time) * 1000)
+                'elapsed_ms': int((time.time() - start_time) * 1000),
+                'reasoning_steps': reasoning_steps
             }
             
             self.add_message("assistant", full_response)
