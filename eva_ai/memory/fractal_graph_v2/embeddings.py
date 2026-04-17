@@ -24,6 +24,10 @@ if not os.environ.get('HF_HOME'):
     os.environ['HF_HOME'] = _HF_CACHE_DEFAULT
     os.environ['HF_HUB_DISABLE_SYMLINKS_WARNING'] = '1'
 
+# SINGLETON - единственный экземпляр на всю систему
+_embeddings_manager_instance: Optional['EmbeddingsManager'] = None
+_embeddings_manager_lock = threading.Lock()
+
 
 class EmbeddingsManager:
     """
@@ -35,7 +39,7 @@ class EmbeddingsManager:
     def __init__(
         self,
         model_name: str = None,
-        device: str = "cpu",
+        device: str = "cuda",
         cache_dir: str = None,
         batch_size: int = 32,
         max_length: int = 512
@@ -259,5 +263,18 @@ def create_embeddings_manager(
     model_name: str = None,
     device: str = "cuda"
 ) -> EmbeddingsManager:
-    """Фабричная функция - использует singleton кеш с multilingual-e5-base."""
-    return EmbeddingsManager(model_name=model_name, device=device)
+    """Фабричная функция - возвращает singleton экземпляр EmbeddingsManager."""
+    global _embeddings_manager_instance
+    
+    with _embeddings_manager_lock:
+        if _embeddings_manager_instance is None:
+            logger.info(f"Создание синглтона EmbeddingsManager (device={device})")
+            _embeddings_manager_instance = EmbeddingsManager(model_name=model_name, device=device)
+        else:
+            logger.info("Повторное использование синглтона EmbeddingsManager")
+        return _embeddings_manager_instance
+
+
+def get_embeddings_manager() -> Optional['EmbeddingsManager']:
+    """Получить текущий синглтон экземпляр (None если ещё не создан)."""
+    return _embeddings_manager_instance

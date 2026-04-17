@@ -279,6 +279,7 @@ class OpenVINOGenerator:
         self._lazy_load = True  # Lazy load by default
         
         if model_path and use_registry:
+            # Использовать Registry для шаринга модели
             registry = get_openvino_registry()
             
             # Используем partial для передачи параметров в creator
@@ -320,8 +321,9 @@ class OpenVINOGenerator:
             self._pipeline = shared_gen._pipeline
             self._model_path_str = shared_gen._model_path_str
         elif model_path:
-            # Don't load immediately - lazy load
-            pass
+            # Не использовать Registry - загрузить модель напрямую (для независимых экземпляров)
+            self._lazy_load = False
+            self._load_model()
     
     def _init_base(
         self,
@@ -411,6 +413,23 @@ class OpenVINOGenerator:
         except Exception as e:
             logger.error(f"Failed to load OpenVINO model: {e}")
             return False
+    
+    def get_eva_tokenizer(self, brain=None):
+        """
+        Получить EVA-токенизатор с фрактальными токенами.
+        
+        Args:
+            brain: CoreBrain instance для интеграции с HybridTokenCache
+            
+        Returns:
+            EVAOpenVinoTokenizer instance
+        """
+        from eva_ai.mlearning.openvino_tokenizer import create_openvino_tokenizer
+        
+        return create_openvino_tokenizer(
+            model_path=str(self.model_path),
+            brain=brain
+        )
     
     def generate(
         self,

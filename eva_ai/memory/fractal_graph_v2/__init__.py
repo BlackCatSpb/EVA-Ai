@@ -187,7 +187,7 @@ class FractalMemoryGraph:
         self,
         storage_dir: str = None,
         embedding_model: str = None,  # Используем локальный путь из sentence_transformers_cache
-        embedding_device: str = "cpu",
+        embedding_device: str = "cuda",
         embedding_dim: int = 768,
         event_bus = None
     ):

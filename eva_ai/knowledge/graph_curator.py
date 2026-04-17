@@ -127,11 +127,10 @@ class GraphCurator:
             return
         
         if self._deferred_system:
-            self._deferred_system.defer(
+            from eva_ai.core.deferred_command_system import CommandPriority
+            self._deferred_system.add_command(
                 command=self._do_curation,
-                delay=60.0,
-                priority='NORMAL',
-                source='graph_curator'
+                priority=CommandPriority.NORMAL
             )
         else:
             self.force_curation()
@@ -148,11 +147,10 @@ class GraphCurator:
             return
         
         if self._deferred_system:
-            self._deferred_system.defer(
+            from eva_ai.core.deferred_command_system import CommandPriority
+            self._deferred_system.add_command(
                 command=self._do_curation,
-                delay=300.0,
-                priority='LOW',
-                source='graph_curator'
+                priority=CommandPriority.LOW
             )
     
     def _get_fractal_graph(self):

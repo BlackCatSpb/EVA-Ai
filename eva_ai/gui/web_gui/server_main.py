@@ -262,7 +262,31 @@ class WebGUI:
             for s in reasoning_steps:
                 reasoning_data += f"{s['step']}. [{s['phase']}] {s['thought']} (conf: {s['confidence']:.2f})\n"
         
-        elif source in ['llama_cpp_with_modules', 'self_reasoning_engine']:
+        elif source in ['llama_cpp_with_modules', 'self_reasoning_engine', 'hybrid_dialog_manager', 'unified_generator']:
+            # Парсим рассуждения из текста результата
+            import re
+            think_pattern = r'<think>\s*(.*?)\s*</think>'
+            
+            # Сначала проверяем result.get('reasoning_steps')
+            if result.get('reasoning_steps'):
+                reasoning_steps = result.get('reasoning_steps', [])
+            elif result.get('reasoning'):
+                # Если есть reasoning в result
+                reasoning_data = str(result.get('reasoning'))
+            else:
+                # Парсим из текста
+                full_text = result.get('response', '') or str(result)
+                matches = re.findall(think_pattern, full_text, re.DOTALL)
+                if matches:
+                    reasoning_data = '\n'.join(matches)
+                    lines = [l.strip() for l in reasoning_data.split('\n') if l.strip()]
+                    for i, step in enumerate(lines[:20]):
+                        reasoning_steps.append({
+                            'step': i + 1,
+                            'phase': 'reasoning',
+                            'thought': step[:500],
+                            'confidence': 0.8
+                        })
             if result.get('reasoning_steps'):
                 reasoning_steps = result.get('reasoning_steps', [])
             elif brain_reasoning_raw and isinstance(brain_reasoning_raw, dict):
@@ -396,8 +420,13 @@ class WebGUI:
                     logger.info("Using HybridKnowledgeDialogManager for response")
                     dialog_result = self.brain.hybrid_dialog_manager.process(query)
                     if dialog_result:
-                        response_text = dialog_result
-                        result = {'response': response_text, 'source': 'hybrid_dialog_manager'}
+                        response_text = dialog_result.get('response', '')
+                        result = {
+                            'response': response_text,
+                            'source': 'hybrid_dialog_manager',
+                            'reasoning': dialog_result.get('reasoning'),
+                            'reasoning_steps': dialog_result.get('reasoning_steps')
+                        }
                 except Exception as e:
                     logger.warning(f"HybridKnowledgeDialogManager error: {e}")
             

@@ -11,6 +11,7 @@ UnifiedGenerator - Единая система генерации на базе 
 """
 
 import time
+import re
 import logging
 from typing import Dict, List, Optional, Any, Tuple, Generator
 from dataclasses import dataclass
@@ -45,6 +46,8 @@ class GenerationResult:
     tokens_generated: int
     confidence: float = 0.8
     metadata: Optional[Dict] = None
+    reasoning: Optional[str] = None  # Рассуждения из <think>...</think>
+    reasoning_steps: Optional[List[Dict]] = None  # Структурированные шаги рассуждений
 
 
 class SimpleRouter:
@@ -289,6 +292,7 @@ class UnifiedGenerator:
             }
             
             # LOGIC - CPU (краткие логичные ответы, max_tokens=1024)
+            # use_registry=False для создания независимого экземпляра (Model A)
             if logic_model:
                 self._openvino_cpu = OpenVINOGenerator(
                     model_path=logic_model,
@@ -296,11 +300,13 @@ class UnifiedGenerator:
                     max_tokens=1024,
                     performance_hint="THROUGHPUT",
                     scheduler_config=logic_scheduler,
-                    num_streams=num_streams
+                    num_streams=num_streams,
+                    use_registry=False
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic, streams={num_streams})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Logic/ModelA, streams={num_streams})")
             
             # CONTEXT - CPU (развёрнутые ответы, max_tokens=4096)
+            # use_registry=False для создания независимого экземпляра (Model B)
             if context_model:
                 self._openvino_gpu = OpenVINOGenerator(
                     model_path=context_model,
@@ -308,9 +314,10 @@ class UnifiedGenerator:
                     max_tokens=4096,
                     performance_hint="THROUGHPUT",
                     scheduler_config=context_scheduler,
-                    num_streams=num_streams
+                    num_streams=num_streams,
+                    use_registry=False
                 )
-                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context, streams={num_streams})")
+                logger.info(f"CPU OpenVINO ready: {self.cpu_device} (Context/ModelB, streams={num_streams})")
             else:
                 logger.warning(f"Context model not found: {context_model}")
             
@@ -1045,6 +1052,13 @@ class UnifiedGenerator:
         final_text = final_text.replace("<|im_end|>", "").replace("<|im_start|>", "").strip()
         final_tokens = context_output['usage']['completion_tokens']
         
+        # Извлекаем рассуждения из <think>...</think>
+        reasoning, reasoning_steps = self._parse_think_tags(final_text)
+        if reasoning:
+            # Удаляем теги из финального текста
+            final_text = final_text.replace("<|im_start|>assistant\n<think>\n", "")
+            final_text = reasoning_steps[0]['content'] if reasoning_steps else final_text
+        
         total_time = time.time() - start_time
         total_tokens = logic_tokens + final_tokens
         
@@ -1055,8 +1069,56 @@ class UnifiedGenerator:
             model_used="logic+context",
             generation_time=total_time,
             tokens_generated=total_tokens,
-            confidence=0.85
+            confidence=0.85,
+            reasoning=reasoning,
+            reasoning_steps=reasoning_steps
         )
+    
+    def _parse_think_tags(self, text: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
+        """
+        Извлечь рассуждения из текста с <think>...</think> тегами.
+        
+        Args:
+            text: Текст с возможными тегами рассуждений
+            
+        Returns:
+            Tuple of (raw_reasoning_text, structured_steps)
+        """
+        import re
+        
+        reasoning = None
+        reasoning_steps = None
+        
+        # Паттерн для <think>...</think>
+        think_pattern = r'<think>\s*(.*?)\s*</think>'
+        matches = re.findall(think_pattern, text, re.DOTALL)
+        
+        if matches:
+            reasoning = '\n'.join(matches)
+            
+            # Разбиваем на шаги по предложениям или переносам строк
+            steps_text = reasoning.strip()
+            
+            # Простой парсинг: разбиваем по строкам или предложениям
+            lines = [l.strip() for l in steps_text.split('\n') if l.strip()]
+            
+            if len(lines) <= 1:
+                # Если один блок - разбиваем по предложениям
+                sentences = re.split(r'(?<=[.!?])\s+', steps_text)
+                lines = [s.strip() for s in sentences if s.strip()]
+            
+            reasoning_steps = []
+            for i, step in enumerate(lines[:20]):  # Максимум 20 шагов
+                reasoning_steps.append({
+                    'step': i + 1,
+                    'phase': 'reasoning',
+                    'thought': step[:500],  # Ограничиваем длину
+                    'confidence': 0.8
+                })
+            
+            logger.info(f"[REASONING] Extracted {len(reasoning_steps)} reasoning steps")
+        
+        return reasoning, reasoning_steps
     
     def _get_concepts_context(self, query: str) -> str:
         """Получить связанные концепты из FractalGraphV2."""

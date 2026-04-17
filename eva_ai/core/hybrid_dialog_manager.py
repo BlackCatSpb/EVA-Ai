@@ -70,6 +70,8 @@ class GenerationResult:
     contradictions_resolved: List[str]
     processing_time: float
     cache_hit: bool
+    reasoning: Optional[str] = None
+    reasoning_steps: Optional[List[Dict]] = None
 
 
 class PrefixCache:
@@ -252,25 +254,40 @@ class HybridKnowledgeDialogManager:
                 logger.error("model_path не указан")
                 return False
             
-            # Получаем или создаём генератор через Registry
-            shared_gen = registry.get_or_create(
-                model_path=model_path_obj,
-                device=self.device,
-                creator_fn=None,
-                config_hash=f"hdialog_{self.max_tokens}_{self.temperature}"
-            )
+            # Пытаемся получить генератор из UnifiedGenerator (Model A или Model B)
+            generator = None
             
-            # Берём pipeline из шаренного генератора
-            if shared_gen and shared_gen._pipeline:
-                self._pipeline = shared_gen._pipeline
-                # Получаем токенизатор из pipeline
+            # Пробуем получить из brain
+            if self.brain and hasattr(self.brain, 'two_model_pipeline'):
+                pipeline = self.brain.two_model_pipeline
+                if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu:
+                    generator = pipeline._openvino_cpu
+                    logger.info("HybridKnowledgeDialogManager: используем _openvino_cpu из UnifiedGenerator")
+                elif hasattr(pipeline, '_openvino_gpu') and pipeline._openvino_gpu:
+                    generator = pipeline._openvino_gpu
+                    logger.info("HybridKnowledgeDialogManager: используем _openvino_gpu из UnifiedGenerator")
+            
+            # Fallback: создаём независимый экземпляр
+            if not generator:
+                logger.info("HybridKnowledgeDialogManager: создаём независимый экземпляр (fallback)")
+                generator = OpenVINOGenerator(
+                    model_path=model_path_obj,
+                    device=self.device,
+                    max_tokens=self.max_tokens,
+                    temperature=self.temperature,
+                    use_registry=False
+                )
+            
+            # Берём pipeline из генератора
+            if generator and generator._pipeline:
+                self._pipeline = generator._pipeline
                 try:
                     self._tokenizer = self._pipeline.get_tokenizer()
                 except:
                     self._tokenizer = None
-                logger.info(f"Используем шаренный pipeline из Registry: {self.model_path} на {self.device}")
+                logger.info(f"HybridKnowledgeDialogManager: pipeline готов")
             else:
-                logger.error("Не удалось получить pipeline из Registry")
+                logger.error("Не удалось получить pipeline")
                 return False
             
             self._initialized = True
@@ -612,6 +629,11 @@ class HybridKnowledgeDialogManager:
         
         processing_time = time.time() - start_time
         
+        # Извлекаем рассуждения из <think>...</think>
+        reasoning, reasoning_steps = self._parse_think_tags(response_text)
+        if reasoning:
+            logger.info(f"[HYBRID] Extracted reasoning: {len(reasoning_steps) if reasoning_steps else 0} steps")
+        
         return GenerationResult(
             response=response_text,
             validated=validated,
@@ -619,8 +641,38 @@ class HybridKnowledgeDialogManager:
             knowledge_used=[c['name'] for c in knowledge_context.concepts],
             contradictions_resolved=resolved_contradictions,
             processing_time=processing_time,
-            cache_hit=cache_hit
+            cache_hit=cache_hit,
+            reasoning=reasoning,
+            reasoning_steps=reasoning_steps
         )
+    
+    def _parse_think_tags(self, text: str) -> Tuple[Optional[str], Optional[List[Dict]]]:
+        """Извлечь рассуждения из текста с <think>...</think> тегами."""
+        import re
+        
+        reasoning = None
+        reasoning_steps = None
+        
+        think_pattern = r'<think>\s*(.*?)\s*</think>'
+        matches = re.findall(think_pattern, text, re.DOTALL)
+        
+        if matches:
+            reasoning = '\n'.join(matches)
+            lines = [l.strip() for l in reasoning.split('\n') if l.strip()]
+            if len(lines) <= 1:
+                sentences = re.split(r'(?<=[.!?])\s+', reasoning)
+                lines = [s.strip() for s in sentences if s.strip()]
+            
+            reasoning_steps = []
+            for i, step in enumerate(lines[:20]):
+                reasoning_steps.append({
+                    'step': i + 1,
+                    'phase': 'reasoning',
+                    'thought': step[:500],
+                    'confidence': 0.8
+                })
+        
+        return reasoning, reasoning_steps
     
     def _insert_knowledge_tokens(self, prompt: str, knowledge_tokens: str) -> str:
         """
@@ -915,27 +967,39 @@ class HybridKnowledgeDialogManager:
     # Синхронный интерфейс (для обратной совместимости)
     # =========================================================================
     
-    def process(self, user_input: str, **kwargs) -> str:
+    def process(self, user_input: str, **kwargs) -> Dict:
         """
         Синхронная обёртка для process_user_input.
         
         Используется для обратной совместимости с существующим кодом.
+        Возвращает Dict с response, reasoning и reasoning_steps.
         """
         try:
             loop = asyncio.get_event_loop()
             if loop.is_running():
-                # Создаём новый loop если текущий занят
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
             result = loop.run_until_complete(
                 self.process_user_input(user_input, **kwargs)
             )
-            return result.response
+            
+            return {
+                'response': result.response,
+                'reasoning': result.reasoning,
+                'reasoning_steps': result.reasoning_steps,
+                'validated': result.validated,
+                'knowledge_used': result.knowledge_used,
+                'processing_time': result.processing_time
+            }
             
         except Exception as e:
             logger.error(f"Ошибка синхронной обработки: {e}")
-            return f"[Ошибка: {str(e)[:100]}]"
+            return {
+                'response': f"[Ошибка: {str(e)[:100]}]",
+                'reasoning': None,
+                'reasoning_steps': None
+            }
     
     # =========================================================================
     # Управление сессией
