@@ -1085,7 +1085,14 @@ class HybridKnowledgeDialogManager:
             try:
                 if use_token_api and self._tokenizer:
                     # Собираем токены из response_a
-                    tokens_a = self._tokenizer.encode(response_a)
+                    encoded = self._tokenizer.encode(response_a)
+                    # OpenVINO может вернуть TokenizedInputs - конвертируем в list
+                    if hasattr(encoded, 'input_ids'):
+                        tokens_a = list(encoded.input_ids)
+                    elif hasattr(encoded, '__len__'):
+                        tokens_a = list(encoded) if not isinstance(encoded, list) else encoded
+                    else:
+                        tokens_a = []
                     logger.info(f"[TOKEN_API] Collected {len(tokens_a)} tokens from Model A")
                 else:
                     logger.warning("[TOKEN_API] No tokenizer available")
