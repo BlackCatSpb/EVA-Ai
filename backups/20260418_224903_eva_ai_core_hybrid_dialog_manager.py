@@ -1058,26 +1058,12 @@ class HybridKnowledgeDialogManager:
                 yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
             
             response_a = ''.join(full_text)
-            
-            # === СБОР ТОКЕНОВ ОТ MODEL A ===
-            tokens_a = []
-            try:
-                if use_token_api and self._tokenizer:
-                    # Собираем токены из response_a
-                    tokens_a = self._tokenizer.encode(response_a)
-                    logger.info(f"[TOKEN_API] Collected {len(tokens_a)} tokens from Model A")
-                else:
-                    logger.warning("[TOKEN_API] No tokenizer available")
-            except Exception as e:
-                logger.warning(f"[TOKEN_API] Token collection failed: {e}")
-            
             yield {
                 'type': 'model_complete',
                 'model': 'A',
                 'text': response_a,
                 'is_final': False,
-                'reasoning': full_reasoning,
-                'tokens_count': len(tokens_a) if tokens_a else 0
+                'reasoning': full_reasoning
             }
             
             # === MODEL B: Расширенный ответ (если нужно) ===
@@ -1087,41 +1073,12 @@ class HybridKnowledgeDialogManager:
             # ОЧИЩАЕМ full_text для Model B - иначе будет дубликат!
             full_text.clear()
             
-            # === Token Streaming API ===
-            # Пытаемся использовать передачу токенов
-            use_token_api = False
-            tokens_a = []
-            
-            try:
-                from eva_ai.core.token_streaming import TokenStreamingAPI
-                use_token_api = True
-                logger.info("Using TokenStreamingAPI for Model B")
-            except ImportError:
-                logger.warning("TokenStreamingAPI not available, using text mode")
-            
             if use_dual and self._pipeline_b and self._pipeline_b != self._pipeline:
                 yield {'type': 'model_start', 'model': 'B', 'lora': lora_name, 'is_final': False}
                 
                 try:
-                    # Формируем расширенный промпт для Model B
-                    if use_token_api and full_reasoning:
-                        # С токенами и рассуждениями
-                        extended_prompt = (
-                            f"{prompt}\n\n"
-                            f"Краткий ответ: {response_a}\n\n"
-                            f"Рассуждения: {full_reasoning[:2000]}\n\n"
-                            f"Проверь рассуждения и дай развёрнутый ответ:"
-                        )
-                    elif use_token_api:
-                        # Только с токенами (без рассуждений)
-                        extended_prompt = (
-                            f"{prompt}\n\n"
-                            f"Краткий ответ: {response_a}\n\n"
-                            f"Дай развёрнутый и подробный ответ:"
-                        )
-                    else:
-                        # Старый текстовый режим
-                        extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
+                    # Продолжаем с ответом от A как контекстом
+                    extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
                     
                     config_b = ov_genai.GenerationConfig()
                     config_b.max_new_tokens = max_tokens
