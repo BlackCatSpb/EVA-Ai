@@ -266,11 +266,20 @@ class HybridKnowledgeDialogManager:
             if self.brain and hasattr(self.brain, 'two_model_pipeline'):
                 pipeline = self.brain.two_model_pipeline
                 
-                # UnifiedGenerator (OpenVINO)
+                # UnifiedGenerator (OpenVINO) - прямой доступ
                 if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
                     generator_a = pipeline._openvino_cpu
                     generator_b = getattr(pipeline, '_openvino_gpu', None)
-                    logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator models")
+                    logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (direct)")
+                
+                # PipelineAdapter (обёртка над UnifiedGenerator)
+                elif hasattr(pipeline, '_generator') and pipeline._generator:
+                    ug = pipeline._generator
+                    if hasattr(ug, '_openvino_cpu') and ug._openvino_cpu and ug._openvino_cpu._pipeline:
+                        generator_a = ug._openvino_cpu
+                        generator_b = getattr(ug, '_openvino_gpu', None)
+                        logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (via PipelineAdapter)")
+                
                 # HybridPipelineAdapter (llama.cpp) - НЕ совместимо
                 elif hasattr(pipeline, 'model_a') and pipeline.model_a:
                     logger.warning("HybridKnowledgeDialogManager: HybridPipelineAdapter not supported, using fallback")
