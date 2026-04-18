@@ -233,6 +233,11 @@ def _init_two_model_pipeline(brain):
         # 'hybrid' - FractalPipeline + fallback на RecursiveModelPipeline
         pipeline_mode = model_config.get('pipeline_mode', 'fractal')
         
+        # ПРОВЕРКА: Если используем UnifiedGenerator - пропускаем
+        if model_config.get('use_unified_generator', True):
+            query_logger.info("Two-Model Pipeline: используем UnifiedGenerator (skip HybridPipelineAdapter)")
+            return
+        
         # Проверяем нужен ли pipeline
         if not model_config.get('use_two_model_pipeline', False):
             query_logger.info("Two-Model Pipeline отключён в конфигурации")
