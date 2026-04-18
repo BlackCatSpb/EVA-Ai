@@ -1061,87 +1061,99 @@ class HybridKnowledgeDialogManager:
             }
             
             # === MODEL B: Расширенный ответ (если нужно) ===
+            model_b_success = False
             if use_dual and self._pipeline_b and self._pipeline_b != self._pipeline:
                 yield {'type': 'model_start', 'model': 'B', 'lora': lora_name, 'is_final': False}
                 
-                # Продолжаем с ответом от A как контекстом
-                extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
-                
-                config_b = ov_genai.GenerationConfig()
-                config_b.max_new_tokens = max_tokens
-                config_b.temperature = temperature
-                config_b.do_sample = temperature > 0
-                
-                in_thinking = False
-                text_buffer = ""
-                
-                def streamer_b(text: str) -> bool:
-                    token_queue.put(('b', text))
-                    return False
-                
-                def generate_model_b():
-                    try:
-                        self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
-                    except Exception as e:
-                        token_queue.put(('error', str(e)))
-                    finally:
-                        token_queue.put(('done_b', None))
-                
-                thread_b = threading.Thread(target=generate_model_b, daemon=True)
-                thread_b.start()
-                
-                while True:
-                    try:
-                        item = token_queue.get(timeout=60)
-                    except queue.Empty:
-                        if not thread_b.is_alive():
-                            break
-                        continue
+                try:
+                    # Продолжаем с ответом от A как контекстом
+                    extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
                     
-                    if item is None or item[0] in ('done_a', 'done_b'):
-                        break
+                    config_b = ov_genai.GenerationConfig()
+                    config_b.max_new_tokens = max_tokens
+                    config_b.temperature = temperature
+                    config_b.do_sample = temperature > 0
                     
-                    if item[0] == 'error':
-                        yield {'type': 'error', 'text': item[1], 'is_final': True}
-                        return
+                    in_thinking = False
+                    text_buffer = ""
                     
-                    combined = item[1]
-                    full_text.append(combined)
+                    def streamer_b(text: str) -> bool:
+                        token_queue.put(('b', text))
+                        return False
                     
-                    if not in_thinking and '<think>' in combined:
-                        in_thinking = True
-                        yield {'type': 'reasoning_start', 'is_final': False}
-                        after_think = combined.split('<think>')[1] if '<think>' in combined else ''
+                    def generate_model_b():
+                        try:
+                            self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
+                        except Exception as e:
+                            token_queue.put(('error', str(e)))
+                        finally:
+                            token_queue.put(('done_b', None))
+                    
+                    thread_b = threading.Thread(target=generate_model_b, daemon=True)
+                    thread_b.start()
+                    
+                    while True:
+                        try:
+                            item = token_queue.get(timeout=60)
+                        except queue.Empty:
+                            if not thread_b.is_alive():
+                                break
+                            continue
                         
-                        if '</think>' in after_think:
-                            reasoning_content = after_think.split('</think>')[0]
-                            full_reasoning += reasoning_content
-                            yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
-                            yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
-                            in_thinking = False
+                        if item is None or item[0] in ('done_a', 'done_b'):
+                            break
+                        
+                        if item[0] == 'error':
+                            logger.error(f"Model B generation error: {item[1]}")
+                            break
+                        
+                        combined = item[1]
+                        full_text.append(combined)
+                        model_b_success = True
+                        
+                        if not in_thinking and '<think>' in combined:
+                            in_thinking = True
+                            yield {'type': 'reasoning_start', 'is_final': False}
+                            after_think = combined.split('<think>')[1] if '<think>' in combined else ''
+                            
+                            if '</think>' in after_think:
+                                reasoning_content = after_think.split('</think>')[0]
+                                full_reasoning += reasoning_content
+                                yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
+                                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                                in_thinking = False
+                            else:
+                                full_reasoning += after_think
+                                yield {'type': 'reasoning_text', 'text': after_think, 'is_final': False}
+                        
+                        elif in_thinking:
+                            if '</think>' in combined:
+                                reasoning_content = combined.split('</think>')[0]
+                                full_reasoning += reasoning_content
+                                yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
+                                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                                in_thinking = False
+                            else:
+                                full_reasoning += combined
+                                yield {'type': 'reasoning_text', 'text': combined, 'is_final': False}
+                        
                         else:
-                            full_reasoning += after_think
-                            yield {'type': 'reasoning_text', 'text': after_think, 'is_final': False}
+                            text_buffer += combined
+                            if len(text_buffer) >= chunk_size:
+                                yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
+                                text_buffer = ""
                     
-                    elif in_thinking:
-                        if '</think>' in combined:
-                            reasoning_content = combined.split('</think>')[0]
-                            full_reasoning += reasoning_content
-                            yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
-                            yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
-                            in_thinking = False
-                        else:
-                            full_reasoning += combined
-                            yield {'type': 'reasoning_text', 'text': combined, 'is_final': False}
-                    
-                    else:
-                        text_buffer += combined
-                        if len(text_buffer) >= chunk_size:
-                            yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
-                            text_buffer = ""
-                
-                if text_buffer:
-                    yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
+                    if text_buffer:
+                        yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
+                        
+                except Exception as e:
+                    logger.error(f"Model B failed: {e}")
+                    model_b_success = False
+            
+            # Если Model B не запускалась или не удалась - используем ответ от A
+            if not model_b_success:
+                logger.info("Using Model A response (Model B not available)")
+                # full_text уже содержит response_a
             
             full_response = ''.join(full_text)
             yield {

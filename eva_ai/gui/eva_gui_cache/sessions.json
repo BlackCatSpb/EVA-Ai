@@ -6070,6 +6070,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "0c46ca37-7eb4-4ccf-a716-45fc256bf914": {
+      "id": "0c46ca37-7eb4-4ccf-a716-45fc256bf914",
+      "user_id": "508b0e4c-e5dd-45a2-9aab-134a9bbf8079",
+      "name": "Новый чат",
+      "created_at": "2026-04-18T15:34:26.235041",
+      "last_active": "2026-04-18T15:34:26.235041",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }
