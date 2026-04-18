@@ -6070,6 +6070,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "be8bfd79-7a61-47f0-ba6f-aed4255193b2": {
+      "id": "be8bfd79-7a61-47f0-ba6f-aed4255193b2",
+      "user_id": "ed4daadc-6fe9-406d-b869-cd92b80fc617",
+      "name": "Сессия admin",
+      "created_at": "2026-04-18T22:54:16.789251",
+      "last_active": "2026-04-18T22:54:16.789251",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

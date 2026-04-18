@@ -1060,6 +1060,14 @@ class HybridKnowledgeDialogManager:
             response_a = ''.join(full_text)
             
             # === СБОР ТОКЕНОВ ОТ MODEL A ===
+            # Проверяем доступность TokenStreamingAPI
+            use_token_api = False
+            try:
+                from eva_ai.core.token_streaming import TokenStreamingAPI
+                use_token_api = True
+            except ImportError:
+                pass
+            
             tokens_a = []
             try:
                 if use_token_api and self._tokenizer:
@@ -1086,11 +1094,6 @@ class HybridKnowledgeDialogManager:
             
             # ОЧИЩАЕМ full_text для Model B - иначе будет дубликат!
             full_text.clear()
-            
-            # === Token Streaming API ===
-            # Пытаемся использовать передачу токенов
-            use_token_api = False
-            tokens_a = []
             
             try:
                 from eva_ai.core.token_streaming import TokenStreamingAPI
