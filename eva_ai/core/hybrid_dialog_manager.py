@@ -1062,6 +1062,11 @@ class HybridKnowledgeDialogManager:
             
             # === MODEL B: Расширенный ответ (если нужно) ===
             model_b_success = False
+            response_a_backup = response_a  # Сохраняем ответ A как резерв
+            
+            # ОЧИЩАЕМ full_text для Model B - иначе будет дубликат!
+            full_text.clear()
+            
             if use_dual and self._pipeline_b and self._pipeline_b != self._pipeline:
                 yield {'type': 'model_start', 'model': 'B', 'lora': lora_name, 'is_final': False}
                 
@@ -1076,6 +1081,7 @@ class HybridKnowledgeDialogManager:
                     
                     in_thinking = False
                     text_buffer = ""
+                    full_reasoning = ""  # Очищаем reasoning для Model B
                     
                     def streamer_b(text: str) -> bool:
                         token_queue.put(('b', text))
@@ -1150,10 +1156,12 @@ class HybridKnowledgeDialogManager:
                     logger.error(f"Model B failed: {e}")
                     model_b_success = False
             
-            # Если Model B не запускалась или не удалась - используем ответ от A
+            # Если Model B не удалась - восстанавливаем ответ A
             if not model_b_success:
-                logger.info("Using Model A response (Model B not available)")
-                # full_text уже содержит response_a
+                logger.info("Using Model A response (Model B failed)")
+                full_text.clear()
+                full_text.append(response_a_backup)
+                full_reasoning = ""  # Очищаем reasoning от B
             
             full_response = ''.join(full_text)
             yield {

@@ -6061,22 +6061,12 @@
       "context_nodes": [],
       "entities": []
     },
-    "909d6a01-a42c-4f4a-91b8-73a18b8835b9": {
-      "id": "909d6a01-a42c-4f4a-91b8-73a18b8835b9",
-      "user_id": "508b0e4c-e5dd-45a2-9aab-134a9bbf8079",
-      "name": "Сессия admin",
-      "created_at": "2026-04-18T10:53:25.614895",
-      "last_active": "2026-04-18T10:53:25.614895",
-      "chat_history": [],
-      "context_nodes": [],
-      "entities": []
-    },
-    "0c46ca37-7eb4-4ccf-a716-45fc256bf914": {
-      "id": "0c46ca37-7eb4-4ccf-a716-45fc256bf914",
+    "f896b754-d34b-47a1-bfd4-db6263de764d": {
+      "id": "f896b754-d34b-47a1-bfd4-db6263de764d",
       "user_id": "508b0e4c-e5dd-45a2-9aab-134a9bbf8079",
       "name": "Новый чат",
-      "created_at": "2026-04-18T15:34:26.235041",
-      "last_active": "2026-04-18T15:34:26.235041",
+      "created_at": "2026-04-18T22:14:38.843131",
+      "last_active": "2026-04-18T22:14:38.843131",
       "chat_history": [],
       "context_nodes": [],
       "entities": []
