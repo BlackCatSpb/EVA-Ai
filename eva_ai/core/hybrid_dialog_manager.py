@@ -208,6 +208,7 @@ class HybridKnowledgeDialogManager:
         self._pipeline = None
         self._pipeline_b = None  # Model B
         self._tokenizer = None
+        self._tokenizer_b = None  # Model B tokenizer
         self._scheduler_config = None
         self._initialized = False
         
@@ -313,9 +314,14 @@ class HybridKnowledgeDialogManager:
             # Pipeline от Model B
             if generator_b and generator_b._pipeline:
                 self._pipeline_b = generator_b._pipeline
+                try:
+                    self._tokenizer_b = self._pipeline_b.get_tokenizer()
+                except:
+                    self._tokenizer_b = self._tokenizer  # Fallback
                 logger.info("HybridKnowledgeDialogManager: Model B pipeline готов")
             else:
                 self._pipeline_b = self._pipeline
+                self._tokenizer_b = self._tokenizer
             
             self._initialized = True
             return True
