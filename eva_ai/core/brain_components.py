@@ -1039,7 +1039,7 @@ def _init_unified_generator(brain):
 
 def _init_hybrid_dialog_manager(brain):
     """
-    Инициализация HybridKnowledgeDialogManager.
+    Инициализация HybridKnowledgeDialogManager с двумя физическими моделями.
     
     Этот менеджер обеспечивает:
     - Chat template форматирование для Qwen3-4B
@@ -1047,6 +1047,7 @@ def _init_hybrid_dialog_manager(brain):
     - Виртуальные токены знаний из FractalGraphV2
     - Интеграция с ConceptExtractor и ContradictionMiner
     - Валидация ответов
+    - Две физические модели (Model A + Model B)
     """
     brain.hybrid_dialog_manager = None
     
@@ -1055,22 +1056,22 @@ def _init_hybrid_dialog_manager(brain):
         
         model_config = brain.config.get('model', {})
         
-        # Получаем путь к модели
-        model_path = model_config.get('logic_model_path', '')
+        # Получаем пути к обеим моделям
+        model_a_path = model_config.get('logic_model_path', '')
+        model_b_path = model_config.get('model_b_openvino_path', '')
         
-        if not model_path or not os.path.exists(model_path):
+        if not model_a_path or not os.path.exists(model_a_path):
             # Пробуем альтернативные пути
             if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
-                # Берём из существующего pipeline
                 try:
                     if hasattr(brain.two_model_pipeline, '_openvino_cpu'):
-                        model_path = getattr(brain.two_model_pipeline._openvino_cpu, '_model_path', '')
+                        model_a_path = getattr(brain.two_model_pipeline._openvino_cpu, '_model_path', '')
                     elif hasattr(brain.two_model_pipeline, 'model_a_path'):
-                        model_path = brain.two_model_pipeline.model_a_path
+                        model_a_path = brain.two_model_pipeline.model_a_path
                 except:
                     pass
         
-        if not model_path:
+        if not model_a_path:
             query_logger.warning('Путь к модели не найден для HybridKnowledgeDialogManager')
             return
         
@@ -1094,13 +1095,14 @@ def _init_hybrid_dialog_manager(brain):
         elif hasattr(brain, 'knowledge') and hasattr(brain.knowledge, 'contradiction_manager'):
             contradiction_manager = brain.knowledge.contradiction_manager
         
-        # Создаём менеджер
+        # Создаём менеджер с двумя моделями (initialize вызывается внутри factory)
         manager = create_hybrid_dialog_manager(
             brain=brain,
             fractal_graph=fractal_graph,
             concept_extractor=concept_extractor,
             contradiction_manager=contradiction_manager,
-            model_path=model_path,
+            model_path=model_a_path,
+            model_b_path=model_b_path,
             device=device,
             enable_validation=True,
             max_history=50,
@@ -1108,9 +1110,12 @@ def _init_hybrid_dialog_manager(brain):
             temperature=0.7
         )
         
-        if manager.initialize():
+        if manager.initialized:
             brain.hybrid_dialog_manager = manager
-            query_logger.info(f'HybridKnowledgeDialogManager инициализирован: {model_path} на {device}')
+            query_logger.info(f'HybridKnowledgeDialogManager инициализирован:')
+            query_logger.info(f'  Model A: {model_a_path}')
+            query_logger.info(f'  Model B: {model_b_path}')
+            query_logger.info(f'  device: {device}')
             query_logger.info(f'  concept_extractor: {concept_extractor is not None}')
             query_logger.info(f'  contradiction_manager: {contradiction_manager is not None}')
             query_logger.info(f'  fractal_graph: {fractal_graph is not None}')

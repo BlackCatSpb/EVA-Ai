@@ -245,9 +245,10 @@ class GraphCurator:
                 
                 # Используем DCS для планирования если доступен
                 if self._deferred_system:
+                    from eva_ai.core.deferred_command_system import CommandPriority
                     self._deferred_system.add_command(
                         command=lambda: self._do_curation() if not self._paused else None,
-                        priority='LOW'
+                        priority=CommandPriority.LOW
                     )
                     # Выходим из цикла ожидания - DCS управляет таймингом
                     while self._running and not self._paused:

@@ -149,13 +149,15 @@ class HybridKnowledgeDialogManager:
     4. Автоматическое извлечение концептов
     5. Детекция и разрешение противоречий
     6. Валидация ответов
+    7. Две физические модели для последовательной генерации
     
     Параметры:
         brain: CoreBrain - ядро системы
         fractal_graph: FractalMemoryGraph - граф памяти
         concept_extractor: ConceptExtractor - извлекатель концептов
         contradiction_manager: ContradictionManager - менеджер противоречий
-        model_path: str - путь к модели GGUF
+        model_path: str - путь к модели GGUF (Model A)
+        model_b_path: str - путь к модели B (копия)
         device: str - устройство (CPU/GPU)
         max_history: int - максимум сообщений в истории
         enable_validation: bool - включить валидацию ответов
@@ -170,6 +172,7 @@ class HybridKnowledgeDialogManager:
         concept_extractor=None,
         contradiction_manager=None,
         model_path: str = None,
+        model_b_path: str = None,
         device: str = "CPU",
         max_history: int = 50,
         max_tokens: int = 512,
@@ -185,6 +188,7 @@ class HybridKnowledgeDialogManager:
         
         # Параметры генерации
         self.model_path = model_path
+        self.model_b_path = model_b_path  # Путь к модели B
         self.device = device
         self.max_history = max_history
         self.max_tokens = max_tokens
@@ -200,8 +204,9 @@ class HybridKnowledgeDialogManager:
         self.prefix_cache = PrefixCache(max_entries=100)
         self.knowledge_cache: Dict[str, KnowledgeContext] = {}
         
-        # Pipeline
+        # Pipeline - две физические модели
         self._pipeline = None
+        self._pipeline_b = None  # Model B
         self._tokenizer = None
         self._scheduler_config = None
         self._initialized = False
@@ -218,13 +223,14 @@ class HybridKnowledgeDialogManager:
         """Проверка инициализации."""
         return self._initialized
     
-    def initialize(self, model_path: str = None, device: str = None):
+    def initialize(self, model_path: str = None, model_b_path: str = None, device: str = None):
         """
-        Инициализация OpenVINO pipeline и токенизатора.
+        Инициализация ДВУХ OpenVINO pipelines (Model A и Model B).
         
         Args:
-            model_path: Путь к модели (если не указан при создании)
-            device: Устройство (если не указано при создании)
+            model_path: Путь к модели A
+            model_b_path: Путь к модели B (копия)
+            device: Устройство
         """
         if not OPENVINO_AVAILABLE:
             logger.error("OpenVINO GenAI не установлен")
@@ -232,6 +238,8 @@ class HybridKnowledgeDialogManager:
         
         if model_path:
             self.model_path = model_path
+        if model_b_path:
+            self.model_b_path = model_b_path
         if device:
             self.device = device
         
@@ -240,55 +248,74 @@ class HybridKnowledgeDialogManager:
             return False
         
         if not os.path.exists(self.model_path):
-            logger.error(f"Модель не найдена: {self.model_path}")
+            logger.error(f"Model A не найдена: {self.model_path}")
             return False
         
         try:
-            # Получаем генератор напрямую из UnifiedGenerator (без Registry)
             from eva_ai.core.openvino_generator import OpenVINOGenerator
             
-            model_path_obj = Path(self.model_path) if self.model_path else None
+            model_a_path_obj = Path(self.model_path)
+            model_b_path_obj = Path(model_b_path) if model_b_path else None
             
-            if not model_path_obj:
-                logger.error("model_path не указан")
-                return False
-            
-            # Получаем генератор напрямую из two_model_pipeline
-            generator = None
+            # === Инициализация двух физических моделей ===
+            generator_a = None
+            generator_b = None
             
             if self.brain and hasattr(self.brain, 'two_model_pipeline'):
                 pipeline = self.brain.two_model_pipeline
                 
-                # Приоритетно используем _openvino_cpu (Model A для логики)
                 if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
-                    generator = pipeline._openvino_cpu
-                    logger.info("HybridKnowledgeDialogManager: используем Model A (_openvino_cpu)")
-                elif hasattr(pipeline, '_openvino_gpu') and pipeline._openvino_gpu and pipeline._openvino_gpu._pipeline:
-                    generator = pipeline._openvino_gpu
-                    logger.info("HybridKnowledgeDialogManager: используем Model B (_openvino_gpu)")
+                    generator_a = pipeline._openvino_cpu
+                    logger.info("HybridKnowledgeDialogManager: используем Model A")
+                
+                if hasattr(pipeline, '_openvino_gpu') and pipeline._openvino_gpu and pipeline._openvino_gpu._pipeline:
+                    generator_b = pipeline._openvino_gpu
+                    logger.info("HybridKnowledgeDialogManager: используем Model B")
             
-            # Fallback: создаём независимый экземпляр если pipeline не готов
-            if not generator or not generator._pipeline:
-                logger.warning("HybridKnowledgeDialogManager: создаём независимый экземпляр (fallback)")
-                generator = OpenVINOGenerator(
-                    model_path=model_path_obj,
+            # Fallback: создаём независимые экземпляры
+            if not generator_a or not generator_a._pipeline:
+                logger.warning("HybridKnowledgeDialogManager: создаём Model A (fallback)")
+                generator_a = OpenVINOGenerator(
+                    model_path=model_a_path_obj,
                     device=self.device,
-                    max_tokens=self.max_tokens,
+                    max_tokens=512,
                     temperature=self.temperature,
                     use_registry=False
                 )
             
-            # Берём pipeline из генератора
-            if generator and generator._pipeline:
-                self._pipeline = generator._pipeline
+            # Model B
+            if not generator_b or not generator_b._pipeline:
+                if model_b_path_obj and model_b_path_obj.exists():
+                    logger.warning("HybridKnowledgeDialogManager: создаём Model B (копия)")
+                    generator_b = OpenVINOGenerator(
+                        model_path=model_b_path_obj,
+                        device=self.device,
+                        max_tokens=2048,
+                        temperature=self.temperature,
+                        use_registry=False
+                    )
+                else:
+                    generator_b = generator_a
+                    logger.info("HybridKnowledgeDialogManager: Model B = Model A (fallback)")
+            
+            # Pipeline от Model A
+            if generator_a and generator_a._pipeline:
+                self._pipeline = generator_a._pipeline
                 try:
                     self._tokenizer = self._pipeline.get_tokenizer()
                 except:
                     self._tokenizer = None
-                logger.info(f"HybridKnowledgeDialogManager: pipeline готов")
+                logger.info("HybridKnowledgeDialogManager: Model A pipeline готов")
             else:
-                logger.error("Не удалось получить pipeline")
+                logger.error("Не удалось получить Model A pipeline")
                 return False
+            
+            # Pipeline от Model B
+            if generator_b and generator_b._pipeline:
+                self._pipeline_b = generator_b._pipeline
+                logger.info("HybridKnowledgeDialogManager: Model B pipeline готов")
+            else:
+                self._pipeline_b = self._pipeline
             
             self._initialized = True
             return True
@@ -805,9 +832,71 @@ class HybridKnowledgeDialogManager:
         
         return False
     
-    # =========================================================================
+# =========================================================================
     # Streaming интерфейс
-    # =========================================================================
+    # ============================================
+
+    def _analyze_query_complexity(self, query: str) -> Dict[str, Any]:
+        """Анализирует сложность запроса и определяет стратегию генерации."""
+        query_lower = query.lower()
+        
+        # Признаки сложного запроса
+        complex_indicators = [
+            'почему', 'как работает', 'объясни', 'подробно', 'опиши',
+            'сравни', 'проанализируй', 'рассмотри', 'исследуй',
+            ' что ', ' как ', 'почему ', ' зачем ',
+            '?', '??', '???'
+        ]
+        
+        # Признаки простого запроса
+        simple_indicators = [
+            'да', 'нет', 'привет', 'hi', 'hello', 'спасибо',
+            'сколько', 'когда', 'где', ' кто '
+        ]
+        
+        # Код/факты
+        code_indicators = ['код', 'программ', 'функци', 'def ', 'class ', 'import ']
+        
+        complex_score = sum(1 for ind in complex_indicators if ind in query_lower)
+        simple_score = sum(1 for ind in simple_indicators if ind in query_lower)
+        code_score = sum(1 for ind in code_indicators if ind in query_lower)
+        
+        # Определяем тип и стратегию
+        if code_score > 0:
+            return {'mode': 'code', 'use_dual': False, 'max_tokens': 1024, 'lora': 'eva_code'}
+        elif complex_score > simple_score + 1:
+            return {'mode': 'complex', 'use_dual': True, 'max_tokens': 2048, 'lora': 'eva_knowledge'}
+        elif simple_score > complex_score:
+            return {'mode': 'simple', 'use_dual': False, 'max_tokens': 512, 'lora': 'eva_logic'}
+        else:
+            # По умолчанию - средняя сложность
+            return {'mode': 'auto', 'use_dual': len(query) > 100, 'max_tokens': 1024, 'lora': 'eva_knowledge'}
+    
+    def _get_generator_for_model(self, model_id: str):
+        """Получает генератор для указанной модели."""
+        if model_id == 'A':
+            if self._pipeline:
+                return self._pipeline
+        elif model_id == 'B':
+            if self._pipeline_b and self._pipeline_b != self._pipeline:
+                return self._pipeline_b
+        return self._pipeline
+    
+    def _apply_lora_to_generator(self, pipeline, lora_name: str):
+        """Применяет LoRA к генератору."""
+        if not pipeline or not lora_name:
+            return
+        
+        # Получаем генератор из brain для применения LoRA
+        if self.brain and hasattr(self.brain, 'two_model_pipeline'):
+            pipeline_obj = self.brain.two_model_pipeline
+            try:
+                if hasattr(pipeline_obj, '_openvino_cpu') and pipeline_obj._openvino_cpu:
+                    pipeline_obj._openvino_cpu.set_active_lora(lora_name)
+                if hasattr(pipeline_obj, '_openvino_gpu') and pipeline_obj._openvino_gpu:
+                    pipeline_obj._openvino_gpu.set_active_lora(lora_name)
+            except Exception as e:
+                logger.warning(f"LoRA application error: {e}")
     
     def generate_streaming(
         self,
@@ -815,35 +904,41 @@ class HybridKnowledgeDialogManager:
         system_prompt: str = None,
         max_tokens: int = None,
         temperature: float = None,
-        chunk_size: int = 25
+        chunk_size: int = 25,
+        force_mode: str = None
     ):
         """
-        Генерация со стримингом для SSE - отправляет чанки ПО МЕРЕ генерации.
+        Генерация со стримингом.
         
-        Streamed events:
-        - reasoning_start: начало блока рассуждений
-        - reasoning_chunk: часть рассуждений
-        - reasoning_end: конец блока рассуждений
-        - chunk: часть основного ответа
-        - complete: генерация завершена
+        Автоматически определяет:
+        - Простой запрос → Model A only
+        - Сложный запрос → Model A + Model B последовательно
+        - Код → Model A with eva_code LoRA
         
-        Args:
-            user_input: Текст сообщения пользователя
-            system_prompt: Системный промпт (если не стандартный)
-            max_tokens: Максимум токенов
-            temperature: Температура генерации
-            chunk_size: Размер чанка для буферизации
-            
-        Yields:
-            Dict с данными чанка для SSE
+        Events:
+        - model_start: начало генерации (A или B)
+        - reasoning_start/text/end: рассуждения
+        - chunk: основной текст
+        - complete: завершение
         """
         if not self._initialized or not self._pipeline:
             yield {'type': 'error', 'text': 'Система не готова', 'is_final': True}
             return
         
         start_time = time.time()
-        max_tokens = max_tokens or self.max_tokens
+        
+        # Анализируем сложность запроса
+        strategy = self._analyze_query_complexity(user_input)
+        if force_mode:
+            strategy['mode'] = force_mode
+            strategy['use_dual'] = (force_mode == 'extended')
+        
+        use_dual = strategy['use_dual']
+        lora_name = strategy.get('lora')
+        max_tokens = max_tokens or strategy.get('max_tokens', self.max_tokens)
         temperature = temperature or self.temperature
+        
+        logger.info(f"[STREAM] mode={strategy['mode']}, use_dual={use_dual}, lora={lora_name}")
         
         try:
             self.add_message("user", user_input)
@@ -859,147 +954,194 @@ class HybridKnowledgeDialogManager:
             if knowledge_context.virtual_tokens:
                 prompt = self._insert_knowledge_tokens(prompt, knowledge_context.virtual_tokens)
             
-            config = ov_genai.GenerationConfig()
-            config.max_new_tokens = max_tokens
-            config.temperature = temperature
-            config.do_sample = temperature > 0
-            
             import queue
             token_queue = queue.Queue()
-            
-            def streamer(text: str) -> bool:
-                """Callback вызывается для каждого токена."""
-                token_queue.put(text)
-                return False
-            
-            def generate():
-                try:
-                    self._pipeline.generate(prompt, config, streamer=streamer)
-                except Exception as e:
-                    token_queue.put(('error', str(e)))
-                finally:
-                    token_queue.put(None)
-            
-            thread = threading.Thread(target=generate, daemon=True)
-            thread.start()
-            
-            # Состояние для отслеживания рассуждений
-            in_thinking = False
-            reasoning_buffer = ""
-            text_buffer = ""
             full_text = []
             full_reasoning = ""
             
-            while True:
+            # === MODEL A: Быстрый ответ ===
+            yield {'type': 'model_start', 'model': 'A', 'lora': lora_name, 'is_final': False}
+            
+            # Применяем LoRA
+            self._apply_lora_to_generator(self._pipeline, lora_name)
+            
+            config_a = ov_genai.GenerationConfig()
+            config_a.max_new_tokens = max_tokens // 2 if use_dual else max_tokens
+            config_a.temperature = temperature
+            config_a.do_sample = temperature > 0
+            
+            def streamer_a(text: str) -> bool:
+                token_queue.put(('a', text))
+                return False
+            
+            def generate_model_a():
+                try:
+                    self._pipeline.generate(prompt, config_a, streamer=streamer_a)
+                except Exception as e:
+                    token_queue.put(('error', str(e)))
+                finally:
+                    token_queue.put(('done_a', None))
+            
+            thread_a = threading.Thread(target=generate_model_a, daemon=True)
+            thread_a.start()
+            
+            in_thinking = False
+            text_buffer = ""
+            model_a_done = False
+            
+            # Читаем ответ от Model A
+            while not model_a_done:
                 try:
                     item = token_queue.get(timeout=60)
                 except queue.Empty:
-                    if not thread.is_alive():
+                    if not thread_a.is_alive():
                         break
                     continue
                 
-                if item is None:
+                if item is None or item[0] in ('done_a', 'done_b'):
+                    model_a_done = True
                     break
                 
-                if isinstance(item, tuple) and item[0] == 'error':
+                if item[0] == 'error':
                     yield {'type': 'error', 'text': item[1], 'is_final': True}
                     return
                 
-                full_text.append(item)
+                combined = item[1]
+                full_text.append(combined)
                 
-                # Ищем <think> и</think>
-                combined = item
-                
-                # Проверяем начало рассуждений
+                # Обработка рассуждений
                 if not in_thinking and '<think>' in combined:
                     in_thinking = True
-                    
-                    # Отправляем текст до <think> как часть ответа
                     before_think = combined.split('<think>')[0]
                     if before_think:
                         text_buffer += before_think
                         if len(text_buffer) >= chunk_size:
-                            yield {
-                                'type': 'chunk',
-                                'text': text_buffer,
-                                'is_final': False,
-                                'tokens_count': len(''.join(full_text))
-                            }
+                            yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
                             text_buffer = ""
                     
-                    # Отправляем начало рассуждений - сразу!
                     yield {'type': 'reasoning_start', 'is_final': False}
-                    
                     after_think = combined.split('<think>')[1] if '<think>' in combined else ''
+                    
                     if '</think>' in after_think:
-                        # Короткое рассуждение - сразу отправляем каждый символ!
                         reasoning_content = after_think.split('</think>')[0]
                         full_reasoning += reasoning_content
-                        # Отправляем сразу, без буферизации
-                        yield {
-                            'type': 'reasoning_text',
-                            'text': reasoning_content,
-                            'is_final': False
-                        }
+                        yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
                         yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
-                        # Остаток после</think>
-                        after_close = after_think.split('</think>')[1] if '</think>' in after_think else ''
-                        text_buffer += after_close
                     else:
                         full_reasoning += after_think
-                        # Отправляем сразу
-                        yield {
-                            'type': 'reasoning_text',
-                            'text': after_think,
-                            'is_final': False
-                        }
+                        yield {'type': 'reasoning_text', 'text': after_think, 'is_final': False}
                 
                 elif in_thinking:
-                    # Мы внутри рассуждений
                     if '</think>' in combined:
-                        # Конец рассуждений
                         reasoning_content = combined.split('</think>')[0]
                         full_reasoning += reasoning_content
-                        # Отправляем сразу
-                        yield {
-                            'type': 'reasoning_text',
-                            'text': reasoning_content,
-                            'is_final': False
-                        }
+                        yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
                         yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
                         in_thinking = False
-                        # Текст после рассуждений
-                        after_close = combined.split('</think>')[1]
-                        text_buffer += after_close
                     else:
-                        # Продолжаем рассуждения - отправляем сразу!
                         full_reasoning += combined
-                        yield {
-                            'type': 'reasoning_text',
-                            'text': combined,
-                            'is_final': False
-                        }
-                
+                        yield {'type': 'reasoning_text', 'text': combined, 'is_final': False}
                 else:
-                    # Обычный текст
                     text_buffer += combined
                     if len(text_buffer) >= chunk_size:
-                        yield {
-                            'type': 'chunk',
-                            'text': text_buffer,
-                            'is_final': False,
-                            'tokens_count': len(''.join(full_text))
-                        }
+                        yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
                         text_buffer = ""
             
             if text_buffer:
-                yield {
-                    'type': 'chunk',
-                    'text': text_buffer,
-                    'is_final': False,
-                    'tokens_count': len(''.join(full_text))
-                }
+                yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
+            
+            response_a = ''.join(full_text)
+            yield {
+                'type': 'model_complete',
+                'model': 'A',
+                'text': response_a,
+                'is_final': False,
+                'reasoning': full_reasoning
+            }
+            
+            # === MODEL B: Расширенный ответ (если нужно) ===
+            if use_dual and self._pipeline_b and self._pipeline_b != self._pipeline:
+                yield {'type': 'model_start', 'model': 'B', 'lora': lora_name, 'is_final': False}
+                
+                # Продолжаем с ответом от A как контекстом
+                extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
+                
+                config_b = ov_genai.GenerationConfig()
+                config_b.max_new_tokens = max_tokens
+                config_b.temperature = temperature
+                config_b.do_sample = temperature > 0
+                
+                in_thinking = False
+                text_buffer = ""
+                
+                def streamer_b(text: str) -> bool:
+                    token_queue.put(('b', text))
+                    return False
+                
+                def generate_model_b():
+                    try:
+                        self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
+                    except Exception as e:
+                        token_queue.put(('error', str(e)))
+                    finally:
+                        token_queue.put(('done_b', None))
+                
+                thread_b = threading.Thread(target=generate_model_b, daemon=True)
+                thread_b.start()
+                
+                while True:
+                    try:
+                        item = token_queue.get(timeout=60)
+                    except queue.Empty:
+                        if not thread_b.is_alive():
+                            break
+                        continue
+                    
+                    if item is None or item[0] in ('done_a', 'done_b'):
+                        break
+                    
+                    if item[0] == 'error':
+                        yield {'type': 'error', 'text': item[1], 'is_final': True}
+                        return
+                    
+                    combined = item[1]
+                    full_text.append(combined)
+                    
+                    if not in_thinking and '<think>' in combined:
+                        in_thinking = True
+                        yield {'type': 'reasoning_start', 'is_final': False}
+                        after_think = combined.split('<think>')[1] if '<think>' in combined else ''
+                        
+                        if '</think>' in after_think:
+                            reasoning_content = after_think.split('</think>')[0]
+                            full_reasoning += reasoning_content
+                            yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
+                            yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                            in_thinking = False
+                        else:
+                            full_reasoning += after_think
+                            yield {'type': 'reasoning_text', 'text': after_think, 'is_final': False}
+                    
+                    elif in_thinking:
+                        if '</think>' in combined:
+                            reasoning_content = combined.split('</think>')[0]
+                            full_reasoning += reasoning_content
+                            yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
+                            yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                            in_thinking = False
+                        else:
+                            full_reasoning += combined
+                            yield {'type': 'reasoning_text', 'text': combined, 'is_final': False}
+                    
+                    else:
+                        text_buffer += combined
+                        if len(text_buffer) >= chunk_size:
+                            yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
+                            text_buffer = ""
+                
+                if text_buffer:
+                    yield {'type': 'chunk', 'text': text_buffer, 'is_final': False}
             
             full_response = ''.join(full_text)
             yield {
@@ -1008,11 +1150,13 @@ class HybridKnowledgeDialogManager:
                 'is_final': True,
                 'tokens_count': len(full_response.split()),
                 'elapsed_ms': int((time.time() - start_time) * 1000),
-                'reasoning': full_reasoning
-            }
+                'reasoning': full_reasoning,
+                'mode': strategy['mode'],
+                'lora': lora_name
+}
             
             self.add_message("assistant", full_response)
-            
+        
         except Exception as e:
             logger.error(f"Streaming error: {e}")
             yield {'type': 'error', 'text': str(e), 'is_final': True}
@@ -1126,22 +1270,12 @@ def create_hybrid_dialog_manager(
     concept_extractor=None,
     contradiction_manager=None,
     model_path: str = None,
+    model_b_path: str = None,
     device: str = "CPU",
     **kwargs
 ) -> HybridKnowledgeDialogManager:
     """
-    Фабричная функция для создания HybridKnowledgeDialogManager.
-    
-    Args:
-        brain: CoreBrain системы
-        fractal_graph: FractalMemoryGraph
-        concept_extractor: ConceptExtractor
-        contradiction_manager: ContradictionManager
-        model_path: Путь к GGUF модели
-        device: Устройство (CPU/GPU)
-        
-    Returns:
-        Инициализированный HybridKnowledgeDialogManager
+    Фабричная функция для создания HybridKnowledgeDialogManager с двумя моделями.
     """
     manager = HybridKnowledgeDialogManager(
         brain=brain,
@@ -1149,12 +1283,12 @@ def create_hybrid_dialog_manager(
         concept_extractor=concept_extractor,
         contradiction_manager=contradiction_manager,
         model_path=model_path,
+        model_b_path=model_b_path,
         device=device,
         **kwargs
     )
     
-    # Инициализируем если есть путь к модели
     if model_path:
-        manager.initialize(model_path, device)
+        manager.initialize(model_path, model_b_path, device)
     
     return manager

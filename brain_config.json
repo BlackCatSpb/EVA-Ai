@@ -6,7 +6,7 @@
     "qwen_only_mode": false,
     "pipeline_mode": "dual",
     "model_a_openvino_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino",
-    "model_b_openvino_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino",
+    "model_b_openvino_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino_model_b",
     "logic_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino",
     "context_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino",
     "llama_cpp_n_ctx": 16384,

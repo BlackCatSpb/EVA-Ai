@@ -1284,8 +1284,12 @@
                             // Legacy: live reasoning step
                             reasoningSteps.push(data.step);
                             updateLiveReasoning(msgId, reasoningSteps);
+                        } else if (data.type === 'model_complete') {
+                            // Model A завершена - НЕ показываем, ждём Model B
+                            console.log('[Model A] Завершена, ожидаем Model B...');
+                            // Не обновляем текст - Model B заменит его
                         } else if (data.type === 'complete') {
-                            // complete содержит полный очищенный текст - используем напрямую
+                            // Финальный ответ - используем напрямую
                             fullText = data.text;
                             updateMessageText(msgId, fullText, false, data.elapsed_ms);
                             
@@ -1295,6 +1299,11 @@
                             } else if (data.reasoning_steps && data.reasoning_steps.length > 0) {
                                 addReasoningToMessage(msgId, data.reasoning_steps);
                             }
+                            
+                            // Log mode for debugging
+                            if (data.mode) {
+                                console.log(`[COMPLETE] mode=${data.mode}, lora=${data.lora}`);
+                            }
                         } else if (data.type === 'done') {
                             updateMessageText(msgId, fullText, true);
                             
@@ -1303,6 +1312,13 @@
                             
                             stopGenTimer();
                             clearFile();
+                        } else if (data.type === 'model_start') {
+                            // Начало генерации модели (A или B)
+                            console.log(`[Model ${data.model}] Начало, lora=${data.lora}`);
+                            // Можно показать индикатор в UI
+                        } else if (data.type === 'model_a_complete') {
+                            // Model A завершена - НЕ показываем
+                            console.log('[Model A] Завершена, переход к Model B...');
                         } else if (data.type === 'error') {
                             updateMessageText(msgId, 'Ошибка: ' + data.text, true);
                             stopGenTimer();
