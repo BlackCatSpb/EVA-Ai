@@ -1019,21 +1019,9 @@ def _init_unified_generator(brain):
                     lora_dir = lora_config.get('adapters_dir')
                     lora_alpha = lora_config.get('default_alpha', 0.7)
                     if lora_dir and os.path.exists(lora_dir):
-                        # Проверяем тип two_model_pipeline
-                        if hasattr(brain.two_model_pipeline, 'init_lora_adapters'):
-                            # UnifiedGenerator - напрямую
-                            results = brain.two_model_pipeline.init_lora_adapters(lora_dir, lora_alpha)
-                            loaded_count = sum(1 for v in results.values() if v)
-                            query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров из {lora_dir}')
-                        else:
-                            # HybridPipelineAdapter - пробуем через _openvino_cpu
-                            ug = getattr(brain.two_model_pipeline, '_openvino_cpu', None) or getattr(brain.two_model_pipeline, '_generator', None)
-                            if ug and hasattr(ug, 'init_lora_adapters'):
-                                results = ug.init_lora_adapters(lora_dir, lora_alpha)
-                                loaded_count = sum(1 for v in results.values() if v)
-                                query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров')
-                            else:
-                                query_logger.info('[LoRA] Pipeline не поддерживает LoRA')
+                        results = brain.two_model_pipeline.init_lora_adapters(lora_dir, lora_alpha)
+                        loaded_count = sum(1 for v in results.values() if v)
+                        query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров из {lora_dir}')
                     else:
                         query_logger.info('[LoRA] Директория не найдена, LoRA отключены')
                 else:
