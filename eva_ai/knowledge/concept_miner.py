@@ -933,12 +933,18 @@ RATIONALE: [обоснование]"""
 
                     logger.info(f"Концепт '{candidate.title}' интегрирован в FGv2")
 
-                    # Добавляем в очередь самодиалога
+                    # Добавляем в очередь самодиалога и триггерим
                     if hasattr(self.brain, 'self_dialog_learning') and self.brain.self_dialog_learning:
                         self.brain.self_dialog_learning.queue_concept_for_dialog(
                             candidate.title,
                             priority=candidate.confidence
                         )
+                        # Триггер для запуска self-learning по требованию
+                        try:
+                            if hasattr(self.brain.self_dialog_learning, 'trigger_self_dialog'):
+                                self.brain.self_dialog_learning.trigger_self_dialog(reason='concept_mined')
+                        except Exception as e:
+                            logger.debug(f"Trigger error: {e}")
 
         except Exception as e:
             logger.error(f"Ошибка интеграции концепта: {e}")

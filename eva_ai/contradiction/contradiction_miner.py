@@ -845,13 +845,19 @@ RESOLUTION_QUESTION: [вопрос]"""
                     "priority": candidate.priority
                 })
 
-                # Добавляем в очередь самодиалога
+                # Добавляем в очередь самодиалога и триггерим
                 if hasattr(self.brain, 'self_dialog_learning') and self.brain.self_dialog_learning:
                     self.brain.self_dialog_learning.queue_contradiction_for_resolution(
                         contr_id=node_id,
                         concept=candidate.title,
                         priority=candidate.priority
                     )
+                    # Триггер для запуска self-learning по требованию
+                    try:
+                        if hasattr(self.brain.self_dialog_learning, 'trigger_self_dialog'):
+                            self.brain.self_dialog_learning.trigger_self_dialog(reason='contradiction_detected')
+                    except Exception as e:
+                        logger.debug(f"Trigger error: {e}")
 
         except Exception as e:
             logger.error(f"Ошибка создания узла-противоречия: {e}")

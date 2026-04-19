@@ -1096,6 +1096,12 @@ class QueryMixin:
                             concept.name, 
                             priority=concept.confidence
                         )
+                        # Триггер для запуска self-learning по требованию
+                        try:
+                            if hasattr(self.self_dialog_learning, 'trigger_self_dialog'):
+                                self.self_dialog_learning.trigger_self_dialog(reason='query_concept')
+                        except Exception as e:
+                            query_logger.debug(f"Trigger error: {e}")
                     
                     query_logger.debug(f"Concept '{concept.name}' extracted and queued")
                 

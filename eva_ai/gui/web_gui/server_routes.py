@@ -1521,6 +1521,38 @@ def register_routes(app, web_gui_instance):
             except Exception as e:
                 logger.error(f"Error triggering self-dialog: {e}")
                 return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/self-dialog/trigger', methods=['POST'])
+    def api_self_dialog_trigger():
+        """Триггер для запуска самообучения по требованию."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        
+        data = request.json or {}
+        reason = data.get('reason', 'manual')
+        
+        try:
+            brain = web_gui_instance.brain
+            if brain and hasattr(brain, 'self_dialog_learning'):
+                sdl = brain.self_dialog_learning
+                
+                # Вызываем trigger_self_dialog если доступен
+                if hasattr(sdl, 'trigger_self_dialog'):
+                    result = sdl.trigger_self_dialog(reason=reason)
+                    return jsonify({
+                        'status': 'success' if result else 'no_work',
+                        'triggered': result,
+                        'reason': reason,
+                        'queue_size': len(getattr(sdl, '_concept_queue', [])),
+                        'contradictions_size': len(getattr(sdl, '_contradiction_topics', []))
+                    })
+                else:
+                    return jsonify({'error': 'trigger_self_dialog not available'}), 500
+            else:
+                return jsonify({'error': 'Self-dialog learning not available'}), 500
+        except Exception as e:
+            logger.error(f"Error triggering self-dialog: {e}")
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/generation-status', defaults={'command_id': None})
     @app.route('/api/generation-status/<command_id>')
