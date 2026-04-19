@@ -1286,9 +1286,11 @@
                             updateLiveReasoning(msgId, reasoningSteps);
                         } else if (data.type === 'self_learning_start') {
                             // Model B - self-learning: показываем в мониторе
+                            console.log('[STREAM] Self-learning start:', data);
                             addToMonitor('selfdialog', '[Начало рассуждений для самообучения]', 'system');
                         } else if (data.type === 'self_learning_text') {
                             // Model B - текст рассуждений в монитор
+                            console.log('[STREAM] Self-learning text:', data.text?.substring(0, 50));
                             addToMonitor('selfdialog', data.text, 'reasoning');
                         } else if (data.type === 'self_learning_end') {
                             // Model B - завершение рассуждений

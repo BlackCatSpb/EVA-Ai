@@ -1198,6 +1198,7 @@ class HybridKnowledgeDialogManager:
                             in_thinking = True
                             # Model B - self-learning: отправляем в мониторинг
                             yield {'type': 'self_learning_start', 'is_final': False}
+                            logger.info("[STREAM] Emitting self_learning_start")
                             after_think = combined.split('<think>')[1] if '<think>' in combined else ''
                             
                             if '</think>' in after_think:
