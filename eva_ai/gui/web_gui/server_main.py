@@ -642,12 +642,11 @@ def create_app(brain=None, integrator=None, host='127.0.0.1', port=5555):
     register_upload_routes(app, web_gui_instance)
     
     # Additional routes from other modules
+    # NOTE: server_routes.py conflicts with server_routes_core.py - NOT registering
     register_wikipedia_routes(app, web_gui_instance)
     register_export_routes(app, web_gui_instance)
     register_model_routes(app, web_gui_instance)
     register_graph_routes(app, web_gui_instance)
-    from eva_ai.gui.web_gui.server_routes import register_routes as register_main_routes
-    register_main_routes(app, web_gui_instance)
 
     web_gui_instance.start()
     return web_gui_instance

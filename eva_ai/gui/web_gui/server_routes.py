@@ -34,29 +34,13 @@ except Exception as e:
 
 
 def register_routes(app, web_gui_instance):
-    logger.info("=== REGISTERING ROUTES ===")
+    logger.info("=== REGISTERING ROUTES (self-dialog only) ===")
     logger.info("  web_gui_instance type: {}".format(type(web_gui_instance).__name__ if web_gui_instance else "None"))
 
-    # Note: favicon.ico already registered in server_routes_core.py
+    # NOTE: Most routes moved to separate modules (server_routes_core.py, etc.)
+    # Only self-dialog endpoints kept here to avoid breaking changes
     
-    @app.route('/api/system', methods=['GET'])
-    def api_system():
-        """System information endpoint."""
-        if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован'}), 500
-        
-        system_info = {
-            'version': '3.1',
-            'model': 'CogniFlex (EVA-Ai)',
-            'modules': [],
-            'features': {
-                'memory': True,
-                'learning': True,
-                'ethics': True,
-                'websearch': True,
-                'contradiction': True
-            }
-        }
+    @app.route('/api/self-dialog/monitor', methods=['GET'])
         
         if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'components'):
             system_info['modules'] = list(web_gui_instance.brain.components.keys())
