@@ -6090,6 +6090,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "65778322-e2eb-4432-8e3b-736591ad37d7": {
+      "id": "65778322-e2eb-4432-8e3b-736591ad37d7",
+      "user_id": "81e61104-d0a1-4106-96bf-610c26549106",
+      "name": "Сессия admin",
+      "created_at": "2026-04-19T01:31:12.475589",
+      "last_active": "2026-04-19T01:31:12.475589",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }
