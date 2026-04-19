@@ -211,6 +211,7 @@ class HybridKnowledgeDialogManager:
         self._tokenizer_b = None  # Model B tokenizer
         self._scheduler_config = None
         self._initialized = False
+        self._use_dual_generator = False  # Флаг: используем DualGenerator
         
         # Callbacks
         self._on_concept_extracted: Optional[Callable] = None
@@ -266,8 +267,16 @@ class HybridKnowledgeDialogManager:
             if self.brain and hasattr(self.brain, 'two_model_pipeline'):
                 pipeline = self.brain.two_model_pipeline
                 
+                # DualGenerator - используем ЕЁ!
+                if hasattr(pipeline, 'dual_generator') and pipeline.dual_generator:
+                    logger.info("HybridKnowledgeDialogManager: используем DualGenerator")
+                    self._use_dual_generator = True
+                    # DualGenerator сам управляет 2 моделями
+                    generator_a = pipeline.dual_generator.condensed
+                    generator_b = pipeline.dual_generator.extended
+                
                 # UnifiedGenerator (OpenVINO) - прямой доступ
-                if hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
+                elif hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
                     generator_a = pipeline._openvino_cpu
                     generator_b = getattr(pipeline, '_openvino_gpu', None)
                     logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (direct)")
@@ -297,10 +306,10 @@ class HybridKnowledgeDialogManager:
                     use_registry=False
                 )
             
-            # Model B
+            # Model B - создаём НЕЗАВИСИМЫЙ инстанс!
             if not generator_b or not generator_b._pipeline:
                 if model_b_path_obj and model_b_path_obj.exists():
-                    logger.warning("HybridKnowledgeDialogManager: создаём Model B (копия)")
+                    logger.info(f"HybridKnowledgeDialogManager: создаём независимый Model B: {model_b_path_obj}")
                     generator_b = OpenVINOGenerator(
                         model_path=model_b_path_obj,
                         device=self.device,
@@ -308,9 +317,19 @@ class HybridKnowledgeDialogManager:
                         temperature=self.temperature,
                         use_registry=False
                     )
+                elif generator_a and generator_a._pipeline:
+                    # Если отдельной модели нет - создаём КОПИЮ Model A
+                    # NOTE: Это может работать плохо если модель не thread-safe
+                    logger.warning("HybridKnowledgeDialogManager: Model B = НОВЫЙ инстанс Model A (thread-safe)")
+                    generator_b = OpenVINOGenerator(
+                        model_path=model_a_path_obj,
+                        device=self.device,
+                        max_tokens=2048,
+                        temperature=self.temperature,
+                        use_registry=False
+                    )
                 else:
                     generator_b = generator_a
-                    logger.info("HybridKnowledgeDialogManager: Model B = Model A (fallback)")
             
             # Pipeline от Model A
             if generator_a and generator_a._pipeline:
