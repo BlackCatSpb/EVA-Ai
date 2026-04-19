@@ -122,13 +122,17 @@ class GraphCurator:
         if not self._running or self._paused:
             return
         
-        if hasattr(event, 'data'):
-            data = event.data
-        elif isinstance(event, dict):
-            data = event
-        elif isinstance(event, str):
-            data = {}
-        else:
+        # Безопасная обработка event объекта
+        try:
+            if hasattr(event, 'data'):
+                data = event.data
+            elif isinstance(event, dict):
+                data = event
+            elif isinstance(event, str):
+                data = {}
+            else:
+                data = {}
+        except Exception:
             data = {}
         
         if not isinstance(data, dict):
@@ -151,11 +155,15 @@ class GraphCurator:
         if not self._running or self._paused:
             return
         
-        if hasattr(event, 'data'):
-            data = event.data
-        elif isinstance(event, dict):
-            data = event
-        else:
+        # Безопасная обработка event объекта
+        try:
+            if hasattr(event, 'data'):
+                data = event.data
+            elif isinstance(event, dict):
+                data = event
+            else:
+                data = {}
+        except Exception:
             data = {}
         
         node_type = data.get('node_type', '')
