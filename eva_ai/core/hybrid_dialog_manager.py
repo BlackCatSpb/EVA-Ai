@@ -1073,7 +1073,6 @@ class HybridKnowledgeDialogManager:
             response_a = ''.join(full_text)
             
             # === СБОР ТОКЕНОВ ОТ MODEL A ===
-            # Проверяем доступность TokenStreamingAPI
             use_token_api = False
             try:
                 from eva_ai.core.token_streaming import TokenStreamingAPI
@@ -1084,18 +1083,24 @@ class HybridKnowledgeDialogManager:
             tokens_a = []
             try:
                 if use_token_api and self._tokenizer:
-                    # Собираем токены из response_a
                     encoded = self._tokenizer.encode(response_a)
-                    # OpenVINO может вернуть TokenizedInputs - конвертируем в list
+                    # OpenVINO возвращает TokenizedInputs с tensor - нужна specials обработка
                     if hasattr(encoded, 'input_ids'):
-                        tokens_a = list(encoded.input_ids)
+                        tensor = encoded.input_ids
+                        # Tensor не итерируем напрямую - берем данные через numpy или tolist
+                        if hasattr(tensor, 'tolist'):
+                            tokens_a = tensor.tolist()
+                        elif hasattr(tensor, 'data'):
+                            tokens_a = list(tensor.data)
+                        else:
+                            tokens_a = []
+                    elif hasattr(encoded, '__iter__') and not isinstance(encoded, (str, dict)):
+                        tokens_a = list(encoded)
                     elif hasattr(encoded, '__len__'):
-                        tokens_a = list(encoded) if not isinstance(encoded, list) else encoded
-                    else:
-                        tokens_a = []
+                        tokens_a = list(encoded)
                     logger.info(f"[TOKEN_API] Collected {len(tokens_a)} tokens from Model A")
                 else:
-                    logger.warning("[TOKEN_API] No tokenizer available")
+                    logger.warning("[TOKEN_API] No tokenizer")
             except Exception as e:
                 logger.warning(f"[TOKEN_API] Token collection failed: {e}")
             
