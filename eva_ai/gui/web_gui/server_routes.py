@@ -1511,8 +1511,8 @@ def register_routes(app, web_gui_instance):
                         })
                     else:
                         return jsonify({'error': 'create_dialog not available'}), 500
-else:
-                return jsonify({'error': 'Self-dialog learning not available'}), 500
+                else:
+                    return jsonify({'error': 'Self-dialog learning not available'}), 500
             except Exception as e:
                 logger.error(f"Error triggering self-dialog: {e}")
                 return jsonify({'error': str(e)}), 500
