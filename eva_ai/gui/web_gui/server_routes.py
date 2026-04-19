@@ -41,11 +41,24 @@ def register_routes(app, web_gui_instance):
     # Only self-dialog endpoints kept here to avoid breaking changes
     
     @app.route('/api/self-dialog/monitor', methods=['GET'])
-        
-        if web_gui_instance.brain and hasattr(web_gui_instance.brain, 'components'):
-            system_info['modules'] = list(web_gui_instance.brain.components.keys())
-        
-        return jsonify(system_info)
+    def api_self_dialog_monitor():
+        """Monitor endpoint."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        try:
+            brain = web_gui_instance.brain
+            if brain and hasattr(brain, 'self_dialog_learning'):
+                sdl = brain.self_dialog_learning
+                return jsonify({
+                    'status': 'ok',
+                    'monitor': {
+                        'concepts_in_queue': len(getattr(sdl, '_concept_queue', [])),
+                        'contradictions_in_queue': len(getattr(sdl, '_contradiction_topics', []))
+                    }
+                })
+            return jsonify({'error': 'Not available'}), 500
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
     
     logger.info("=== ROUTES REGISTERED ===")
 
