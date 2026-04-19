@@ -37,10 +37,8 @@ def register_routes(app, web_gui_instance):
     logger.info("=== REGISTERING ROUTES ===")
     logger.info("  web_gui_instance type: {}".format(type(web_gui_instance).__name__ if web_gui_instance else "None"))
 
-    @app.route('/favicon.ico')
-    def favicon():
-        return '', 204
-
+    # Note: favicon.ico already registered in server_routes_core.py
+    
     @app.route('/api/system', methods=['GET'])
     def api_system():
         """System information endpoint."""
