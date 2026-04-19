@@ -783,13 +783,17 @@ class OpenVINOGenerator:
             'lora_adapter': lora_used
         }
     
-    def _create_config(self, max_tokens: int, temperature: float, stop_tokens: Optional[List[str]]):
+    def _create_config(self, max_tokens: int, temperature: float, stop_tokens: Optional[List[str]] = None, enable_thinking: bool = False):
         """Создать GenerationConfig для OpenVINO."""
         import openvino_genai as ov_genai
         
         config = ov_genai.GenerationConfig()
         config.max_new_tokens = max_tokens
         config.temperature = temperature
+        
+        # Enable thinking mode for reasoning (Qwen3.5 feature)
+        if enable_thinking:
+            config.enable_thinking = True
         
         if stop_tokens:
             config.stop_strings = set(stop_tokens)
