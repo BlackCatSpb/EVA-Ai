@@ -1514,8 +1514,69 @@ def register_routes(app, web_gui_instance):
                 else:
                     return jsonify({'error': 'Self-dialog learning not available'}), 500
             except Exception as e:
-                logger.error(f"Error triggering self-dialog: {e}")
-                return jsonify({'error': str(e)}), 500
+                @app.route('/api/eva/introspection', methods=['GET'])
+    def api_eva_introspection():
+        """Self-awareness endpoint - EVA может узнать о своём состоянии."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        
+        try:
+            brain = web_gui_instance.brain
+            if not brain:
+                return jsonify({'error': 'Brain не доступен'}), 500
+            
+            # Собираем информацию о системе
+            introspection = {
+                'components': {},
+                'memory': {},
+                'learning': {},
+                'status': {}
+            }
+            
+            # Компоненты
+            if hasattr(brain, 'components'):
+                for name, comp in brain.components.items():
+                    status = 'unknown'
+                    if hasattr(comp, 'initialized'):
+                        status = 'active' if getattr(comp, 'initialized', False) else 'inactive'
+                    elif hasattr(comp, 'is_running'):
+                        status = 'running' if comp.is_running() else 'stopped'
+                    introspection['components'][name] = {'status': status}
+            
+            # Память
+            if hasattr(brain, 'fractal_graph_v2'):
+                try:
+                    fgv2 = brain.fractal_graph_v2
+                    nodes = getattr(fgv2, 'nodes', {})
+                    introspection['memory']['nodes_count'] = len(nodes)
+                    introspection['memory']['types'] = {}
+                    for node in nodes.values():
+                        t = getattr(node, 'node_type', 'unknown')
+                        introspection['memory']['types'][t] = introspection['memory']['types'].get(t, 0) + 1
+                except Exception as e:
+                    introspection['memory']['error'] = str(e)
+            
+            # Обучение
+            if hasattr(brain, 'self_dialog_learning'):
+                sdl = brain.self_dialog_learning
+                introspection['learning'] = {
+                    'enabled': getattr(sdl, 'enabled', False),
+                    'running': getattr(sdl, 'running', False),
+                    'concepts_queue': len(getattr(sdl, '_concept_queue', [])),
+                    'contradictions_queue': len(getattr(sdl, '_contradiction_topics', []))
+                }
+            
+            # Общий статус
+            introspection['status'] = {
+                'connected': True,
+                'sessions': getattr(web_gui_instance, '_sessions', {}).get('count', 0)
+            }
+            
+            return jsonify({'status': 'ok', 'introspection': introspection})
+            
+        except Exception as e:
+            logger.error(f"Introspection error: {e}")
+            return jsonify({'error': str(e)}), 500
     
     @app.route('/api/self-dialog/monitor', methods=['GET'])
     def api_self_dialog_monitor():

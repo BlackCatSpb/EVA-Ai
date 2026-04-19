@@ -966,6 +966,60 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
         
         return None
     
+    def get_system_introspection(self) -> Dict[str, Any]:
+        """Получить информацию о системе для self-awareness EVA."""
+        introspection = {
+            'status': 'unknown',
+            'components': {},
+            'memory': {'nodes': 0, 'concepts': 0, 'contradictions': 0},
+            'learning': {'active': False, 'queue_size': 0}
+        }
+        
+        if not self.brain:
+            return introspection
+        
+        introspection['status'] = 'active'
+        
+        # Компоненты
+        if hasattr(self.brain, 'components'):
+            for name in self.brain.components:
+                introspection['components'][name] = True
+        
+        # Память
+        if hasattr(self.brain, 'fractal_graph_v2'):
+            try:
+                fg = self.brain.fractal_graph_v2
+                nodes = getattr(fg, 'nodes', {})
+                introspection['memory']['nodes'] = len(nodes)
+                
+                # Считаем концепты и противоречия
+                for node in nodes.values():
+                    t = getattr(node, 'node_type', '')
+                    if t == 'concept':
+                        introspection['memory']['concepts'] += 1
+                    elif getattr(node, 'is_contradiction', False):
+                        introspection['memory']['contradictions'] += 1
+            except:
+                pass
+        
+        # Обучение
+        introspection['learning']['active'] = self.running
+        introspection['learning']['queue_size'] = len(self._concept_queue) + len(self._contradiction_topics)
+        
+        return introspection
+    
+    def ask_self_awareness(self, question: str) -> str:
+        """EVA может задать вопрос о себе."""
+        introspection = self.get_system_introspection()
+        
+        if 'состояние' in question.lower() or 'что ты знаешь' in question.lower():
+            return f"Моё состояние: {introspection['status']}. Компонентов: {len(introspection['components'])}. Концептов в памяти: {introspection['memory']['concepts']}. Противоречий: {introspection['memory']['contradictions']}. Активно обучение: {introspection['learning']['active']}."
+        elif 'компонент' in question.lower():
+            parts = [f"{k}: {v}" for k, v in introspection['components'].items()]
+            return "Мои компоненты: " + ", ".join(parts) if parts else "Нет информации"
+        
+        return f"Я не поняла вопрос. Могу рассказать о своём состоянии или компонентах."
+    
     def _run_graph_curator_after_cycle(self) -> None:
         """
         Запускает GraphCurator после завершения цикла dual circuit.

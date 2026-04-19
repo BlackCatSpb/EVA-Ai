@@ -2706,8 +2706,9 @@
     let streamEnabled = true;
     let currentMonitorTab = 'all';
     
+    let monitorReasoningBuffer = '';  // Буфер для рассуждений в мониторе
+
     function addToMonitor(category, text, type = 'info') {
-        // Добавить текст в монитор (для self-learning)
         const output = $('#monitorOutput');
         if (!output) return;
         
@@ -2715,6 +2716,35 @@
         const empty = output.querySelector('.monitor-empty');
         if (empty) empty.remove();
         
+        // Для reasoning - накапливаем текст и выводим целыми предложениями
+        if (type === 'reasoning') {
+            monitorReasoningBuffer += text;
+            
+            // Проверяем есть ли законченные предложения
+            const sentences = monitorReasoningBuffer.match(/[^.!?]*[.!?]+/g);
+            if (sentences) {
+                // Выводим все законченные предложения
+                for (const sentence of sentences.slice(0, -1)) {
+                    if (sentence.trim()) {
+                        appendToMonitor(output, category, sentence.trim(), 'reasoning');
+                    }
+                }
+                // Оставляем незаконченное в буфере
+                monitorReasoningBuffer = sentences[sentences.length - 1];
+            }
+            return;
+        }
+        
+        // Для других типов - выводим сразу
+        if (monitorReasoningBuffer && type === 'system') {
+            appendToMonitor(output, category, monitorReasoningBuffer.trim(), 'reasoning');
+            monitorReasoningBuffer = '';
+        }
+        
+        appendToMonitor(output, category, text, type);
+    }
+    
+    function appendToMonitor(output, category, text, type) {
         const entry = document.createElement('div');
         entry.className = `monitor-entry monitor-${type}`;
         entry.dataset.category = category;
