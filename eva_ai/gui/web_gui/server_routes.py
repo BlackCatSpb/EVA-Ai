@@ -1522,6 +1522,44 @@ def register_routes(app, web_gui_instance):
                 logger.error(f"Error triggering self-dialog: {e}")
                 return jsonify({'error': str(e)}), 500
     
+    @app.route('/api/self-dialog/monitor', methods=['GET'])
+    def api_self_dialog_monitor():
+        """Получить монитор внутренних рассуждений."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+        
+        try:
+            brain = web_gui_instance.brain
+            if brain and hasattr(brain, 'self_dialog_learning'):
+                sdl = brain.self_dialog_learning
+                
+                # Получаем статистику dual circuit
+                dual_stats = {}
+                if hasattr(sdl, '_get_dual_generator'):
+                    dual_gen = sdl._get_dual_generator()
+                    if dual_gen and hasattr(dual_gen, 'get_stats'):
+                        stats = dual_gen.get_stats()
+                        dual_stats = stats.get('dual_circuit', {})
+                
+                # Статистика очередей
+                queue_info = {
+                    'concepts_in_queue': len(getattr(sdl, '_concept_queue', [])),
+                    'contradictions_in_queue': len(getattr(sdl, '_contradiction_topics', [])),
+                    'dual_circuit_calls': dual_stats.get('calls', 0),
+                    'concepts_extracted': dual_stats.get('concepts_extracted', 0),
+                    'knowledge_saved': dual_stats.get('knowledge_saved', 0),
+                }
+                
+                return jsonify({
+                    'status': 'ok',
+                    'monitor': queue_info
+                })
+            else:
+                return jsonify({'error': 'Self-dialog learning not available'}), 500
+        except Exception as e:
+            logger.error(f"Error getting monitor: {e}")
+            return jsonify({'error': str(e)}), 500
+    
     @app.route('/api/self-dialog/trigger', methods=['POST'])
     def api_self_dialog_trigger():
         """Триггер для запуска самообучения по требованию."""
