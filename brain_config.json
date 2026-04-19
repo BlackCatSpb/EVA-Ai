@@ -11,6 +11,8 @@
     "context_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_pie_architecture\\models\\gguf_models\\ruadapt_qwen3_4b_openvino",
     "llama_cpp_n_ctx": 16384,
     "llama_cpp_threads": 8,
+    "model_a_threads": 8,
+    "model_b_threads": 4,
     "language_mode": "russian_only",
     "use_openvino": true,
     "cpu_device": "CPU",

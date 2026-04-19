@@ -828,6 +828,170 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
             if other_texts:
                 summary_parts.append("Дополнительно: " + "; ".join(other_texts))
         
+        return "\n".join(summary_parts)
+    
+    # ===== DUAL CIRCUIT INTEGRATION - Фаза 3 =====
+    
+    def trigger_self_dialog(self, reason: str = "manual") -> bool:
+        """
+        Триггер для запуска самообучения по требованию.
+        
+        Запускает цикл обработки если есть работа в очереди.
+        
+        Args:
+            reason: Причина триггера ('manual', 'concept', 'contradiction', etc.)
+            
+        Returns:
+            True если запущен
+        """
+        # Проверяем есть ли работа
+        has_work = bool(self._concept_queue) or bool(self._contradiction_topics)
+        
+        if not has_work:
+            logger.info(f"Нет работы в очереди, триггер '{reason}' отклонен")
+            return False
+        
+        logger.info(f"Триггер '{reason}' активирован: {len(self._concept_queue)} концептов, {len(self._contradiction_topics)} противоречий")
+        
+        # Запускаем обработку
+        self._process_with_dual_circuit_batch()
+        
+        return True
+    
+    def _process_with_dual_circuit_batch(self) -> None:
+        """
+        Обрабатывает все концепты и противоречия через generate_dual_circuit.
+        
+        Работает пока есть работа в очереди.
+        После каждого цикла запускает GraphCurator.
+        """
+        processed_count = 0
+        max_iterations = 20  # Защита от бесконечного цикла
+        
+        while processed_count < max_iterations:
+            # Проверяем есть ли работа
+            next_topic = self._get_next_dialog_topic()
+            
+            if not next_topic:
+                logger.info(f"DualCircuit batch завершен: {processed_count} итераций")
+                break
+            
+            try:
+                topic_type = next_topic['type']
+                title = next_topic['title']
+                data = next_topic['data']
+                
+                logger.info(f"Обрабатываем {topic_type}: {title[:50]}...")
+                
+                # Вызываем generate_dual_circuit
+                result = self._run_dual_circuit_for_topic(title, data)
+                
+                if result:
+                    processed_count += 1
+                    
+                    # Извлекаем концепты из рассуждений и добавляем в очередь
+                    if result.get('concepts_extracted'):
+                        for concept in result['concepts_extracted'][:5]:
+                            self.queue_concept_for_dialog(concept, priority=0.6)
+                    
+                    logger.info(f"DualCircuit итерация {processed_count}: сохранено {result.get('saved_to_graph', 0)} в граф")
+                
+            except Exception as e:
+                logger.error(f"Ошибка в _process_with_dual_circuit_batch: {e}")
+                continue
+        
+        # Запускаем GraphCurator после завершения всех итераций
+        if processed_count > 0:
+            self._run_graph_curator_after_cycle()
+    
+    def _run_dual_circuit_for_topic(self, title: str, data: Dict[str, Any]) -> Optional[Dict]:
+        """
+        Запускает generate_dual_circuit для конкретной темы.
+        
+        Args:
+            title: Название темы
+            data: Данные т��мы
+            
+        Returns:
+            Результат generate_dual_circuit или None
+        """
+        # Получаем DualGenerator
+        dual_gen = self._get_dual_generator()
+        
+        if not dual_gen:
+            logger.warning("DualGenerator недоступен")
+            return None
+        
+        # Формируем запрос
+        query = title
+        if data.get('name'):
+            query = f"Исследуй концепт: {data['name']}"
+        elif data.get('concept'):
+            query = f"Разреши противоречие в концепте: {data['concept']}"
+        
+        try:
+            # Вызываем dual circuit
+            result = dual_gen.generate_dual_circuit(
+                query=query,
+                save_to_graph=True,
+                extract_concepts=True
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Ошибка _run_dual_circuit_for_topic: {e}")
+            return None
+    
+    def _get_dual_generator(self):
+        """Получить DualGenerator из brain."""
+        try:
+            if self.brain and hasattr(self.brain, 'two_model_pipeline'):
+                pipeline = self.brain.two_model_pipeline
+                
+                # Пробуем разные атрибуты
+                if hasattr(pipeline, 'dual_generator'):
+                    return pipeline.dual_generator
+                
+                # Для HybridPipelineAdapter
+                if hasattr(pipeline, 'dual_generator'):
+                    return pipeline.dual_generator
+                
+                # Для DualGenerator напрямую
+                if hasattr(pipeline, 'generate_dual_circuit'):
+                    return pipeline
+                    
+        except Exception as e:
+            logger.warning(f"Cannot get DualGenerator: {e}")
+        
+        return None
+    
+    def _run_graph_curator_after_cycle(self) -> None:
+        """
+        Запускает GraphCurator после завершения цикла dual circuit.
+        
+        Точка интеграции с GraphCurator.
+        """
+        if not self.brain:
+            return
+        
+        try:
+            # Пробуем получить graph_curator
+            graph_curator = getattr(self.brain, 'graph_curator', None)
+            
+            if graph_curator and hasattr(graph_curator, 'force_curation'):
+                logger.info("Запускаем GraphCurator после цикла dual circuit")
+                graph_curator.force_curation()
+            else:
+                # Пробуем напрямую через fractal_graph_v2
+                fgv2 = getattr(self.brain, 'fractal_graph_v2', None)
+                if fgv2 and hasattr(fgv2, 'save'):
+                    fgv2.save()
+                    logger.info("FractalGraphV2 сохранен после цикла")
+                    
+        except Exception as e:
+            logger.warning(f"GraphCurator error: {e}")
+        
         return " | ".join(summary_parts)
     
     def _compact_by_truncation(
