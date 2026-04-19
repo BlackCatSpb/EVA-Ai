@@ -1196,29 +1196,30 @@ class HybridKnowledgeDialogManager:
                         
                         if not in_thinking and '<think>' in combined:
                             in_thinking = True
-                            yield {'type': 'reasoning_start', 'is_final': False}
+                            # Model B - self-learning: отправляем в мониторинг
+                            yield {'type': 'self_learning_start', 'is_final': False}
                             after_think = combined.split('<think>')[1] if '<think>' in combined else ''
                             
                             if '</think>' in after_think:
                                 reasoning_content = after_think.split('</think>')[0]
                                 full_reasoning += reasoning_content
-                                yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
-                                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                                yield {'type': 'self_learning_text', 'text': reasoning_content, 'is_final': False}
+                                yield {'type': 'self_learning_end', 'is_final': False, 'full_text': full_reasoning}
                                 in_thinking = False
                             else:
                                 full_reasoning += after_think
-                                yield {'type': 'reasoning_text', 'text': after_think, 'is_final': False}
+                                yield {'type': 'self_learning_text', 'text': after_think, 'is_final': False}
                         
                         elif in_thinking:
                             if '</think>' in combined:
                                 reasoning_content = combined.split('</think>')[0]
                                 full_reasoning += reasoning_content
-                                yield {'type': 'reasoning_text', 'text': reasoning_content, 'is_final': False}
-                                yield {'type': 'reasoning_end', 'is_final': False, 'full_text': full_reasoning}
+                                yield {'type': 'self_learning_text', 'text': reasoning_content, 'is_final': False}
+                                yield {'type': 'self_learning_end', 'is_final': False, 'full_text': full_reasoning}
                                 in_thinking = False
                             else:
                                 full_reasoning += combined
-                                yield {'type': 'reasoning_text', 'text': combined, 'is_final': False}
+                                yield {'type': 'self_learning_text', 'text': combined, 'is_final': False}
                         
                         else:
                             text_buffer += combined

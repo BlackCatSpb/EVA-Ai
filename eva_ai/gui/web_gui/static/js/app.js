@@ -1284,6 +1284,15 @@
                             // Legacy: live reasoning step
                             reasoningSteps.push(data.step);
                             updateLiveReasoning(msgId, reasoningSteps);
+                        } else if (data.type === 'self_learning_start') {
+                            // Model B - self-learning: показываем в мониторе
+                            addToMonitor('selfdialog', '[Начало рассуждений для самообучения]', 'system');
+                        } else if (data.type === 'self_learning_text') {
+                            // Model B - текст рассуждений в монитор
+                            addToMonitor('selfdialog', data.text, 'reasoning');
+                        } else if (data.type === 'self_learning_end') {
+                            // Model B - завершение рассуждений
+                            addToMonitor('selfdialog', '[Завершено]', 'system');
                         } else if (data.type === 'model_complete') {
                             // Model A завершена - НЕ показываем, ждём Model B
                             console.log('[Model A] Завершена, ожидаем Model B...');
@@ -2694,6 +2703,27 @@
     let monitorStream = null;
     let streamEnabled = true;
     let currentMonitorTab = 'all';
+    
+    function addToMonitor(category, text, type = 'info') {
+        // Добавить текст в монитор (для self-learning)
+        const output = $('#monitorOutput');
+        if (!output) return;
+        
+        // Убираем placeholder если есть
+        const empty = output.querySelector('.monitor-empty');
+        if (empty) empty.remove();
+        
+        const entry = document.createElement('div');
+        entry.className = `monitor-entry monitor-${type}`;
+        entry.dataset.category = category;
+        
+        const time = new Date().toLocaleTimeString();
+        const prefix = type === 'reasoning' ? '🤔' : type === 'system' ? '⚙️' : 'ℹ️';
+        entry.innerHTML = `<span class="monitor-time">${time}</span> <span class="monitor-prefix">${prefix}</span> <span class="monitor-text">${text}</span>`;
+        
+        output.appendChild(entry);
+        output.scrollTop = output.scrollHeight;
+    }
     
     function initMonitor() {
         const output = $('#monitorOutput');
