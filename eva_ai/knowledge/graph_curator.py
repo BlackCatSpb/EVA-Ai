@@ -126,7 +126,12 @@ class GraphCurator:
             data = event.data
         elif isinstance(event, dict):
             data = event
+        elif isinstance(event, str):
+            data = {}
         else:
+            data = {}
+        
+        if not isinstance(data, dict):
             data = {}
         
         if data.get('skip_curation'):
