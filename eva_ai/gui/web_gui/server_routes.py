@@ -1511,10 +1511,13 @@ def register_routes(app, web_gui_instance):
                         })
                     else:
                         return jsonify({'error': 'create_dialog not available'}), 500
-                else:
-                    return jsonify({'error': 'Self-dialog learning not available'}), 500
+else:
+                return jsonify({'error': 'Self-dialog learning not available'}), 500
             except Exception as e:
-                @app.route('/api/eva/introspection', methods=['GET'])
+                logger.error(f"Error triggering self-dialog: {e}")
+                return jsonify({'error': str(e)}), 500
+    
+    @app.route('/api/eva/introspection', methods=['GET'])
     def api_eva_introspection():
         """Self-awareness endpoint - EVA может узнать о своём состоянии."""
         if not web_gui_instance:
