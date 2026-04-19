@@ -1159,6 +1159,7 @@ class HybridKnowledgeDialogManager:
                     in_thinking = False
                     text_buffer = ""
                     full_reasoning = ""  # Очищаем reasoning для Model B
+                    error_b = None  # Для диагностики
                     
                     def streamer_b(text: str) -> bool:
                         token_queue.put(('b', text))
@@ -1188,6 +1189,7 @@ class HybridKnowledgeDialogManager:
                         
                         if item[0] == 'error':
                             logger.error(f"Model B generation error: {item[1]}")
+                            error_b = item[1]  # Capture error for reporting
                             break
                         
                         combined = item[1]
@@ -1237,7 +1239,10 @@ class HybridKnowledgeDialogManager:
             
             # Если Model B не удалась - восстанавливаем ответ A
             if not model_b_success:
-                logger.info("Using Model A response (Model B failed)")
+                logger.error(f"MODEL B FAILED - switching to Model A only. Reason: {error_b if error_b else 'Unknown'}")
+                # Отправляем в монитор информацию об ошибке
+                yield {'type': 'self_learning_text', 'text': f'[ОШИБКА Model B: {error_b}]', 'is_final': False}
+                yield {'type': 'self_learning_end', 'is_final': False}
                 full_text.clear()
                 full_text.append(response_a_backup)
                 full_reasoning = ""  # Очищаем reasoning от B
