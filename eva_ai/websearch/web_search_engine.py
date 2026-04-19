@@ -45,15 +45,13 @@ class WebSearchEngine:
             "max_concurrent_requests": 3,
             "use_cache": True,
             "cache_ttl": 86400,  # 24 часа в секундах
-            "active_engines": ["google", "yandex"]
+            "active_engines": ["tavily", "wikipedia"]
         }
         
-        # Активные поисковые системы
+        # Активные поисковые системы (только работающие)
         self.active_search_engines = {
-            "google": True,
-            "yandex": True,
-            "bing": False,
-            "wikipedia": True
+            "tavily": True,  # Tavily API
+            "wikipedia": True  # Wikipedia API
         }
         
         # Database manager for caching
@@ -271,25 +269,21 @@ class WebSearchEngine:
         if expired_keys or len(self.search_cache) > self._cache_max_size:
             logger.info(f"Очищено {len(expired_keys)} записей кэша")
     
-    def set_search_engines(self, use_google: bool = True, use_yandex: bool = True, use_bing: bool = True, use_wikipedia: bool = True):
+    def set_search_engines(self, use_tavily: bool = True, use_wikipedia: bool = True):
         """
-        Устанавливает активные поисковые системы.
+        Устанавливает активные поисковые системы (только Tavily + Wikipedia).
         
         Args:
-            use_google: Использовать Google
-            use_yandex: Использовать Yandex
-            use_bing: Использовать Bing
+            use_tavily: Использовать Tavily API
             use_wikipedia: Использовать Wikipedia
         """
         new_settings = {
-            "google": use_google,
-            "yandex": use_yandex,
-            "bing": use_bing,
+            "tavily": use_tavily,
             "wikipedia": use_wikipedia
         }
         if self.active_search_engines != new_settings:
             self.active_search_engines.update(new_settings)
-            logger.info(f"Поисковые системы обновлены: Google={use_google}, Yandex={use_yandex}, Bing={use_bing}, Wikipedia={use_wikipedia}")
+            logger.info(f"Поисковые системы обновлены: Tavily={use_tavily}, Wikipedia={use_wikipedia}")
         else:
             logger.debug("Настройки поисковых систем не изменились")
     
@@ -422,7 +416,7 @@ class WebSearchEngine:
             }
     
     def _perform_search(self, query: str, max_results: int = None) -> List[SearchResult]:
-        """Выполняет поиск через активные поисковые системы."""
+        """Выполняет поиск через активные поисковые системы (Tavily + Wikipedia)."""
         if max_results is None:
             max_results = self.search_settings["max_results"]
         
@@ -434,12 +428,8 @@ class WebSearchEngine:
             futures = []
             
             for engine in active_engines:
-                if engine == "google":
-                    future = executor.submit(self._search_engines.search_google, query, max_results)
-                elif engine == "yandex":
-                    future = executor.submit(self._search_engines.search_yandex, query, max_results)
-                elif engine == "bing":
-                    future = executor.submit(self._search_engines.search_bing, query, max_results)
+                if engine == "tavily":
+                    future = executor.submit(self._search_tavily, query, max_results)
                 elif engine == "wikipedia":
                     future = executor.submit(self._search_engines.search_wikipedia, query, max_results)
                 else:

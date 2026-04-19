@@ -63,6 +63,15 @@
     ]
   },
   "web_search": {
-    "tavily_api_key": "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"
+    "tavily_api_key": "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",
+    "yandex_api_key": "AQVNzCpDbcWZyFkIHPt1Z-Em4reKfxVgmf9y7k18",
+    "yandex_folder_id": "ajec9gmgtj29c326jsol",
+    "yandex_enabled": false,
+    "yandex_connect_api_key": "726b4a9c-813a-4840-ab82-2a8fffe7d6bd"
+  },
+  "yandex_messenger": {
+    "enabled": false,
+    "oauth_token": "",
+    "self_learning_chat": true
   }
 }
