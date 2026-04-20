@@ -291,9 +291,9 @@ class ResponseGenerator:
                     self.tokenizer = initialized_component.tokenizer
                     logger.info("Токенизатор получен из ComponentInitializationManager")
                 else:
-                    logger.warning("Не удалось получить токенизатор из ComponentInitializationManager")
+                    logger.debug("Токенизатор не получен из ComponentInitializationManager (используем fallback)")
             else:
-                logger.error("Не удалось инициализировать токенизатор через ComponentInitializationManager")
+                logger.debug("ComponentInitializationManager недоступен")
         else:
             # Fallback: обычная инициализация без менеджера
             logger.debug("ComponentInitializationManager недоступен, используем обычную инициализацию")
@@ -358,11 +358,11 @@ class ResponseGenerator:
                             logger.info(f"Токенизатор загружен из {model_path}")
                             return True
                     except Exception as e:
-                        logger.warning(f"Не удалось загрузить токенизатор из {model_path}: {e}")
+                        logger.debug(f"Токенизатор не загружен из {model_path}")
             except Exception as e:
-                logger.warning(f"Ошибка при загрузке токенизатора: {e}")
+                logger.debug(f"Ошибка загрузки токенизатора")
             
-            logger.warning("Не удалось найти токенизатор ни в одном из источников")
+            logger.debug("Токенизатор не найден (используем fallback)")
             return False
 
         except Exception as e:

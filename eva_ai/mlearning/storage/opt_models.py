@@ -265,7 +265,7 @@ def _load_optimized_tokenizer(self, vocab_size: int):
             logger.info("Оптимизированный токенизатор загружен")
             
         except Exception as e:
-            logger.warning(f"Не удалось загрузить токенизатор из фрактального хранилища: {e}")
+            logger.debug(f"Токенизатор не загружен из хранилища")
             self.tokenizer = self._load_fallback_tokenizer()
     else:
         self.tokenizer = self._load_fallback_tokenizer()
@@ -278,7 +278,7 @@ def _load_fallback_tokenizer(self):
         self.tokenizer = AutoTokenizer.from_pretrained('sberbank-ai/rugpt3large_based_on_gpt2')
         logger.info("Запасной токенизатор ruGPT3 загружен")
     except Exception as e:
-        logger.warning(f"Не удалось загрузить запасной токенизатор: {e}")
+        logger.debug(f"Запасной токенизатор не загружен")
         return None
     return self.tokenizer
 

@@ -183,7 +183,7 @@ class HybridKnowledgeDialogManager:
         model_b_path: str = None,
         device: str = "CPU",
         max_history: int = 50,
-        max_tokens: int = 512,
+        max_tokens: int = 4096,  # Model A: 4K токенов
         temperature: float = 0.7,
         enable_validation: bool = True,
         validation_temperature: float = 0.1,
@@ -970,7 +970,7 @@ class HybridKnowledgeDialogManager:
         system_prompt: str = None,
         max_tokens: int = None,
         temperature: float = None,
-        chunk_size: int = 25,
+        chunk_size: int = 5,  # Плавный вывод - маленькие куски
         force_mode: str = None
     ):
         """

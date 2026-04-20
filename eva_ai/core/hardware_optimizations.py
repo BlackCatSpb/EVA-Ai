@@ -122,7 +122,7 @@ def setup_tokenizer_parallelism(config: Optional[dict] = None) -> None:
         os.environ["TOKENIZERS_PARALLELISM"] = "true" if tok_par in ("1", "true", "yes") else "false"
         logger.debug(f"Tokenizers parallelism: {os.environ.get('TOKENIZERS_PARALLELISM')}")
     except Exception as e:
-        logger.warning(f"Не удалось настроить параллелизм токенизатора: {e}")
+        logger.debug(f"Параллелизм токенизатора не настроен")
 
 
 def optimize_cuda_settings(device, config: Optional[dict] = None, deferred_system=None) -> None:

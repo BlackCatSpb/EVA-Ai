@@ -240,7 +240,7 @@ class OpenVINOGenerator:
         device: str = "CPU",
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        n_ctx: int = 4096,
+        n_ctx: int = 16384,  # 16K контекст
         scheduler_config: Optional[Dict] = None,
         performance_hint: str = "LATENCY",
         num_streams: Optional[int] = None,
@@ -338,7 +338,7 @@ class OpenVINOGenerator:
         device: str,
         max_tokens: int = 1024,
         temperature: float = 0.7,
-        n_ctx: int = 4096,
+        n_ctx: int = 16384,
         scheduler_config: Optional[Dict] = None,
         performance_hint: str = "LATENCY",
         num_streams: Optional[int] = None
