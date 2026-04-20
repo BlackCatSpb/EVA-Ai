@@ -115,7 +115,9 @@ class GraphCurator:
             logger.debug("System idle - running curation")
             self._do_curation()
         except Exception as e:
+            import traceback
             logger.error(f"Curation error on idle: {e}")
+            logger.debug(f"Traceback: {traceback.format_exc()}")
     
     def _on_graph_updated(self, event):
         """Обработка обновления графа - отложенный запуск."""
@@ -356,7 +358,9 @@ class GraphCurator:
                     ))
                 
             except Exception as e:
+                import traceback
                 logger.error(f"Curation error: {e}")
+                logger.debug(f"Traceback: {traceback.format_exc()}")
                 self.metrics['last_error'] = str(e)
     
     def _cleanup_garbage(self, storage):

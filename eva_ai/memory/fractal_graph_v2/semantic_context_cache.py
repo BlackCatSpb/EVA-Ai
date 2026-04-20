@@ -460,6 +460,121 @@ class SemanticContextCache:
             return False
 
 
+    def touch(
+        self, 
+        context_id: str, 
+        importance: float = 1.0,
+        access_bonus: float = 0.5
+    ) -> bool:
+        """
+        Обновляет вес контекста при обращении (умная эвикция).
+        
+        Args:
+            context_id: ID контекста.
+            importance: Важность (добавляется к весу).
+            access_bonus: Бонус за обращение.
+            
+        Returns:
+            True если обновлено, False если не найден.
+        """
+        with self._lock:
+            if context_id not in self.contexts:
+                return False
+            
+            entry = self.contexts[context_id]
+            entry.access_count += 1
+            entry.timestamp = time.time()
+            
+            current_weight = entry.metadata.get('_importance_weight', 1.0)
+            entry.metadata['_importance_weight'] = current_weight + importance + access_bonus
+            
+            self.contexts.move_to_end(context_id)
+            return True
+
+    def smart_evict(self) -> Optional[str]:
+        """
+        Умная эвикция - вытесняет элемент с наименьшим весом важности.
+        
+        Returns:
+            ID вытесненного элемента или None.
+        """
+        if not self.contexts:
+            return None
+        
+        min_weight = float('inf')
+        min_id = None
+        
+        for cid, entry in self.contexts.items():
+            weight = entry.metadata.get('_importance_weight', 1.0)
+            recency_bonus = (time.time() - entry.timestamp) / 3600
+            total_weight = weight + recency_bonus
+            
+            if total_weight < min_weight:
+                min_weight = total_weight
+                min_id = cid
+        
+        if min_id:
+            del self.contexts[min_id]
+            self.stats['evictions'] += 1
+            
+            if self.use_faiss and self.index and min_id in self.index_to_id:
+                idx = self.index_to_id.index(min_id)
+                self.index_to_id.pop(idx)
+            
+            return min_id
+        
+        return None
+
+    def add_with_importance(
+        self, 
+        text: str, 
+        importance: float = 1.0,
+        session_id: str = None,
+        metadata: Dict[str, Any] = None
+    ) -> Optional[str]:
+        """
+        Добавить контекст с указанием важности.
+        
+        Args:
+            text: Текст контекста.
+            importance: Важность (чем выше, тем дольше живет в кэше).
+            session_id: ID сессии.
+            metadata: Дополнительные метаданные.
+            
+        Returns:
+            context_id или None.
+        """
+        meta = metadata.copy() if metadata else {}
+        meta['_importance_weight'] = importance
+        
+        return self.add(text, session_id=session_id, metadata=meta)
+
+    def get_weighted_contexts(
+        self, 
+        min_weight: float = 1.0,
+        limit: int = 20
+    ) -> List[str]:
+        """
+        Получить контексты с весом выше порога.
+        
+        Args:
+            min_weight: Минимальный вес.
+            limit: Максимум результатов.
+            
+        Returns:
+            List текстов контекстов.
+        """
+        with self._lock:
+            results = []
+            for entry in self.contexts.values():
+                weight = entry.metadata.get('_importance_weight', 1.0)
+                if weight >= min_weight:
+                    results.append(entry.text)
+                    if len(results) >= limit:
+                        break
+            return results
+
+
 def create_semantic_context_cache(
     max_contexts: int = 1000,
     cache_dir: str = None

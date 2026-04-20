@@ -389,7 +389,24 @@ class OpenVINOGenerator:
             if self.performance_hint:
                 config["PERFORMANCE_HINT"] = self.performance_hint
             
-            if self.num_streams is not None:
+            # Динамическое определение CPU ядер для максимальной производительности
+            if self.device == "CPU":
+                import multiprocessing
+                cpu_count = multiprocessing.cpu_count()
+                # Используем 10 потоков из 12 (баланс для GenAI)
+                streams = min(cpu_count, 10)
+                config["NUM_STREAMS"] = str(streams)
+                logger.info(f"[CPU_OPTIMIZATION] i5-12450H: {streams} streams (of {cpu_count} logical)")
+                
+                # Intel CPU оптимизации - P-cores для вычислений
+                config["INFERENCE_PRECISION_HINT"] = "f32"  # Максимальная точность
+                try:
+                    # CPU_PINNING может не поддерживаться
+                    config["ENABLE_CPU_PINNING"] = "YES"
+                except:
+                    pass
+                
+            elif self.num_streams is not None:
                 config["NUM_STREAMS"] = str(self.num_streams) if self.num_streams != "AUTO" else "AUTO"
             elif self.device == "CPU":
                 config["NUM_STREAMS"] = "AUTO"
@@ -400,8 +417,16 @@ class OpenVINOGenerator:
                 scheduler = ov_genai.SchedulerConfig()
                 if 'cache_size' in self.scheduler_config:
                     scheduler.cache_size = self.scheduler_config['cache_size']
-                if 'max_num_seqs' in self.scheduler_config:
+                
+                # CPU-specific scheduler optimization
+                if self.device == "CPU":
+                    # Увеличиваем параллельную обработку для CPU
+                    cpu_seqs = min(self.scheduler_config.get('max_num_seqs', 4) + 4, 16)
+                    scheduler.max_num_seqs = cpu_seqs
+                    logger.info(f"[CPU_OPTIMIZATION] Scheduler max_seqs={cpu_seqs}")
+                elif 'max_num_seqs' in self.scheduler_config:
                     scheduler.max_num_seqs = self.scheduler_config['max_num_seqs']
+                    
                 if 'max_num_batched_tokens' in self.scheduler_config:
                     scheduler.max_num_batched_tokens = self.scheduler_config['max_num_batched_tokens']
                 if 'enable_prefix_caching' in self.scheduler_config:
@@ -639,7 +664,21 @@ class OpenVINOGenerator:
             # Очищаем от служебных токенов
             text = self._clean_output(result)
             
-            tokens = len(text.split())
+            # Точный подсчёт токенов через токенизатор
+            if self._tokenizer:
+                try:
+                    encoded = self._tokenizer.encode(text)
+                    if hasattr(encoded, 'input_ids'):
+                        tokens = len(encoded.input_ids.tolist()) if hasattr(encoded.input_ids, 'tolist') else len(list(encoded.input_ids))
+                    elif hasattr(encoded, '__len__'):
+                        tokens = len(encoded)
+                    else:
+                        tokens = len(text.split())
+                except:
+                    tokens = len(text.split())
+            else:
+                tokens = len(text.split())
+            
             gen_time = time.time() - start_time
             
             return OpenVINOGenerationResult(
@@ -651,9 +690,13 @@ class OpenVINOGenerator:
             )
             
         except Exception as e:
-            logger.error(f"OpenVINO generation error: {e}")
+            import traceback
+            tb = traceback.format_exc()
+            error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+            logger.error(f"OpenVINO generation error: {error_msg}")
+            logger.debug(f"OpenVINO traceback: {tb}")
             return OpenVINOGenerationResult(
-                text=f"Ошибка генерации: {e}",
+                text=f"Ошибка генерации: {error_msg}",
                 model_used="openvino_gguf",
                 generation_time=time.time() - start_time,
                 tokens_generated=0,
@@ -784,7 +827,7 @@ class OpenVINOGenerator:
         }
     
     def _create_config(self, max_tokens: int, temperature: float, stop_tokens: Optional[List[str]] = None, enable_thinking: bool = False):
-        """Создать GenerationConfig для OpenVINO."""
+        """Создать GenerationConfig для OpenVINO с валидацией."""
         import openvino_genai as ov_genai
         
         config = ov_genai.GenerationConfig()
@@ -793,7 +836,10 @@ class OpenVINOGenerator:
         
         # Enable thinking mode for reasoning (Qwen3.5 feature)
         if enable_thinking:
-            config.enable_thinking = True
+            try:
+                config.enable_thinking = True
+            except Exception as e:
+                logger.warning(f"Thinking mode not supported by model: {e}")
         
         if stop_tokens:
             config.stop_strings = set(stop_tokens)

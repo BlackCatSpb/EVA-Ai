@@ -379,21 +379,23 @@ class UnifiedGenerator:
             context_model = self._model_paths.get(ModelType.CONTEXT)
             
             # NUM_STREAMS = cpu_count для максимальной загрузки
-            num_streams = cpu_count
+            # Intel i5-12450H: 8 ядер, 12 потоков - используем 10 для баланса
+            num_streams = min(cpu_count, 10)
             
-            # LOGIC scheduler - оптимизирован для THROUGHPUT (загрузка CPU)
+            # LOGIC scheduler - маленькие батчи, высокая частота
+            # Intel i5-12450H: маленькие батчи = быстрее response time
             logic_scheduler = {
-                'cache_size': 4,
-                'max_num_seqs': 4,
-                'max_num_batched_tokens': 2048,
+                'cache_size': 3,              # Меньше кэш = быстрее итерации
+                'max_num_seqs': 12,            # Много параллельных слотов
+                'max_num_batched_tokens': 512,  # Маленькие батчи = быстрее
                 'enable_prefix_caching': True
             }
             
-            # CONTEXT scheduler - оптимизирован для длинных контекстов
+            # CONTEXT scheduler - самообучение: средние батчи
             context_scheduler = {
-                'cache_size': 4,
-                'max_num_seqs': 8,
-                'max_num_batched_tokens': 4096,
+                'cache_size': 3,
+                'max_num_seqs': 12,           
+                'max_num_batched_tokens': 1024, 
                 'enable_prefix_caching': True
             }
             

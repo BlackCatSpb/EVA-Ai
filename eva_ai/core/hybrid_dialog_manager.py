@@ -40,6 +40,14 @@ except ImportError:
     OPENVINO_AVAILABLE = False
     logger.warning("OpenVINO GenAI не доступен")
 
+try:
+    from eva_ai.core.generation import GeneratorQueueManager, BatchSplitter, create_batch_splitter
+    GENERATION_AVAILABLE = True
+except ImportError:
+    GENERATION_AVAILABLE = False
+    BatchSplitter = None
+    GeneratorQueueManager = None
+
 
 @dataclass
 class DialogMessage:
@@ -214,6 +222,17 @@ class HybridKnowledgeDialogManager:
         self._use_dual_generator = False  # Флаг: используем DualGenerator
         self._error_b = None  # Для диагностики Model B
         
+        # Batch processing для оптимизации CPU
+        if GENERATION_AVAILABLE and BatchSplitter:
+            self._batch_splitter = create_batch_splitter(
+                max_tokens=1024,
+                strategy="by_sentences",
+                tokenizer=self._tokenizer
+            )
+            logger.info("BatchSplitter initialized for Model B")
+        else:
+            self._batch_splitter = None
+        
         # Callbacks
         self._on_concept_extracted: Optional[Callable] = None
         self._on_contradiction_detected: Optional[Callable] = None
@@ -277,18 +296,20 @@ class HybridKnowledgeDialogManager:
                     generator_b = pipeline.dual_generator.extended
                 
                 # UnifiedGenerator (OpenVINO) - прямой доступ
-                elif hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu and pipeline._openvino_cpu._pipeline:
-                    generator_a = pipeline._openvino_cpu
-                    generator_b = getattr(pipeline, '_openvino_gpu', None)
-                    logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (direct)")
+                elif hasattr(pipeline, '_openvino_cpu') and pipeline._openvino_cpu:
+                    if hasattr(pipeline._openvino_cpu, '_pipeline') and pipeline._openvino_cpu._pipeline:
+                        generator_a = pipeline._openvino_cpu
+                        generator_b = getattr(pipeline, '_openvino_gpu', None)
+                        logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (direct)")
                 
                 # PipelineAdapter (обёртка над UnifiedGenerator)
                 elif hasattr(pipeline, '_generator') and pipeline._generator:
                     ug = pipeline._generator
-                    if hasattr(ug, '_openvino_cpu') and ug._openvino_cpu and ug._openvino_cpu._pipeline:
-                        generator_a = ug._openvino_cpu
-                        generator_b = getattr(ug, '_openvino_gpu', None)
-                        logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (via PipelineAdapter)")
+                    if hasattr(ug, '_openvino_cpu') and ug._openvino_cpu:
+                        if hasattr(ug._openvino_cpu, '_pipeline') and ug._openvino_cpu._pipeline:
+                            generator_a = ug._openvino_cpu
+                            generator_b = getattr(ug, '_openvino_gpu', None)
+                            logger.info("HybridKnowledgeDialogManager: используем UnifiedGenerator (via PipelineAdapter)")
                 
                 # HybridPipelineAdapter (llama.cpp) - НЕ совместимо
                 elif hasattr(pipeline, 'model_a') and pipeline.model_a:
@@ -319,16 +340,20 @@ class HybridKnowledgeDialogManager:
                         use_registry=False
                     )
                 elif generator_a and generator_a._pipeline:
-                    # Если отдельной модели нет - создаём КОПИЮ Model A
-                    # NOTE: Это может работать плохо если модель не thread-safe
-                    logger.warning("HybridKnowledgeDialogManager: Model B = НОВЫЙ инстанс Model A (thread-safe)")
+                    # Создаём ФИЗИЧЕСКУЮ копию Model A для Model B - отдельный инстанс
+                    model_path_a = getattr(generator_a, '_model_path_str', None) or str(model_a_path_obj)
+                    logger.warning(f"HybridKnowledgeDialogManager: Model B = ФИЗИЧЕСКАЯ копия Model A: {model_path_a}")
                     generator_b = OpenVINOGenerator(
-                        model_path=model_a_path_obj,
+                        model_path=model_path_a,
                         device=self.device,
                         max_tokens=2048,
                         temperature=self.temperature,
-                        use_registry=False
+                        use_registry=False,
+                        load_on_init=True  # Принудительная загрузка
                     )
+                    if not generator_b or not generator_b._pipeline:
+                        logger.error("HybridKnowledgeDialogManager: НЕ УДАЛОСЬ создать Model B!")
+                        generator_b = None
                 else:
                     generator_b = generator_a
             
@@ -347,12 +372,14 @@ class HybridKnowledgeDialogManager:
             # Pipeline от Model B
             if generator_b and generator_b._pipeline:
                 self._pipeline_b = generator_b._pipeline
+                logger.info(f"HybridKnowledgeDialogManager: Model B pipeline SET, path={getattr(generator_b, '_model_path_str', 'unknown')}")
                 try:
                     self._tokenizer_b = self._pipeline_b.get_tokenizer()
                 except:
                     self._tokenizer_b = self._tokenizer  # Fallback
                 logger.info("HybridKnowledgeDialogManager: Model B pipeline готов")
             else:
+                logger.warning("HybridKnowledgeDialogManager: Generator B or pipeline_b is None! Using fallback to pipeline A")
                 self._pipeline_b = self._pipeline
                 self._tokenizer_b = self._tokenizer
             
@@ -1009,6 +1036,7 @@ class HybridKnowledgeDialogManager:
             config_a.temperature = temperature
             config_a.do_sample = temperature > 0
             
+            
             def streamer_a(text: str) -> bool:
                 token_queue.put(('a', text))
                 return False
@@ -1151,30 +1179,49 @@ class HybridKnowledgeDialogManager:
                 yield {'type': 'model_start', 'model': 'B', 'lora': lora_name, 'is_final': False}
                 
                 try:
-                    # Формируем расширенный промпт для Model B
+                    # Формируем расширенный промпт для Model B с валидацией контекста
+                    n_ctx = getattr(self, 'n_ctx', 4096)
+                    estimated_tokens = len(prompt.split()) + len(response_a.split()) + len(full_reasoning.split())
+                    
                     if use_token_api and full_reasoning:
-                        # С токенами и рассуждениями
+                        # Проверяем лимит контекста
+                        available_space = n_ctx - max_tokens - 512
+                        if estimated_tokens > available_space:
+                            # Укорачиваем рассуждения
+                            max_reasoning_len = int(available_space * 2 - len(response_a.split()) * 2)
+                            truncated_reasoning = full_reasoning[:max_reasoning_len]
+                            logger.warning(f"[MODEL_B] Context truncated: {estimated_tokens} > {available_space}")
+                        else:
+                            truncated_reasoning = full_reasoning
+                        
                         extended_prompt = (
                             f"{prompt}\n\n"
                             f"Краткий ответ: {response_a}\n\n"
-                            f"Рассуждения: {full_reasoning[:2000]}\n\n"
+                            f"Рассуждения: {truncated_reasoning[:3000]}\n\n"
                             f"Проверь рассуждения и дай развёрнутый ответ:"
                         )
                     elif use_token_api:
-                        # Только с токенами (без рассуждений)
                         extended_prompt = (
                             f"{prompt}\n\n"
                             f"Краткий ответ: {response_a}\n\n"
                             f"Дай развёрнутый и подробный ответ:"
                         )
                     else:
-                        # Старый текстовый режим
-                        extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай развёрнутый и подробный ответ:"
+                        extended_prompt = f"{prompt}\n\nКраткий ответ: {response_a}\n\nДай ��азвёрнутый и подробный ответ:"
                     
                     config_b = ov_genai.GenerationConfig()
                     config_b.max_new_tokens = max_tokens
                     config_b.temperature = temperature
                     config_b.do_sample = temperature > 0
+                    
+                    # Batch processing - разбиваем если промпт длинный
+                    use_batch = False
+                    batch_segments = None
+                    if self._batch_splitter and self._batch_splitter.needs_splitting(extended_prompt):
+                        batch_segments = self._batch_splitter.split(extended_prompt, max_segments=3)
+                        if len(batch_segments) > 1:
+                            use_batch = True
+                            logger.info(f"[MODEL_B] Using batch processing: {len(batch_segments)} segments")
                     
                     in_thinking = False
                     text_buffer = ""
@@ -1182,14 +1229,46 @@ class HybridKnowledgeDialogManager:
                     self._error_b = None  # Для диагностики
                     
                     def streamer_b(text: str) -> bool:
-                        token_queue.put(('b', text))
+                        if text:
+                            token_queue.put(('b', text))
                         return False
                     
                     def generate_model_b():
+                        import traceback
                         try:
-                            self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
+                            logger.info(f"[MODEL_B] Starting generate, pipeline_b={type(self._pipeline_b)}, batch={use_batch}")
+                            if not self._pipeline_b:
+                                raise ValueError("Pipeline B is None!")
+                            
+                            if use_batch and batch_segments:
+                                # Batch processing - последовательно для каждого сегмента
+                                results = []
+                                for i, segment in enumerate(batch_segments):
+                                    logger.info(f"[MODEL_B] Generating segment {i+1}/{len(batch_segments)}")
+                                    seg_result = self._pipeline_b.generate(segment, config_b)
+                                    if seg_result:
+                                        results.append(seg_result)
+                                
+                                # Собираем результат через BatchSplitter
+                                if results and self._batch_splitter:
+                                    final_result = self._batch_splitter.assemble(results)
+                                else:
+                                    final_result = " ".join(str(r) for r in results)
+                                
+                                token_queue.put(('b', final_result))
+                                logger.info(f"[MODEL_B] Batch completed: {len(results)} segments")
+                            else:
+                                # Обычная генерация
+                                result = self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
+                                logger.info(f"[MODEL_B] generate() completed, result type: {type(result)}")
+                                if result is None:
+                                    token_queue.put(('error', "Pipeline B returned None"))
+                                elif not result:
+                                    token_queue.put(('error', "Empty result from pipeline_b.generate()"))
                         except Exception as e:
-                            token_queue.put(('error', str(e)))
+                            tb = traceback.format_exc()
+                            logger.error(f"[MODEL_B] Exception: {type(e).__name__}: {e}\n{tb}")
+                            token_queue.put(('error', f"{type(e).__name__}: {e}\n{tb}"))
                         finally:
                             token_queue.put(('done_b', None))
                     
@@ -1204,12 +1283,22 @@ class HybridKnowledgeDialogManager:
                                 break
                             continue
                         
-                        if item is None or item[0] in ('done_a', 'done_b'):
+                        if item is None:
+                            logger.warning("[MODEL_B] Got None from queue, thread may have crashed")
+                            self._error_b = "Thread crashed or returned None"
+                            break
+                        
+                        if item[0] in ('done_a', 'done_b'):
+                            logger.info(f"[MODEL_B] Got {item[0]}, model_b_success={model_b_success}")
+                            if not model_b_success and item[0] == 'done_b':
+                                self._error_b = "Thread completed but no tokens generated"
+                                logger.warning(f"[MODEL_B] No tokens generated - pipeline returned empty")
                             break
                         
                         if item[0] == 'error':
-                            logger.error(f"Model B generation error: {item[1]}")
-                            self._error_b = item[1]  # Capture error for reporting
+                            error_msg = item[1] if len(item) > 1 and item[1] else "Empty error (thread failed without exception)"
+                            logger.error(f"Model B generation error: {error_msg}")
+                            self._error_b = error_msg
                             break
                         
                         combined = item[1]

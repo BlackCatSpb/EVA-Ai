@@ -5,8 +5,16 @@ import time
 import threading
 from typing import Dict, List, Optional, Any
 import logging
-import torch
-import psutil
+
+try:
+    import torch
+except ImportError:
+    torch = None
+
+try:
+    import psutil
+except ImportError:
+    psutil = None
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +68,7 @@ class HybridTokenCache:
             return
         self._initialized = True
         self.brain = brain
-        self.gpu_available = torch.cuda.is_available()
+        self.gpu_available = torch is not None and torch.cuda.is_available() if torch else False
 
         cfg = getattr(self.brain, 'config', {}) or {}
         hc = cfg.get('hybrid_cache', {}) or {}
