@@ -538,6 +538,14 @@ C:\Users\black\OneDrive\Desktop\FCP\
 | GNN→OV | ✅ | fcp_gnn/convert_gnn_to_ov.py |
 | AdaptiveFusionInjector | ✅ | fcp_gnn/injector.py |
 | ShadowLoRAManagerOV | ✅ | fcp_lora/shadow_lora_ov.py |
+| ToolOrchestrator | ✅ | fcp_tools/orchestrator.py |
+| ThinkingController | ✅ | fcp_tools/thinking_controller.py |
+| ScenarioTCM | ✅ | fcp_tools/scenario_tcm.py |
+| ExpertSystem | ✅ | fcp_tools/expert_system.py |
+| ClarificationGenerator | ✅ | fcp_tools/clarification.py |
+| AttributionReport | ✅ | fcp_tools/attribution.py |
+| SemanticCacheEvictor | ✅ | fcp_tools/semantic_cache_evictor.py |
+| FCPPipelineV15 | ✅ | pipelines/mvp_pipeline_v15.py |
 | AdaLoRA | [ ] | fcp_core/adaptive_lora.py |
 | GraphEncoder | [ ] | fcp/gnn/graph_encoder.py |
 
@@ -554,17 +562,17 @@ C:\Users\black\OneDrive\Desktop\FCP\
 - AdaptiveFusionInjector ✅
 - ShadowLoRAManagerOV ✅
 
-**Phase 3: Advanced** [ ] В очереди
-- SemanticCacheEvictor
-- ClarificationGenerator
-- ScenarioTCM (episodic memory)
-- ExpertSystem (multi-agent)
+**Phase 3: Advanced** ✅ Реализовано
+- SemanticCacheEvictor ✅
+- ClarificationGenerator ✅
+- ScenarioTCM (episodic memory) ✅
+- ExpertSystem (multi-agent) ✅
 
-**Phase 4: Integration** [ ] В очереди
-- Toolformer
-- ThinkingController
-- AttributionReport
-- FCPPipelineV15
+**Phase 4: Integration** ✅ Реализовано
+- Toolformer ✅
+- ThinkingController ✅
+- AttributionReport ✅
+- FCPPipelineV15 ✅
 
 ### Модели
 
