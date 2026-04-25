@@ -217,138 +217,75 @@ def _init_llama_cpp(brain):
         brain.llama_cpp_deployment = None
 
 
-def _init_two_model_pipeline(brain):
-    """Инициализация Two-Model Pipeline с поддержкой гибридного режима."""
-    brain.two_model_pipeline = None
-    brain.two_model_pipeline_ready = False
-    brain.fractal_memory = None
+def _init_fcp_pipeline(brain):
+    """Инициализация FCPPipelineV15 - основной и единственный пайплайн генерации.
+    
+    FCPPipelineV15 включает:
+    - OpenVINO GenAI с ruadapt_qwen3_4b
+    - GNN инъекция на всех 32 слоях
+    - LoRA management (ShadowLoRAManagerOV)
+    - ToolOrchestrator, ThinkingController
+    - LearningGraphManager, GraphCurator
+    - ScenarioTCM, ExpertSystem
+    """
+    brain.fcp_pipeline = None
+    brain.fcp_pipeline_ready = False
     
     try:
-        model_config = brain.config.get('model', {})
+        fcp_config = brain.config.get('fcp_pipeline', {})
         
-        # Получаем режим работы
-        # 'dual' - DualGenerator с 2 физическими моделями (БЫСТРО, рекомендуется)
-        # 'fractal' - FractalPipeline (новый)
-        # 'recursive' - RecursiveModelPipeline (старый)
-        # 'hybrid' - FractalPipeline + fallback на RecursiveModelPipeline
-        pipeline_mode = model_config.get('pipeline_mode', 'fractal')
-        
-        # ПРОВЕРКА: Если используем UnifiedGenerator - пропускаем
-        if model_config.get('use_unified_generator', True):
-            query_logger.info("Two-Model Pipeline: используем UnifiedGenerator (skip HybridPipelineAdapter)")
+        if not fcp_config.get('enabled', True):
+            query_logger.info("FCPPipelineV15 отключён в конфигурации")
             return
         
-        # Проверяем нужен ли pipeline
-        if not model_config.get('use_two_model_pipeline', False):
-            query_logger.info("Two-Model Pipeline отключён в конфигурации")
-            return
-
-        # Инициализируем fractal_memory
-        try:
-            from eva_ai.memory.unified_fractal_memory import UnifiedFractalMemory
-            fractal_dir = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                "memory", "fractal_torch_storage", "unified_memory"
-            )
-            brain.fractal_memory = UnifiedFractalMemory(
-                storage_dir=fractal_dir,
-                config=brain.config.get('fractal_memory', {})
-            )
-        except Exception as e:
-            query_logger.warning(f"UnifiedFractalMemory не инициализирован: {e}")
-            brain.fractal_memory = None
-
-        # Получаем пути к моделям
-        model_a_path = model_config.get('model_a_gguf_path', '')
-        model_b_path = model_config.get('model_b_gguf_path', '')
-        model_c_path = model_config.get('model_c_gguf_path', '')
-        n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
-        n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 12)
-
-        # Проверяем пути
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        if not os.path.isabs(model_a_path):
-            model_a_path = os.path.join(project_root, model_a_path)
-        if not os.path.isabs(model_b_path):
-            model_b_path = os.path.join(project_root, model_b_path)
-        if model_c_path and not os.path.isabs(model_c_path):
-            model_c_path = os.path.join(project_root, model_c_path)
-
-        if not os.path.exists(model_a_path):
-            query_logger.error(f"Model A file not found: {model_a_path}")
-            return
-        if not os.path.exists(model_b_path):
-            model_b_path = model_a_path
-
-        # Создаём HybridPipelineAdapter
-        try:
-            from eva_ai.core.hybrid_pipeline_adapter import HybridPipelineAdapter
-            
-            adapter_kwargs = {
-                'model_a_path': model_a_path,
-                'model_b_path': model_b_path,
-                'model_c_path': model_c_path if model_c_path and os.path.exists(model_c_path) else None,
-                'n_ctx': n_ctx,
-                'n_threads': n_threads,
-                'mode': pipeline_mode,
-                'load_models': True
-            }
-            
-            if brain.fractal_memory:
-                adapter_kwargs['fractal_graph'] = brain.fractal_memory
-            
-            # Передаем brain для доступа к компактификации контекста
-            adapter_kwargs['brain'] = brain
-            
-            brain.two_model_pipeline = HybridPipelineAdapter(**adapter_kwargs)
-            brain.two_model_pipeline_ready = True
-            
-            query_logger.info(f"HybridPipelineAdapter инициализирован: mode={pipeline_mode}")
-            
-        except Exception as e:
-            query_logger.error(f"Ошибка инициализации HybridPipelineAdapter: {e}")
-            # Fallback на старый RecursiveModelPipeline
-            try:
-                from eva_ai.core.recursive_model_pipeline import RecursiveModelPipeline
-                pipeline_kwargs = {
-                    'model_a_path': model_a_path,
-                    'model_b_path': model_b_path,
-                    'n_ctx': n_ctx,
-                    'n_threads': n_threads
-                }
-                if model_c_path and os.path.exists(model_c_path):
-                    pipeline_kwargs['model_c_path'] = model_c_path
-                if brain.fractal_memory:
-                    pipeline_kwargs['fractal_memory'] = brain.fractal_memory
-                brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)
-                brain.two_model_pipeline.load_models()
-                brain.two_model_pipeline_ready = True
-                query_logger.info("Fallback на RecursiveModelPipeline")
-            except Exception as e2:
-                query_logger.error(f"Fallback тоже не работает: {e2}")
-                return
-
-        query_logger.info(f"Two-Model Pipeline готов к работе! (mode={pipeline_mode})")
-
+        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        
+        model_path = fcp_config.get('model_path')
+        if not model_path:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            model_path = os.path.join(project_root, 'models', 'ruadapt_qwen3_4b_openvino_ModelB')
+        
+        graph_path = fcp_config.get('graph_path')
+        gnn_ov_path = fcp_config.get('gnn_ov_path')
+        lora_dir = fcp_config.get('lora_dir')
+        
+        pipeline = FCPPipelineV15(
+            model_path=model_path,
+            graph_path=graph_path,
+            gnn_ov_path=gnn_ov_path,
+            lora_dir=lora_dir
+        )
+        
+        brain.fcp_pipeline = pipeline
+        brain.fcp_pipeline_ready = True
+        
+        query_logger.info(f"FCPPipelineV15 инициализирован: model={model_path}")
+        
         try:
             from eva_ai.core.event_bus import Event, EventTypes
             if brain.events:
                 brain.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
-                    "component": "TwoModelPipeline",
-                    "model_a": model_a_path,
-                    "model_b": model_b_path,
-                    "n_ctx": n_ctx,
-                    "n_threads": n_threads,
-                    "mode": pipeline_mode,
+                    "component": "FCPPipelineV15",
+                    "model_path": model_path,
                     "ready": True
                 })
         except Exception:
             pass
+        
     except Exception as e:
-        query_logger.error(f"Ошибка инициализации Two-Model Pipeline: {e}")
-        brain.two_model_pipeline = None
+        query_logger.error(f"Ошибка инициализации FCPPipelineV15: {e}")
+        brain.fcp_pipeline = None
+        brain.fcp_pipeline_ready = False
+
+
+def _init_two_model_pipeline(brain):
+    """DEPRECATED - используюется FCPPipelineV15 вместо Two-Model Pipeline.
+    
+    Эта функция сохранена для обратной совместимости но НЕ инициализирует старый пайплайн.
+    """
+    brain.two_model_pipeline = None
     brain.two_model_pipeline_ready = False
-    brain.fractal_memory = None
+    query_logger.info("Two-Model Pipeline DEPRECATED - используется FCPPipelineV15")
     
     try:
         model_config = brain.config.get('model', {})
@@ -942,114 +879,69 @@ class ComponentMixin:
 
 
 def _init_unified_generator(brain):
-    '''Инициализация UnifiedGenerator (Pie-based architecture).'''
+    '''DEPRECATED - используется FCPPipelineV15.
+    
+    FCPPipelineV15 - основной и единственный пайплайн генерации.
+    '''
     brain.two_model_pipeline = None
     brain.two_model_pipeline_ready = False
+    brain.fcp_pipeline = None
+    brain.fcp_pipeline_ready = False
     
     try:
-        model_config = brain.config.get('model', {})
+        fcp_config = brain.config.get('fcp_pipeline', {})
+        query_logger.info(f"FCP config: {fcp_config}")
         
-        # Проверяем включён ли unified generator
-        if not model_config.get('use_unified_generator', True):
-            query_logger.info('UnifiedGenerator отключён в конфигурации, используем legacy pipeline')
-            # Fallback на старую инициализацию
-            _init_two_model_pipeline(brain)
+        if not fcp_config:
+            query_logger.warning("FCP config empty or not found")
+        
+        if not fcp_config.get('enabled', True):
+            query_logger.info("FCPPipelineV15 disabled")
             return
         
-        # Получаем пути к трем моделям: LOGIC, CONTEXT и CODER
-        logic_model_path = model_config.get('logic_model_path')
-        context_model_path = model_config.get('context_model_path')
+        # Debug: проверяем импорт
+        query_logger.info("Importing FCPPipelineV15...")
+        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        query_logger.info("Import OK")
         
-        # Если пути не указаны, используем defaults
-        if not logic_model_path or not context_model_path:
-            try:
-                from eva_ai.core.pie_model_paths import get_pie_model_path
-                # LOGIC и CONTEXT - ruadapt_qwen3_4b
-                if not logic_model_path:
-                    logic_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
-                if not context_model_path:
-                    context_model_path = get_pie_model_path('ruadapt_qwen3_4b', 'condensed')
-            except Exception as e:
-                query_logger.warning(f'Could not load model paths: {e}')
-                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                if not logic_model_path:
-                    logic_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 'Q4_K_M.gguf')
-                if not context_model_path:
-                    context_model_path = os.path.join(project_root, 'eva_pie_architecture', 'models', 'gguf_models', 'Q4_K_M.gguf')
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
-        # Проверяем существование файлов
-        if not os.path.exists(logic_model_path):
-            query_logger.error(f'LOGIC model not found: {logic_model_path}')
-            return
-        if not os.path.exists(context_model_path):
-            query_logger.error(f'CONTEXT model not found: {context_model_path}')
+        model_path = fcp_config.get('model_path')
+        if not model_path:
+            model_path = os.path.join(project_root, 'models', 'ruadapt_qwen3_4b_openvino_ModelB')
+        
+        query_logger.info(f"Model path: {model_path}, exists: {os.path.exists(model_path)}")
+        
+        if not os.path.exists(model_path):
+            query_logger.error(f"Model not found: {model_path}")
             return
         
-        n_ctx = model_config.get('llama_cpp_n_ctx', 32768)
-        n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 4)
+        graph_path = fcp_config.get('graph_path')
+        gnn_ov_path = fcp_config.get('gnn_ov_path')
+        lora_dir = fcp_config.get('lora_dir')
         
-        # OpenVINO настройки
-        use_openvino = model_config.get('use_openvino', False)
-        cpu_device = model_config.get('cpu_device', 'CPU')
-        gpu_device = model_config.get('gpu_device', 'GPU.0')
-        
-        from eva_ai.core.pipeline_adapter import create_pipeline_adapter
-        
-        adapter = create_pipeline_adapter(
-            logic_model_path=logic_model_path,
-            context_model_path=context_model_path,
-            n_ctx=n_ctx,
-            n_threads=n_threads,
-            fractal_graph=getattr(brain, 'fractal_graph_v2', None),
-            brain=brain,
-            use_openvino=use_openvino,
-            cpu_device=cpu_device,
-            gpu_device=gpu_device
+        query_logger.info("Creating FCPPipelineV15 instance...")
+        pipeline = FCPPipelineV15(
+            model_path=model_path,
+            graph_path=graph_path,
+            gnn_ov_path=gnn_ov_path,
+            lora_dir=lora_dir
         )
+        query_logger.info(f"FCPPipelineV15 created: {type(pipeline)}")
         
-        if adapter:
-            brain.two_model_pipeline = adapter
-            brain.two_model_pipeline_ready = True
-            query_logger.info('UnifiedGenerator инициализирован')
-            query_logger.info(f'  OpenVINO: {use_openvino}')
-            query_logger.info(f'  CPU device: {cpu_device} (Logic/Context)')
-            query_logger.info(f'  GPU device: {gpu_device} (Embeddings)')
-            query_logger.info(f'  LOGIC: {logic_model_path}')
-            query_logger.info(f'  CONTEXT: {context_model_path}')
-            
-            # Инициализация LoRA адаптеров
-            try:
-                lora_config = brain.config.get('lora', {})
-                if lora_config.get('enabled', False):
-                    lora_dir = lora_config.get('adapters_dir')
-                    lora_alpha = lora_config.get('default_alpha', 0.7)
-                    if lora_dir and os.path.exists(lora_dir):
-                        # Проверяем тип two_model_pipeline
-                        if hasattr(brain.two_model_pipeline, 'init_lora_adapters'):
-                            # UnifiedGenerator - напрямую
-                            results = brain.two_model_pipeline.init_lora_adapters(lora_dir, lora_alpha)
-                            loaded_count = sum(1 for v in results.values() if v)
-                            query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров из {lora_dir}')
-                        else:
-                            # HybridPipelineAdapter - пробуем через _openvino_cpu
-                            ug = getattr(brain.two_model_pipeline, '_openvino_cpu', None) or getattr(brain.two_model_pipeline, '_generator', None)
-                            if ug and hasattr(ug, 'init_lora_adapters'):
-                                results = ug.init_lora_adapters(lora_dir, lora_alpha)
-                                loaded_count = sum(1 for v in results.values() if v)
-                                query_logger.info(f'[LoRA] Загружено {loaded_count} адаптеров')
-                            else:
-                                query_logger.info('[LoRA] Pipeline не поддерживает LoRA')
-                    else:
-                        query_logger.info('[LoRA] Директория не найдена, LoRA отключены')
-                else:
-                    query_logger.info('[LoRA] Отключены в конфиге')
-            except Exception as e:
-                query_logger.warning(f'[LoRA] Ошибка инициализации: {e}')
-        else:
-            query_logger.error('Failed to create PipelineAdapter')
-            
+        brain.fcp_pipeline = pipeline
+        brain.fcp_pipeline_ready = True
+        brain.two_model_pipeline = pipeline
+        brain.two_model_pipeline_ready = True
+        
+        query_logger.info(f"FCPPipelineV15 ready!")
+        
     except Exception as e:
-        query_logger.error(f'Ошибка инициализации UnifiedGenerator: {e}')
+        import traceback
+        query_logger.error(f"ERROR: {e}")
+        query_logger.error(traceback.format_exc())
+        brain.fcp_pipeline = None
+        brain.fcp_pipeline_ready = False
         brain.two_model_pipeline = None
         brain.two_model_pipeline_ready = False
 
@@ -1073,7 +965,14 @@ def _init_hybrid_dialog_manager(brain):
         
         model_config = brain.config.get('model', {})
         
-        # Получаем пути к обеим моделям
+        # Check FCP first (новый единый пайплайн)
+        if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline and brain.fcp_pipeline.pipeline:
+            model_a_path = brain.fcp_pipeline.model_path
+            if model_a_path:
+                query_logger.info(f'  FCP Model: {model_a_path}')
+                return
+        
+        # Legacy: two_model_pipeline
         model_a_path = model_config.get('logic_model_path', '')
         model_b_path = model_config.get('model_b_openvino_path', '')
         

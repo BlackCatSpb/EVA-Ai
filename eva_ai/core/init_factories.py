@@ -696,6 +696,49 @@ def create_enhanced_reasoning_engine(initializer):
     return None
 
 
+def create_fcp_pipeline(initializer):
+    """Создаёт FCPPipelineV15 - основной FCP пайплайн с GNN инъекцией."""
+    try:
+        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        
+        config = initializer.core_brain.config.get('fcp_pipeline', {})
+        
+        if not config.get('enabled', False):
+            initializer.logger.info("FCPPipelineV15 disabled in config")
+            return None
+        
+        model_path = config.get('model_path')
+        if not model_path:
+            model_path = os.path.join(
+                getattr(initializer.core_brain, 'cache_dir', './cache'),
+                'models',
+                'ruadapt_qwen3_4b_openvino'
+            )
+        
+        graph_path = config.get('graph_path')
+        gnn_ov_path = config.get('gnn_ov_path')
+        lora_dir = config.get('lora_dir')
+        
+        pipeline = FCPPipelineV15(
+            model_path=model_path,
+            graph_path=graph_path,
+            gnn_ov_path=gnn_ov_path,
+            lora_dir=lora_dir
+        )
+        
+        initializer.core_brain.fcp_pipeline = pipeline
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['fcp_pipeline'] = pipeline
+        
+        initializer.logger.info("[OK] FCPPipelineV15 создан")
+        return pipeline
+        
+    except Exception as e:
+        initializer.logger.error(f"[FAIL] Ошибка создания FCPPipelineV15: {e}", exc_info=True)
+        initializer.failed_components.add('fcp_pipeline')
+        return None
+
+
 def register_all_factories(initializer):
     """Registers all component factories on the given initializer instance."""
     initializer.component_factories = {
@@ -722,6 +765,7 @@ def register_all_factories(initializer):
         'fractal_storage': lambda: create_fractal_storage(initializer),
         'self_reasoning_engine': lambda: create_self_reasoning_engine(initializer),
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
+        'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
     }
 
     initializer.logger.info(f"Зарегистрировано {len(initializer.component_factories)} фабрик компонентов")

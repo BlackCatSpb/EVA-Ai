@@ -19,28 +19,10 @@ def register_routes(app, web_gui_instance):
         model_status = {
             'pipeline_ready': False,
             'models': {
-                'model_a': {
-                    'name': 'Qwen 2.5 3B Instruct',
-                    'role': 'Логика и факты',
-                    'loaded': False,
-                    'n_ctx': 2048,
-                    'temperature': 0.3
-                },
-                'model_b': {
-                    'name': 'Qwen 2.5 3B Instruct',
-                    'role': 'Развитие мысли',
-                    'loaded': False,
-                    'n_ctx': 2048,
-                    'temperature': 0.3
-                },
-                'model_c': {
-                    'name': 'Qwen 2.5 Coder 1.5B Instruct',
-                    'role': 'Генерация кода',
-                    'loaded': False,
-                    'n_ctx': 2048,
-                    'temperature': 0.1,
-                    'lazy_load': True
-                }
+                'model_a': {'loaded': False},
+                'model_b': {'loaded': False},
+                'model_c': {'loaded': False},
+                'fcp': {'loaded': False}
             },
             'fractal_memory': {
                 'enabled': False,
@@ -54,7 +36,10 @@ def register_routes(app, web_gui_instance):
         try:
             brain = web_gui_instance.brain
             if brain:
-                if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
+                if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline and brain.fcp_pipeline.pipeline:
+                    model_status['pipeline_ready'] = True
+                    model_status['models']['fcp']['loaded'] = True
+                elif hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
                     pipeline = brain.two_model_pipeline
                     model_status['pipeline_ready'] = True
                     model_status['models']['model_a']['loaded'] = pipeline.model_a is not None
@@ -95,35 +80,42 @@ def register_routes(app, web_gui_instance):
             brain = web_gui_instance.brain
             if brain and hasattr(brain, 'fractal_memory') and brain.fractal_memory:
                 fm = brain.fractal_memory
-
-                for node_id, node in fm.nodes.items():
-                    if 'model::' in node_id:
-                        ctx = getattr(node, 'context', {})
-                        node_type = ctx.get('node_type', 'unknown')
-                        level = getattr(node, 'level', 0)
-
-                        graph_data['nodes'].append({
-                            'id': node_id,
-                            'label': node_type,
-                            'level': level,
-                            'group': node_type,
-                            'size': max(5, 20 - level * 3),
-                            'content': getattr(node, 'content', '')[:100]
-                        })
-
-                for edge_id, edge in fm.edges.items():
-                    graph_data['edges'].append({
-                        'from': edge.source_id,
-                        'to': edge.target_id,
-                        'relation': edge.relation_type
-                    })
-
-                graph_data['stats'] = {
-                    'total_nodes': len(fm.nodes),
-                    'model_nodes': len([n for n in graph_data['nodes'] if 'model::' in n.get('id', '')]),
-                    'total_edges': len(fm.edges)
-                }
+                graph_data['nodes'] = fm.get_all_nodes()
+                graph_data['edges'] = fm.get_all_edges()
+                stats = fm.get_stats()
+                graph_data['stats'] = stats
         except Exception as e:
             logger.error(f"Error getting fractal graph: {e}")
 
         return jsonify(graph_data)
+
+    @app.route('/api/model-load', methods=['POST'])
+    def api_model_load():
+        """Загрузить модель по требованию."""
+        if not web_gui_instance:
+            return jsonify({'error': 'Сервер не инициализирован'}), 500
+
+        data = request.get_json() or {}
+        model_id = data.get('model_id', '')
+
+        try:
+            brain = web_gui_instance.brain
+            if not brain:
+                return jsonify({'error': 'Brain не инициализирован'}), 500
+
+            if model_id == 'model_a':
+                if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
+                    brain.two_model_pipeline._ensure_model_a_loaded()
+                    return jsonify({'success': True, 'model': 'model_a'})
+            elif model_id == 'model_b':
+                if hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
+                    brain.two_model_pipeline._ensure_model_b_loaded()
+                    return jsonify({'success': True, 'model': 'model_b'})
+            elif model_id == 'fcp':
+                if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline:
+                    return jsonify({'success': True, 'model': 'fcp'})
+
+            return jsonify({'error': 'Модель не найдена'}), 404
+        except Exception as e:
+            logger.error(f"Error loading model: {e}")
+            return jsonify({'error': str(e)}), 500

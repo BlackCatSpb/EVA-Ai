@@ -220,6 +220,7 @@ class HybridKnowledgeDialogManager:
         self._scheduler_config = None
         self._initialized = False
         self._use_dual_generator = False  # Флаг: используем DualGenerator
+        self._fmf_mode = False  # Флаг: используем FMF Pipeline
         self._error_b = None  # Для диагностики Model B
         
         # Batch processing для оптимизации CPU
@@ -287,8 +288,16 @@ class HybridKnowledgeDialogManager:
             if self.brain and hasattr(self.brain, 'two_model_pipeline'):
                 pipeline = self.brain.two_model_pipeline
                 
+                # FMF Pipeline - используем напрямую (fmf_only режим)
+                if hasattr(pipeline, 'fmf_pipeline') and pipeline.fmf_pipeline:
+                    logger.info("HybridKnowledgeDialogManager: используем FMF Pipeline")
+                    self._use_dual_generator = False
+                    self._fmf_mode = True
+                    generator_a = pipeline.fmf_pipeline
+                    generator_b = None  # FMF сам всё делает
+                
                 # DualGenerator - используем ЕЁ!
-                if hasattr(pipeline, 'dual_generator') and pipeline.dual_generator:
+                elif hasattr(pipeline, 'dual_generator') and pipeline.dual_generator:
                     logger.info("HybridKnowledgeDialogManager: используем DualGenerator")
                     self._use_dual_generator = True
                     # DualGenerator сам управляет 2 моделями
@@ -348,8 +357,7 @@ class HybridKnowledgeDialogManager:
                         device=self.device,
                         max_tokens=2048,
                         temperature=self.temperature,
-                        use_registry=False,
-                        load_on_init=True  # Принудительная загрузка
+                        use_registry=False
                     )
                     if not generator_b or not generator_b._pipeline:
                         logger.error("HybridKnowledgeDialogManager: НЕ УДАЛОСЬ создать Model B!")
@@ -1120,6 +1128,20 @@ class HybridKnowledgeDialogManager:
             
             response_a = ''.join(full_text)
             
+            # === FMF Mode: пропускаем Model B ===
+            if getattr(self, '_fmf_mode', False):
+                yield {
+                    'type': 'complete',
+                    'text': response_a,
+                    'is_final': True,
+                    'tokens_count': len(response_a.split()),
+                    'elapsed_ms': int((time.time() - start_time) * 1000),
+                    'reasoning': '',
+                    'mode': strategy['mode'],
+                    'lora': lora_name
+                }
+                return
+            
             # === СБОР ТОКЕНОВ ОТ MODEL A ===
             use_token_api = False
             try:
@@ -1258,13 +1280,9 @@ class HybridKnowledgeDialogManager:
                                 token_queue.put(('b', final_result))
                                 logger.info(f"[MODEL_B] Batch completed: {len(results)} segments")
                             else:
-                                # Обычная генерация
-                                result = self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
-                                logger.info(f"[MODEL_B] generate() completed, result type: {type(result)}")
-                                if result is None:
-                                    token_queue.put(('error', "Pipeline B returned None"))
-                                elif not result:
-                                    token_queue.put(('error', "Empty result from pipeline_b.generate()"))
+                                # Обычная генерация - результат идёт через streamer callback, NOT через return value!
+                                self._pipeline_b.generate(extended_prompt, config_b, streamer=streamer_b)
+                                logger.info(f"[MODEL_B] generate() completed, result received via streamer")
                         except Exception as e:
                             tb = traceback.format_exc()
                             logger.error(f"[MODEL_B] Exception: {type(e).__name__}: {e}\n{tb}")

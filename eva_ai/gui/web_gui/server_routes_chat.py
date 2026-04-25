@@ -138,8 +138,18 @@ def register_chat_routes(app, web_gui_instance):
                     logger.info(f"web_gui_instance: {web_gui_instance}")
                     logger.info(f"web_gui_instance.brain: {getattr(web_gui_instance, 'brain', 'NO ATTR')}")
                     
-                    # 1. Проверяем HybridKnowledgeDialogManager
+                    # 1. Priority: FCPPipelineV15 (основной пайплайн)
                     if (web_gui_instance and 
+                        hasattr(web_gui_instance, 'brain') and
+                        web_gui_instance.brain and
+                        hasattr(web_gui_instance.brain, 'fcp_pipeline') and
+                        web_gui_instance.brain.fcp_pipeline and
+                        web_gui_instance.brain.fcp_pipeline.pipeline):
+                        pipeline = web_gui_instance.brain.fcp_pipeline
+                        logger.info(f"Using FCPPipelineV15: {type(pipeline)}")
+                    
+                    # 2. Fallback: HybridKnowledgeDialogManager
+                    elif (web_gui_instance and 
                         hasattr(web_gui_instance, 'brain') and
                         web_gui_instance.brain and
                         hasattr(web_gui_instance.brain, 'hybrid_dialog_manager') and
@@ -148,7 +158,7 @@ def register_chat_routes(app, web_gui_instance):
                         dialog_manager = web_gui_instance.brain.hybrid_dialog_manager
                         logger.info(f"Using HybridKnowledgeDialogManager: {type(dialog_manager)}")
                     
-                    # 2. Fallback на two_model_pipeline
+                    # 3. Fallback на two_model_pipeline
                     elif (web_gui_instance and 
                         hasattr(web_gui_instance, 'brain') and
                         web_gui_instance.brain and
@@ -179,6 +189,49 @@ def register_chat_routes(app, web_gui_instance):
                             
                         except Exception as e:
                             logger.error(f"HybridKnowledgeDialogManager error: {e}")
+                            yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
+                            return
+                    
+                    # FCPPipelineV15 - использует generate (не streaming)
+                    elif pipeline and hasattr(pipeline, 'generate') and hasattr(pipeline, 'model_path'):
+                        logger.info("Using FCPPipelineV15.generate()...")
+                        try:
+                            response = pipeline.generate(
+                                message,
+                                max_new_tokens=4096,
+                                enable_thinking=True,
+                                enable_injection=False,
+                                use_lora=True
+                            )
+                            
+                            yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
+                            
+                            # Разделяем thinking и ответ
+                            thinking_start = response.find("<|im_start|>assistant\n<think>\n")
+                            thinking_end = response.find("</think>")
+                            
+                            if thinking_start >= 0 and thinking_end > thinking_start:
+                                thinking_part = response[thinking_start+len("<|im_start|>assistant\n<think>\n"):thinking_end]
+                                final_part = response[thinking_end+len("</think>\n"):]
+                            else:
+                                thinking_part = ""
+                                final_part = response
+                            
+                            # Отправляем рассуждения если есть
+                            if thinking_part:
+                                yield f"data: {json.dumps({'type': 'thinking', 'text': thinking_part.strip()})}\n\n"
+                            
+                            # Отправляем финальный ответ по словам
+                            final_clean = final_part.strip()
+                            words = final_clean.split(' ')
+                            for i, word in enumerate(words):
+                                chunk = ' ' + word if i > 0 else word
+                                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
+                            
+                            yield f"data: {json.dumps({'type': 'done', 'timestamp': time.time()})}\n\n"
+                            return
+                        except Exception as e:
+                            logger.error(f"FCPPipelineV15 generate error: {e}")
                             yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
                             return
                     

@@ -1,0 +1,313 @@
+# План оптимизации FractalQwenGenerator с сохранением режима размышлений
+
+## 1. Принятое решение
+
+Режим размышлений (`enable_thinking=True`) остаётся включённым по умолчанию, так как он обеспечивает более качественные и структурированные ответы. Все остальные оптимизации, выявленные в ходе тестирования FMF, будут реализованы для снижения накладных расходов на работу с графом.
+
+## 2. Перечень оптимизаций (без отключения thinking)
+
+| № | Оптимизация | Ожидаемый эффект |
+|---|-------------|------------------|
+| 1 | Асинхронное обновление L1/L2 (гарантированно фоновое) | Устранение блокировки основного потока |
+| 2 | Кэширование эмбеддингов запросов | Сокращение повторных вычислений SentenceTransformer |
+| 3 | Оптимизация LoRA‑менеджера (кэш отсутствующих адаптеров) | Уменьшение операций с файловой системой |
+| 4 | Исправление дубликатов узлов в графе | Чистота данных, незначительное ускорение поиска |
+| 5 | Исправление предупреждения токенизатора (`fix_mistral_regex=True`) | Корректная токенизация |
+| 6 | Кэширование `apply_chat_template` | Сокращение времени форматирования промпта |
+
+## 3. Детальные изменения в коде
+
+### 3.1. Асинхронное обновление L1/L2
+
+Убедимся, что обновление профиля и статистики правил **гарантированно** выполняется в фоновом потоке и не блокирует возврат ответа.
+
+**Файл:** `fractal_qwen_generator.py`
+
+```python
+import threading
+from typing import Dict, Any
+
+class FractalQwenGenerator:
+    # ... существующий код ...
+
+    def generate(self, prompt: str, mode: str = "condensed", **kwargs) -> Dict[str, Any]:
+        # ... (все шаги до генерации) ...
+        
+        # Генерация ответа (синхронная часть)
+        response = self.pipe.generate(full_prompt, **config.to_dict())
+        
+        # Запуск асинхронного обновления статистики
+        self._schedule_async_update(prompt, response, domain, config, latency_ms)
+        
+        return {
+            "response": response,
+            "domain": domain,
+            "config": config.to_dict(),
+            "latency_ms": latency_ms,
+            "virtual_tokens_used": virtual_tokens_count,
+            "lora_applied": lora_applied
+        }
+    
+    def _schedule_async_update(self, prompt: str, response: str, domain: str, 
+                               config: GenerationConfig, latency_ms: float):
+        """Запускает фоновый поток для обновления L1 и L2."""
+        def update_task():
+            try:
+                # Обновление L1
+                fingerprint = self.profiler.compute_fingerprint(prompt, response)
+                self.profiler.update(
+                    domain=domain,
+                    model_id="qwen3-4b",
+                    fingerprint=fingerprint,
+                    latency_ms=latency_ms
+                )
+                # Обновление L2 (если использовалось правило)
+                if config.rule_id:
+                    self.router.update_rule_stats(config.rule_id, success=None)
+            except Exception as e:
+                # Логирование ошибки, но не прерывание основного потока
+                print(f"[AsyncUpdate] Error: {e}")
+        
+        thread = threading.Thread(target=update_task, daemon=True)
+        thread.start()
+```
+
+### 3.2. Кэширование эмбеддингов запросов
+
+Добавим простой LRU-кэш для эмбеддингов запросов, чтобы избежать повторных вызовов `SentenceTransformer` при уточняющих вопросах.
+
+**Файл:** `fractal_qwen_generator.py`
+
+```python
+from functools import lru_cache
+
+class FractalQwenGenerator:
+    def __init__(self, ...):
+        # ... существующий код ...
+        self._query_embedding_cache = {}
+        self._cache_max_size = 100
+    
+    def _get_query_embedding(self, prompt: str) -> np.ndarray:
+        """Возвращает спроецированный эмбеддинг запроса с кэшированием."""
+        cache_key = hash(prompt)
+        if cache_key in self._query_embedding_cache:
+            return self._query_embedding_cache[cache_key]
+        
+        # Вычисляем эмбеддинг
+        emb = self.encoder.encode(prompt)
+        emb_3584 = self.projection(emb)
+        
+        # Сохраняем в кэш с ограничением размера
+        if len(self._query_embedding_cache) >= self._cache_max_size:
+            # Удаляем случайный элемент (или первый добавленный)
+            self._query_embedding_cache.pop(next(iter(self._query_embedding_cache)))
+        self._query_embedding_cache[cache_key] = emb_3584
+        return emb_3584
+```
+
+**Использование в `generate`:**
+
+```python
+def generate(self, prompt: str, ...):
+    # ... 
+    query_emb = self._get_query_embedding(prompt)
+    config = self.router.get_generation_config(domain_hint=domain, query_embedding=query_emb)
+    # ...
+```
+
+### 3.3. Оптимизация LoRA‑менеджера
+
+Добавим кэш отсутствующих адаптеров, чтобы не проверять файловую систему при каждом запросе.
+
+**Файл:** `lora_manager.py`
+
+```python
+class LoRAManager:
+    def __init__(self, pipeline: ov_genai.LLMPipeline, adapters_dir: str):
+        self.pipeline = pipeline
+        self.adapters_dir = Path(adapters_dir)
+        self._cache: Dict[str, ov_genai.Adapter] = {}
+        self._missing: Set[str] = set()  # домены, для которых точно нет адаптера
+        self._active: Optional[str] = None
+    
+    def load_adapter(self, domain: str) -> Optional[str]:
+        if domain in self._missing:
+            return None
+        if domain in self._cache:
+            return domain
+        
+        adapter_path = self.adapters_dir / f"{domain}_lora"
+        if not adapter_path.exists():
+            self._missing.add(domain)
+            return None
+        
+        try:
+            self._cache[domain] = ov_genai.Adapter(str(adapter_path))
+            return domain
+        except Exception as e:
+            print(f"[LoRA] Failed to load adapter for {domain}: {e}")
+            self._missing.add(domain)
+            return None
+```
+
+### 3.4. Исправление дубликатов узлов в графе
+
+**Файл:** `fractal_graph_v2.py`
+
+Добавим метод для безопасного добавления уникальных концептов:
+
+```python
+def add_unique_concept(self, content: str, embedding: np.ndarray = None, metadata: dict = None) -> str:
+    """Добавляет концепт, только если его ещё нет в графе."""
+    existing = self.search_nodes(content=content, node_type="concept")
+    if existing:
+        return existing[0]["id"]
+    return self.add_node(
+        content=content,
+        node_type="concept",
+        level=3,
+        embedding=embedding.tobytes() if embedding is not None else None,
+        metadata=metadata or {}
+    )
+```
+
+Также добавим скрипт для однократной очистки существующих дубликатов:
+
+```python
+def deduplicate_concepts(self):
+    """Удаляет дубликаты концептов, оставляя первый по времени создания."""
+    concepts = self.get_all_nodes(node_type="concept")
+    seen = {}
+    duplicates = []
+    for c in concepts:
+        content = c["content"]
+        if content in seen:
+            duplicates.append(c["id"])
+        else:
+            seen[content] = c["id"]
+    for dup_id in duplicates:
+        self.delete_node(dup_id)
+    print(f"Deduplication: removed {len(duplicates)} duplicate concepts")
+```
+
+### 3.5. Исправление предупреждения токенизатора
+
+**Файл:** `fractal_qwen_generator.py`
+
+```python
+def __init__(self, model_path: str, ...):
+    # ...
+    self.tokenizer = AutoTokenizer.from_pretrained(
+        str(model_path),
+        trust_remote_code=True,
+        fix_mistral_regex=True  # <-- добавить
+    )
+```
+
+### 3.6. Кэширование `apply_chat_template`
+
+Для повторяющихся структур сообщений (особенно в диалоговом режиме) кэшируем результат форматирования.
+
+**Файл:** `fractal_qwen_generator.py`
+
+```python
+class FractalQwenGenerator:
+    def __init__(self, ...):
+        # ...
+        self._template_cache = {}
+    
+    def _apply_cached_chat_template(self, user_content: str, enable_thinking: bool) -> str:
+        cache_key = (user_content, enable_thinking)
+        if cache_key in self._template_cache:
+            return self._template_cache[cache_key]
+        
+        messages = [{"role": "user", "content": user_content}]
+        formatted = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True,
+            enable_thinking=enable_thinking
+        )
+        # Ограничиваем размер кэша
+        if len(self._template_cache) > 50:
+            self._template_cache.pop(next(iter(self._template_cache)))
+        self._template_cache[cache_key] = formatted
+        return formatted
+```
+
+## 4. Ожидаемый эффект на производительность
+
+С учётом сохранения режима `enable_thinking=True`, время генерации базового запроса (Test 1) останется в пределах **20–25 секунд**, так как основное время занимает инференс модели (генерация цепочки рассуждений + ответа).
+
+**Влияние оптимизаций на Test 2 (с графом):**
+
+| Компонент | До оптимизации | После оптимизации |
+|-----------|----------------|-------------------|
+| Вычисление эмбеддинга | ~100 мс × 2 | ~100 мс (кэш) |
+| Поиск правила L2 | ~10 мс | ~10 мс |
+| LoRA проверка | ~50 мс (fstat) | ~0 мс (кэш missing) |
+| Форматирование промпта | ~5 мс | ~0.1 мс (кэш) |
+| Обновление L1/L2 | синхронно (блокирует) | асинхронно (0 мс в основном потоке) |
+| **Итого накладные расходы** | **~12.7 сек** | **~0.1–0.2 сек** |
+
+**Прогноз времени Test 2 после оптимизаций:** 24.6 сек (базовое) + 0.2 сек = **~25 секунд**.
+
+Таким образом, замедление от включения графа сократится с 52% до **менее 1%**, что является отличным результатом.
+
+## 5. Финальная версия метода `generate` с интегрированными изменениями
+
+```python
+def generate(
+    self,
+    prompt: str,
+    mode: str = "condensed",
+    use_lora: bool = True,
+    enable_thinking: bool = True,  # Оставлено True по умолчанию
+    context_nodes: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    import time
+    
+    # 1. Гибридная токенизация
+    tokens, _ = self.hybrid_tokenizer.encode(prompt, layers={2, 3})
+    virtual_tokens_count = self.hybrid_tokenizer.count_virtual_tokens(tokens)
+    
+    # 2. Определение домена
+    domain = self._extract_domain_from_tokens(tokens)
+    
+    # 3. Кэшированный эмбеддинг запроса
+    query_emb = self._get_query_embedding(prompt)
+    config = self.router.get_generation_config(domain_hint=domain, query_embedding=query_emb)
+    
+    # 4. LoRA адаптер (оптимизированная загрузка)
+    lora_applied = None
+    if use_lora and domain != "general":
+        lora_applied = self.lora_manager.load_adapter(domain)
+        if lora_applied:
+            self.lora_manager.apply_adapter(lora_applied, alpha=0.8)
+    
+    # 5. Обогащённый промпт
+    enriched_prompt = self._build_context_prompt(prompt, domain, context_nodes)
+    full_prompt = self._apply_cached_chat_template(enriched_prompt, enable_thinking)
+    
+    # 6. Генерация
+    start_time = time.time()
+    response = self.pipe.generate(
+        full_prompt,
+        max_new_tokens=config.max_new_tokens,
+        temperature=config.temperature,
+        top_p=config.top_p,
+        repetition_penalty=config.repetition_penalty,
+        do_sample=config.temperature > 0.0
+    )
+    latency_ms = (time.time() - start_time) * 1000
+    
+    # 7. Асинхронное обновление статистики
+    self._schedule_async_update(prompt, response, domain, config, latency_ms)
+    
+    return {
+        "response": response,
+        "domain": domain,
+        "config": config.to_dict(),
+        "latency_ms": latency_ms,
+        "virtual_tokens_used": virtual_tokens_count,
+        "lora_applied": lora_applied
+    }
+```

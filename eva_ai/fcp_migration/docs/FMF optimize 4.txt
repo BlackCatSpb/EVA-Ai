@@ -1,0 +1,144 @@
+Да, вы абсолютно верно понимаете. Для того чтобы модель **сама инициировала запрос на продолжение**, она должна уметь явно сигнализировать: «Я не закончила, хочу продолжить, спроси пользователя». В идеале это делается через **специальные разметочные токены**, которые модель генерирует в потоке вывода, а внешняя система (наш `FractalQwenGenerator`) перехватывает их и преобразует в интерактивное действие.
+
+В текущей архитектуре у нас уже есть механизм **виртуальных токенов** для узлов графа. Его можно расширить для служебных токенов управления генерацией.
+
+## 1. Какие токены нужны для продолжения
+
+| Токен (виртуальный ID) | Текстовое представление (для отладки) | Назначение |
+|------------------------|---------------------------------------|------------|
+| `250000` | `<|continue_request|>` | Модель хочет продолжить, но спрашивает разрешения |
+| `250001` | `<|continue_yes|>` | Пользователь разрешил (вставляется в промпт при продолжении) |
+| `250002` | `<|continue_no|>` | Пользователь отказался (вставляется, чтобы модель завершила) |
+| `250003` | `<|response_end|>` | Явный маркер окончания ответа |
+
+## 2. Как модель учится их использовать
+
+Есть два пути:
+
+### 2.1. Prompt engineering (без дообучения)
+
+В системный промпт или в начало диалога добавляется инструкция:
+
+```
+Если твой ответ не умещается в отведённый объём, ты можешь вставить специальный маркер <|continue_request|> в конце текущего фрагмента. После этого пользователь решит, продолжать ли. Если пользователь согласится, ты получишь маркер <|continue_yes|> и продолжишь с того же места.
+```
+
+Модель, обученная следовать инструкциям (как Qwen3), способна генерировать такие маркеры, если их явно описать. Но надёжность не 100% — модель может забыть или сгенерировать в неподходящий момент.
+
+### 2.2. Дообучение (LoRA) с примерами диалогов
+
+Более надёжный способ — создать небольшой датасет диалогов, где ассистент использует `<|continue_request|>`, и дообучить LoRA-адаптер. Это гарантирует стабильное поведение.
+
+## 3. Интеграция в `FractalQwenGenerator`
+
+### 3.1. Расширение `HybridTokenizer`
+
+Добавим служебные токены в виртуальный словарь:
+
+```python
+class HybridTokenizer:
+    CONTROL_TOKENS = {
+        250000: {"type": "continue_request", "text": "<|continue_request|>"},
+        250001: {"type": "continue_yes", "text": "<|continue_yes|>"},
+        250002: {"type": "continue_no", "text": "<|continue_no|>"},
+        250003: {"type": "response_end", "text": "<|response_end|>"},
+    }
+
+    def __init__(self, ...):
+        # добавляем контрольные токены в virtual_tokens
+        for tid, info in self.CONTROL_TOKENS.items():
+            self.virtual_tokens[tid] = {
+                "layer": 0,  # служебный слой
+                "node_type": "control",
+                "text": info["text"],
+                "embedding": None,
+                "control_type": info["type"]
+            }
+```
+
+### 3.2. Метод генерации с поддержкой продолжения
+
+```python
+def generate_interactive(
+    self,
+    prompt: str,
+    max_tokens_per_chunk: int = 512,
+    enable_thinking: bool = True
+) -> Dict[str, Any]:
+    """
+    Генерирует ответ. Если встречает <|continue_request|>, останавливается
+    и возвращает флаг need_continuation=True.
+    """
+    full_prompt = self._build_full_prompt(prompt, enable_thinking)
+    
+    # Генерируем с потоковой обработкой токенов
+    generated_text = ""
+    need_continuation = False
+    
+    # В OpenVINO GenAI пока нет streaming, поэтому используем генерацию с последующим анализом
+    # Альтернатива: использовать callback или разбор после генерации
+    response = self.pipe.generate(full_prompt, max_new_tokens=max_tokens_per_chunk, ...)
+    
+    # Проверяем, есть ли в ответе управляющий токен
+    if "<|continue_request|>" in response:
+        need_continuation = True
+        # Удаляем маркер из показываемого пользователю текста
+        response_clean = response.replace("<|continue_request|>", "").strip()
+    else:
+        response_clean = response
+    
+    if need_continuation:
+        self._pending_state = {
+            "prompt": prompt,
+            "generated": response_clean,
+            "enable_thinking": enable_thinking,
+            "max_tokens": max_tokens_per_chunk
+        }
+    
+    return {
+        "response": response_clean,
+        "need_continuation": need_continuation,
+        "full_response_raw": response
+    }
+
+def continue_generation(self, user_agreed: bool = True) -> str:
+    """Продолжает генерацию после подтверждения пользователя."""
+    if not self._pending_state:
+        return ""
+    
+    state = self._pending_state
+    self._pending_state = None
+    
+    if not user_agreed:
+        # Вставляем маркер отказа и генерируем завершающую фразу
+        continuation_prompt = state["prompt"] + state["generated"] + "<|continue_no|>"
+        final = self.pipe.generate(continuation_prompt, max_new_tokens=100, ...)
+        return final
+    else:
+        # Вставляем маркер согласия и продолжаем
+        continuation_prompt = state["prompt"] + state["generated"] + "<|continue_yes|>"
+        next_part = self.pipe.generate(continuation_prompt, max_new_tokens=state["max_tokens"], ...)
+        return next_part
+```
+
+### 3.3. Пример диалога
+
+**Пользователь:** Расскажи подробно про квантовую механику.  
+**Модель (первый фрагмент):** ... (текст) ... `<|continue_request|>`  
+**Система:** [показывает текст без маркера] "Продолжить?"  
+**Пользователь:** Да  
+**Система:** (вставляет `<|continue_yes|>` в промпт) → модель продолжает с того же места.
+
+## 4. Почему это лучше, чем просто увеличить `max_tokens`
+
+- **Контроль пользователя:** Пользователь решает, стоит ли тратить время на длинный ответ.
+- **Экономия ресурсов:** Для коротких запросов не генерируется избыточный текст.
+- **Естественный диалог:** Создаётся ощущение живого общения, модель "думает" порциями.
+
+## 5. Что потребуется для реализации
+
+1. **Расширить `HybridTokenizer`** — добавить управляющие токены.
+2. **Добавить методы `generate_interactive` и `continue_generation`** в основной класс.
+3. **Настроить промпт** — включить инструкцию по использованию токена.
+4. **(Опционально) Дообучить LoRA** для стабильного использования токена.
+

@@ -317,14 +317,40 @@ class QueryMixin:
     def _handle_gguf_pipeline(self, query: str, user_context: Optional[Dict], start_time: float,
                                max_new_tokens: int, temperature: float, top_p: float,
                                repetition_penalty: float) -> Optional[Dict[str, Any]]:
-        """Handles GGUF Two-Model Pipeline queries."""
-        # Проверяем доступность pipeline
+        """Handles FCP Pipeline V15 queries (основной и единственный пайплайн)."""
+        
+        # Проверяем FCP Pipeline V15 (основной)
+        pipeline = getattr(self, 'fcp_pipeline', None)
+        if pipeline and hasattr(pipeline, 'generate'):
+            query_logger.info(f"[PIPELINE_OK] Using FCPPipelineV15: {type(pipeline).__name__}")
+            
+            try:
+                response = pipeline.generate(
+                    query,
+                    max_new_tokens=max_new_tokens,
+                    enable_thinking=False,
+                    enable_injection=True,
+                    use_lora=True
+                )
+                
+                return {
+                    "response": response,
+                    "status": "success",
+                    "source": "fcp_pipeline_v15",
+                    "metadata": {
+                        "model": "ruadapt_qwen3_4b_openvino",
+                        "max_tokens": max_new_tokens
+                    }
+                }
+            except Exception as e:
+                query_logger.error(f"FCPPipelineV15 error: {e}")
+        
+        # Fallback на старый pipeline если FCP не доступен
         if not self.two_model_pipeline_ready:
             query_logger.error(f"[PIPELINE_CHECK] two_model_pipeline_ready=False")
         if not self.two_model_pipeline:
             query_logger.error(f"[PIPELINE_CHECK] two_model_pipeline=None")
         
-        # Пробуем использовать pipeline даже если флаги не установлены
         pipeline = getattr(self, 'two_model_pipeline', None)
         if not pipeline:
             query_logger.error("[PIPELINE_FAIL] No pipeline available")

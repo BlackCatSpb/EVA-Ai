@@ -54,6 +54,7 @@ class HybridPipelineAdapter:
     MODE_DUAL = 'dual'            # DualGenerator с 2 физическими моделями (БЫСТРО)
     MODE_RECURSIVE = 'recursive'  # Только старый RecursiveModelPipeline  
     MODE_HYBRID = 'hybrid'        # Новый + fallback на старый
+    MODE_FMF_ONLY = 'fmf_only'   # Только FMF (упрощённый)
     
     def __init__(
         self,
@@ -169,6 +170,12 @@ class HybridPipelineAdapter:
         if self._models_loaded:
             return
         
+        # Для FMF режима модели не нужны - используем OpenVINO напрямую
+        if self.mode == self.MODE_FMF_ONLY:
+            logger.info("FMF mode: пропускаем загрузку llama_cpp моделей")
+            self._models_loaded = True
+            return
+        
         from llama_cpp import Llama
         
         if self.model_a is None and self.model_a_path:
@@ -208,6 +215,7 @@ class HybridPipelineAdapter:
         self.fractal_pipeline = None
         self.dual_generator = None
         self.recursive_pipeline = None
+        self.fmf_pipeline = None
         logger.info("Models unloaded")
     
     def _init_pipelines(self, **kwargs):
@@ -220,6 +228,8 @@ class HybridPipelineAdapter:
             self._init_dual_generator()
         elif self.mode == self.MODE_RECURSIVE:
             self._init_recursive_pipeline()
+        elif self.mode == self.MODE_FMF_ONLY:
+            self._init_fmf_pipeline()
         elif self.mode == self.MODE_FRACTAL or self.mode == self.MODE_HYBRID:
             self._init_fractal_pipeline(**kwargs)
             if self.mode == self.MODE_HYBRID:
@@ -305,6 +315,76 @@ class HybridPipelineAdapter:
             logger.error(f"Ошибка инициализации RecursiveModelPipeline: {e}")
             self.recursive_pipeline = None
     
+    def _init_fmf_pipeline(self):
+        """Инициализировать FMF Pipeline (упрощённый режим)."""
+        try:
+            import sys
+            from pathlib import Path
+            
+            # Добавляем путь к fmf_model
+            eva_root = Path(__file__).parent.parent.parent
+            fmf_path = eva_root / "fmf_model" / "src"
+            if str(fmf_path) not in sys.path:
+                sys.path.insert(0, str(fmf_path))
+            
+            from fmf_adapter import FMFAdapter
+            
+            # Автопоиск путей
+            eva_root = Path(__file__).parent.parent.parent
+            model_path = str(eva_root / "fmf_model" / "model.ov")
+            graph_path = str(eva_root / "fmf_model" / "data" / "graph.db")
+            
+            # Создаём простой FMF адаптер обёрткой
+            class SimpleFMFPipeline:
+                def __init__(self, model_path, graph_path, n_ctx, n_threads, brain):
+                    self._generator = FMFAdapter(
+                        model_path=model_path,
+                        graph_path=graph_path,
+                        device="CPU",
+                        max_tokens=n_ctx
+                    )
+                    
+                def process_query(self, query, conversation_history=None, max_tokens=2048, temperature=0.7):
+                    prompt = self._build_prompt(query, conversation_history)
+                    result = self._generator.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+                    return {
+                        "response": result.get("text", ""),
+                        "latency_ms": result.get("latency_ms", 0),
+                        "thought": "FMF Generation",
+                        "model": "FMF_OpenVINO",
+                        "success": True
+                    }
+                
+                def _build_prompt(self, query, history=None):
+                    prompt = ""
+                    if history:
+                        for msg in history[-5:]:
+                            role = msg.get("role", "user")
+                            content = msg.get("content", "")
+                            prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
+                    prompt += f"<|im_start|>user\n{query}<|im_end|}\n<|im_start|>assistant\n"
+                    return prompt
+                
+                def generate_streaming(self, prompt, max_tokens=2048, temperature=0.7, chunk_size=5):
+                    """Streaming для FMF"""
+                    result = self._generator.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+                    text = result.get("text", "")
+                    for i in range(0, len(text), chunk_size):
+                        yield {"type": "chunk", "text": text[i:i+chunk_size]}
+                    yield {"type": "done", "latency_ms": result.get("latency_ms", 0)}
+            
+            self.fmf_pipeline = SimpleFMFPipeline(
+                model_path=model_path,
+                graph_path=graph_path,
+                n_ctx=self.n_ctx,
+                n_threads=self.n_threads,
+                brain=self.brain
+            )
+            logger.info("FMF Pipeline инициализирован")
+        except Exception as e:
+            logger.error(f"Ошибка инициализации FMF Pipeline: {e}")
+            self.fmf_pipeline = None
+    
     def process_query(
         self,
         query: str,
@@ -338,6 +418,9 @@ class HybridPipelineAdapter:
         if self.mode == self.MODE_FRACTAL:
             return self._process_fractal(query, max_iterations, gen_params)
         
+        if self.mode == self.MODE_FMF_ONLY:
+            return self._process_fmf(query, gen_params)
+        
         # HYBRID mode
         return self._process_hybrid(query, max_iterations, gen_params)
     
@@ -364,6 +447,28 @@ class HybridPipelineAdapter:
             logger.error(f"Ошибка FractalPipeline: {e}")
             if self.mode == self.MODE_HYBRID:
                 return self._process_recursive(query, max_iterations, gen_params)
+            return self._error_response(query, str(e))
+    
+    def _process_fmf(
+        self, 
+        query: str, 
+        gen_params: Dict
+    ) -> Dict[str, Any]:
+        """Обработка через FMF Pipeline."""
+        if not self.fmf_pipeline:
+            logger.error("FMF Pipeline не инициализирован")
+            return self._error_response(query, "FMF Pipeline not initialized")
+        
+        try:
+            result = self.fmf_pipeline.process_query(
+                query=query,
+                conversation_history=gen_params.get('conversation_history'),
+                max_tokens=gen_params.get('max_tokens', 2048),
+                temperature=gen_params.get('temperature', 0.7)
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Ошибка FMF Pipeline: {e}")
             return self._error_response(query, str(e))
     
     def _process_dual(

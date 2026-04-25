@@ -1,0 +1,97 @@
+
+
+### 2.1. Диалог как временная сессия
+
+При начале диалога создаётся временная сессия (как для документа):
+
+```python
+session_id = graph.begin_temp_session(f"dialogue_{user_id}_{timestamp}")
+```
+
+Каждое сообщение пользователя и ответ модели добавляются как временные узлы типа `temp_message`:
+
+```python
+graph.add_temp_node(
+    session_id, 
+    content=f"User: {user_msg}\nAssistant: {assistant_msg}",
+    node_type="message",
+    embedding=embedding,
+    metadata={"turn": turn_number}
+)
+```
+
+### 2.2. Извлечение знаний при завершении диалога
+
+По окончании диалога (или при достижении N сообщений) запускается процесс извлечения:
+
+1. **Анализ всего диалога** — можно использовать отдельный вызов модели с инструкцией "Извлеки из этого диалога новые факты и концепты, которые стоит запомнить".
+
+2. **Проверка на существование** — перед добавлением в постоянный граф проверяется, нет ли уже такого концепта/факта.
+
+3. **Добавление в L3** — только уникальные знания сохраняются как узлы `concept`, `fact`, с соответствующими связями.
+
+4. **Удаление временной сессии** — `graph.rollback_temp_session(session_id)`.
+
+### 2.3. Пример кода для EVA
+
+```python
+class DialogueKnowledgeExtractor:
+    def __init__(self, generator: FractalQwenGenerator):
+        self.generator = generator
+        self.graph = generator.graph
+
+    def process_dialogue(self, session_id: str, messages: List[Dict]):
+        # 1. Получить полный текст диалога из временных узлов
+        dialogue_text = self._collect_dialogue_text(session_id)
+
+        # 2. Вызвать модель для извлечения знаний
+        extraction_prompt = f"""
+        Извлеки из следующего диалога новые факты и концепты, которые стоит запомнить.
+        Верни в формате JSON:
+        {{
+            "concepts": ["концепт1", "концепт2"],
+            "facts": [
+                {{"subject": "субъект", "predicate": "предикат", "object": "объект"}}
+            ]
+        }}
+        Диалог:
+        {dialogue_text}
+        """
+        response = self.generator.generate(extraction_prompt, mode="condensed", enable_thinking=False)
+        extracted = json.loads(response)
+
+        # 3. Добавить в постоянный граф с проверкой уникальности
+        for concept in extracted["concepts"]:
+            if not self.graph.concept_exists(concept):
+                self.graph.add_unique_concept(concept)
+
+        for fact in extracted["facts"]:
+            if not self.graph.fact_exists(fact):
+                self.graph.add_fact(fact["subject"], fact["predicate"], fact["object"])
+
+        # 4. Удалить временную сессию
+        self.graph.rollback_temp_session(session_id)
+```
+
+### 2.4. Интеграция с существующим DocumentKnowledgeLoader
+
+Логика полностью аналогична загрузке документов, только источник — диалог. Можно даже унифицировать:
+
+```python
+class KnowledgeLoader:
+    def load_from_document(self, text, doc_id):
+        # разбивает на чанки, извлекает факты, создаёт временные узлы
+        pass
+
+    def load_from_dialogue(self, messages, dialogue_id):
+        # объединяет сообщения, извлекает факты, создаёт временные узлы
+        pass
+```
+
+## 3. Преимущества в контексте EVA
+
+- **Чистота графа:** в L3 попадают только проверенные, извлечённые знания, а не сырые диалоги.
+- **Масштабируемость:** граф растёт линейно относительно уникальных знаний, а не объёма общения.
+- **Приватность:** исходные диалоги не хранятся постоянно.
+- **Повторное использование:** извлечённые факты могут использоваться в будущих диалогах через гибридный токенизатор.
+

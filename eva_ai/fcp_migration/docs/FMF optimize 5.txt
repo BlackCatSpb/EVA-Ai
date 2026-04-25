@@ -1,0 +1,194 @@
+# Анализ результатов FMF Fixed и план внедрения интерактивного продолжения
+
+## 1. Подтверждение исправлений
+
+Тест FMF Fixed демонстрирует успешную работу всех исправленных компонентов:
+
+- ✅ **Гибридный токенизатор** — в Test 2 корректно найден виртуальный токен `искусственный интеллект` (ID 151936, позиция 13).
+- ✅ **Многопоточный доступ к SQLite** — ошибка `Recursive use of cursors` устранена.
+- ✅ **Асинхронное обновление L1** — сообщение `Async L1: profile updated for general` появляется в фоне, не блокируя генерацию.
+- ✅ **Домен определён** — `technology` для запроса об ИИ.
+- ✅ **Дубликаты концептов устранены** — 5 уникальных концептов загружено.
+
+Время генерации (25–35 сек) остаётся на прежнем уровне из-за включённого `enable_thinking=True` и размера модели 4B на CPU. Это штатное поведение.
+
+Система готова к добавлению интерактивного продолжения через управляющие токены.
+
+## 2. Внедрение управляющих токенов для запроса продолжения
+
+Добавим в существующий класс поддержку токенов `<|continue_request|>`, `<|continue_yes|>`, `<|continue_no|>`.
+
+### 2.1. Расширение `HybridTokenizer`
+
+В файл `hybrid_tokenizer.py` добавим служебные токены:
+
+```python
+class HybridTokenizer:
+    # Управляющие токены
+    CONTROL_TOKEN_START = 250000
+    CONTROL_TOKENS = {
+        250000: {"type": "continue_request", "text": "<|continue_request|>"},
+        250001: {"type": "continue_yes", "text": "<|continue_yes|>"},
+        250002: {"type": "continue_no", "text": "<|continue_no|>"},
+        250003: {"type": "response_end", "text": "<|response_end|>"},
+    }
+
+    def __init__(self, ...):
+        # ... существующая инициализация ...
+        self._register_control_tokens()
+
+    def _register_control_tokens(self):
+        for tid, info in self.CONTROL_TOKENS.items():
+            self.virtual_tokens[tid] = {
+                "layer": 0,
+                "node_type": "control",
+                "text": info["text"],
+                "embedding": None,
+                "control_type": info["type"]
+            }
+            # Добавляем текст в автомат, чтобы токенизатор мог их распознавать при декодировании
+            self.automaton.add_word(info["text"], (tid, info["text"]))
+        self.automaton.make_automaton()
+```
+
+### 2.2. Добавление методов в `FractalQwenGenerator`
+
+В основной класс добавим состояние для продолжения и два новых метода.
+
+```python
+class FractalQwenGenerator:
+    def __init__(self, ...):
+        # ... существующая инициализация ...
+        self._continuation_state = None
+
+    def generate_interactive(
+        self,
+        prompt: str,
+        max_tokens_per_chunk: int = 512,
+        enable_thinking: bool = True,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Генерирует ответ. Если модель вставляет <|continue_request|>,
+        возвращает need_continuation=True и сохраняет состояние.
+        """
+        # Добавляем инструкцию по использованию токена в системный промпт (опционально)
+        enhanced_prompt = self._add_continuation_instruction(prompt)
+
+        full_prompt = self._build_full_prompt(enhanced_prompt, enable_thinking)
+        response = self.pipe.generate(full_prompt, max_new_tokens=max_tokens_per_chunk, **kwargs)
+
+        need_continuation = "<|continue_request|>" in response
+        clean_response = response.replace("<|continue_request|>", "").strip()
+
+        if need_continuation:
+            self._continuation_state = {
+                "original_prompt": prompt,
+                "generated_so_far": clean_response,
+                "enable_thinking": enable_thinking,
+                "max_tokens_per_chunk": max_tokens_per_chunk,
+                "kwargs": kwargs
+            }
+
+        return {
+            "response": clean_response,
+            "need_continuation": need_continuation,
+            "full_response_raw": response
+        }
+
+    def continue_generation(self, user_agreed: bool = True) -> Optional[str]:
+        """
+        Продолжает генерацию после ответа пользователя.
+        Возвращает дополнительный текст или None, если состояние отсутствует.
+        """
+        if not self._continuation_state:
+            return None
+
+        state = self._continuation_state
+        self._continuation_state = None
+
+        if not user_agreed:
+            # Вставляем маркер отказа и генерируем завершающую фразу
+            continuation_prompt = state["original_prompt"] + state["generated_so_far"] + "<|continue_no|>"
+            final = self.pipe.generate(continuation_prompt, max_new_tokens=100, **state["kwargs"])
+            return final
+        else:
+            # Вставляем маркер согласия и продолжаем
+            continuation_prompt = state["original_prompt"] + state["generated_so_far"] + "<|continue_yes|>"
+            next_part = self.pipe.generate(
+                continuation_prompt,
+                max_new_tokens=state["max_tokens_per_chunk"],
+                **state["kwargs"]
+            )
+            return next_part
+
+    def _add_continuation_instruction(self, prompt: str) -> str:
+        """
+        Добавляет инструкцию для модели о возможности использовать токен продолжения.
+        Можно вставлять в системный промпт или перед запросом пользователя.
+        """
+        instruction = (
+            "Если твой ответ не умещается в отведённый объём, "
+            "ты можешь вставить специальный маркер <|continue_request|> в конце текущего фрагмента. "
+            "После этого пользователь решит, продолжать ли. "
+        )
+        # В зависимости от структуры промпта, инструкция может добавляться по-разному.
+        # Для простоты пока добавим в начало:
+        return instruction + "\n\n" + prompt
+```
+
+### 2.3. Пример использования
+
+```python
+# Первый запрос
+result = generator.generate_interactive("Расскажи подробно про квантовую механику", max_tokens_per_chunk=512)
+print(result["response"])
+if result["need_continuation"]:
+    user_input = input("Продолжить? (да/нет): ").lower()
+    if user_input in ("да", "yes", "y"):
+        extra = generator.continue_generation(user_agreed=True)
+        print(extra)
+    else:
+        extra = generator.continue_generation(user_agreed=False)
+        print(extra)
+```
+
+## 3. Как это работает внутри
+
+1. **Генерация первого фрагмента**  
+   Модель получает промпт с инструкцией и генерирует текст. Если она достигает лимита токенов и хочет продолжить, она вставляет `<|continue_request|>` (этому её нужно обучить или хотя бы показать в инструкции).
+
+2. **Обнаружение токена**  
+   После генерации мы проверяем наличие строки `<|continue_request|>` в ответе. Если есть — сохраняем состояние и возвращаем пользователю очищенный текст с флагом `need_continuation=True`.
+
+3. **Продолжение**  
+   При согласии пользователя мы формируем новый промпт: `исходный_запрос + уже_сгенерированный_текст + <|continue_yes|>`. Модель видит маркер согласия и продолжает с того же места (благодаря тому, что весь предыдущий контекст передан в промпте).
+
+4. **Отказ**  
+   При отказе вставляется `<|continue_no|>`, и модель генерирует краткое завершение.
+
+## 4. Рекомендации по обучению модели
+
+Чтобы модель стабильно использовала `<|continue_request|>`, рекомендуется:
+
+- **Включить примеры в системный промпт** (как сделано в `_add_continuation_instruction`).
+- **Создать небольшой датасет диалогов** с маркерами и дообучить LoRA-адаптер.  
+  Пример диалога для обучения:
+  ```
+  User: Расскажи про квантовую механику.
+  Assistant: ... (текст) ... <|continue_request|>
+  User: <|continue_yes|>
+  Assistant: ... (продолжение) ...
+  ```
+- **Использовать уже имеющийся механизм дообучения** `FractalLoRATrainer` для создания адаптера `continuation_control`.
+
+## 5. Преимущества подхода
+
+- **Пользователь контролирует длину ответа** — не нужно заранее угадывать `max_tokens`.
+- **Экономия вычислительных ресурсов** — длинные ответы генерируются только по запросу.
+- **Естественный диалог** — модель сама сигнализирует о необходимости продолжения.
+- **Интеграция в существующую архитектуру** — используется тот же механизм виртуальных токенов и гибридного токенизатора.
+
+## 6. Заключение
+
+FMF Fixed успешно прошёл тестирование, подтвердив работоспособность гибридного токенизатора и асинхронного обновления графа. Добавление интерактивного продолжения через управляющие токены — логичное следующее расширение, которое легко вписывается в существующую кодовую базу и значительно улучшает пользовательский опыт. Предложенный код готов к интеграции в `FractalQwenGenerator`.
