@@ -546,6 +546,9 @@ C:\Users\black\OneDrive\Desktop\FCP\
 | AttributionReport | ✅ | fcp_tools/attribution.py |
 | SemanticCacheEvictor | ✅ | fcp_tools/semantic_cache_evictor.py |
 | FCPPipelineV15 | ✅ | pipelines/mvp_pipeline_v15.py |
+| **HybridTransformerLayer** (GNN на ВСЕХ 32 слоях!) | ✅ | fcp_gnn/hybrid_transformer_layer.py |
+| LearningGraphManager | ✅ | fcp_knowledge/learning_manager.py |
+| GraphCurator | ✅ | fcp_knowledge/graph_curator.py |
 | AdaLoRA | [ ] | fcp_core/adaptive_lora.py |
 | GraphEncoder | [ ] | fcp/gnn/graph_encoder.py |
 
