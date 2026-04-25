@@ -501,3 +501,101 @@ gen2 = registry.get_or_create(model_path, device, config2)  # Returns gen!
 Основной план: `eva_ai/analysis/ISSUES_TRACKER.md`
 - 68 проблем, ~21 исправлено
 - Следующие приоритеты: 1.1.3, 1.2.2, 1.3.1
+
+---
+
+## FCP - Fractal Cognitive Processor (Актуальность: HIGH)
+
+FCP - полная когнитивная система с гибридной архитектурой (GNN + Transformer + LoRA).
+
+### Расположение
+
+```
+C:\Users\black\OneDrive\Desktop\FCP\
+├── fcp/                     # Основной код
+├── fcp_core/               # Core компоненты
+├── src/pipelines/          # Пайплайны
+├── data/                   # Данные для обучения
+└── colab_upload/           # Файлы для Colab
+```
+
+### Текущий статус FCP (25.04.2026)
+
+| Компонент | Статус | Файл |
+|----------|--------|-------|
+| Tokenizer | ✅ | ruadapt tokenizer (151665 vocab) |
+| Model | ✅ | ruadapt_qwen3_4b (36 layers) |
+| HNSW Graph | ✅ | 199 semantic nodes |
+| Real Split hooks | ✅ | Layers 8/16/24 |
+| Selective Activation | ✅ | Early Exit confidence≥0.85 |
+| TCM | ✅ | 50 segments |
+| HybridCache | ✅ | 50% hit rate |
+| LoRA Dataset | ✅ | 146 examples |
+| LoRA Training | 🔄 В Colab | train_lora_v2.ipynb |
+| AdaLoRA | ✅ | fcp_core/adaptive_lora.py |
+| FractalGraphEncoder | ✅ | fcp_gnn/graph_encoder.py |
+| Data Loaders | ✅ | fcp_data/ru_data_loaders.py |
+| GNN→OV | ✅ | fcp_gnn/convert_gnn_to_ov.py |
+| AdaptiveFusionInjector | ✅ | fcp_gnn/injector.py |
+| ShadowLoRAManagerOV | ✅ | fcp_lora/shadow_lora_ov.py |
+| AdaLoRA | [ ] | fcp_core/adaptive_lora.py |
+| GraphEncoder | [ ] | fcp/gnn/graph_encoder.py |
+
+### План FCP (из Последовательные решения.txt)
+
+**Phase 1: Core** ✅ Реализовано
+- Data Loaders (ConceptNet, RuBQ, Saiga) ✅
+- AdaLoRA layer ✅
+- FractalGraphEncoder (SAGEConv + HNSW) ✅
+- Co-training pipeline
+
+**Phase 2: OpenVINO** ✅ Реализовано
+- GNN → ONNX → OpenVINO ✅
+- AdaptiveFusionInjector ✅
+- ShadowLoRAManagerOV ✅
+
+**Phase 3: Advanced** [ ] В очереди
+- SemanticCacheEvictor
+- ClarificationGenerator
+- ScenarioTCM (episodic memory)
+- ExpertSystem (multi-agent)
+
+**Phase 4: Integration** [ ] В очереди
+- Toolformer
+- ThinkingController
+- AttributionReport
+- FCPPipelineV15
+
+### Модели
+
+| Модель | Source | Usage |
+|--------|-------|-------|
+| RefalMachine/RuadaptQwen3-4B-Instruct | HuggingFace | Base model |
+| intfloat/multilingual-e5-small | HuggingFace | Embeddings |
+| IlyaGusev/saiga2_70b_lora | HuggingFace | Training |
+
+### Быстрый старт Colab
+
+1. Загрузить `FCP\colab_upload\train_lora_v2.ipynb`
+2. Загрузить `FCP\colab_upload\lora_dataset.json`
+3. Запустить notebook
+
+### Запуск теста FCP
+
+```powershell
+cd C:\Users\black\OneDrive\Desktop\FCP
+python test_hit2.py
+```
+
+### Документация
+
+- `FCP\README.md` - Обзор архитектуры
+- `FCP\PLAN_FCP.md` - Детальный план (NEW)
+- `FCP\colab_training.md` - Инструкции для Colab
+
+### Интеграция FCP → EVA
+
+После реализации FCP v15:
+- Интеграция в `HybridPipelineAdapter`
+- Graph vector injection
+- Atomic adapter switching
