@@ -410,12 +410,13 @@ class FCPPipelineV15:
         max_new_tokens: int = 1024,
         enable_injection: bool = False,
         use_lora: bool = True,
+        enable_thinking: bool = True,
         return_metadata: bool = False,
         **kwargs
     ) -> str:
         """Основной метод генерации"""
         self.stats["queries"] += 1
-        
+
         # Подготовка промпта
         chat_prompt = self._build_prompt(prompt, enable_thinking)
         
