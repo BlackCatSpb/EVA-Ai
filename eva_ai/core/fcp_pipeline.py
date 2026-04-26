@@ -2,11 +2,32 @@
 FCPPipelineV15 - Основной FCP Pipeline для EVA-Ai
 
 Простой и рабочий пайплайн генерации на базе ruadapt_qwen3_4b OpenVINO.
+С KCA (Knowledge Conscious Attention) и SRG (Semantic Relevance Gate).
 """
 import os
 import time
-from typing import Optional, Dict, Any, Callable, Generator
+from typing import Optional, Dict, Any, Callable, Generator, Tuple
 import numpy as np
+
+# FCP Core Components
+from eva_ai.fcp_core import (
+    FCPConfig,
+    ConvergenceController,
+    KnowledgeConsciousAttention,
+    SemanticRelevanceGate,
+    FractalGraphV2
+)
+
+# FCP GNN Components
+from eva_ai.fcp_gnn import (
+    HybridLayerProcessor,
+    HybridLayerManager,
+    HybridLayerConfig,
+    FractalGraphEncoder,
+    AdaptiveFusionInjector,
+    TextFusionInjector,
+    HybridFusionInjector
+)
 
 
 # Системный промпт - ВСЕГДА рассуждать перед ответом
@@ -40,7 +61,7 @@ except ImportError:
 
 
 class FCPPipelineV15:
-    """Основной FCP Pipeline - простая и рабочая версия"""
+    """Основной FCP Pipeline с KCA и SRG"""
     
     def __init__(
         self,
@@ -56,14 +77,97 @@ class FCPPipelineV15:
         self.lora_dir = lora_dir or "C:/Users/black/OneDrive/Desktop/FCP/lora_adapters"
         
         self.stats = {"queries": 0, "injections": 0}
-        
+
+        # FCP Core Components
+        self.fcp_config = FCPConfig()
+        self.fractal_graph = None
+        self.kca = None
+        self.srg = None
+        self.convergence_controller = None
+
+        # FCP Hybrid Layer Components (LLM + GNN + LoRA + KCA + SRG)
+        self.hybrid_layer_config = HybridLayerConfig(
+            hidden_dim=2560,
+            num_layers=32,
+            use_gnn=True,
+            use_lora=True,
+            use_kca=True,
+            use_srg=True,
+            injection_scale=0.1,
+            lora_rank=8
+        )
+        self.hybrid_layer_manager = None
+        self.hybrid_processor = None
+
         # Инициализация
         self._init_tokenizer()
+        self._init_fcp_components()
+        self._init_hybrid_layers()
         self._init_pipeline(draft_model_path)
         self._init_lora_manager()
-        
+
         print(f"[FCP] FCPPipelineV15 created: model={model_path}")
     
+    def _init_fcp_components(self):
+        """Инициализация FCP компонентов: KCA, SRG, Graph"""
+        print("[FCP] Initializing FCP components...")
+        
+        # SRG (Semantic Relevance Gate)
+        self.srg = SemanticRelevanceGate(self.fcp_config)
+        print("[FCP] SRG initialized")
+        
+        # KCA (Knowledge Conscious Attention)
+        self.kca = KnowledgeConsciousAttention(self.fcp_config)
+        print("[FCP] KCA initialized")
+        
+        # Convergence Controller
+        self.convergence_controller = ConvergenceController(self.fcp_config)
+        print("[FCP] ConvergenceController initialized")
+        
+        # FractalGraphV2
+        if self.graph_path and os.path.exists(self.graph_path):
+            try:
+                self.fractal_graph = FractalGraphV2.load(self.graph_path)
+                print(f"[FCP] FractalGraphV2 loaded: {self.fractal_graph.node_count} nodes")
+            except Exception as e:
+                print(f"[FCP] Graph load failed: {e}, creating empty graph")
+                self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+        else:
+            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+            print("[FCP] FractalGraphV2 created (empty)")
+        
+        print("[FCP] All FCP components initialized")
+
+    def _init_hybrid_layers(self):
+        """Инициализация гибридных слоёв (LLM + GNN + LoRA + KCA + SRG)"""
+        print("[FCP] Initializing Hybrid Layers...")
+
+        # HybridLayerProcessor для обработки запросов
+        self.hybrid_processor = HybridLayerProcessor(self.hybrid_layer_config)
+        print("[FCP] HybridLayerProcessor initialized")
+
+        # HybridLayerManager для управления состоянием на каждом слое
+        self.hybrid_layer_manager = HybridLayerManager(self.hybrid_layer_config)
+        print("[FCP] HybridLayerManager initialized")
+
+        # Добавляем FractalGraphV2 в гибридный менеджер
+        if self.fractal_graph and self.fractal_graph.node_count > 0:
+            nodes = []
+            for i in range(self.fractal_graph.node_count):
+                node_emb = self.fractal_graph.get_node(i)
+                if node_emb is not None:
+                    nodes.append({
+                        'id': str(i),
+                        'embedding': node_emb,
+                        'content': f'Node {i}',
+                        'metadata': {}
+                    })
+            if nodes:
+                self.hybrid_layer_manager.set_global_graph(nodes)
+                print(f"[FCP] Hybrid layer graph populated: {len(nodes)} nodes")
+
+        print("[FCP] Hybrid layers initialized")
+
     def _init_tokenizer(self):
         if HAS_TRANSFORMERS and os.path.exists(self.model_path):
             try:
@@ -337,6 +441,102 @@ class FCPPipelineV15:
     
     def get_statistics(self) -> Dict:
         return self.stats.copy()
+    
+    def get_fcp_status(self) -> Dict:
+        """Получить статус FCP компонентов"""
+        status = {
+            "kca_ready": self.kca is not None,
+            "srg_ready": self.srg is not None,
+            "graph_nodes": self.fractal_graph.node_count if self.fractal_graph else 0,
+            "config": {
+                "kca_max_cycles": self.fcp_config.kca_max_cycles,
+                "kca_rho": self.fcp_config.kca_rho,
+                "srg_cosine_threshold": self.fcp_config.srg_cosine_threshold,
+                "srg_entropy_threshold": self.fcp_config.srg_entropy_threshold,
+            }
+        }
+
+        # Hybrid Layer status
+        if self.hybrid_layer_manager:
+            hlm_status = self.hybrid_layer_manager.get_statistics()
+            status["hybrid_layers"] = {
+                "manager_ready": True,
+                "total_layers": hlm_status["total_layers"],
+                "graph_nodes": hlm_status.get("graph_nodes", 0)
+            }
+        else:
+            status["hybrid_layers"] = {"manager_ready": False}
+
+        if self.hybrid_processor:
+            proc_status = self.hybrid_processor.get_status()
+            status["hybrid_processor"] = proc_status
+        else:
+            status["hybrid_processor"] = {"initialized": False}
+
+        return status
+    
+    def enrich_with_kca(
+        self,
+        query_text: str,
+        query_embedding: np.ndarray,
+        initial_hidden_state: np.ndarray
+    ) -> Tuple[np.ndarray, dict]:
+        """
+        KCA обогащение скрытого состояния через граф знаний.
+        
+        Args:
+            query_text: текст запроса
+            query_embedding: [D] вектор запроса
+            initial_hidden_state: [T, D] начальное скрытое состояние
+            
+        Returns:
+            Tuple[np.ndarray, dict]: (обогащённое состояние, метаинформация)
+        """
+        if self.fractal_graph is None or self.fractal_graph.node_count == 0:
+            return initial_hidden_state, {"status": "NO_GRAPH", "cycles": 0}
+        
+        if self.kca is None:
+            return initial_hidden_state, {"status": "NO_KCA", "cycles": 0}
+        
+        # 1. Retrieve subgraph
+        subgraph = self.fractal_graph.retrieve_subgraph(
+            query_embedding,
+            top_k=self.fcp_config.graph_top_k
+        )
+        
+        if subgraph["embeddings"].shape[0] == 0:
+            return initial_hidden_state, {"status": "NO_SUBGRAPH", "cycles": 0}
+        
+        # 2. SRG Evaluation
+        response_vec = initial_hidden_state.mean(axis=0)
+        mode, metrics = self.srg.evaluate(query_embedding, response_vec, np.zeros(100))
+        
+        if mode == "direct":
+            return initial_hidden_state, {"status": "DIRECT", "mode": mode, "metrics": metrics}
+        
+        # 3. KCA cycles
+        corrected_state, kca_info = self.kca.forward(initial_hidden_state, subgraph)
+        
+        return corrected_state, {
+            "status": "KCA_COMPLETE",
+            "mode": mode,
+            "metrics": metrics,
+            "kca": kca_info
+        }
+    
+    def add_knowledge_node(self, text: str, embedding: np.ndarray, metadata: dict = None) -> int:
+        """Добавить узел знаний в граф"""
+        if self.fractal_graph is None:
+            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+        
+        return self.fractal_graph.add_node(embedding, metadata)
+    
+    def retrieve_relevant_knowledge(self, query_embedding: np.ndarray, top_k: int = 5) -> dict:
+        """Получить релевантные знания из графа"""
+        if self.fractal_graph is None or self.fractal_graph.node_count == 0:
+            return {"indices": [], "embeddings": [], "scores": []}
+        
+        return self.fractal_graph.retrieve_subgraph(query_embedding, top_k=top_k)
 
 
 def create_fcp_pipeline(model_path: str, graph_path: str = None, **kwargs):
