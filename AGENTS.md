@@ -615,8 +615,8 @@ python test_hit2.py
 
 ## 📋 ТЕКУЩИЕ ЗАДАЧИ (2026-04-26)
 
-### FCP Layer Export (В ПРОЦЕССЕ)
-**Статус:** Colab загружает модель
+### FCP Layer Export (ГОТОВО)
+**Статус:** Экспорт модели в процессе (20 мин)
 
 **Что делается:**
 - Экспорт Qwen3-4B модели с перехватом hidden_states на всех 36 слоях
@@ -656,8 +656,16 @@ python test_hit2.py
 3. **[ ] Тестирование полного цикла**
    - Запрос → Layer 0-35 snapshots → Concept extraction → Self-dialog
 
+### GNN Training (ПОСЛЕ ЭКСПОРТА МОДЕЛИ)
+**Статус:** Notebook готов
+
+- `FCP/colab_upload/train_gnn.ipynb` - готов к запуску
+- Dataset: `FCP/colab_upload/lora_dataset.json` (146 примеров)
+- Модель: GraphEncoder (input=384, hidden=512, output=2560)
+- Output: `graph_encoder.pt`
+
 ### Блокеры
-- `qwen_layer_model.pt` ещё не экспортирован (Colab в процессе)
+- Нет (все готово кроме скачивания модели)
 
 ### Ресурсы
 - Модель: `RefalMachine/RuadaptQwen3-4B-Instruct` (HuggingFace)
