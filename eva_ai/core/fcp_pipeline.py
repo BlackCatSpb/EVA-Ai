@@ -230,13 +230,26 @@ class FCPPipelineV15:
             os.environ['CPU_DENORMALS_OPTIMIZATION'] = 'YES'
             print(f"[FCP] CPU optimization enabled: {cpu_count} threads")
             
-            # SchedulerConfig - оптимизировано для одного запроса
+            # SchedulerConfig - оптимизировано для одного запроса с сохранением контекста
             scheduler = ov_genai.SchedulerConfig()
-            scheduler.cache_size = 4
+            scheduler.cache_size = 16  # GB - больше кэш для длинных диалогов
             scheduler.max_num_seqs = 1
-            scheduler.max_num_batched_tokens = 4096
-            scheduler.enable_prefix_caching = True
+            scheduler.max_num_batched_tokens = 8192  # больше для длинных контекстов
+            scheduler.enable_prefix_caching = True  # кэшируем префиксы (системный промпт)
             scheduler.use_cache_eviction = True
+
+            # CacheEvictionConfig - сохраняем начало (системный промпт) и конец (последние токены)
+            try:
+                cache_eviction = ov_genai.CacheEvictionConfig(
+                    start_size=256,      # системный промпт никогда не вытесняется
+                    recent_size=1024,    # текущий контекст тоже
+                    max_cache_size=4096, # общий размер кэша
+                    aggregation_mode=ov_genai.AggregationMode.MEAN
+                )
+                scheduler.cache_eviction_config = cache_eviction
+                print("[FCP] CacheEvictionConfig enabled: start=256, recent=1024")
+            except Exception as e:
+                print(f"[FCP] CacheEvictionConfig not available: {e}")
             
             # GenerationConfig
             gen_config = ov_genai.GenerationConfig()
@@ -282,7 +295,7 @@ class FCPPipelineV15:
             self.pipeline = None
             return
     
-    def generate_streaming(self, prompt, max_new_tokens=4096, enable_thinking=True, callback=None, **kwargs):
+    def generate_streaming(self, prompt, max_new_tokens=4096, enable_thinking=True, callback=None, add_to_history=True, **kwargs):
         """Streaming с парсингом тегов размышления в процессе генерации"""
         if not self.pipeline:
             yield {"type": "error", "text": "[No pipeline]"}
@@ -383,19 +396,35 @@ class FCPPipelineV15:
             # Запускаем генерацию
             gen_thread = threading.Thread(target=generate)
             gen_thread.start()
-            
+
+            full_response_parts = []
+
             # Читаем события из очереди
             while True:
                 try:
                     event = event_queue.get(timeout=0.1)
+                    # Накапливаем текст ответа для истории
+                    if event['type'] == 'chunk':
+                        full_response_parts.append(event.get('text', ''))
                     yield event
                     if event['type'] == 'done':
                         break
                 except queue.Empty:
                     if not gen_thread.is_alive():
                         break
-            
+
             gen_thread.join()
+
+            # Сохраняем в историю разговора
+            full_response = ''.join(full_response_parts)
+            if full_response and add_to_history:
+                self.conversation_history.append({
+                    "user": prompt,
+                    "assistant": full_response
+                })
+                if len(self.conversation_history) > self.max_history:
+                    self.conversation_history = self.conversation_history[-self.max_history:]
+                self.stats["queries"] += 1
             
         except Exception as e:
             yield {"type": "error", "text": str(e)}
@@ -453,7 +482,6 @@ class FCPPipelineV15:
                 history_text += f"<|im_start|>user\n{entry['user']}<|im_end|>\n"
                 history_text += f"<|im_start|>assistant\n{entry['assistant']}<|im_end|>\n"
         return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
-        return f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
     def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
         """Генерация ответа"""
