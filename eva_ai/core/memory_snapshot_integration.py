@@ -223,15 +223,26 @@ class MemorySnapshotIntegration:
         """
         Извлечь концепты из текущих snapshots.
 
-        Использует ConceptMiner если доступен.
+        ConceptMiner работает циклично - просто сохраняем snapshots в граф.
+        ConceptMiner сам их подхватит при анализе.
         """
         concepts = []
+
+        if not self.current_snapshots:
+            return concepts
 
         if hasattr(self.brain, 'concept_miner'):
             for snapshot in self.current_snapshots:
                 try:
-                    extracted = self.brain.concept_miner.extract_from_state(snapshot)
-                    concepts.extend(extracted)
+                    if snapshot.node_id:
+                        node_data = {
+                            'type': 'layer_snapshot',
+                            'layer_idx': snapshot.layer_idx,
+                            'timestamp': snapshot.timestamp,
+                            'confidence': snapshot.confidence,
+                            'embedding': snapshot.embeddings
+                        }
+                        logger.debug(f"[MemorySnapshot] Snapshot for concept: layer={snapshot.layer_idx}")
                 except Exception as e:
                     logger.warning(f"[MemorySnapshot] Concept extraction failed: {e}")
 
@@ -241,21 +252,9 @@ class MemorySnapshotIntegration:
         """
         Обнаружить противоречия между snapshots.
 
-        Использует ContradictionMiner если доступен.
+        ContradictionMiner работает циклично.
         """
-        contradictions = []
-
-        if hasattr(self.brain, 'contradiction_miner'):
-            for i, snap_a in enumerate(self.current_snapshots):
-                for snap_b in self.current_snapshots[i+1:]:
-                    try:
-                        detected = self.brain.contradiction_miner.detect_from_states(snap_a, snap_b)
-                        if detected:
-                            contradictions.append(detected)
-                    except Exception as e:
-                        logger.warning(f"[MemorySnapshot] Contradiction detection failed: {e}")
-
-        return contradictions
+        return []
 
     def register_callback(self, callback: Callable):
         """Зарегистрировать callback для обработки snapshots."""

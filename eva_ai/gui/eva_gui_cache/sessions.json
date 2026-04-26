@@ -6720,6 +6720,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "9a073769-135b-48a8-89bc-f25929d0ed7a": {
+      "id": "9a073769-135b-48a8-89bc-f25929d0ed7a",
+      "user_id": "29a901ea-488a-440b-b4cb-5c82ba86f163",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T22:49:30.869836",
+      "last_active": "2026-04-26T22:49:30.869836",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

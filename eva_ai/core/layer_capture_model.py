@@ -9,6 +9,7 @@ LayerCaptureModel - Трансформер-модель с перехватом 
 
 Это bridge между EVA FCP system и transformer models.
 """
+import os
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Callable
 import logging
@@ -77,8 +78,7 @@ class LayerCaptureModel:
 
             self.config = AutoConfig.from_pretrained(
                 self.model_path,
-                trust_remote_code=True,
-                output_hidden_states=True
+                trust_remote_code=True
             )
 
             self.model = AutoModelForCausalLM.from_pretrained(
@@ -103,6 +103,97 @@ class LayerCaptureModel:
     def is_loaded(self) -> bool:
         """Проверить загружена ли модель"""
         return self._is_loaded and self.model is not None
+
+    @classmethod
+    def from_checkpoint(
+        cls,
+        checkpoint_path: str,
+        device: str = "cpu",
+        base_model_path: Optional[str] = None
+    ) -> "LayerCaptureModel":
+        """
+        Создать модель из checkpoint с весами wrapped модели.
+
+        Args:
+            checkpoint_path: Путь к qwen_layer_model.pt
+            device: cpu или cuda
+            base_model_path: Путь к базовой модели (если отличается от checkpoint)
+
+        Returns:
+            LayerCaptureModel с загруженными весами
+        """
+        if not HAS_TRANSFORMERS:
+            raise RuntimeError("Transformers not available")
+
+        import torch
+
+        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        config = checkpoint['config']
+        num_layers = checkpoint['num_layers']
+        state_dict = checkpoint['model_state_dict']
+
+        # Create a fresh config with all required attributes
+        from transformers import Qwen3Config
+        fresh_config = Qwen3Config()
+        fresh_config.hidden_size = config.hidden_size
+        fresh_config.num_hidden_layers = config.num_hidden_layers
+        fresh_config.num_attention_heads = config.num_attention_heads
+        fresh_config.num_key_value_heads = config.num_key_value_heads
+        fresh_config.intermediate_size = config.intermediate_size
+        fresh_config.hidden_act = config.hidden_act
+        fresh_config.rope_theta = getattr(config, 'rope_theta', 900000.0)
+        fresh_config.attention_scaling = getattr(config, 'attention_scaling', 1.0)
+        fresh_config.sliding_window = getattr(config, 'sliding_window', 32768)
+        fresh_config.max_position_embeddings = getattr(config, 'max_position_embeddings', 32768)
+        fresh_config.rms_norm_eps = getattr(config, 'rms_norm_eps', 1e-6)
+        fresh_config.use_sliding_window = getattr(config, 'use_sliding_window', False)
+        fresh_config.rope_scaling = getattr(config, 'rope_scaling', None)
+        fresh_config.attention_bias = getattr(config, 'attention_bias', False)
+        fresh_config.attention_dropout = getattr(config, 'attention_dropout', 0.0)
+        fresh_config.hidden_dropout = getattr(config, 'hidden_dropout', 0.0)
+        fresh_config.tie_word_embeddings = getattr(config, 'tie_word_embeddings', False)
+
+        # Use provided path or determine from config
+        if base_model_path:
+            model_path = base_model_path
+        else:
+            # For RefalMachine models, we need local path
+            model_path = getattr(config, 'name_or_path', None)
+            if model_path and model_path.startswith('RefalMachine'):
+                # It's a HF model - use local fallback
+                model_path = None
+
+        instance = cls(
+            model_path=model_path or checkpoint_path,
+            num_layers=num_layers,
+            device=device
+        )
+        instance.config = fresh_config
+
+        # Create model architecture without loading weights
+        instance.model = AutoModelForCausalLM.from_config(fresh_config, trust_remote_code=True)
+
+        # Load state dict directly
+        instance.model.load_state_dict(state_dict, strict=False)
+        instance.model = instance.model.to(device)
+        instance.model.eval()
+
+        # Load tokenizer
+        if model_path and os.path.exists(model_path):
+            try:
+                instance.tokenizer = AutoTokenizer.from_pretrained(
+                    model_path,
+                    trust_remote_code=True
+                )
+                if instance.tokenizer.pad_token is None:
+                    instance.tokenizer.pad_token = instance.tokenizer.eos_token
+            except Exception as e:
+                logger.warning(f"[LayerCapture] Tokenizer load failed: {e}")
+
+        instance._is_loaded = True
+
+        logger.info(f"[LayerCapture] Model loaded from checkpoint: {checkpoint_path}")
+        return instance
 
     def tokenize(self, text: str) -> Tuple[torch.Tensor, torch.Tensor]:
         """Токенизировать текст"""
