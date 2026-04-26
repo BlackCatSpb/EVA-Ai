@@ -76,6 +76,11 @@
   "fcp": {
     "enabled": true,
     "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
+    "fcp_pipeline": {
+      "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
+      "transformer_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\qwen_quant",
+      "graph_path": "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
+    },
     "use_injection": true,
     "use_lora": true,
     "hybrid_stack": {

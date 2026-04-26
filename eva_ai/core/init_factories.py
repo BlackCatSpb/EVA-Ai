@@ -706,6 +706,72 @@ def create_enhanced_reasoning_engine(initializer):
     return None
 
 
+def create_hybrid_layer_pipeline(initializer):
+    """
+    Создаёт HybridLayerPipeline - гибридный пайплайн с двумя моделями:
+    1. OpenVINO LLMPipeline - для быстрой генерации
+    2. LayerCaptureModel - для захвата hidden states на каждом слое
+
+    Использует:
+    - HybridLayerProcessor для обработки слоёв (KCA + GNN + LoRA)
+    - MemorySnapshotIntegration для сохранения состояний в граф
+    - FractalGraphV2 для retrieval и хранения
+    """
+    initializer.logger.info("[HybridLayer] === create_hybrid_layer_pipeline STARTED ===")
+    try:
+        from eva_ai.core.hybrid_layer_pipeline import HybridLayerPipeline
+
+        config = initializer.core_brain.config.get('fcp', {})
+        if not config.get('enabled', True):
+            initializer.logger.info("[HybridLayer] FCP disabled in config")
+            return None
+
+        fcp_config = config.get('fcp_pipeline', {})
+        openvino_path = fcp_config.get('model_path')
+        if not openvino_path:
+            openvino_path = os.path.join(
+                getattr(initializer.core_brain, 'cache_dir', './cache'),
+                'models',
+                'ruadapt_qwen3_4b_openvino_ModelB'
+            )
+
+        transformer_path = fcp_config.get('transformer_model_path')
+        if not transformer_path:
+            transformer_path = "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\qwen_quant"
+
+        graph_path = fcp_config.get('graph_path')
+        lora_dir = config.get('modules', {}).get('lora_dir')
+
+        initializer.logger.info(f"[HybridLayer] openvino_path: {openvino_path}")
+        initializer.logger.info(f"[HybridLayer] transformer_path: {transformer_path}")
+
+        hybrid_config = config.get('hybrid_stack', {})
+
+        pipeline = HybridLayerPipeline(
+            openvino_model_path=openvino_path,
+            transformer_model_path=transformer_path,
+            graph_path=graph_path,
+            lora_dir=lora_dir,
+            num_layers=hybrid_config.get('num_layers', 32),
+            use_gnn=hybrid_config.get('use_gnn', True),
+            use_kca=hybrid_config.get('use_kca', True),
+            use_srg=hybrid_config.get('use_srg', True),
+            injection_scale=0.1
+        )
+
+        initializer.core_brain.hybrid_layer_pipeline = pipeline
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['hybrid_layer_pipeline'] = pipeline
+
+        initializer.logger.info("[HybridLayer] === create_hybrid_layer_pipeline SUCCESS ===")
+        return pipeline
+
+    except Exception as e:
+        initializer.logger.error(f"[HybridLayer] EXCEPTION: {e}", exc_info=True)
+        initializer.failed_components.add('hybrid_layer_pipeline')
+        return None
+
+
 def create_fcp_pipeline(initializer):
     """Создаёт FCPPipelineV15 - основной FCP пайплайн с GNN инъекцией."""
     initializer.logger.info("[FCP] === create_fcp_pipeline STARTED ===")
@@ -892,6 +958,7 @@ def register_all_factories(initializer):
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
         'fcp_hybrid_stack': lambda: create_fcp_hybrid_stack(initializer),
+        'hybrid_layer_pipeline': lambda: create_hybrid_layer_pipeline(initializer),
         'memory_snapshot': lambda: create_memory_snapshot_integration(initializer),
         'wikipedia_kb': lambda: get_wikipedia_kb()
     }
