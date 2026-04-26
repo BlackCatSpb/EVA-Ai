@@ -22,7 +22,8 @@
   },
   "fractal_graph_v2": {
     "enabled": true,
-    "auto_save": true
+    "auto_save": true,
+    "db_path": "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
   },
   "lora": {
     "enabled": true,
@@ -72,14 +73,37 @@
     "oauth_token": "",
     "self_learning_chat": true
   },
-  "fcp_pipeline": {
+  "fcp": {
     "enabled": true,
     "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
-    "graph_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\core\\test_graph_data.json",
-    "gnn_ov_path": null,
-    "lora_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\fcp_migration\\fmf\\lora_adapters\\continuation_v2",
     "use_injection": true,
     "use_lora": true,
+    "hybrid_stack": {
+      "num_layers": 32,
+      "hidden_dim": 2560,
+      "num_heads": 32,
+      "max_seq_len": 262144,
+      "graph_retrieval_k": 32,
+      "master_tokens": 8,
+      "gnn_iterations": 2,
+      "stop_threshold": 0.85,
+      "early_exit_threshold": 0.90,
+      "use_gnn": true,
+      "use_lora": true,
+      "use_kca": true,
+      "use_srg": true
+    },
+    "memory_snapshot": {
+      "enabled": true,
+      "snapshot_interval": 1,
+      "save_to_graph": true,
+      "snapshot_layers": [0, 4, 8, 12, 16, 20, 24, 28, 31]
+    },
+    "modules": {
+      "gnn_encoder_path": null,
+      "gnn_runtime_path": null,
+      "lora_dir": "eva_ai/models/lora_adapters"
+    },
     "generation": {
       "max_new_tokens": 2048,
       "temperature": 0.2,
