@@ -489,25 +489,56 @@ class MemorySnapshotIntegration:
 - Layer snapshot → Concept → Contradiction → Graph
 - Graph → Retrieval → Layer correction → Generation
 
+**Архитектура Layer Interception:**
+
+Для перехвата `hidden_states` на всех 32 слоях есть 2 варианта:
+
+#### Вариант A: LayerCaptureModel (transformers)
+- Использует `transformers.AutoModel` с `output_hidden_states=True`
+- Даёт доступ к `hidden_states` после каждого слоя
+- Требует PyTorch (~8GB RAM для Qwen-4B)
+- Медленнее чем OpenVINO
+
+#### Вариант B: OpenVINO Model Export (per-layer outputs)
+- Экспорт модели в ONNX/OpenVINO с exposed layer outputs
+- Требует реэкспорта модели
+- Быстрый инференс, но сложная подготовка
+
+**Текущий статус:**
+- `eva_ai/core/layer_capture_model.py` - создан LayerCaptureModel
+- `eva_ai/core/layerwise_openvino_model.py` - заготовка для низкоуровневого OpenVINO
+- FCPPipelineV15 использует high-level OpenVINO API (НЕ поддерживает layer interception)
+
+**Для полного решения:**
+1. Добавить `LayerCaptureModel` в `brain_components.py`
+2. Создать режим "layer_capture" в `brain_config.json`
+3. Интегрировать с `HybridLayerBridge`
+
 ---
 
 ### 24. Убрать дублирование FractalGraphEncoder
-**Проблема:** В `hybrid_integration.py` уже есть `FractalGraphEncoderLocal`.
+**Статус:** НЕ ТРЕБУЕТСЯ - разные назначения
 
-**Что сделать:**
-1. Убрать `FractalGraphEncoderLocal` из `hybrid_integration.py`
-2. Использовать `GraphEncoderRuntime` из `graph_encoder.py`
+**Анализ:**
+- `FractalGraphEncoderLocal` в `hybrid_integration.py` - numpy-only runtime (для продакшена)
+- `GraphEncoderRuntime` в `graph_encoder.py` - numpy-only fallback (то же самое)
+- `FractalGraphEncoder` в `graph_encoder.py` - PyTorch версия для обучения в Colab
+
+**Вывод:**
+- `FractalGraphEncoderLocal` используется HybridLayerProcessor/Manager (EVA runtime)
+- `GraphEncoderRuntime` - то же самое, можно использовать как замену
+- Оставим как есть, чтобы не сломать текущую систему
 
 ---
 
 ## 📋 Чеклист выполнения Этапа 5
 
-- [ ] 19. Обновить brain_config.json
-- [ ] 20. Интегрировать HybridStack в init_factories.py
-- [ ] 21. Создать MemorySnapshotIntegration
-- [ ] 22. Обновить FCPPipelineV15
-- [ ] 23. Связать ConceptMiner с потоком состояний
-- [ ] 24. Убрать дублирование FractalGraphEncoder
+- [x] 19. Обновить brain_config.json
+- [x] 20. Интегрировать HybridStack в init_factories.py
+- [x] 21. Создать MemorySnapshotIntegration
+- [ ] 22. Обновить FCPPipelineV15 (architecture gap - см. секцию 23)
+- [x] 23. Связать ConceptMiner с потоком состояний (ДОКУМЕНТИРОВАНО)
+- [x] 24. Убрать дублирование FractalGraphEncoder (НЕ ТРЕБУЕТСЯ)
 
 ---
 
