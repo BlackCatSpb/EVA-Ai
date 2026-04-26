@@ -383,6 +383,43 @@ class HybridLayerProcessor:
             "last_kca_status": self.state.kca_history.get("status", "none") if self.kca else "disabled"
         }
 
+    def load_trained_encoder(self, encoder_path: str) -> bool:
+        """
+        Загрузить обученный GNN энкодер из файла.
+
+        Args:
+            encoder_path: Путь к файлу graph_encoder.pt
+
+        Returns:
+            True если успешно, False если нет
+        """
+        if not os.path.exists(encoder_path):
+            logger.warning(f"[HLP] Encoder not found: {encoder_path}")
+            return False
+
+        try:
+            import torch
+            state_dict = torch.load(encoder_path, map_location='cpu', weights_only=False)
+
+            if self.graph_encoder is None:
+                self.graph_encoder = FractalGraphEncoderLocal(
+                    input_dim=384,
+                    hidden_dim=512,
+                    output_dim=self.config.hidden_dim
+                )
+
+            self.graph_encoder.W1 = state_dict.get('W1', self.graph_encoder.W1)
+            self.graph_encoder.W2 = state_dict.get('W2', self.graph_encoder.W2)
+            self.graph_encoder.proj = state_dict.get('proj', self.graph_encoder.proj)
+            self.graph_encoder.gate_W = state_dict.get('gate_W', self.graph_encoder.gate_W)
+
+            logger.info(f"[HLP] Loaded trained encoder from {encoder_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[HLP] Failed to load encoder: {e}")
+            return False
+
 
 class HybridLayerManager:
     """

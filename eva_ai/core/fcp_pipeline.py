@@ -163,12 +163,12 @@ class FCPPipelineV15:
             'models', 'graph_encoder.pt'
         )
         if os.path.exists(gnn_path):
-            try:
-                import torch
-                self.gnn_encoder = torch.load(gnn_path, map_location='cpu', weights_only=False)
-                print(f"[FCP] Loaded trained GNN encoder from {gnn_path}")
-            except Exception as e:
-                print(f"[FCP] Failed to load GNN encoder: {e}")
+            success = self.hybrid_processor.load_trained_encoder(gnn_path)
+            if success:
+                print(f"[FCP] Loaded trained GNN encoder into HybridLayerProcessor")
+                self.gnn_encoder = self.hybrid_processor.graph_encoder
+            else:
+                print(f"[FCP] Failed to load GNN encoder")
                 self.gnn_encoder = None
         else:
             print(f"[FCP] GNN encoder not found at {gnn_path}")
