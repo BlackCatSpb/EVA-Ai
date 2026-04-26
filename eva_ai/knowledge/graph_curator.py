@@ -130,11 +130,6 @@ class GraphCurator:
                 data = event.data
             elif isinstance(event, dict):
                 data = event
-            elif hasattr(event, 'get'):
-                try:
-                    data = event.get('data', {})
-                except:
-                    data = {}
             else:
                 data = {}
         except Exception:
@@ -166,12 +161,6 @@ class GraphCurator:
                 data = event.data
             elif isinstance(event, dict):
                 data = event
-            elif hasattr(event, 'get'):
-                # Event имеет метод get - попробовать получить данные
-                try:
-                    data = event.get('data', {})
-                except:
-                    data = {}
             else:
                 data = {}
         except Exception:
