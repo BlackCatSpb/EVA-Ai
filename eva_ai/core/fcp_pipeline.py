@@ -6,7 +6,7 @@ FCPPipelineV15 - Основной FCP Pipeline для EVA-Ai
 """
 import os
 import time
-from typing import Optional, Dict, Any, Callable, Generator, Tuple
+from typing import Optional, Dict, Any, Callable, Generator, Tuple, List
 import numpy as np
 
 # FCP Core Components
@@ -62,21 +62,26 @@ except ImportError:
 
 class FCPPipelineV15:
     """Основной FCP Pipeline с KCA и SRG"""
-    
+
     def __init__(
         self,
         model_path: str,
         graph_path: str = None,
         gnn_ov_path: Optional[str] = None,
         lora_dir: Optional[str] = None,
-        draft_model_path: Optional[str] = None
+        draft_model_path: Optional[str] = None,
+        max_history: int = 10
     ):
         self.model_path = model_path
         self.graph_path = graph_path
         self.gnn_ov_path = gnn_ov_path
         self.lora_dir = lora_dir or "C:/Users/black/OneDrive/Desktop/FCP/lora_adapters"
-        
+        self.max_history = max_history
+
         self.stats = {"queries": 0, "injections": 0}
+
+        # Conversation history for context
+        self.conversation_history: List[Dict[str, str]] = []
 
         # FCP Core Components
         self.fcp_config = FCPConfig()
@@ -412,28 +417,42 @@ class FCPPipelineV15:
         use_lora: bool = True,
         enable_thinking: bool = True,
         return_metadata: bool = False,
+        add_to_history: bool = True,
         **kwargs
     ) -> str:
         """Основной метод генерации"""
         self.stats["queries"] += 1
 
-        # Подготовка промпта
+        # Подготовка промпта с историей
         chat_prompt = self._build_prompt(prompt, enable_thinking)
-        
+
         # Генерация
         response = self._generate(chat_prompt, max_new_tokens, **kwargs)
-        
+
         self.stats["injections"] += 1
-        
+
+        # Сохраняем в историю
+        if add_to_history and response:
+            self.conversation_history.append({
+                "user": prompt,
+                "assistant": response
+            })
+            # Ограничиваем историю
+            if len(self.conversation_history) > self.max_history:
+                self.conversation_history = self.conversation_history[-self.max_history:]
+
         if return_metadata:
             return response, {"query_count": self.stats["queries"]}
         return response
     
     def _build_prompt(self, prompt: str, enable_thinking: bool) -> str:
-        """Формирование промпта"""
-        if enable_thinking:
-            # Модель сама генерирует теги <think>...
-            return f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        """Формирование промпта с историей разговора"""
+        history_text = ""
+        if self.conversation_history:
+            for entry in self.conversation_history[-self.max_history:]:
+                history_text += f"<|im_start|>user\n{entry['user']}<|im_end|>\n"
+                history_text += f"<|im_start|>assistant\n{entry['assistant']}<|im_end|>\n"
+        return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
         return f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
     def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
