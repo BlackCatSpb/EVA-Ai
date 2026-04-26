@@ -610,3 +610,57 @@ python test_hit2.py
 - Интеграция в `HybridPipelineAdapter`
 - Graph vector injection
 - Atomic adapter switching
+
+---
+
+## 📋 ТЕКУЩИЕ ЗАДАЧИ (2026-04-26)
+
+### FCP Layer Export (В ПРОЦЕССЕ)
+**Статус:** Colab загружает модель
+
+**Что делается:**
+- Экспорт Qwen3-4B модели с перехватом hidden_states на всех 36 слоях
+- Ноутбук: `eva_ai/tools/colab/qwen_layer_export.ipynb`
+- Выходной файл: `qwen_layer_model.pt`
+
+**После загрузки:**
+1. Скачать `qwen_layer_model.pt` из Colab
+2. Поместить в `C:\Users\black\OneDrive\Desktop\EVA_Ai_Exports\`
+3. Интегрировать в `LayerCaptureModel` для послойного доступа
+
+### ✅ Проверено (2026-04-26)
+**FCPPipelineV15 инициализация и генерация:**
+- Все FCP компоненты инициализируются корректно:
+  - SRG, KCA, ConvergenceController
+  - HybridLayerProcessor, HybridLayerManager
+  - MemorySnapshotIntegration
+- OpenVINO LLMPipeline загружается
+- LoRA адаптер `fcp_finetuned` ready
+- Генерация работает (есть encoding issue в консоли Windows)
+
+**Исправленные баги:**
+- `generate()` - добавлен параметр `enable_thinking`
+
+### FCP Интеграция (СЛЕДУЮЩИЙ ШАГ)
+**Статус:** Документировано, ожидает экспорта модели
+
+1. **[ ] Интеграция LayerCaptureModel**
+   - Загрузить `qwen_layer_model.pt`
+   - Добавить `LayerCaptureModel` в `brain_components.py`
+   - Создать режим "layer_capture" в `brain_config.json`
+
+2. **[ ] Подключение MemorySnapshotIntegration**
+   - Привязать snapshots к `HybridLayerBridge`
+   - ConceptMiner получит доступ к layer states
+
+3. **[ ] Тестирование полного цикла**
+   - Запрос → Layer 0-35 snapshots → Concept extraction → Self-dialog
+
+### Блокеры
+- `qwen_layer_model.pt` ещё не экспортирован (Colab в процессе)
+
+### Ресурсы
+- Модель: `RefalMachine/RuadaptQwen3-4B-Instruct` (HuggingFace)
+- Локально: `C:\Users\black\OneDrive\Desktop\Models\ruadapt_qwen3_4b_openvino_ModelB\`
+- FCP Components: `eva_ai/fcp_core/`, `eva_ai/fcp_gnn/`
+- Интеграция: `eva_ai/core/fcp_pipeline.py`, `eva_ai/core/layer_capture_model.py`
