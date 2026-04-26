@@ -157,6 +157,23 @@ class FCPPipelineV15:
         self.hybrid_layer_manager = HybridLayerManager(self.hybrid_layer_config)
         print("[FCP] HybridLayerManager initialized")
 
+        # Загружаем обученный GNN энкодер если есть
+        gnn_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            'models', 'graph_encoder.pt'
+        )
+        if os.path.exists(gnn_path):
+            try:
+                import torch
+                self.gnn_encoder = torch.load(gnn_path, map_location='cpu', weights_only=False)
+                print(f"[FCP] Loaded trained GNN encoder from {gnn_path}")
+            except Exception as e:
+                print(f"[FCP] Failed to load GNN encoder: {e}")
+                self.gnn_encoder = None
+        else:
+            print(f"[FCP] GNN encoder not found at {gnn_path}")
+            self.gnn_encoder = None
+
         # Добавляем FractalGraphV2 в гибридный менеджер
         if self.fractal_graph and self.fractal_graph.node_count > 0:
             nodes = []
