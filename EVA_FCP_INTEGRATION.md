@@ -399,11 +399,13 @@ convert_gnn_to_ov.py
         "use_kca": true,
         "use_srg": true
     },
-    "memory_snapshot": {
+"memory_snapshot": {
         "enabled": true,
         "snapshot_interval": 1,
-        "save_to_graph": true
-    },
+        "save_to_graph": true,
+        "snapshot_all_layers": true,
+        "num_layers": 32
+      },
     "modules": {
         "graph_encoder": "models/graph_encoder.onnx",
         "gnn_runtime": "models/graph_encoder.xml"

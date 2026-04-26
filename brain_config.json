@@ -97,7 +97,8 @@
       "enabled": true,
       "snapshot_interval": 1,
       "save_to_graph": true,
-      "snapshot_layers": [0, 4, 8, 12, 16, 20, 24, 28, 31]
+      "snapshot_all_layers": true,
+      "snapshot_layers": []
     },
     "modules": {
       "gnn_encoder_path": null,

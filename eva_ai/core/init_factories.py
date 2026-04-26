@@ -814,6 +814,56 @@ def create_fcp_hybrid_stack(initializer):
         return None
 
 
+def create_memory_snapshot_integration(initializer):
+    """
+    Создаёт MemorySnapshotIntegration - для сохранения состояний LLM слоёв в граф.
+
+    Паттерн:
+    - Каждый слой сохраняет hidden_state как узел графа
+    - Из snapshot'ов формируются концепты и противоречия
+    - Граф возвращает коррекцию для инъекции обратно в генерацию
+    """
+    initializer.logger.info("[MemorySnapshot] === create_memory_snapshot_integration STARTED ===")
+    try:
+        from eva_ai.core.memory_snapshot_integration import MemorySnapshotIntegration
+
+        config = initializer.core_brain.config.get('fcp', {})
+        if not config.get('enabled', True):
+            initializer.logger.info("[MemorySnapshot] FCP disabled in config")
+            return None
+
+        memory_config = config.get('memory_snapshot', {})
+
+        if not memory_config.get('enabled', True):
+            initializer.logger.info("[MemorySnapshot] MemorySnapshot disabled in config")
+            return None
+
+        fractal_graph = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+        if fractal_graph is None:
+            components = getattr(initializer.core_brain, 'components', {})
+            fractal_graph = components.get('fractal_graph_v2')
+
+        initializer.logger.info(f"[MemorySnapshot] Creating integration: graph={fractal_graph is not None}")
+
+        snapshot_integration = MemorySnapshotIntegration(
+            brain=initializer.core_brain,
+            fractal_graph=fractal_graph,
+            config=memory_config
+        )
+
+        initializer.core_brain.memory_snapshot = snapshot_integration
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['memory_snapshot'] = snapshot_integration
+
+        initializer.logger.info("[MemorySnapshot] === create_memory_snapshot_integration SUCCESS ===")
+        return snapshot_integration
+
+    except Exception as e:
+        initializer.logger.error(f"[MemorySnapshot] EXCEPTION: {e}", exc_info=True)
+        initializer.failed_components.add('memory_snapshot')
+        return None
+
+
 def register_all_factories(initializer):
     """Registers all component factories on the given initializer instance."""
     initializer.component_factories = {
@@ -842,6 +892,7 @@ def register_all_factories(initializer):
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
         'fcp_hybrid_stack': lambda: create_fcp_hybrid_stack(initializer),
+        'memory_snapshot': lambda: create_memory_snapshot_integration(initializer),
         'wikipedia_kb': lambda: get_wikipedia_kb()
     }
     initializer.logger.info(f"[REGISTER] All factories: {list(initializer.component_factories.keys())}")
