@@ -762,6 +762,58 @@ def create_fcp_pipeline(initializer):
         return None
 
 
+def create_fcp_hybrid_stack(initializer):
+    """
+    Создаёт FCP HybridStack - стек гибридных слоёв для LLM + GNN + KCA + SRG.
+
+    Использует:
+    - HybridStack из eva_ai.fcp_core.hybrid_stack
+    - FractalGatedHybridLayer из eva_ai.fcp_core.hybrid_layer
+    - FCPConfig из eva_ai.fcp_core.config
+    - FractalGraphV2 из eva_ai.core или из fractal_graph_v2 компонента
+    """
+    initializer.logger.info("[FCP] === create_fcp_hybrid_stack STARTED ===")
+    try:
+        from eva_ai.fcp_core import HybridStack, StackConfig, FCPConfig, FractalGatedHybridLayer
+
+        config = initializer.core_brain.config.get('fcp', {})
+        if not config.get('enabled', True):
+            initializer.logger.info("[FCP] FCP disabled in config")
+            return None
+
+        hybrid_config = config.get('hybrid_stack', {})
+
+        stack_config = StackConfig(
+            num_layers=hybrid_config.get('num_layers', 32),
+            hidden_dim=hybrid_config.get('hidden_dim', 2560),
+            num_heads=hybrid_config.get('num_heads', 32),
+            max_seq_len=hybrid_config.get('max_seq_len', 262144),
+            graph_retrieval_k=hybrid_config.get('graph_retrieval_k', 32),
+            master_tokens=hybrid_config.get('master_tokens', 8),
+            gnn_iterations=hybrid_config.get('gnn_iterations', 2),
+            stop_threshold=hybrid_config.get('stop_threshold', 0.85),
+            early_exit_threshold=hybrid_config.get('early_exit_threshold', 0.90)
+        )
+
+        initializer.logger.info(f"[FCP] Creating HybridStack: {stack_config.num_layers} layers, dim={stack_config.hidden_dim}")
+
+        hybrid_stack = HybridStack(config=stack_config)
+
+        initializer.logger.info(f"[FCP] HybridStack created: {hybrid_stack.num_layers} layers")
+
+        initializer.core_brain.fcp_hybrid_stack = hybrid_stack
+        if hasattr(initializer.core_brain, 'components'):
+            initializer.core_brain.components['fcp_hybrid_stack'] = hybrid_stack
+
+        initializer.logger.info("[FCP] === create_fcp_hybrid_stack SUCCESS ===")
+        return hybrid_stack
+
+    except Exception as e:
+        initializer.logger.error(f"[FCP] EXCEPTION in create_fcp_hybrid_stack: {e}", exc_info=True)
+        initializer.failed_components.add('fcp_hybrid_stack')
+        return None
+
+
 def register_all_factories(initializer):
     """Registers all component factories on the given initializer instance."""
     initializer.component_factories = {
@@ -789,6 +841,7 @@ def register_all_factories(initializer):
         'self_reasoning_engine': lambda: create_self_reasoning_engine(initializer),
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
+        'fcp_hybrid_stack': lambda: create_fcp_hybrid_stack(initializer),
         'wikipedia_kb': lambda: get_wikipedia_kb()
     }
     initializer.logger.info(f"[REGISTER] All factories: {list(initializer.component_factories.keys())}")
