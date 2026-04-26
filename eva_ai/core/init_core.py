@@ -63,6 +63,7 @@ class ComponentInitializer:
         'web_search_engine',
         'fractal_storage',
         'self_reasoning_engine',
+        'fcp_pipeline',
     ]
 
     OPTIONAL_COMPONENTS = {
@@ -113,6 +114,8 @@ class ComponentInitializer:
             self.logger.info("=" * 60)
             self.logger.info("НАЧАЛО ИНИЦИАЛИЗАЦИИ КОМПОНЕНТОВ")
             self.logger.info("=" * 60)
+            
+            self.logger.info(f"Available factories: {list(self.component_factories.keys())}")
 
             components_to_init = component_list or self.COMPONENT_LIST
 
@@ -125,6 +128,10 @@ class ComponentInitializer:
                     self.logger.warning(f"[WARN] Фабрика для {component_name} не найдена - пропущено")
                     skipped_count += 1
                     continue
+                
+                # Log fcp_pipeline initialization specially
+                if component_name == 'fcp_pipeline':
+                    self.logger.info("[INIT] === fcp_pipeline initialization START ===")
 
                 from eva_ai.core.init_connections import validate_dependencies
                 deps_ok, missing_deps = validate_dependencies(self, component_name)
@@ -133,6 +140,9 @@ class ComponentInitializer:
                     self.failed_components.add(component_name)
                     failed_count += 1
                     continue
+                
+                if component_name == 'fcp_pipeline':
+                    self.logger.info("[INIT] Dependencies validated, calling factory...")
 
                 try:
                     factory = self.component_factories[component_name]

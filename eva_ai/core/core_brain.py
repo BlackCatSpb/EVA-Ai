@@ -131,6 +131,7 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         # _init_llama_cpp(self)
         _init_unified_generator(self)
         _init_hybrid_dialog_manager(self)  # HybridKnowledgeDialogManager
+        _init_fcp_pipeline(self)  # FCPPipelineV15
         _init_preprocessing(self)
         # QwenModelManager disabled - using UnifiedGenerator only
         # _init_qwen_config(self)

@@ -319,6 +319,11 @@ class QueryMixin:
                                repetition_penalty: float) -> Optional[Dict[str, Any]]:
         """Handles FCP Pipeline V15 queries (основной и единственный пайплайн)."""
         
+        # Получаем историю разговора из user_context
+        conversation_history = None
+        if user_context and isinstance(user_context, dict):
+            conversation_history = user_context.get('conversation_history')
+        
         # Проверяем FCP Pipeline V15 (основной)
         pipeline = getattr(self, 'fcp_pipeline', None)
         if pipeline and hasattr(pipeline, 'generate'):
@@ -330,7 +335,8 @@ class QueryMixin:
                     max_new_tokens=max_new_tokens,
                     enable_thinking=False,
                     enable_injection=True,
-                    use_lora=True
+                    use_lora=True,
+                    conversation_history=conversation_history
                 )
                 
                 return {
@@ -339,7 +345,8 @@ class QueryMixin:
                     "source": "fcp_pipeline_v15",
                     "metadata": {
                         "model": "ruadapt_qwen3_4b_openvino",
-                        "max_tokens": max_new_tokens
+                        "max_tokens": max_new_tokens,
+                        "history_used": bool(conversation_history)
                     }
                 }
             except Exception as e:

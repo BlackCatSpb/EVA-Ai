@@ -23,7 +23,7 @@ class AdaptiveFusionInjector:
     
     def __init__(
         self,
-        hidden_dim: int = 2048,
+        hidden_dim: int = 2560,
         injection_scale: float = 0.1
     ):
         self.hidden_dim = hidden_dim

@@ -42,9 +42,15 @@ def register_routes(app, web_gui_instance):
                 elif hasattr(brain, 'two_model_pipeline') and brain.two_model_pipeline:
                     pipeline = brain.two_model_pipeline
                     model_status['pipeline_ready'] = True
-                    model_status['models']['model_a']['loaded'] = pipeline.model_a is not None
-                    model_status['models']['model_b']['loaded'] = pipeline.model_b is not None
-                    model_status['models']['model_c']['loaded'] = pipeline.model_c is not None
+                    # Проверка на FCPPipelineV15 - нет model_a/model_b
+                    if hasattr(pipeline, 'model_a'):
+                        model_status['models']['model_a']['loaded'] = pipeline.model_a is not None
+                        model_status['models']['model_b']['loaded'] = pipeline.model_b is not None
+                        model_status['models']['model_c']['loaded'] = pipeline.model_c is not None
+                    else:
+                        model_status['models']['model_a']['loaded'] = False
+                        model_status['models']['model_b']['loaded'] = False
+                        model_status['models']['model_c']['loaded'] = False
 
                 if hasattr(brain, 'fractal_memory') and brain.fractal_memory:
                     fm = brain.fractal_memory

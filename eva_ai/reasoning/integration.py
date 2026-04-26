@@ -1,7 +1,3 @@
-"""
-Интеграция Self-Reasoning Engine с CoreBrain
-"""
-
 import logging
 from typing import Optional, Dict, Any
 
@@ -29,15 +25,15 @@ class ReasoningIntegration:
     """
     Класс интеграции Self-Reasoning Engine с CoreBrain
     """
-    
+
     def __init__(self, brain):
         self.brain = brain
         self.reasoning_engine = None
         self.enabled = False
-        
+
         # Конфигурация
         self.config = self._load_config()
-    
+
     def _load_config(self) -> Dict[str, Any]:
         """Загрузка конфигурации из brain_config"""
         try:
@@ -51,14 +47,14 @@ class ReasoningIntegration:
                 }
         except Exception as e:
             logger.warning(f"Не удалось загрузить конфигурацию: {e}")
-        
+
         return {
             'enabled': True,
             'max_iterations': 5,
             'confidence_threshold': 0.75,
             'store_reasoning_chains': True
         }
-    
+
     def integrate_with_brain(self) -> bool:
         """
         Интегрировать Self-Reasoning Engine с CoreBrain
@@ -66,18 +62,21 @@ class ReasoningIntegration:
         if not self.config.get('enabled', True):
             logger.info("Reasoning Engine отключён в конфигурации")
             return False
-        
+
         try:
             from eva_ai.reasoning.self_reasoning_engine import SelfReasoningEngine
-            
+
             # Get two_model_pipeline directly from brain
             two_model_pipeline = getattr(self.brain, 'two_model_pipeline', None)
             logger.info(f"ReasoningIntegration: brain.two_model_pipeline = {two_model_pipeline is not None}")
             logger.info(f"ReasoningIntegration: brain.two_model_pipeline type = {type(two_model_pipeline)}")
             if two_model_pipeline:
-                logger.info(f"ReasoningIntegration: pipeline.model_a = {two_model_pipeline.model_a is not None}")
-                logger.info(f"ReasoningIntegration: pipeline.model_b = {two_model_pipeline.model_b is not None}")
-            
+                # Safely check for model_a and model_b attributes
+                model_a_available = getattr(two_model_pipeline, 'model_a', None) is not None
+                model_b_available = getattr(two_model_pipeline, 'model_b', None) is not None
+                logger.info(f"ReasoningIntegration: pipeline.model_a = {model_a_available}")
+                logger.info(f"ReasoningIntegration: pipeline.model_b = {model_b_available}")
+
             logger.info(f"DEBUG Integration: Creating SRE with two_model_pipeline = {two_model_pipeline}")
             self.reasoning_engine = SelfReasoningEngine(
                 brain=self.brain,
@@ -88,37 +87,37 @@ class ReasoningIntegration:
                 }
             )
             logger.info(f"DEBUG Integration: SRE created, SRE.two_model_pipeline = {self.reasoning_engine.two_model_pipeline}")
-            
+
             # Добавляем в brain как компонент
             self.brain.self_reasoning_engine = self.reasoning_engine
-            
+
             self.enabled = True
             logger.info("✅ Self-Reasoning Engine интегрирован с CoreBrain")
             return True
-            
+
         except Exception as e:
             logger.error(f"Ошибка интеграции Self-Reasoning Engine: {e}")
             return False
-    
+
     def process_query(self, query: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
         Обработка запроса через Self-Reasoning Engine
         """
         if not self.enabled or self.reasoning_engine is None:
             return _error_response("Reasoning Engine не инициализирован", "not_initialized")
-        
+
         try:
             return self.reasoning_engine.process_query(query, context)
         except Exception as e:
             logger.error(f"Ошибка обработки запроса: {e}")
             return _error_response(f"Ошибка: {e}", "processing_error")
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику"""
         if self.reasoning_engine:
             return self.reasoning_engine.get_stats()
         return {}
-    
+
     def enable(self) -> bool:
         """Включить Self-Reasoning Engine"""
         if self.reasoning_engine is None:
@@ -127,12 +126,12 @@ class ReasoningIntegration:
         self.brain.self_reasoning_engine = self.reasoning_engine
         logger.info("Self-Reasoning Engine включён")
         return True
-    
+
     def disable(self):
         """Отключить Self-Reasoning Engine"""
         self.enabled = False
         logger.info("Self-Reasoning Engine отключён")
-    
+
     def get_status(self) -> Dict[str, Any]:
         """Получить статус reasoning engine"""
         return {

@@ -158,6 +158,7 @@ def _init_managers(brain):
     try:
         from .component_initializer import ComponentInitializer
         brain.component_initializer = ComponentInitializer(brain)
+        query_logger.info(f"[INIT] ComponentInitializer created: {brain.component_initializer}")
     except Exception as e:
         brain.component_initializer = None
         query_logger.warning(f"Ошибка инициализации компонентного инициализатора: {e}", exc_info=True)

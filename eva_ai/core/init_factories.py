@@ -562,7 +562,7 @@ def create_knowledge_components(initializer):
         except Exception as cme:
             initializer.logger.warning(f"[WARN] ContradictionMiner не создан: {cme}")
         
-        # Создаём ConceptMiner для глубокого анализа кластеров
+         # Создаём ConceptMiner для глубокого анализа кластеров
         try:
             from eva_ai.knowledge.concept_miner import create_concept_miner
             
@@ -591,7 +591,17 @@ def create_knowledge_components(initializer):
             initializer.logger.info("[OK] ConceptMiner (глубокий анализ) создан и запущен")
         except Exception as cme:
             initializer.logger.warning(f"[WARN] ConceptMiner не создан: {cme}")
-        
+         
+        # Создаём Wikipedia Knowledge Base для enrichment концептов
+        try:
+            from eva_ai.knowledge.wikipedia_kb import get_wikipedia_kb
+            wikipedia_kb = get_wikipedia_kb()
+            initializer.core_brain.wikipedia_kb = wikipedia_kb
+            initializer.core_brain.components['wikipedia_kb'] = wikipedia_kb
+            initializer.logger.info("[OK] Wikipedia Knowledge Base создан")
+        except Exception as wkbe:
+            initializer.logger.warning(f"[WARN] Wikipedia Knowledge Base не создан: {wkbe}")
+
         initializer.logger.info("[OK] KnowledgeGraph адаптер (FGv2) создан")
         return kg_adapter
     except Exception as e:
@@ -698,10 +708,12 @@ def create_enhanced_reasoning_engine(initializer):
 
 def create_fcp_pipeline(initializer):
     """Создаёт FCPPipelineV15 - основной FCP пайплайн с GNN инъекцией."""
+    initializer.logger.info("[FCP] === create_fcp_pipeline STARTED ===")
     try:
         from eva_ai.core.fcp_pipeline import FCPPipelineV15
         
         config = initializer.core_brain.config.get('fcp_pipeline', {})
+        initializer.logger.info(f"[FCP] config: {config}")
         
         if not config.get('enabled', False):
             initializer.logger.info("FCPPipelineV15 disabled in config")
@@ -715,10 +727,18 @@ def create_fcp_pipeline(initializer):
                 'ruadapt_qwen3_4b_openvino'
             )
         
+        initializer.logger.info(f"[FCP] model_path: {model_path}")
+        initializer.logger.info(f"[FCP] exists: {os.path.exists(model_path)}")
+        
+        if not os.path.exists(model_path):
+            initializer.logger.error(f"[FCP] Model path does not exist!")
+            return None
+        
         graph_path = config.get('graph_path')
         gnn_ov_path = config.get('gnn_ov_path')
         lora_dir = config.get('lora_dir')
         
+        initializer.logger.info(f"[FCP] Creating FCPPipelineV15...")
         pipeline = FCPPipelineV15(
             model_path=model_path,
             graph_path=graph_path,
@@ -726,15 +746,18 @@ def create_fcp_pipeline(initializer):
             lora_dir=lora_dir
         )
         
+        initializer.logger.info(f"[FCP] FCPPipelineV15 created: {pipeline}")
+        initializer.logger.info(f"[FCP] inner pipeline: {getattr(pipeline, 'pipeline', 'NO ATTR')}")
+        
         initializer.core_brain.fcp_pipeline = pipeline
         if hasattr(initializer.core_brain, 'components'):
             initializer.core_brain.components['fcp_pipeline'] = pipeline
         
-        initializer.logger.info("[OK] FCPPipelineV15 создан")
+        initializer.logger.info("[FCP] === create_fcp_pipeline SUCCESS ===")
         return pipeline
         
     except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания FCPPipelineV15: {e}", exc_info=True)
+        initializer.logger.error(f"[FCP] EXCEPTION: {e}", exc_info=True)
         initializer.failed_components.add('fcp_pipeline')
         return None
 
@@ -766,6 +789,7 @@ def register_all_factories(initializer):
         'self_reasoning_engine': lambda: create_self_reasoning_engine(initializer),
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
+        'wikipedia_kb': lambda: get_wikipedia_kb()
     }
-
+    initializer.logger.info(f"[REGISTER] All factories: {list(initializer.component_factories.keys())}")
     initializer.logger.info(f"Зарегистрировано {len(initializer.component_factories)} фабрик компонентов")

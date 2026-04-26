@@ -74,10 +74,11 @@
   },
   "fcp_pipeline": {
     "enabled": true,
-    "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\fcp_migration\\models\\ruadapt_qwen3_4b_openvino_ModelB",
+    "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
+    "graph_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\core\\test_graph_data.json",
     "gnn_ov_path": null,
     "lora_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\fcp_migration\\fmf\\lora_adapters\\continuation_v2",
-    "use_injection": false,
+    "use_injection": true,
     "use_lora": true,
     "generation": {
       "max_new_tokens": 2048,

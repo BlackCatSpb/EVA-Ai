@@ -50,8 +50,9 @@ def validate_dependencies(initializer, component_name: str) -> Tuple[bool, List[
     issues = []
 
     if component_name not in initializer.component_dependencies:
-        issues.append(f"Component {component_name} not found in dependencies")
-        return False, issues
+        # New component not in dependencies dict - allow it with warning
+        initializer.logger.debug(f"Component {component_name} not in dependencies - allowing")
+        return True, []
 
     dependencies = initializer.component_dependencies[component_name]
 

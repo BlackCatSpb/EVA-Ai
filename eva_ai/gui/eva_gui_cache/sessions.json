@@ -6310,6 +6310,416 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "2fe6ff48-6480-461e-a2a8-cd8fec0b4963": {
+      "id": "2fe6ff48-6480-461e-a2a8-cd8fec0b4963",
+      "user_id": "cf7e3829-b96e-498b-ba2f-f7ead0bc7e0d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-25T22:26:26.296338",
+      "last_active": "2026-04-25T22:26:26.296338",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "a5f718be-9191-4e1d-b9c3-1a53dfcd96ed": {
+      "id": "a5f718be-9191-4e1d-b9c3-1a53dfcd96ed",
+      "user_id": "fac77105-055d-44a1-a512-e8c505c94b1c",
+      "name": "Сессия admin",
+      "created_at": "2026-04-25T23:02:42.849596",
+      "last_active": "2026-04-25T23:02:42.849596",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "bb98af6d-020b-47f0-9509-f6dd78dfd38f": {
+      "id": "bb98af6d-020b-47f0-9509-f6dd78dfd38f",
+      "user_id": "2569e382-3632-4802-98b5-6756c48525d1",
+      "name": "Сессия admin",
+      "created_at": "2026-04-25T23:38:14.298813",
+      "last_active": "2026-04-25T23:38:14.298813",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "35b9d787-4727-4c73-a554-9c14311b0f17": {
+      "id": "35b9d787-4727-4c73-a554-9c14311b0f17",
+      "user_id": "a7202e8f-4c63-486a-9254-652d46ed82b5",
+      "name": "Сессия admin",
+      "created_at": "2026-04-25T23:42:01.070260",
+      "last_active": "2026-04-25T23:42:01.070260",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "e1936cd9-64c6-4106-b58d-d81f3087fc99": {
+      "id": "e1936cd9-64c6-4106-b58d-d81f3087fc99",
+      "user_id": "5acc1e78-fe91-4dcc-a088-60a081525065",
+      "name": "Сессия admin",
+      "created_at": "2026-04-25T23:54:54.126315",
+      "last_active": "2026-04-25T23:54:54.126315",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "8bff9149-9a8e-4e42-bc08-2f62b15cca89": {
+      "id": "8bff9149-9a8e-4e42-bc08-2f62b15cca89",
+      "user_id": "4b8b3117-287a-4657-8ce2-f118082dfdc5",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T01:08:25.409311",
+      "last_active": "2026-04-26T01:08:25.409311",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "471207ed-895d-4494-861f-3a5e5a54c4f7": {
+      "id": "471207ed-895d-4494-861f-3a5e5a54c4f7",
+      "user_id": "d5808738-9a70-4824-ad14-1c499558d5fc",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T01:50:32.348234",
+      "last_active": "2026-04-26T01:50:32.348234",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "9d5668ef-960d-4fd7-8a54-ef482262eba9": {
+      "id": "9d5668ef-960d-4fd7-8a54-ef482262eba9",
+      "user_id": "d5808738-9a70-4824-ad14-1c499558d5fc",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T08:35:28.215730",
+      "last_active": "2026-04-26T08:35:28.215730",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "09f66afb-1e9c-493a-9204-12d5008f87e2": {
+      "id": "09f66afb-1e9c-493a-9204-12d5008f87e2",
+      "user_id": "5ffb25c8-245f-4978-a28f-6c82eed4e500",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T09:31:08.700923",
+      "last_active": "2026-04-26T09:31:08.700923",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "b24b1bca-213f-4b09-b026-5ee1a6793bd6": {
+      "id": "b24b1bca-213f-4b09-b026-5ee1a6793bd6",
+      "user_id": "9396fffb-b3ae-4ee1-8936-54ae8f7fc1a9",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T09:53:31.722674",
+      "last_active": "2026-04-26T09:53:31.722674",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "13085fb6-19d8-4ce0-b16d-86922702d6a4": {
+      "id": "13085fb6-19d8-4ce0-b16d-86922702d6a4",
+      "user_id": "97e2ce17-3025-47e7-b083-ba7e4c58ae53",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:00:12.137349",
+      "last_active": "2026-04-26T10:00:12.137349",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "f9c146bb-72c6-4425-a23d-4be21fbaf92f": {
+      "id": "f9c146bb-72c6-4425-a23d-4be21fbaf92f",
+      "user_id": "01d2d458-fb7e-4299-99cd-41c91e3f49b3",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:02:50.426644",
+      "last_active": "2026-04-26T10:02:50.426644",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "8ce78a3b-3ee2-4804-bdde-d2576b53076c": {
+      "id": "8ce78a3b-3ee2-4804-bdde-d2576b53076c",
+      "user_id": "3aa4fdf3-6838-4063-9400-d4821eb14cc2",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:04:14.519771",
+      "last_active": "2026-04-26T10:04:14.519771",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "66306105-b3ff-4048-8e0e-953975eb4146": {
+      "id": "66306105-b3ff-4048-8e0e-953975eb4146",
+      "user_id": "3aa4fdf3-6838-4063-9400-d4821eb14cc2",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:04:17.891242",
+      "last_active": "2026-04-26T10:04:17.891242",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "bca88c87-b4b3-49a5-9209-0f2cdf800074": {
+      "id": "bca88c87-b4b3-49a5-9209-0f2cdf800074",
+      "user_id": "17766d42-aaa9-414f-838b-194a3c9e81e1",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:06:19.060059",
+      "last_active": "2026-04-26T10:06:19.060059",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "4e7564f1-d5a7-40ac-85e4-f9a6c7737924": {
+      "id": "4e7564f1-d5a7-40ac-85e4-f9a6c7737924",
+      "user_id": "66ff79bb-93f8-402b-8e6f-e649da69b04d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:09:52.332510",
+      "last_active": "2026-04-26T10:09:52.332510",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "2ee24262-8ab0-4685-b3b3-75751a31a991": {
+      "id": "2ee24262-8ab0-4685-b3b3-75751a31a991",
+      "user_id": "ec147fc2-b710-4cdd-894d-f355b585697d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:17:50.208184",
+      "last_active": "2026-04-26T10:17:50.208184",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "5fb72ab7-5cab-4936-8f39-c333f4040881": {
+      "id": "5fb72ab7-5cab-4936-8f39-c333f4040881",
+      "user_id": "b9ea7a2e-6580-495a-985e-cee667c90210",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:23:35.432773",
+      "last_active": "2026-04-26T10:23:35.432773",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "281dfd89-758a-4bb8-b7ee-f92d24240e17": {
+      "id": "281dfd89-758a-4bb8-b7ee-f92d24240e17",
+      "user_id": "f23ce9ad-f4b4-4326-b956-d88dec4c9310",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:33:56.927677",
+      "last_active": "2026-04-26T10:33:56.927677",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "c14fffdf-5a5d-4ba7-90bf-0c3f52c3614e": {
+      "id": "c14fffdf-5a5d-4ba7-90bf-0c3f52c3614e",
+      "user_id": "8d9b06ac-c1e3-4e2b-afc1-ce4e8b7ea52f",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:37:03.579047",
+      "last_active": "2026-04-26T10:37:03.579047",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "05103bc6-28ce-4c67-bb43-e38f6646c544": {
+      "id": "05103bc6-28ce-4c67-bb43-e38f6646c544",
+      "user_id": "a7bad2bd-7fe0-43f3-bf20-857d4737fafc",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T10:50:59.694459",
+      "last_active": "2026-04-26T10:50:59.694459",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "b0747cc5-f42c-4d91-b05f-3118ca7cadb0": {
+      "id": "b0747cc5-f42c-4d91-b05f-3118ca7cadb0",
+      "user_id": "43d89230-59d1-4f1b-82a7-fc83bba2132f",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T11:09:03.209885",
+      "last_active": "2026-04-26T11:09:03.209885",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "4ee9f585-061f-464a-bd1c-7675a66fb7af": {
+      "id": "4ee9f585-061f-464a-bd1c-7675a66fb7af",
+      "user_id": "e9946366-92de-461e-b79c-b8e2242213f5",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T11:34:35.018077",
+      "last_active": "2026-04-26T11:34:35.018077",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "f12632a1-780c-419e-80aa-ba53c5edcdcf": {
+      "id": "f12632a1-780c-419e-80aa-ba53c5edcdcf",
+      "user_id": "563e3e6b-cc30-4fae-9fee-128f1ae00003",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T12:02:53.730378",
+      "last_active": "2026-04-26T12:02:53.730378",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "2e8afc93-84bc-4aa1-a9d5-d0c2cff5f924": {
+      "id": "2e8afc93-84bc-4aa1-a9d5-d0c2cff5f924",
+      "user_id": "32b10511-3c6f-4064-a0ec-68d72099053e",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T12:26:21.774030",
+      "last_active": "2026-04-26T12:26:21.774030",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "7ac1e081-efe3-4e4f-9cdc-4ee66bd94cea": {
+      "id": "7ac1e081-efe3-4e4f-9cdc-4ee66bd94cea",
+      "user_id": "f959a1f0-0515-4046-a406-77bdc76313b1",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T13:08:21.254919",
+      "last_active": "2026-04-26T13:08:21.254919",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "9f1f3511-ff92-40e9-ad05-1d0b6a1c6fbc": {
+      "id": "9f1f3511-ff92-40e9-ad05-1d0b6a1c6fbc",
+      "user_id": "060dd543-f22b-4412-8087-464ff27de1a2",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T13:15:10.129227",
+      "last_active": "2026-04-26T13:15:10.129227",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "95aafd26-922b-4df0-b281-ed74887857ad": {
+      "id": "95aafd26-922b-4df0-b281-ed74887857ad",
+      "user_id": "a47112a8-52de-4e6c-a861-f508cb8497c6",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T13:28:18.052182",
+      "last_active": "2026-04-26T13:28:18.052182",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "5b51af1b-4390-472f-a6c7-f7f167339b43": {
+      "id": "5b51af1b-4390-472f-a6c7-f7f167339b43",
+      "user_id": "d0495b4f-ea95-4934-adaa-9680321904e8",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T13:35:28.945992",
+      "last_active": "2026-04-26T13:35:28.945992",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "e16627f2-16a8-4c2c-9fa3-ffa547895562": {
+      "id": "e16627f2-16a8-4c2c-9fa3-ffa547895562",
+      "user_id": "82dc2e77-71bd-4176-a6c1-d46374c50219",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T13:52:54.133000",
+      "last_active": "2026-04-26T13:52:54.133000",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "162fcc84-4329-4048-a530-6139257f6d55": {
+      "id": "162fcc84-4329-4048-a530-6139257f6d55",
+      "user_id": "af8535e0-0bf1-4b21-99c3-1373a9b5f66d",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:01:37.030921",
+      "last_active": "2026-04-26T14:01:37.030921",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "7aa8af34-7faf-4941-a722-86483c62ceda": {
+      "id": "7aa8af34-7faf-4941-a722-86483c62ceda",
+      "user_id": "c20a1e84-2400-4384-bb5f-c9365ab65cf3",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:02:31.977007",
+      "last_active": "2026-04-26T14:02:31.977007",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "43e83f7d-9856-4939-beb8-566c55a48b83": {
+      "id": "43e83f7d-9856-4939-beb8-566c55a48b83",
+      "user_id": "6b8a46a3-f89a-4e0d-9992-f73a300173b9",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:08:41.917708",
+      "last_active": "2026-04-26T14:08:41.917708",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "4b31fb98-fb8f-4897-83e5-981e206fc51d": {
+      "id": "4b31fb98-fb8f-4897-83e5-981e206fc51d",
+      "user_id": "c7441c1e-4843-4e63-b582-eb99e13707a3",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:10:50.030989",
+      "last_active": "2026-04-26T14:10:50.030989",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "4a11360e-4099-487c-8965-3c1b5a06dcce": {
+      "id": "4a11360e-4099-487c-8965-3c1b5a06dcce",
+      "user_id": "3490d321-7423-456d-b1a8-a5524e5ff00f",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:28:35.354506",
+      "last_active": "2026-04-26T14:28:35.354506",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "b5a70a27-d3b8-4679-a4ec-90a5651da825": {
+      "id": "b5a70a27-d3b8-4679-a4ec-90a5651da825",
+      "user_id": "6a7d05b5-a55b-41b5-82a2-01994d65d557",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:52:23.624950",
+      "last_active": "2026-04-26T14:52:23.624950",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "56c19844-98bb-4c27-a151-49e542f730d7": {
+      "id": "56c19844-98bb-4c27-a151-49e542f730d7",
+      "user_id": "6a7d05b5-a55b-41b5-82a2-01994d65d557",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:54:07.411535",
+      "last_active": "2026-04-26T14:54:07.411535",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "b9e868b1-9ebb-462e-823d-93c95b3af435": {
+      "id": "b9e868b1-9ebb-462e-823d-93c95b3af435",
+      "user_id": "1f54efe2-e838-4575-8af6-4ec6871f2d91",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T14:55:15.341080",
+      "last_active": "2026-04-26T14:55:15.341080",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "11cea821-016e-4962-8f92-c21690c98f2a": {
+      "id": "11cea821-016e-4962-8f92-c21690c98f2a",
+      "user_id": "79b59d85-3711-42fe-9115-09e613ae19b5",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T15:07:42.878440",
+      "last_active": "2026-04-26T15:07:42.878440",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "0b29a637-a026-4ea9-b082-400473f80e3b": {
+      "id": "0b29a637-a026-4ea9-b082-400473f80e3b",
+      "user_id": "5a8de200-be4c-4310-bb53-b666596b6455",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T15:11:11.812676",
+      "last_active": "2026-04-26T15:11:11.812676",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "152a5408-1226-4f59-9012-97d4ed39229e": {
+      "id": "152a5408-1226-4f59-9012-97d4ed39229e",
+      "user_id": "0164b227-d95c-4a91-aa1b-d4c1e0942de3",
+      "name": "Сессия admin",
+      "created_at": "2026-04-26T15:21:51.680957",
+      "last_active": "2026-04-26T15:21:51.680957",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

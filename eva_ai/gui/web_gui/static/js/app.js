@@ -591,9 +591,9 @@
         div.innerHTML = `
             <div class="msg-inner">
                 <div class="msg-role ${roleClass}">${roleLabel}</div>
+                ${reasoningHtml}
                 <div class="msg-text" id="text-${messageId}">${formatText(text)}</div>
                 ${fileHtml}
-                ${reasoningHtml}
                 ${actionsHtml}
             </div>
         `;
@@ -712,10 +712,10 @@
                 </span>
             `;
             
-            // Insert before actions
-            const actions = msgEl.querySelector('.msg-actions');
-            if (actions) {
-                msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, actions);
+            // Insert before msg-text (reasoning should be first)
+            const msgText = msgEl.querySelector('.msg-text');
+            if (msgText) {
+                msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, msgText);
             } else {
                 msgEl.querySelector('.msg-inner').appendChild(reasoningContainer);
             }
@@ -789,9 +789,9 @@
                 </div>
             `;
             
-            const actions = msgEl.querySelector('.msg-actions');
-            if (actions) {
-                msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, actions);
+            const msgText = msgEl.querySelector('.msg-text');
+            if (msgText) {
+                msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, msgText);
             } else {
                 msgEl.querySelector('.msg-inner').appendChild(reasoningContainer);
             }
@@ -809,16 +809,30 @@
      */
     function updateLiveReasoningText(msgId, text) {
         const msgEl = document.getElementById(msgId);
-        if (!msgEl) return;
+        if (!msgEl) {
+            console.log('[REASONING] Message element not found:', msgId);
+            return;
+        }
         
         const reasoningContainer = msgEl.querySelector('.msg-reasoning');
-        if (!reasoningContainer) return;
+        if (!reasoningContainer) {
+            console.log('[REASONING] Container not found, creating...');
+            openReasoningPanel(msgId);
+            return;
+        }
         
         const textEl = reasoningContainer.querySelector('.reasoning-text');
         const toggleText = reasoningContainer.querySelector('.reasoning-toggle-text');
         
+        console.log('[REASONING] Updating text, length:', text.length, 'textEl:', !!textEl);
+        
         if (textEl) {
-            textEl.innerHTML = `<pre style="white-space: pre-wrap; word-break: break-word; margin: 0;">${esc(text)}</pre>`;
+            try {
+                textEl.innerHTML = formatText(text);
+            } catch (e) {
+                console.error('[REASONING] formatText error:', e);
+                textEl.textContent = text;
+            }
         }
         
         if (toggleText) {
@@ -899,10 +913,10 @@
             </div>
         `;
         
-        // Insert before actions
-        const actions = msgEl.querySelector('.msg-actions');
-        if (actions) {
-            msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, actions);
+        // Insert before msg-text (reasoning should be first)
+        const msgText = msgEl.querySelector('.msg-text');
+        if (msgText) {
+            msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, msgText);
         } else {
             msgEl.querySelector('.msg-inner').appendChild(reasoningContainer);
         }
@@ -1272,14 +1286,15 @@
                         } else if (data.type === 'reasoning_text') {
                             // Новый текст рассуждений - добавляем к текущему
                             reasoningText += data.text;
+                            console.log('[REASONING] Text received:', data.text.substring(0, 50), 'Total:', reasoningText.length);
                             updateLiveReasoningText(msgId, reasoningText);
                         } else if (data.type === 'reasoning_chunk') {
                             // Legacy: chunk рассуждений
                             reasoningText = data.text;
                             updateLiveReasoningText(msgId, reasoningText);
                         } else if (data.type === 'reasoning_end') {
-                            // Конец блока рассуждений
-                            // Рассуждения уже видны в панели - просто закрываем панель для основного текста
+                            // Конец блока рассуждений - сворачиваем панель
+                            collapseAllReasoning(msgId);
                         } else if (data.type === 'reasoning_step') {
                             // Legacy: live reasoning step
                             reasoningSteps.push(data.step);

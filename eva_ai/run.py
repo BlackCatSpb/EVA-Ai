@@ -231,6 +231,8 @@ def main():
             return False
             
         logger.info("EVA успешно запущена")
+        logger.info(f"BRAIN OBJECT: {brain}")
+        logger.info(f"BRAIN fcp_pipeline attr: {getattr(brain, 'fcp_pipeline', 'MISSING')}")
         
         launch_gui(brain)
         

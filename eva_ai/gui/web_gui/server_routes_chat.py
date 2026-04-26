@@ -139,11 +139,22 @@ def register_chat_routes(app, web_gui_instance):
                     logger.info(f"web_gui_instance.brain: {getattr(web_gui_instance, 'brain', 'NO ATTR')}")
                     
                     # 1. Priority: FCPPipelineV15 (основной пайплайн)
+                    brain_pipeline_info = None
+                    if web_gui_instance and web_gui_instance.brain:
+                        brain_pipeline_info = {
+                            'has_fcp': hasattr(web_gui_instance.brain, 'fcp_pipeline'),
+                            'fcp_value': str(type(web_gui_instance.brain.fcp_pipeline)) if hasattr(web_gui_instance.brain, 'fcp_pipeline') else 'None',
+                            'has_two': hasattr(web_gui_instance.brain, 'two_model_pipeline'),
+                            'two_value': str(type(web_gui_instance.brain.two_model_pipeline)) if hasattr(web_gui_instance.brain, 'two_model_pipeline') else 'None',
+                        }
+                        logger.info(f"BRAIN PIPELINE INFO: {brain_pipeline_info}")
+                    
                     if (web_gui_instance and 
                         hasattr(web_gui_instance, 'brain') and
                         web_gui_instance.brain and
                         hasattr(web_gui_instance.brain, 'fcp_pipeline') and
                         web_gui_instance.brain.fcp_pipeline and
+                        hasattr(web_gui_instance.brain.fcp_pipeline, 'pipeline') and
                         web_gui_instance.brain.fcp_pipeline.pipeline):
                         pipeline = web_gui_instance.brain.fcp_pipeline
                         logger.info(f"Using FCPPipelineV15: {type(pipeline)}")
@@ -192,46 +203,35 @@ def register_chat_routes(app, web_gui_instance):
                             yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
                             return
                     
-                    # FCPPipelineV15 - использует generate (не streaming)
-                    elif pipeline and hasattr(pipeline, 'generate') and hasattr(pipeline, 'model_path'):
-                        logger.info("Using FCPPipelineV15.generate()...")
+                    # FCPPipelineV15 - используем стриминг
+                    elif pipeline and hasattr(pipeline, 'generate_streaming') and hasattr(pipeline, 'model_path'):
+                        logger.info("Using FCPPipelineV15.generate_streaming()...")
                         try:
-                            response = pipeline.generate(
+                            # Запускаем стриминг
+                            for result in pipeline.generate_streaming(
                                 message,
                                 max_new_tokens=4096,
                                 enable_thinking=True,
-                                enable_injection=False,
-                                use_lora=True
-                            )
+                                conversation_history=None
+                            ):
+                                # result - это dict с type и text
+                                if isinstance(result, dict):
+                                    result_type = result.get('type', 'chunk')
+                                    result_text = result.get('text', '')
+                                    
+                                    if result_type == 'error':
+                                        yield f"data: {json.dumps({'type': 'error', 'text': result_text})}\n\n"
+                                        return
+                                    else:
+                                        # start, thinking, chunk, done
+                                        yield f"data: {json.dumps({'type': result_type, 'text': result_text})}\n\n"
+                                else:
+                                    # fallback для строки
+                                    yield f"data: {json.dumps({'type': 'chunk', 'text': str(result)})}\n\n"
                             
-                            yield f"data: {json.dumps({'type': 'start', 'timestamp': time.time()})}\n\n"
-                            
-                            # Разделяем thinking и ответ
-                            thinking_start = response.find("<|im_start|>assistant\n<think>\n")
-                            thinking_end = response.find("</think>")
-                            
-                            if thinking_start >= 0 and thinking_end > thinking_start:
-                                thinking_part = response[thinking_start+len("<|im_start|>assistant\n<think>\n"):thinking_end]
-                                final_part = response[thinking_end+len("</think>\n"):]
-                            else:
-                                thinking_part = ""
-                                final_part = response
-                            
-                            # Отправляем рассуждения если есть
-                            if thinking_part:
-                                yield f"data: {json.dumps({'type': 'thinking', 'text': thinking_part.strip()})}\n\n"
-                            
-                            # Отправляем финальный ответ по словам
-                            final_clean = final_part.strip()
-                            words = final_clean.split(' ')
-                            for i, word in enumerate(words):
-                                chunk = ' ' + word if i > 0 else word
-                                yield f"data: {json.dumps({'type': 'chunk', 'text': chunk})}\n\n"
-                            
-                            yield f"data: {json.dumps({'type': 'done', 'timestamp': time.time()})}\n\n"
                             return
                         except Exception as e:
-                            logger.error(f"FCPPipelineV15 generate error: {e}")
+                            logger.error(f"FCPPipelineV15 streaming error: {e}")
                             yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
                             return
                     
