@@ -98,11 +98,13 @@ class FCPPipelineV15:
         )
         self.hybrid_layer_manager = None
         self.hybrid_processor = None
+        self.memory_snapshot = None
 
         # Инициализация
         self._init_tokenizer()
         self._init_fcp_components()
         self._init_hybrid_layers()
+        self._init_memory_snapshot()
         self._init_pipeline(draft_model_path)
         self._init_lora_manager()
 
@@ -167,6 +169,29 @@ class FCPPipelineV15:
                 print(f"[FCP] Hybrid layer graph populated: {len(nodes)} nodes")
 
         print("[FCP] Hybrid layers initialized")
+
+    def _init_memory_snapshot(self):
+        """Инициализация MemorySnapshotIntegration - сохранение состояний всех слоёв в граф."""
+        print("[FCP] Initializing MemorySnapshot...")
+
+        try:
+            from eva_ai.core.memory_snapshot_integration import MemorySnapshotIntegration
+
+            self.memory_snapshot = MemorySnapshotIntegration(
+                brain=self,
+                fractal_graph=self.fractal_graph,
+                config={
+                    'enabled': True,
+                    'snapshot_all_layers': True,
+                    'num_layers': 32,
+                    'save_to_graph': True
+                }
+            )
+
+            print("[FCP] MemorySnapshotIntegration initialized (all layers)")
+        except Exception as e:
+            print(f"[FCP] MemorySnapshot init failed: {e}")
+            self.memory_snapshot = None
 
     def _init_tokenizer(self):
         if HAS_TRANSFORMERS and os.path.exists(self.model_path):
