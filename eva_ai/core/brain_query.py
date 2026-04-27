@@ -335,17 +335,46 @@ class QueryMixin:
         pipeline = getattr(self, 'fcp_pipeline', None)
         if pipeline and hasattr(pipeline, 'generate'):
             query_logger.info(f"[PIPELINE_OK] Using FCPPipelineV15: {type(pipeline).__name__}")
-            
+
+            # === C1 FIX: WebSearch для FCP Pipeline ===
+            web_search = getattr(self, 'web_search_engine', None)
+            enhanced_query = query
+            search_results = []
+            if web_search and hasattr(web_search, 'search'):
+                need_search, search_reason = needs_web_search(query)
+                if need_search:
+                    try:
+                        web_result = web_search.search(query, max_results=5)
+                        search_results = web_result.get('results', []) if web_result else []
+                        if search_results:
+                            web_context = "\n\nИнформация из интернета:\n"
+                            for i, r in enumerate(search_results[:3], 1):
+                                web_context += f"{i}. {r.get('title', '')}: {r.get('content', '')[:200]}...\n"
+                            enhanced_query = query + web_context
+                    except Exception as e:
+                        query_logger.warning(f"FCP WebSearch error: {e}")
+
             try:
                 response = pipeline.generate(
-                    query,
+                    enhanced_query if search_results else query,
                     max_new_tokens=max_new_tokens,
                     enable_thinking=False,
                     enable_injection=True,
                     use_lora=True,
                     conversation_history=conversation_history
                 )
-                
+
+                # === C1 FIX: Ethics Check для FCP Response ===
+                ethics_fw = getattr(self, 'ethics_framework', None)
+                if ethics_fw and hasattr(ethics_fw, 'check_with_context'):
+                    try:
+                        ethics_result = ethics_fw.check_with_context(response, query)
+                        if ethics_result and not ethics_result.get('passed', True):
+                            response = f"[Ethics filter] {response}"
+                            query_logger.warning(f"FCP Ethics check failed: {ethics_result.get('reason', 'unknown')}")
+                    except Exception as e:
+                        query_logger.debug(f"FCP Ethics check error: {e}")
+
                 return {
                     "response": response,
                     "status": "success",
@@ -353,7 +382,8 @@ class QueryMixin:
                     "metadata": {
                         "model": "ruadapt_qwen3_4b_openvino",
                         "max_tokens": max_new_tokens,
-                        "history_used": bool(conversation_history)
+                        "history_used": bool(conversation_history),
+                        "web_search_used": len(search_results) > 0
                     }
                 }
             except Exception as e:
