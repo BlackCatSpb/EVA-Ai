@@ -17,11 +17,11 @@ import queue
 logger = logging.getLogger("eva_ai.events")
 
 class EventPriority(Enum):
-    """Приоритеты событий"""
-    LOW = 1
-    NORMAL = 2
-    HIGH = 3
-    CRITICAL = 4
+    """Приоритеты событий - меньше число = выше приоритет (для PriorityQueue)"""
+    CRITICAL = 1  # Высший приоритет - обрабатывается первым
+    HIGH = 2
+    NORMAL = 3
+    LOW = 4      # Низший приоритет - обрабатывается последним
 
 @dataclass
 class Event:
@@ -272,7 +272,8 @@ class EventBus:
                 counter = self._event_counter
                 self._event_counter += 1
             
-            priority_value = 5 - event.priority.value
+            # CRITICAL=1, HIGH=2, NORMAL=3, LOW=4 - меньше = выше приоритет для PriorityQueue
+            priority_value = event.priority.value
             self._event_queue.put((priority_value, event.timestamp, counter, event))
             
             logger.info("EVENT published: {} from {}".format(event.event_type, event.source))
