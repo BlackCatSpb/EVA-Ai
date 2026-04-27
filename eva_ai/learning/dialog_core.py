@@ -1045,9 +1045,7 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                     
         except Exception as e:
             logger.warning(f"GraphCurator error: {e}")
-        
-        return " | ".join(summary_parts)
-    
+
     def _compact_by_truncation(
         self,
         scored_items: List[Dict[str, Any]],
