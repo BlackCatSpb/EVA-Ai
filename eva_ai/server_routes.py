@@ -145,29 +145,8 @@ def api_upload():
 
 
 # ========================================================================
-# Chat
+# Chat - MOVED to gui/web_gui/server_routes_chat.py
 # ========================================================================
-
-@app.route('/api/chat', methods=['POST'])
-def api_chat():
-    if not web_gui_instance:
-        return jsonify({'error': 'Сервер не инициализирован'}), 500
-
-    try:
-        data = request.get_json(force=True)
-        if not data:
-            return jsonify({'error': 'Invalid JSON'}), 400
-        message = data.get('message', '')
-        session_id = data.get('session_id')
-        user_id = data.get('user_id')
-        file_data = data.get('file_data')
-
-        result = web_gui_instance.process_message(message, session_id, user_id, file_data)
-        return jsonify(result)
-    except Exception as e:
-        logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-
 
 # ========================================================================
 # Entities

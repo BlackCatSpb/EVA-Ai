@@ -396,44 +396,7 @@ def register_routes(app, web_gui_instance):
 
         return jsonify({'error': 'Неверные учетные данные'}), 401
 
-    @app.route('/api/chat', methods=['POST'])
-    def api_chat():
-        if not web_gui_instance:
-            return jsonify({'error': 'Сервер не инициализирован'}), 500
-
-        try:
-            # Получаем raw data для отладки
-            raw_data = request.get_data(as_text=True)
-            logger.debug(f"Raw request data: {raw_data[:200]}")
-            
-            # Пробуем распарсить JSON
-            try:
-                data = request.get_json(force=True)
-            except Exception as json_err:
-                logger.error(f"JSON parse error: {json_err}, raw data: {raw_data[:200]}")
-                # Пробуем исправить JSON с одинарными кавычками
-                try:
-                    import json
-                    import re
-                    # Заменяем одинарные кавычки на двойные (грубый фикс)
-                    fixed_data = raw_data.replace("'", '"')
-                    data = json.loads(fixed_data)
-                except Exception as fix_err:
-                    logger.error(f"Failed to fix JSON: {fix_err}")
-                    return jsonify({'error': 'Invalid JSON format'}), 400
-            
-            if not data:
-                return jsonify({'error': 'Invalid JSON'}), 400
-            message = data.get('message', '')
-            session_id = data.get('session_id')
-            user_id = data.get('user_id')
-            file_data = data.get('file_data')
-
-            result = web_gui_instance.process_message(message, session_id, user_id, file_data)
-            return jsonify(result)
-        except Exception as e:
-            logger.error(f"Ошибка в api_chat: {e}", exc_info=True)
-            return jsonify({'error': str(e)}), 500
+    # NOTE: /api/chat MOVED to server_routes_chat.py (registered via register_chat_routes)
 
     @app.route(f'{API_PREFIX}/chat', methods=['POST'])
     @api_version("1.0.0")
