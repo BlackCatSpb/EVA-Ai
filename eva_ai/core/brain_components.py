@@ -233,14 +233,25 @@ def _init_fcp_pipeline(brain):
     brain.fcp_pipeline_ready = False
     
     try:
-        fcp_config = brain.config.get('fcp_pipeline', {})
-        
-        if not fcp_config.get('enabled', True):
-            query_logger.info("FCPPipelineV15 отключён в конфигурации")
+        # fcp_pipeline config is nested under 'fcp' key
+        fcp_config = brain.config.get('fcp', {}).get('fcp_pipeline', {})
+
+        # Fallback to top-level fcp_pipeline for backwards compatibility
+        if not fcp_config:
+            fcp_config = brain.config.get('fcp_pipeline', {})
+
+        # Check if enabled at fcp level
+        fcp_enabled = brain.config.get('fcp', {}).get('enabled', True)
+        if not fcp_enabled:
+            query_logger.info("FCPPipelineV15 отключён в конфигурации (fcp.enabled=false)")
             return
-        
+
+        if not fcp_config.get('enabled', True):
+            query_logger.info("FCPPipelineV15 отключён в конфигурации (fcp_pipeline.enabled=false)")
+            return
+
         from eva_ai.core.fcp_pipeline import FCPPipelineV15
-        
+
         model_path = fcp_config.get('model_path')
         if not model_path:
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

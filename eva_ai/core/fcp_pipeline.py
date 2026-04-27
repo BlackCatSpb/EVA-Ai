@@ -3,11 +3,20 @@ FCPPipelineV15 - Основной FCP Pipeline для EVA-Ai
 
 Простой и рабочий пайплайн генерации на базе ruadapt_qwen3_4b OpenVINO.
 С KCA (Knowledge Conscious Attention) и SRG (Semantic Relevance Gate).
+
+Возможности:
+- Сохранение/загрузка сессий (conversation_history)
+- Семантический поиск релевантного контекста из FractalGraphV2
+- Полная гибридная интеграция: KCA + SRG + GNN + LoRA
 """
 import os
 import time
+import json
+import logging
 from typing import Optional, Dict, Any, Callable, Generator, Tuple, List
 import numpy as np
+
+logger = logging.getLogger("eva_ai.fcp_pipeline")
 
 # FCP Core Components
 from eva_ai.fcp_core import (
@@ -112,6 +121,9 @@ class FCPPipelineV15:
         self._init_memory_snapshot()
         self._init_pipeline(draft_model_path)
         self._init_lora_manager()
+
+        # Загружаем сохранённую сессию если есть
+        self.load_session("default")
 
         print(f"[FCP] FCPPipelineV15 created: model={model_path}")
     
@@ -505,6 +517,9 @@ class FCPPipelineV15:
             if len(self.conversation_history) > self.max_history:
                 self.conversation_history = self.conversation_history[-self.max_history:]
 
+            # Сохраняем сессию сразу после изменения
+            self.save_session("default")
+
         if return_metadata:
             metadata["query_count"] = self.stats["queries"]
             return response, metadata
@@ -639,12 +654,25 @@ class FCPPipelineV15:
             logger.debug(f"Snapshot save error: {e}")
     
     def _build_prompt(self, prompt: str, enable_thinking: bool) -> str:
-        """Формирование промпта с историей разговора"""
+        """
+        Формирование промпта с историей разговора и семантическим контекстом.
+
+        Использует SRG для определения релевантности и добавляет только
+        семантически и логически связанные entries из истории.
+        """
+        # Получаем семантически релевантный контекст из истории
+        relevant_context = self.get_relevant_context(prompt, max_history=3)
+
         history_text = ""
         if self.conversation_history:
             for entry in self.conversation_history[-self.max_history:]:
                 history_text += f"<|im_start|>user\n{entry['user']}<|im_end|>\n"
                 history_text += f"<|im_start|>assistant\n{entry['assistant']}<|im_end|>\n"
+
+        # Добавляем релевантный контекст если есть
+        if relevant_context:
+            history_text = f"[Релевантный контекст из прошлых разговоров]:\n{relevant_context}\n\n" + history_text
+
         return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
     def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
@@ -772,8 +800,139 @@ class FCPPipelineV15:
         """Получить релевантные знания из графа"""
         if self.fractal_graph is None or self.fractal_graph.node_count == 0:
             return {"indices": [], "embeddings": [], "scores": []}
-        
+
         return self.fractal_graph.retrieve_subgraph(query_embedding, top_k=top_k)
+
+    def save_session(self, session_id: str = "default") -> bool:
+        """
+        Сохранить состояние сессии (conversation_history + fractal_graph).
+
+        Args:
+            session_id: идентификатор сессии
+
+        Returns:
+            True если успешно сохранено
+        """
+        try:
+            session_dir = os.path.join(os.path.dirname(self.model_path), "sessions")
+            os.makedirs(session_dir, exist_ok=True)
+
+            session_file = os.path.join(session_dir, f"{session_id}.json")
+
+            session_data = {
+                "session_id": session_id,
+                "timestamp": time.time(),
+                "conversation_history": self.conversation_history,
+                "stats": self.stats
+            }
+
+            with open(session_file, 'w', encoding='utf-8') as f:
+                json.dump(session_data, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"[FCP] Session saved: {session_id}, history_size={len(self.conversation_history)}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[FCP] Session save error: {e}")
+            return False
+
+    def load_session(self, session_id: str = "default") -> bool:
+        """
+        Загрузить состояние сессии.
+
+        Args:
+            session_id: идентификатор сессии
+
+        Returns:
+            True если успешно загружено
+        """
+        try:
+            session_dir = os.path.join(os.path.dirname(self.model_path), "sessions")
+            session_file = os.path.join(session_dir, f"{session_id}.json")
+
+            if not os.path.exists(session_file):
+                logger.debug(f"[FCP] Session file not found: {session_id}")
+                return False
+
+            with open(session_file, 'r', encoding='utf-8') as f:
+                session_data = json.load(f)
+
+            self.conversation_history = session_data.get("conversation_history", [])
+            self.stats = session_data.get("stats", {"queries": 0, "injections": 0})
+
+            logger.info(f"[FCP] Session loaded: {session_id}, history_size={len(self.conversation_history)}")
+            return True
+
+        except Exception as e:
+            logger.error(f"[FCP] Session load error: {e}")
+            return False
+
+    def get_relevant_context(self, query: str, max_history: int = 5) -> str:
+        """
+        Получить семантически релевантный контекст из истории сессии.
+
+        Использует FractalGraph для поиска релевантных entries в conversation_history.
+
+        Args:
+            query: текст запроса
+            max_history: максимальное количество entries для возврата
+
+        Returns:
+            Строка с релевантным контекстом
+        """
+        if not self.conversation_history:
+            return ""
+
+        try:
+            query_emb = self._get_query_embedding(query)
+
+            # Вычисляем similarity с каждым entry в истории
+            best_entries = []
+            for i, entry in enumerate(self.conversation_history):
+                entry_text = f"{entry.get('user', '')} {entry.get('assistant', '')}"
+                entry_emb = self._get_query_embedding(entry_text)
+
+                # Cosine similarity
+                sim = np.dot(query_emb, entry_emb) / (
+                    np.linalg.norm(query_emb) * np.linalg.norm(entry_emb) + 1e-8
+                )
+
+                if sim > 0.3:  # Порог релевантности
+                    best_entries.append((sim, entry))
+
+            # Сортируем по similarity и берём top
+            best_entries.sort(key=lambda x: x[0], reverse=True)
+
+            context_parts = []
+            for sim, entry in best_entries[:max_history]:
+                user_text = entry.get('user', '')[:100]
+                assistant_text = entry.get('assistant', '')[:200]
+                context_parts.append(f"User: {user_text}\nAssistant: {assistant_text}")
+
+            if context_parts:
+                return "\n\n---\n".join(context_parts)
+
+        except Exception as e:
+            logger.debug(f"[FCP] Context retrieval error: {e}")
+
+        return ""
+
+    def clear_session(self, session_id: str = "default") -> bool:
+        """Очистить сессию (удалить файл)"""
+        try:
+            session_dir = os.path.join(os.path.dirname(self.model_path), "sessions")
+            session_file = os.path.join(session_dir, f"{session_id}.json")
+
+            if os.path.exists(session_file):
+                os.remove(session_file)
+
+            self.conversation_history = []
+            self.stats = {"queries": 0, "injections": 0}
+
+            return True
+        except Exception as e:
+            logger.error(f"[FCP] Session clear error: {e}")
+            return False
 
 
 def create_fcp_pipeline(model_path: str, graph_path: str = None, **kwargs):
