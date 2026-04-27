@@ -491,146 +491,127 @@ def _load_model_into_graph(fg, initializer):
 
 
 def create_knowledge_components(initializer):
-    """
-    Создаёт компоненты работы с знаниями на основе FractalGraph v2.
-    БЕЗ KG адаптера - напрямую используем FGv2.
-    """
-    try:
-        # Получаем FGv2
-        fg = getattr(initializer.core_brain, 'fractal_graph_v2', None)
-        if fg is None:
-            components = getattr(initializer.core_brain, 'components', {})
-            fg = components.get('fractal_graph_v2')
-        
-        if fg is None:
-            initializer.logger.warning("[WARN] FGv2 не найден, компоненты знаний не созданы")
-            return None
-        
-        # Создаём ConceptExtractor для извлечения концептов из запросов
-        try:
-            from eva_ai.knowledge.concept_extractor import create_concept_extractor
-            concept_extractor = create_concept_extractor(
-                fractal_graph=fg,
-                brain=initializer.core_brain
-            )
-            initializer.core_brain.concept_extractor = concept_extractor
-            initializer.core_brain.components['concept_extractor'] = concept_extractor
-            initializer.logger.info("[OK] ConceptExtractor создан")
-        except Exception as ce:
-            initializer.logger.warning(f"[WARN] ConceptExtractor не создан: {ce}")
-        
-        # Создаём ContradictionGenerator для генерации противоречий (шаблоны)
-        try:
-            from eva_ai.contradiction.contradiction_generator import create_contradiction_generator
-            contr_generator = create_contradiction_generator(
-                brain=initializer.core_brain,
-                fractal_graph=fg
-            )
-            initializer.core_brain.contradiction_generator = contr_generator
-            initializer.core_brain.components['contradiction_generator'] = contr_generator
-            initializer.logger.info("[OK] ContradictionGenerator создан (шаблоны)")
-        except Exception as cge:
-            initializer.logger.warning(f"[WARN] ContradictionGenerator не создан: {cge}")
-        
-        # Создаём ContradictionMiner для обнаружения противоречий в графе (анализ)
-        try:
-            from eva_ai.contradiction.contradiction_miner import create_contradiction_miner
-            
-            event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
-            deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
-            
-            contradiction_miner = create_contradiction_miner(
-                brain=initializer.core_brain,
-                event_bus=event_bus,
-                deferred_system=deferred_system,
-                config={
-                    'enabled': True,
-                    'dry_run': False,
-                    'sim_threshold': 0.75,
-                    'contra_threshold': 0.65,
-                    'max_candidates_per_cycle': 3
-                }
-            )
-            
-            initializer.core_brain.contradiction_miner = contradiction_miner
-            initializer.core_brain.components['contradiction_miner'] = contradiction_miner
-            
-            # Запускаем
-            contradiction_miner.start()
-            
-            initializer.logger.info("[OK] ContradictionMiner создан и запущен (анализ графа)")
-        except Exception as cme:
-            initializer.logger.warning(f"[WARN] ContradictionMiner не создан: {cme}")
-
-        # Создаём UnifiedContradictionManager - единая точка входа
-        try:
-            from eva_ai.contradiction.unified_contradiction_manager import UnifiedContradictionManager
-
-            unified_cm = UnifiedContradictionManager(
-                brain=initializer.core_brain,
-                config={
-                    'enable_generator': True,
-                    'enable_miner': True,
-                    'enable_legacy': True,
-                    'auto_select': True
-                }
-            )
-
-            initializer.core_brain.unified_contradiction_manager = unified_cm
-            initializer.core_brain.components['unified_contradiction_manager'] = unified_cm
-
-            initializer.logger.info("[OK] UnifiedContradictionManager создан (C3 fix)")
-        except Exception as ucme:
-            initializer.logger.warning(f"[WARN] UnifiedContradictionManager не создан: {ucme}")
-
-         # Создаём ConceptMiner для глубокого анализа кластеров
-        try:
-            from eva_ai.knowledge.concept_miner import create_concept_miner
-            
-            # Получаем необходимые компоненты
-            event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
-            deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
-            
-            concept_miner = create_concept_miner(
-                brain=initializer.core_brain,
-                event_bus=event_bus,
-                deferred_system=deferred_system,
-                config={
-                    'enabled': True,
-                    'dry_run': False,
-                    'max_candidates_per_cycle': 3,
-                    'enable_web_search_validation': False  # Пока отключим для скорости
-                }
-            )
-            
-            initializer.core_brain.concept_miner = concept_miner
-            initializer.core_brain.components['concept_miner'] = concept_miner
-            
-            # Запускаем ConceptMiner
-            concept_miner.start()
-            
-            initializer.logger.info("[OK] ConceptMiner (глубокий анализ) создан и запущен")
-        except Exception as cme:
-            initializer.logger.warning(f"[WARN] ConceptMiner не создан: {cme}")
-         
-        # Создаём Wikipedia Knowledge Base для enrichment концептов
-        try:
-            from eva_ai.knowledge.wikipedia_kb import get_wikipedia_kb
-            wikipedia_kb = get_wikipedia_kb()
-            initializer.core_brain.wikipedia_kb = wikipedia_kb
-            initializer.core_brain.components['wikipedia_kb'] = wikipedia_kb
-            initializer.logger.info("[OK] Wikipedia Knowledge Base создан")
-        except Exception as wkbe:
-            initializer.logger.warning(f"[WARN] Wikipedia Knowledge Base не создан: {wkbe}")
-
-        initializer.logger.info("[OK] KnowledgeGraph адаптер (FGv2) создан")
-        return kg_adapter
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания KnowledgeGraph адаптера: {e}")
+    """Создание компонентов для работы со знаниями: ConceptExtractor, KGAdapter, и другие"""
+    if not initializer.core_brain:
+        initializer.logger.error("[FAIL] CoreBrain не инициализирован")
         return None
 
+    fg = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+    if fg is None:
+        components = getattr(initializer.core_brain, 'components', {})
+        fg = components.get('fractal_graph_v2')
 
-def create_fractal_storage(initializer):
+    if fg is None:
+        initializer.logger.warning("[WARN] FGv2 не найден, компоненты знаний не созданы")
+        return None
+
+    # Создаём KnowledgeGraph (KGAdapter) для совместимости
+    try:
+        from eva_ai.knowledge.knowledge_graph import KnowledgeGraph
+        knowledge_graph = KnowledgeGraph(fractal_graph=fg)
+        initializer.core_brain.knowledge_graph = knowledge_graph
+        initializer.core_brain.components['knowledge_graph'] = knowledge_graph
+        initializer.logger.info("[OK] KnowledgeGraph (KGAdapter) создан")
+    except Exception as kg_err:
+        initializer.logger.warning(f"[WARN] KnowledgeGraph не создан: {kg_err}")
+
+    # Создаём ConceptExtractor для извлечения концептов из запросов
+    try:
+        from eva_ai.knowledge.concept_extractor import create_concept_extractor
+        concept_extractor = create_concept_extractor(
+            fractal_graph=fg,
+            brain=initializer.core_brain
+        )
+        initializer.core_brain.concept_extractor = concept_extractor
+        initializer.core_brain.components['concept_extractor'] = concept_extractor
+        initializer.logger.info("[OK] ConceptExtractor создан")
+    except Exception as ce:
+        initializer.logger.warning(f"[WARN] ConceptExtractor не создан: {ce}")
+
+    # Создаём ContradictionGenerator для генерации противоречий (шаблоны)
+    try:
+        from eva_ai.contradiction.contradiction_generator import create_contradiction_generator
+        contr_generator = create_contradiction_generator(
+            brain=initializer.core_brain,
+            fractal_graph=fg
+        )
+        initializer.core_brain.contradiction_generator = contr_generator
+        initializer.core_brain.components['contradiction_generator'] = contr_generator
+        initializer.logger.info("[OK] ContradictionGenerator создан (шаблоны)")
+    except Exception as cge:
+        initializer.logger.warning(f"[WARN] ContradictionGenerator не создан: {cge}")
+
+    # Создаём ContradictionMiner для обнаружения противоречий в графе (анализ)
+    try:
+        from eva_ai.contradiction.contradiction_miner import create_contradiction_miner
+
+        event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
+        deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+
+        contradiction_miner = create_contradiction_miner(
+            brain=initializer.core_brain,
+            event_bus=event_bus,
+            deferred_system=deferred_system,
+            config={
+                'enabled': True,
+                'dry_run': False,
+                'sim_threshold': 0.75,
+                'contra_threshold': 0.65,
+                'max_candidates_per_cycle': 3
+            }
+        )
+
+        initializer.core_brain.contradiction_miner = contradiction_miner
+        initializer.core_brain.components['contradiction_miner'] = contradiction_miner
+
+        # Запускаем
+        contradiction_miner.start()
+
+        initializer.logger.info("[OK] ContradictionMiner создан и запущен (анализ графа)")
+    except Exception as cme:
+        initializer.logger.warning(f"[WARN] ContradictionMiner не создан: {cme}")
+
+    # Создаём ConceptMiner для глубокого анализа кластеров
+    try:
+        from eva_ai.knowledge.concept_miner import create_concept_miner
+
+        # Получаем необходимые компоненты
+        event_bus = getattr(initializer.core_brain, 'event_bus', None) or getattr(initializer.core_brain, '_new_event_bus', None)
+        deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+
+        concept_miner = create_concept_miner(
+            brain=initializer.core_brain,
+            event_bus=event_bus,
+            deferred_system=deferred_system,
+            config={
+                'enabled': True,
+                'dry_run': False,
+                'max_candidates_per_cycle': 3,
+                'enable_web_search_validation': False
+            }
+        )
+
+        initializer.core_brain.concept_miner = concept_miner
+        initializer.core_brain.components['concept_miner'] = concept_miner
+
+        # Запускаем ConceptMiner
+        concept_miner.start()
+
+        initializer.logger.info("[OK] ConceptMiner (глубокий анализ) создан и запущен")
+    except Exception as cme:
+        initializer.logger.warning(f"[WARN] ConceptMiner не создан: {cme}")
+
+    # Создаём Wikipedia Knowledge Base для enrichment концептов
+    try:
+        from eva_ai.knowledge.wikipedia_kb import get_wikipedia_kb
+        wikipedia_kb = get_wikipedia_kb()
+        initializer.core_brain.wikipedia_kb = wikipedia_kb
+        initializer.core_brain.components['wikipedia_kb'] = wikipedia_kb
+        initializer.logger.info("[OK] Wikipedia Knowledge Base создан")
+    except Exception as wkbe:
+        initializer.logger.warning(f"[WARN] Wikipedia Knowledge Base не создан: {wkbe}")
+
+    return None
     """Создает FractalStorage для хранения цепочек рассуждений."""
     try:
         try:
