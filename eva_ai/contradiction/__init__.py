@@ -22,7 +22,10 @@ def __getattr__(name):
         'ContradictionMiner': ('contradiction_miner', 'ContradictionMiner'),
         'ContradictionStatus': ('contradiction_miner', 'ContradictionStatus'),
         'ContradictionCandidate': ('contradiction_miner', 'ContradictionCandidate'),
-        'create_contradiction_miner': ('contradiction_miner', 'create_contradiction_miner')
+        'create_contradiction_miner': ('contradiction_miner', 'create_contradiction_miner'),
+        'UnifiedContradictionManager': ('unified_contradiction_manager', 'UnifiedContradictionManager'),
+        'UnifiedContradiction': ('unified_contradiction_manager', 'UnifiedContradiction'),
+        'ContradictionSource': ('unified_contradiction_manager', 'ContradictionSource')
     }
     
     if name in imports:
@@ -52,5 +55,8 @@ __all__ = [
     'ContradictionMiner',
     'ContradictionStatus',
     'ContradictionCandidate',
-    'create_contradiction_miner'
+    'create_contradiction_miner',
+    'UnifiedContradictionManager',
+    'UnifiedContradiction',
+    'ContradictionSource'
 ]

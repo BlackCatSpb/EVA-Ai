@@ -561,7 +561,28 @@ def create_knowledge_components(initializer):
             initializer.logger.info("[OK] ContradictionMiner создан и запущен (анализ графа)")
         except Exception as cme:
             initializer.logger.warning(f"[WARN] ContradictionMiner не создан: {cme}")
-        
+
+        # Создаём UnifiedContradictionManager - единая точка входа
+        try:
+            from eva_ai.contradiction.unified_contradiction_manager import UnifiedContradictionManager
+
+            unified_cm = UnifiedContradictionManager(
+                brain=initializer.core_brain,
+                config={
+                    'enable_generator': True,
+                    'enable_miner': True,
+                    'enable_legacy': True,
+                    'auto_select': True
+                }
+            )
+
+            initializer.core_brain.unified_contradiction_manager = unified_cm
+            initializer.core_brain.components['unified_contradiction_manager'] = unified_cm
+
+            initializer.logger.info("[OK] UnifiedContradictionManager создан (C3 fix)")
+        except Exception as ucme:
+            initializer.logger.warning(f"[WARN] UnifiedContradictionManager не создан: {ucme}")
+
          # Создаём ConceptMiner для глубокого анализа кластеров
         try:
             from eva_ai.knowledge.concept_miner import create_concept_miner
