@@ -4,6 +4,55 @@
 
 Восстановление и отладка EVA AI системы. Реализация системы концептов и противоречий через самодиалоги.
 
+## Quick Start
+
+**НОВЫМ РАЗРАБОТЧИКАМ:** Читать `analysis/ONBOARDING.md` перед началом работы!
+
+### Базовый цикл работы
+
+1. **Установка:**
+```bash
+cd C:\Users\black\OneDrive\Desktop\EVA-Ai
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+2. **Запуск:**
+```powershell
+cd C:\Users\black\OneDrive\Desktop\CogniFlex
+Remove-Item "*.log" -Force
+python -m eva_ai
+```
+
+3. **Рабочие директории:**
+- Исходный код: `C:\Users\black\OneDrive\Desktop\EVA-Ai\`
+- Runtime: `C:\Users\black\OneDrive\Desktop\CogniFlex\`
+- Логи: `C:\Users\black\OneDrive\Desktop\CogniFlex\*.log`
+
+---
+
+## Known Issues (Приоритеты исправлений)
+
+### Критические (C) - исправить немедленно
+
+| ID | Проблема | Где | Файлы |
+|----|----------|-----|-------|
+| C1 | FCP изолирован от WebSearch/Ethics | FCP генерирует без веба и этической проверки | `cross_analysis_fcp_ethics.md` |
+| C2 | 3x дублирование /api/chat | Непредсказуемое поведение | `cross_analysis_server_monitoring.md` |
+| C3 | Три системы детекции противоречий | Дублирование | `cross_analysis_dialog_miners.md` |
+
+### Высокие (H)
+
+| ID | Проблема | Где | Файлы |
+|----|----------|-----|-------|
+| H1 | KGAdapter не создаётся | `init_factories.py` | `cross_analysis_core_memory.md` |
+| H2 | DialogConceptsMixin не инициализирован | `dialog_core.py` | `cross_analysis_core_memory.md` |
+| H3 | summary_parts не определён | `dialog_core.py:1049` | `self_dialog_system.md` |
+| H4 | SystemMonitor изолирован | Не подключён к EventBus | `cross_analysis_server_monitoring.md` |
+
+---
+
 ## Instructions
 
 - Всегда запускать EVA в отдельном терминале: `cd C:\Users\black\OneDrive\Desktop\CogniFlex && python -m eva_ai`

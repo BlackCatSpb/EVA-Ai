@@ -930,6 +930,39 @@ def create_memory_snapshot_integration(initializer):
         return None
 
 
+def create_closed_cognitive_loop(initializer):
+    """Creates the Closed Cognitive Loop - KCA integration with SplitModelRunner."""
+    try:
+        from eva_ai.core.split_model_runner import SplitModelRunner
+        from eva_ai.core.kca_integration import KCAModule, KCAIntegration
+        from eva_ai.core.closed_cognitive_loop import ClosedCognitiveLoop
+
+        initializer.logger.info("[START] Creating ClosedCognitiveLoop...")
+
+        # Get SplitModelRunner
+        split_runner = SplitModelRunner(split_layer=6)
+        split_runner.load_models()
+        initializer.logger.info("[OK] SplitModelRunner created")
+
+        # Create ClosedCognitiveLoop
+        loop = ClosedCognitiveLoop(split_runner)
+        initializer.core_brain.closed_cognitive_loop = loop
+        initializer.core_brain.components['closed_cognitive_loop'] = loop
+
+        # Create KCA integration separately for direct layer access
+        kca_integration = KCAIntegration(split_runner)
+        initializer.core_brain.kca_integration = kca_integration
+        initializer.core_brain.components['kca_integration'] = kca_integration
+        initializer.logger.info("[OK] ClosedCognitiveLoop created with KCA integration")
+
+        return loop
+
+    except Exception as e:
+        initializer.logger.error(f"[FAIL] ClosedCognitiveLoop creation failed: {e}")
+        initializer.failed_components.add('closed_cognitive_loop')
+        return None
+
+
 def register_all_factories(initializer):
     """Registers all component factories on the given initializer instance."""
     initializer.component_factories = {
@@ -960,7 +993,8 @@ def register_all_factories(initializer):
         'fcp_hybrid_stack': lambda: create_fcp_hybrid_stack(initializer),
         'hybrid_layer_pipeline': lambda: create_hybrid_layer_pipeline(initializer),
         'memory_snapshot': lambda: create_memory_snapshot_integration(initializer),
-        'wikipedia_kb': lambda: get_wikipedia_kb()
+        'wikipedia_kb': lambda: get_wikipedia_kb(),
+        'closed_cognitive_loop': lambda: create_closed_cognitive_loop(initializer)
     }
     initializer.logger.info(f"[REGISTER] All factories: {list(initializer.component_factories.keys())}")
     initializer.logger.info(f"Зарегистрировано {len(initializer.component_factories)} фабрик компонентов")

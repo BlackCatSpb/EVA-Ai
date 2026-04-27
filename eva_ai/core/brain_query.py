@@ -8,6 +8,7 @@ import logging
 import random
 import threading
 from typing import Dict, Any, Optional, List
+import numpy as np
 
 from eva_ai.core.model_access_manager import ModelAccessManager, AccessPriority
 
@@ -259,6 +260,12 @@ class QueryMixin:
                 except Exception as e:
                     query_logger.debug(f"Concept extraction error: {e}")
             
+            # Always log if we have a response
+            response_text = result.get('response') or result.get('text') if result else None
+            print(f"[DEBUG] _extract_key_concepts called, result keys: {list(result.keys()) if result else 'NONE'}, response: {str(response_text)[:50] if response_text else 'NONE'}")
+            if response_text:
+                self._extract_key_concepts(query, response_text)
+
             # Track query metrics
             elapsed = time.time() - start_time
             if result and result.get('status') != 'error' and result.get('response'):
@@ -1113,20 +1120,30 @@ class QueryMixin:
         Extracts key concepts from query and response using ConceptExtractor.
         Saves concepts to FractalGraph v2 and queues them for self-dialog.
         """
+        logger.info("[KCA] _extract_key_concepts called")
+
+        # Check what components are available
+        has_concept_extractor = hasattr(self, 'concept_extractor') and self.concept_extractor
+        has_closed_loop = hasattr(self, 'closed_cognitive_loop') and self.closed_cognitive_loop
+        has_kca_integration = hasattr(self, 'kca_integration') and self.kca_integration
+
+        logger.info(f"[KCA] Components - concept_extractor: {has_concept_extractor}, "
+                    f"closed_cognitive_loop: {has_closed_loop}, kca_integration: {has_kca_integration}")
+
         # Use ConceptExtractor if available
-        if hasattr(self, 'concept_extractor') and self.concept_extractor:
+        if has_concept_extractor:
             try:
                 concepts = self.concept_extractor.extract_concepts(query, response)
-                
+
                 # Save concepts to graph and queue for self-dialog
                 for concept in concepts:
                     # Save to FGv2
                     node_id = self.concept_extractor.save_concept_to_graph(concept)
-                    
+
                     # Queue for self-dialog
                     if hasattr(self, 'self_dialog_learning') and self.self_dialog_learning:
                         self.self_dialog_learning.queue_concept_for_dialog(
-                            concept.name, 
+                            concept.name,
                             priority=concept.confidence
                         )
                         # Триггер для запуска self-learning по требованию
@@ -1135,9 +1152,50 @@ class QueryMixin:
                                 self.self_dialog_learning.trigger_self_dialog(reason='query_concept')
                         except Exception as e:
                             query_logger.debug(f"Trigger error: {e}")
-                    
+
                     query_logger.debug(f"Concept '{concept.name}' extracted and queued")
-                
+
+                logger.info(f"[KCA] Extracted {len(concepts)} concepts")
+
+                # Update ClosedCognitiveLoop with extracted concepts
+                try:
+                    loop = getattr(self, 'closed_cognitive_loop', None)
+                    kca_integration = getattr(self, 'kca_integration', None)
+
+                    if loop and kca_integration:
+                        # Update concepts from miners
+                        loop.concept_miner.extracted_concepts.extend(concepts)
+
+                        # Get tokenized input from query
+                        try:
+                            from transformers import AutoTokenizer
+                            tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-3B")
+                            tokens = tokenizer(query, return_tensors="np")
+                            input_ids = tokens["input_ids"]
+                            seq_len = input_ids.shape[1]
+                            attention_mask = np.ones((1, seq_len), dtype=np.int64)
+                            position_ids = np.arange(seq_len, dtype=np.int64).reshape(1, -1)
+
+                            # Process a few key layers with KCA (layers 6, 12, 18)
+                            for layer in [6, 12, 18]:
+                                hs = loop.split_runner.get_layer_output(
+                                    input_ids, attention_mask, position_ids, layer
+                                )
+                                if hs is not None:
+                                    corrected, correction = kca_integration.process_layer(
+                                        hs, layer_idx=layer, iteration=0
+                                    )
+                                    logger.info(
+                                        f"[KCA] Layer {layer}: original_mean={np.mean(hs):.4f}, "
+                                        f"corrected_mean={np.mean(corrected):.4f}, gamma={correction.gate_value:.3f}"
+                                    )
+                        except Exception as kca_err:
+                            logger.error(f"KCA layer processing error: {kca_err}")
+
+                        logger.info("[KCA] ClosedCognitiveLoop updated with concepts")
+                except Exception as e:
+                    logger.error(f"ClosedCognitiveLoop update error: {e}")
+
                 # Return in legacy format for compatibility
                 return [
                     {

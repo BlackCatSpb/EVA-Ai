@@ -64,6 +64,7 @@ class ComponentInitializer:
         'fractal_storage',
         'self_reasoning_engine',
         'fcp_pipeline',
+        'closed_cognitive_loop',
     ]
 
     OPTIONAL_COMPONENTS = {

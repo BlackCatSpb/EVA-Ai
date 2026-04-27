@@ -33,6 +33,7 @@ def define_dependencies() -> Dict[str, List[str]]:
         'gui': [],
         'fractal_storage': [],
         'self_reasoning_engine': ['fractal_storage', 'fractal_graph_v2'],
+        'closed_cognitive_loop': ['fractal_graph_v2', 'fcp_pipeline'],
     }
 
 
