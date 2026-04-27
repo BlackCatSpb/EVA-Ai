@@ -48,19 +48,13 @@ class RecursiveModelPipeline:
     Использует create_chat_completion с автоматическим форматированием Qwen
     """
     
-    MODEL_A_MAX_TOKENS = 1024
+    MODEL_A_MAX_TOKENS = 4096
     MODEL_A_TEMPERATURE = 0.30
-    MODEL_A_TOP_P = 0.85
-    MODEL_A_TOP_K = 40
-    MODEL_A_REPEAT_PENALTY = 1.6
     
-    MODEL_B_MAX_TOKENS = 768
+    MODEL_B_MAX_TOKENS = 4096
     MODEL_B_TEMPERATURE = 0.45
-    MODEL_B_TOP_P = 0.90
-    MODEL_B_TOP_K = 60
-    MODEL_B_REPEAT_PENALTY = 2.0
     
-    MODEL_C_MAX_TOKENS = 512
+    MODEL_C_MAX_TOKENS = 4096
     MODEL_C_TEMPERATURE = 0.1
     MODEL_C_TOP_P = 0.9
     MODEL_C_TOP_K = 50
@@ -73,8 +67,8 @@ class RecursiveModelPipeline:
         model_a_path: str,
         model_b_path: str,
         model_c_path: str = None,
-        n_ctx: int = 8192,
-n_threads: int = None,  # None = испольовать все ядра
+        n_ctx: int = 16384,
+        n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
         fractal_memory = None,
         event_bus = None,
         resource_manager = None,
@@ -172,21 +166,21 @@ n_threads: int = None,  # None = испольовать все ядра
         
         recommended_ctx = self.resource_manager.get_recommended_context_size()
         
-        if recommended_ctx <= 2048:
-            return {'max_tokens': 256, 'temperature': 0.3}
-        elif recommended_ctx <= 4096:
-            return {'max_tokens': 512, 'temperature': 0.4}
+        if recommended_ctx <= 4096:
+            return {'max_tokens': 4096, 'temperature': 0.3}
+        elif recommended_ctx <= 8192:
+            return {'max_tokens': 4096, 'temperature': 0.4}
         else:
-            return {'max_tokens': 1024, 'temperature': 0.5}
+            return {'max_tokens': 4096, 'temperature': 0.5}
     
     def load_models(self):
         """Загрузка GGUF моделей - Model A и B как отдельные экземпляры"""
         if self.resource_manager:
             recommended_ctx = self.resource_manager.get_recommended_context_size()
         else:
-            recommended_ctx = 8192
+            recommended_ctx = 16384
         
-        a_ctx = min(recommended_ctx, 2048)
+        a_ctx = min(recommended_ctx, 16384)
         
         logger.info(f"Загрузка Model A: {self.model_a_path}")
         self.model_a = Llama(
@@ -682,7 +676,7 @@ def create_recursive_pipeline(
     model_a_path: str = None,
     model_b_path: str = None,
     model_c_path: str = None,
-    n_ctx: int = 8192,
+    n_ctx: int = 16384,
     n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
     fractal_memory = None,
     event_bus = None,

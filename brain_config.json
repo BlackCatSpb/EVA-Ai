@@ -18,7 +18,7 @@
   "system": {
     "log_level": "INFO",
     "query_timeout": 60,
-    "max_tokens": 2048
+    "max_tokens": 4096
   },
   "fractal_graph_v2": {
     "enabled": true,
@@ -110,12 +110,12 @@
       "gnn_runtime_path": null,
       "lora_dir": "eva_ai/models/lora_adapters"
     },
-    "generation": {
-      "max_new_tokens": 2048,
-      "temperature": 0.2,
-      "top_p": 0.9,
-      "top_k": 40,
-      "repetition_penalty": 1.1
-    }
+"generation": {
+        "max_new_tokens": 4096,
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "top_k": 40,
+        "repetition_penalty": 1.1
+      }
   }
 }

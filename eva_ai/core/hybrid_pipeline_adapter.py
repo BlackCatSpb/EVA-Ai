@@ -276,7 +276,7 @@ class HybridPipelineAdapter:
                 llama_condensed=self.model_a,
                 llama_extended=self.model_b,
                 graph=self.fractal_graph,
-                condensed_max_tokens=1024,
+                condensed_max_tokens=4096,
                 extended_max_tokens=extended_max_tokens,
                 extended_temperature=extended_temperature,
                 extended_repeat_penalty=extended_repeat_penalty,
@@ -344,7 +344,7 @@ class HybridPipelineAdapter:
                         max_tokens=n_ctx
                     )
                     
-                def process_query(self, query, conversation_history=None, max_tokens=2048, temperature=0.7):
+                def process_query(self, query, conversation_history=None, max_tokens=4096, temperature=0.7):
                     prompt = self._build_prompt(query, conversation_history)
                     result = self._generator.generate(prompt, max_tokens=max_tokens, temperature=temperature)
                     return {
@@ -365,7 +365,7 @@ class HybridPipelineAdapter:
                     prompt += f"<|im_start|>user\n{query}<|im_end|}\n<|im_start|>assistant\n"
                     return prompt
                 
-                def generate_streaming(self, prompt, max_tokens=2048, temperature=0.7, chunk_size=5):
+                def generate_streaming(self, prompt, max_tokens=4096, temperature=0.7, chunk_size=5):
                     """Streaming для FMF"""
                     result = self._generator.generate(prompt, max_tokens=max_tokens, temperature=temperature)
                     text = result.get("text", "")

@@ -173,37 +173,37 @@ class DataTypeConfig:
 # Конфигурации по умолчанию для каждого типа данных
 DEFAULT_DATA_TYPE_CONFIGS: Dict[DataType, DataTypeConfig] = {
     DataType.QUERY: DataTypeConfig(
-        max_tokens=1024,
+        max_tokens=4096,
         temperature=0.7,
         device="CPU",
         priority=10
     ),
     DataType.CONTEXT: DataTypeConfig(
-        max_tokens=512,
+        max_tokens=4096,
         temperature=0.5,
         device="CPU",
         priority=5
     ),
     DataType.CONCEPT: DataTypeConfig(
-        max_tokens=512,
+        max_tokens=4096,
         temperature=0.6,
         device="GPU.0",
         priority=7
     ),
     DataType.CONTRADICTION: DataTypeConfig(
-        max_tokens=768,
+        max_tokens=4096,
         temperature=0.7,
         device="GPU.0",
         priority=8
     ),
     DataType.SELF_DIALOG: DataTypeConfig(
-        max_tokens=2048,
+        max_tokens=4096,
         temperature=0.8,
         device="GPU.0",
         priority=9
     ),
     DataType.CODE: DataTypeConfig(
-        max_tokens=1024,
+        max_tokens=4096,
         temperature=0.3,
         device="GPU.0",
         priority=8

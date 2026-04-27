@@ -171,7 +171,7 @@ class GenerationCoordinator:
                 pipeline.generate,
                 query,
                 task_type='logic',
-                max_tokens=512
+                max_tokens=4096
             )
             
             return GenerationResult(
@@ -205,13 +205,13 @@ class GenerationCoordinator:
         # Run parallel
         async def gen_a():
             return await asyncio.to_thread(
-                model_a.generate, query, max_tokens=512
+                model_a.generate, query, max_tokens=4096
             )
         
         async def gen_b():
             if model_b:
                 return await asyncio.to_thread(
-                    model_b.generate, query, max_tokens=2048
+                    model_b.generate, query, max_tokens=4096
                 )
             return None
         

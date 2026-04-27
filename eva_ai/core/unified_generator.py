@@ -405,7 +405,7 @@ class UnifiedGenerator:
                 self._openvino_cpu = OpenVINOGenerator(
                     model_path=logic_model,
                     device=self.cpu_device,
-                    max_tokens=1024,
+                    max_tokens=4096,
                     performance_hint="THROUGHPUT",
                     scheduler_config=logic_scheduler,
                     num_streams=num_streams,
@@ -710,7 +710,7 @@ class UnifiedGenerator:
             'repeat_penalty': 1.1,
             'presence_penalty': 0.0,
             'frequency_penalty': 0.0,
-            'max_tokens': 2048  # Базовое значение
+            'max_tokens': 4096  # Минимум 4096 для всех
         }
         
         if model_type == ModelType.LOGIC:
@@ -720,7 +720,7 @@ class UnifiedGenerator:
                 'top_p': 0.85,
                 'top_k': 30,
                 'repeat_penalty': 1.1,
-                'max_tokens': 1024  # Краткие ответы
+                'max_tokens': 4096  # Минимум 4096
             }
         elif model_type == ModelType.CONTEXT:
             return {
@@ -729,7 +729,7 @@ class UnifiedGenerator:
                 'top_p': 0.90,
                 'top_k': 40,
                 'repeat_penalty': 1.05,  # Ниже для длинных ответов
-                'max_tokens': 4096  # Развёрнутые ответы
+                'max_tokens': 4096  # Минимум 4096
             }
         elif model_type == ModelType.CODER:
             return {
@@ -738,7 +738,7 @@ class UnifiedGenerator:
                 'top_p': 0.95,
                 'top_k': 50,
                 'repeat_penalty': 1.15,  # Выше для кода
-                'max_tokens': 4096  # Код может быть длинным
+                'max_tokens': 4096  # Минимум 4096 для кода
             }
         
         return base_params
@@ -747,7 +747,7 @@ class UnifiedGenerator:
         self,
         query: str,
         context: Optional[str] = None,
-        max_tokens: int = 512,
+        max_tokens: int = 4096,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
         task_type: str = "default"

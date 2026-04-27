@@ -1034,7 +1034,7 @@ def _init_hybrid_dialog_manager(brain):
             device=device,
             enable_validation=True,
             max_history=50,
-            max_tokens=512,
+            max_tokens=4096,
             temperature=0.7
         )
         

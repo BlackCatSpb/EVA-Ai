@@ -226,7 +226,7 @@ class HybridKnowledgeDialogManager:
         # Batch processing для оптимизации CPU
         if GENERATION_AVAILABLE and BatchSplitter:
             self._batch_splitter = create_batch_splitter(
-                max_tokens=1024,
+                max_tokens=4096,
                 strategy="by_sentences",
                 tokenizer=self._tokenizer
             )
@@ -332,7 +332,7 @@ class HybridKnowledgeDialogManager:
                 generator_a = OpenVINOGenerator(
                     model_path=model_a_path_obj,
                     device=self.device,
-                    max_tokens=512,
+                    max_tokens=4096,
                     temperature=self.temperature,
                     use_registry=False
                 )
@@ -355,7 +355,7 @@ class HybridKnowledgeDialogManager:
                     generator_b = OpenVINOGenerator(
                         model_path=model_path_a,
                         device=self.device,
-                        max_tokens=2048,
+                        max_tokens=4096,
                         temperature=self.temperature,
                         use_registry=False
                     )
