@@ -24,7 +24,11 @@ from eva_ai.fcp_core import (
 
 
 class FractalGraphEncoderLocal:
-    """Локальная копия FractalGraphEncoder для hybrid_integration"""
+    """
+    Графовый энкодер с полными матричными вычислениями.
+
+    SAGEConv-style aggregation с HNSW для быстрого поиска.
+    """
 
     def __init__(
         self,
@@ -37,21 +41,74 @@ class FractalGraphEncoderLocal:
         self.output_dim = output_dim
 
         np.random.seed(42)
-        self.W1 = np.random.randn(input_dim, hidden_dim).astype(np.float32) * 0.02
-        self.W2 = np.random.randn(hidden_dim, output_dim).astype(np.float32) * 0.02
-        self.proj = np.random.randn(output_dim, output_dim).astype(np.float32) * 0.02
-        self.gate_W = np.random.randn(2 * output_dim, output_dim).astype(np.float32) * 0.02
+
+        # SAGEConv-style веса: W_agg для агрегации, W_update для обновления
+        self.W_agg = np.random.randn(input_dim, hidden_dim).astype(np.float32) * 0.02
+        self.W_update = np.random.randn(hidden_dim, output_dim).astype(np.float32) * 0.02
+
+        # Гейт для контроля инъекции graph_vec
+        self.W_gate = np.random.randn(2 * output_dim, output_dim).astype(np.float32) * 0.02
+
+        # Матрица проекции для выходного graph_vec
+        self.W_proj = np.random.randn(output_dim, output_dim).astype(np.float32) * 0.02
+
+        # LoRA-style адаптер
+        self.lora_A = np.random.randn(output_dim, 8).astype(np.float32) * 0.02
+        self.lora_B = np.random.randn(8, output_dim).astype(np.float32) * 0.02
 
         self._hnsw = None
         self._graph_nodes: List[Dict] = []
 
     def encode(self, x: np.ndarray, edge_index: Optional[np.ndarray] = None) -> Tuple[np.ndarray, np.ndarray]:
-        h = np.tanh(x @ self.W1)
-        h = np.tanh(h @ self.W2)
-        graph_vec = np.mean(h, axis=0, keepdims=True)
-        graph_vec = graph_vec @ self.proj
-        gate_input = np.concatenate([graph_vec, graph_vec], axis=-1)
-        gate_weights = gate_input @ self.gate_W
+        """
+        Полное GNN кодирование с матричными вычислениями.
+
+        SAGEConv-style:
+        h_neighbors = mean(neighbor embeddings)
+        h_self = self embedding
+        h_new = ReLU(W_agg @ [h_self || h_neighbors])
+        """
+        batch_size = 1 if x.ndim == 2 else x.shape[0]
+
+        if x.ndim == 2:
+            x = x.reshape(1, -1) if len(x) == 0 else x
+
+        # Если есть рёбра - используем SAGEConv агрегацию
+        if edge_index is not None and len(edge_index[0]) > 1:
+            # SAGEConv: neighbor aggregation
+            neighbor_embs = []
+            for i in range(len(edge_index[0])):
+                src, dst = edge_index[0][i], edge_index[1][i]
+                if src < x.shape[0] and dst < x.shape[0]:
+                    neighbor_embs.append(x[src])
+
+            if neighbor_embs:
+                neighbor_matrix = np.stack(neighbor_embs)  # [num_edges, hidden]
+                h_agg = np.mean(neighbor_matrix, axis=0, keepdims=True)  # [1, hidden_dim]
+            else:
+                h_agg = np.mean(x, axis=0, keepdims=True)
+        else:
+            # Без рёбер - просто pooling
+            h_agg = np.mean(x, axis=0, keepdims=True)
+
+        # SAGEConv step: h = ReLU(W_agg @ h_agg)
+        h = np.tanh(h_agg @ self.W_agg)
+
+        # Project to output dimension
+        graph_vec = h @ self.W_update  # [1, output_dim]
+
+        # LoRA-style adaptation
+        lora_out = (graph_vec @ self.lora_A) @ self.lora_B
+        lora_out = lora_out * (8 ** 0.5 / 8)  # scaling
+        graph_vec = graph_vec + lora_out
+
+        # Compute gate weights for injection control
+        concat_vec = np.concatenate([graph_vec, graph_vec], axis=-1)
+        gate_weights = 1.0 / (1.0 + np.exp(-(concat_vec @ self.W_gate)))  # sigmoid
+
+        # Final projection
+        graph_vec = graph_vec @ self.W_proj
+
         return graph_vec, gate_weights
 
     def build_hnsw_index(self, graph_nodes: List[Dict], dim: int = 2560):
@@ -60,9 +117,11 @@ class FractalGraphEncoderLocal:
         except ImportError:
             logger.warning("hnswlib not available")
             return
+
         self._graph_nodes = graph_nodes
         self._hnsw = hnswlib.Index(space='cosine', dim=dim)
         self._hnsw.init_index(max_elements=len(graph_nodes), ef_construction=200, M=16)
+
         embeddings = np.array([n.get('embedding', np.zeros(dim)) for n in graph_nodes])
         if len(embeddings) > 0:
             self._hnsw.add_items(embeddings, np.arange(len(embeddings)))
@@ -72,10 +131,12 @@ class FractalGraphEncoderLocal:
         if self._hnsw is None:
             return {'x': np.array([]), 'edge_index': np.array([[], []]),
                     'node_ids': [], 'contents': [], 'distances': []}
+
         labels, distances = self._hnsw.knn_query(query_embedding.reshape(1, -1), k=k)
         labels = labels[0]
         distances = distances[0]
         nodes = [self._graph_nodes[i] for i in labels]
+
         return {
             'x': np.array([n.get('embedding', np.zeros(self.output_dim)) for n in nodes]),
             'edge_index': np.array([np.arange(len(nodes)), np.roll(np.arange(len(nodes)), 1)]),
@@ -86,27 +147,89 @@ class FractalGraphEncoderLocal:
 
 
 class AdaptiveFusionInjectorLocal:
-    """Локальная копия для hybrid_integration"""
+    """
+    Адаптивный инъектор с матричными вычислениями для управления потоком информации.
+
+    Graph vector injection через learned gate mechanism:
+    injection = scale * gate(hidden) * W_proj(graph)
+    """
 
     def __init__(self, hidden_dim: int = 2560, injection_scale: float = 0.1):
         self.hidden_dim = hidden_dim
         self.injection_scale = injection_scale
+
+        # Learned проекции для инъекции
+        self.W_graph_proj = np.random.randn(hidden_dim, hidden_dim).astype(np.float32) * 0.02
+        self.W_hidden_proj = np.random.randn(hidden_dim, hidden_dim).astype(np.float32) * 0.02
+
+        # Gate network: [hidden || graph] -> scalar
+        self.W_gate = np.random.randn(2 * hidden_dim, hidden_dim).astype(np.float32) * 0.02
+        self.b_gate = np.zeros(hidden_dim).astype(np.float32)
+
+        # LoRA адаптер для fine-tuning
+        self.lora_A = np.random.randn(hidden_dim, 4).astype(np.float32) * 0.02
+        self.lora_B = np.random.randn(4, hidden_dim).astype(np.float32) * 0.02
+
         self.gate_weights: Optional[np.ndarray] = None
 
-    def inject_to_hidden(self, hidden_states: np.ndarray, graph_vec: np.ndarray) -> np.ndarray:
+    def inject_to_hidden(
+        self,
+        hidden_states: np.ndarray,
+        graph_vec: np.ndarray
+    ) -> np.ndarray:
+        """
+        Матричная инъекция graph_vec в hidden_states.
+
+        Args:
+            hidden_states: [batch, seq_len, hidden_dim] или [seq_len, hidden_dim]
+            graph_vec: [hidden_dim] или [1, hidden_dim]
+
+        Returns:
+            modified hidden_states
+        """
+        # Reshape hidden_states
+        original_shape = hidden_states.shape
+        if hidden_states.ndim == 2:
+            hidden_states = hidden_states.unsqueeze(0) if hasattr(hidden_states, 'unsqueeze') else hidden_states.reshape(1, *hidden_states.shape)
+
+        batch_size, seq_len, dim = hidden_states.shape
+
+        # Reshape graph_vec
         if graph_vec.ndim == 1:
             graph_vec = graph_vec.reshape(1, 1, -1)
         elif graph_vec.ndim == 2:
             graph_vec = graph_vec.reshape(1, 1, -1)
-        h_last = hidden_states[:, -1:, :]
-        injection = self.injection_scale * graph_vec
-        hidden_states[:, -1:, :] = h_last + injection
-        return hidden_states
+
+        # Project graph_vec: [1, 1, hidden_dim] -> [1, 1, hidden_dim]
+        graph_proj = np.tanh(graph_vec @ self.W_graph_proj)
+
+        # Get last token hidden state: [batch, 1, hidden_dim]
+        last_hidden = hidden_states[:, -1:, :]
+
+        # Compute injection gate: sigmoid(W @ [last_hidden || graph_proj])
+        concat = np.concatenate([last_hidden, graph_proj], axis=-1)
+        gate_input = concat @ self.W_gate + self.b_gate
+        gate = 1.0 / (1.0 + np.exp(-gate_input))  # sigmoid -> [0, 1]
+
+        # Compute LoRA adaptation
+        lora_update = (last_hidden @ self.lora_A) @ self.lora_B
+        lora_update = lora_update * (4 ** 0.5 / 4)  # scaling
+
+        # Injection: scale * gate * graph_proj + lora
+        injection = self.injection_scale * gate * graph_proj
+        injection = injection + lora_update
+
+        # Apply to last token position
+        hidden_states[:, -1:, :] = hidden_states[:, -1:, :] + injection
+
+        return hidden_states.reshape(original_shape)
 
     def set_gate_weights(self, weights: np.ndarray):
+        """Установить предвычисленные gate weights."""
         self.gate_weights = weights
 
     def reset(self):
+        """Сбросить gate weights."""
         self.gate_weights = None
 
 

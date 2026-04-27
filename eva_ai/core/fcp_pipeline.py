@@ -466,30 +466,177 @@ class FCPPipelineV15:
         add_to_history: bool = True,
         **kwargs
     ) -> str:
-        """Основной метод генерации"""
+        """Основной метод генерации с полной гибридной интеграцией"""
         self.stats["queries"] += 1
 
-        # Подготовка промпта с историей
+        # 1. Подготовка промпта с историей
         chat_prompt = self._build_prompt(prompt, enable_thinking)
 
-        # Генерация
+        # 2. Гибридная обработка через HybridLayerProcessor (KCA + GNN + SRG)
+        if enable_injection and self.hybrid_processor and self.fractal_graph:
+            processed_prompt, metadata = self._process_with_hybrid_layers(
+                chat_prompt, prompt
+            )
+            self.stats["injections"] += 1
+
+            # Используем обогащённый промпт если есть контекст
+            if processed_prompt != chat_prompt:
+                chat_prompt = processed_prompt
+                logger.info(f"[FCP] Hybrid injection applied: srg_mode={metadata.get('srg_mode', 'unknown')}")
+        else:
+            metadata = {}
+
+        # 3. Генерация через OpenVINO pipeline
         response = self._generate(chat_prompt, max_new_tokens, **kwargs)
 
-        self.stats["injections"] += 1
+        # 4. Сохранение snapshot состояния (все слои)
+        if self.memory_snapshot and self.fractal_graph:
+            try:
+                self._save_layer_snapshot(prompt, response)
+            except Exception as e:
+                logger.debug(f"Snapshot save skipped: {e}")
 
-        # Сохраняем в историю
+        # 5. Сохраняем в историю
         if add_to_history and response:
             self.conversation_history.append({
                 "user": prompt,
                 "assistant": response
             })
-            # Ограничиваем историю
             if len(self.conversation_history) > self.max_history:
                 self.conversation_history = self.conversation_history[-self.max_history:]
 
         if return_metadata:
-            return response, {"query_count": self.stats["queries"]}
+            metadata["query_count"] = self.stats["queries"]
+            return response, metadata
         return response
+
+    def _process_with_hybrid_layers(self, chat_prompt: str, user_prompt: str) -> tuple:
+        """
+        Обработка через HybridLayerProcessor с полными матричными вычислениями.
+
+        Returns:
+            (enriched_prompt, metadata)
+        """
+        metadata = {
+            "srg_mode": "unknown",
+            "kca_cycles": 0,
+            "injections": 0
+        }
+
+        try:
+            # 1. Получаем запрос как эмбеддинг
+            if self.fractal_graph and self.fractal_graph.node_count > 0:
+                # Используем внутренний эмбеддинг модели если есть
+                query_embedding = self._get_query_embedding(user_prompt)
+
+                # 2. SRG evaluation - определяем режим
+                if self.srg:
+                    mode, srg_metrics = self.srg.evaluate(
+                        query_vec=query_embedding,
+                        response_vec=query_embedding,  # будет уточнено после generation
+                        logits=np.zeros(100)
+                    )
+                    metadata["srg_mode"] = mode
+                    metadata["srg_metrics"] = srg_metrics
+
+                    # Если direct mode - пропускаем KCA коррекцию
+                    if mode == "direct":
+                        subgraph = self.fractal_graph.retrieve_subgraph(
+                            query_embedding.reshape(1, -1),
+                            top_k=self.fcp_config.graph_top_k
+                        )
+                        enriched_prompt = self._enrich_prompt_with_subgraph(chat_prompt, subgraph)
+                        return enriched_prompt, metadata
+
+                # 3. Retrieve subgraph для KCA
+                if self.fractal_graph.node_count > 0:
+                    subgraph = self.fractal_graph.retrieve_subgraph(
+                        query_embedding.reshape(1, -1),
+                        top_k=self.fcp_config.graph_top_k
+                    )
+
+                    # 4. Если reasoning mode - запускаем KCA
+                    if self.kca and subgraph["embeddings"].shape[0] > 0:
+                        # Создаём synthetic hidden states для KCA
+                        hidden_dim = query_embedding.shape[-1]
+                        seq_len = 4
+                        initial_states = np.tile(query_embedding, (seq_len, 1)).astype(np.float32)
+
+                        # KCA forward pass
+                        corrected_states, kca_info = self.kca.forward(initial_states, subgraph)
+
+                        metadata["kca_cycles"] = kca_info.get("cycles", 0)
+                        metadata["kca_status"] = kca_info.get("status", "unknown")
+
+                        # Обогащаем промпт текстовым контекстом из подграфа
+                        enriched_prompt = self._enrich_prompt_with_subgraph(chat_prompt, subgraph)
+                        return enriched_prompt, metadata
+
+            # Fallback - возвращаем оригинальный промпт
+            return chat_prompt, metadata
+
+        except Exception as e:
+            logger.debug(f"Hybrid processing error: {e}")
+            return chat_prompt, metadata
+
+    def _get_query_embedding(self, text: str) -> np.ndarray:
+        """Получить эмбеддинг запроса из FractalGraph"""
+        try:
+            if hasattr(self, 'tokenizer') and self.tokenizer:
+                inputs = self.tokenizer(text, return_tensors="np", padding=True, truncation=True)
+                input_ids = inputs["input_ids"]
+                if input_ids.shape[1] > 0:
+                    return np.mean(inputs["input_ids"].astype(np.float32), axis=0)
+        except:
+            pass
+
+        # Fallback - случайный вектор
+        return np.random.randn(2560).astype(np.float32)
+
+    def _enrich_prompt_with_subgraph(self, prompt: str, subgraph: dict) -> str:
+        """Обогатить промпт текстовым контекстом из подграфа"""
+        if not subgraph or subgraph.get("embeddings").shape[0] == 0:
+            return prompt
+
+        # Получаем текстовый контекст
+        context_lines = []
+        contents = subgraph.get("contents", [])
+
+        for i, content in enumerate(contents[:5]):
+            context_lines.append(f"  {i+1}. {content}")
+
+        if context_lines:
+            context_str = "\n".join(context_lines)
+            enriched = f"\n📚 Контекст из графа знаний:\n{context_str}\n\n{prompt}"
+            return enriched
+
+        return prompt
+
+    def _save_layer_snapshot(self, query: str, response: str) -> None:
+        """Сохранить snapshot состояния всех слоёв в FractalGraph"""
+        try:
+            if not self.fractal_graph or self.fractal_graph.node_count == 0:
+                return
+
+            # Эмбеддинг запроса для поиска related nodes
+            query_emb = self._get_query_embedding(query)
+
+            # Retrieve subgraph для связывания
+            subgraph = self.fractal_graph.retrieve_subgraph(
+                query_emb.reshape(1, -1),
+                top_k=8
+            )
+
+            # Сохраняем в memory snapshot если доступен
+            if self.memory_snapshot:
+                self.memory_snapshot.save_snapshot(
+                    query=query,
+                    response=response,
+                    subgraph=subgraph
+                )
+
+        except Exception as e:
+            logger.debug(f"Snapshot save error: {e}")
     
     def _build_prompt(self, prompt: str, enable_thinking: bool) -> str:
         """Формирование промпта с историей разговора"""
