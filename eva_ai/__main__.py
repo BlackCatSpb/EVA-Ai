@@ -24,6 +24,31 @@ if sys.platform == 'win32':
     except Exception:
         pass
 
+# ============================================================================
+# CPU OPTIMIZATION: Используем ВСЕ ядра процессора (i5-12450H: 8 ядер, 12 потоков)
+# Устанавливаем переменные среды ДО всех импортов
+# ============================================================================
+import multiprocessing
+_cpu_count = multiprocessing.cpu_count() or 12
+
+# OpenMP (используется во многих научных библиотеках)
+os.environ.setdefault("OMP_NUM_THREADS", str(_cpu_count))
+# OpenBLAS (линейная алгебра)
+os.environ.setdefault("OPENBLAS_NUM_THREADS", str(_cpu_count))
+# MKL (Intel Math Kernel Library)
+os.environ.setdefault("MKL_NUM_THREADS", str(_cpu_count))
+# VECL (Intel oneAPI)
+os.environ.setdefault("VECL_NUM_THREADS", str(_cpu_count))
+# NumExpr (вычисления выражений)
+os.environ.setdefault("NUMEXPR_NUM_THREADS", str(_cpu_count))
+# OMP policy
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+# Intel MKL blocktime
+os.environ.setdefault("KMP_BLOCKTIME", "0")
+
+print(f"[EVA-STARTUP] CPU threads: {_cpu_count} logical processors (i5-12450H)")
+# ============================================================================
+
 # Вычисляем корневую директорию проекта (родитель eva/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

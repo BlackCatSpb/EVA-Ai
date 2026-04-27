@@ -24,10 +24,10 @@ def apply_hardware_optimizations(device, config: Optional[dict] = None, deferred
     def _apply_cpu_optimizations():
         try:
             import torch
-            # Оптимизации для CPU
-            threads = max(1, (os.cpu_count() or 2) // 2)
+            # Используем ВСЕ логические процессоры (12 для i5-12450H)
+            threads = os.cpu_count() or 12  # Все 12 логических процессоров
             torch.set_num_threads(threads)
-            torch.set_num_interop_threads(1)
+            torch.set_num_interop_threads(threads)
             logger.info(f"CPU оптимизации применены (потоков: {threads})")
         except Exception as e:
             logger.warning(f"Не удалось применить CPU оптимизации: {e}")
@@ -42,7 +42,7 @@ def apply_hardware_optimizations(device, config: Optional[dict] = None, deferred
             torch.cuda.empty_cache()
             
             # Устанавливаем оптимальное количество потоков
-            torch.set_num_threads(min(4, os.cpu_count() or 2))
+            torch.set_num_threads(os.cpu_count() or 12)  # Все логические процессоры
             
             # Настраиваем лимит памяти GPU (если доступно)
             if hasattr(torch.cuda, 'set_per_process_memory_fraction'):

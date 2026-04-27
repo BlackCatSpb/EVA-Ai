@@ -982,7 +982,6 @@ def register_all_factories(initializer):
         'adaptation_manager': lambda: create_adaptation_manager(initializer),
         'ethics_framework': lambda: create_ethics_framework(initializer),
         'web_search_engine': lambda: create_web_search_engine(initializer),
-        'fractal_storage': lambda: create_fractal_storage(initializer),
         'self_reasoning_engine': lambda: create_self_reasoning_engine(initializer),
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),

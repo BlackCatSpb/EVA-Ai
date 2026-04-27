@@ -6,10 +6,32 @@ import atexit
 import signal
 import threading
 import time
+
+# ============================================================================
+# CPU OPTIMIZATION: Используем ВСЕ ядра процессора (i5-12450H: 8 ядер, 12 потоков)
+# Устанавливаем переменные среды ДО всех импортов библиотек
+# ============================================================================
+import multiprocessing
+_cpu_count = multiprocessing.cpu_count() or 12
+
+os.environ.setdefault("OMP_NUM_THREADS", str(_cpu_count))
+os.environ.setdefault("OPENBLAS_NUM_THREADS", str(_cpu_count))
+os.environ.setdefault("MKL_NUM_THREADS", str(_cpu_count))
+os.environ.setdefault("VECL_NUM_THREADS", str(_cpu_count))
+os.environ.setdefault("NUMEXPR_NUM_THREADS", str(_cpu_count))
+os.environ.setdefault("OMP_WAIT_POLICY", "PASSIVE")
+
+print(f"[EVA-RUN] CPU threads: {_cpu_count} logical processors")
+# ============================================================================
+
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=PendingDeprecationWarning)
 
 import torch
+
+# Применяем аппаратные оптимизации сразу после импорта torch
+from eva_ai.core.hardware_optimizations import apply_hardware_optimizations
+apply_hardware_optimizations(torch.device('cpu'), config=None)
 
 from eva_ai.core.utils import setup_logging
 

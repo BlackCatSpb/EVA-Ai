@@ -318,35 +318,38 @@ class GraphCurator:
         """Выполнить цикл курирования"""
         with self._lock:
             try:
+                logger.debug("_do_curation: started")
                 self.metrics['last_run'] = time.time()
-                
+
                 fg = self._get_fractal_graph()
                 if not fg or not hasattr(fg, 'storage'):
                     logger.warning("FGv2 not available for curation")
+                    logger.debug("_do_curation: FGv2 not available, returning")
                     return
-                
+
                 storage = fg.storage
-                
+                logger.debug(f"_do_curation: storage has {len(storage.nodes)} nodes")
+
                 # 1. Очистка мусора (только незащищенных узлов)
                 if self.cleanup_enabled:
                     self._cleanup_garbage(storage)
-                
+
                 # 2. Промоут/демоут узлов между уровнями
                 if self.promotion_enabled:
                     self._process_level_promotions(storage)
-                
+
                 # 3. Консолидация узлов в группы
                 if self.consolidation_enabled:
                     self._consolidate_nodes(storage)
-                
+
                 # 4. Обновление метрик
                 self._update_metrics(storage)
-                
+
                 self.metrics['cycles_completed'] += 1
                 self.metrics['state'] = 'running'
-                
+
                 logger.debug(f"Curation completed: cycle #{self.metrics['cycles_completed']}")
-                
+
                 if self._event_bus:
                     self._event_bus.publish(Event(
                         event_type="curator.curation_complete",
@@ -359,7 +362,13 @@ class GraphCurator:
                         },
                         priority=EventPriority.NORMAL
                     ))
-                
+                logger.debug("_do_curation: completed successfully")
+
+            except AttributeError as ae:
+                import traceback
+                logger.error(f"Curation error: {ae}")
+                logger.debug(f"Traceback: {traceback.format_exc()}")
+                self.metrics['last_error'] = f"AttributeError: {ae}"
             except Exception as e:
                 import traceback
                 logger.error(f"Curation error: {e}")

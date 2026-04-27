@@ -36,11 +36,12 @@ def create_fmf_config() -> dict:
         "generation_config": generation_config,
         "scheduler_config": scheduler_config,
         "sparse_attention_config": sparse_attention_config,
-        # Performance hints
+        # Performance hints - максимальная загрузка всех 12 потоков
         "PERFORMANCE_HINT": "LATENCY",
         "NUM_STREAMS": "AUTO",
-        "INFERENCE_NUM_THREADS": 8,
-        "ENABLE_HYPER_THREADING": "AUTO"
+        "INFERENCE_NUM_THREADS": 12,  # i5-12450H has 12 logical processors
+        "ENABLE_HYPER_THREADING": "YES",
+        "CPU_BIND_THREAD": "HYBRID_AWARE"
     }
     
     return config

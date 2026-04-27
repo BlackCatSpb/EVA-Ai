@@ -19,7 +19,7 @@ from eva_ai.core.init_factories import (
     create_analytics_manager, create_system_monitor, create_metrics_collector,
     create_contradiction_manager, create_adaptation_manager,
     create_ethics_framework, create_web_search_engine,
-    create_fractal_storage, create_self_reasoning_engine,
+    create_fractal_graph_v2, create_self_reasoning_engine,
     register_all_factories,
 )
 from eva_ai.core.init_connections import (
@@ -42,7 +42,7 @@ __all__ = [
     'create_analytics_manager', 'create_system_monitor', 'create_metrics_collector',
     'create_contradiction_manager', 'create_adaptation_manager',
     'create_ethics_framework', 'create_web_search_engine',
-    'create_fractal_storage', 'create_self_reasoning_engine',
+    'create_fractal_graph_v2', 'create_self_reasoning_engine',
     'register_all_factories',
     'define_dependencies', 'validate_dependencies', 'check_dependencies',
     'post_initialize_connections',

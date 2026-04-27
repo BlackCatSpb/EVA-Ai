@@ -74,7 +74,7 @@ class RecursiveModelPipeline:
         model_b_path: str,
         model_c_path: str = None,
         n_ctx: int = 8192,
-        n_threads: int = 8,
+n_threads: int = None,  # None = испольовать все ядра
         fractal_memory = None,
         event_bus = None,
         resource_manager = None,
@@ -683,7 +683,7 @@ def create_recursive_pipeline(
     model_b_path: str = None,
     model_c_path: str = None,
     n_ctx: int = 8192,
-    n_threads: int = 8,
+    n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
     fractal_memory = None,
     event_bus = None,
     resource_manager = None,

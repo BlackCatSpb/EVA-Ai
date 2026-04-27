@@ -250,14 +250,20 @@ class FCPPipelineV15:
             return
         
         try:
-            # Максимальная производительность CPU
+            import multiprocessing
+            cpu_count = multiprocessing.cpu_count()
+            logical_processors = cpu_count  # 12 для i5-12450H
+
+            # Максимальная производительность CPU - используем ВСЕ потоки
             os.environ['PERFORMANCE_HINT'] = 'LATENCY'
-            os.environ['INFERENCE_NUM_THREADS'] = str(cpu_count)
-            os.environ['NUM_STREAMS'] = '1'
+            os.environ['NUM_STREAMS'] = str(logical_processors)  # 12 вместо 1
+            os.environ['INFERENCE_NUM_THREADS'] = str(logical_processors)  # Все потоки
+            os.environ['CPU_THREADS_PER_STREAM'] = 'AUTO'
+            os.environ['CPU_BIND_THREAD'] = 'HYBRID_AWARE'  # P-cores для GenAI
             os.environ['ENABLE_HYPER_THREADING'] = 'YES'
             os.environ['ENABLE_CPU_PINNING'] = 'YES'
             os.environ['CPU_DENORMALS_OPTIMIZATION'] = 'YES'
-            print(f"[FCP] CPU optimization enabled: {cpu_count} threads")
+            print(f"[FCP] CPU optimization: {logical_processors} streams, {logical_processors} threads")
             
             # SchedulerConfig - оптимизировано для одного запроса с сохранением контекста
             scheduler = ov_genai.SchedulerConfig()

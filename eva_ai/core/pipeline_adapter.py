@@ -277,7 +277,7 @@ def create_pipeline_adapter(
     logic_model_path=None,
     context_model_path=None,
     n_ctx=32768,
-    n_threads=4,
+    n_threads=None,  # None = испольовать все ядра (12 для i5-12450H)
     fractal_graph=None,
     brain=None,
     use_openvino=False,

@@ -61,7 +61,6 @@ class ComponentInitializer:
         'qwen_api_enhancer',
         'adaptation_manager',
         'web_search_engine',
-        'fractal_storage',
         'self_reasoning_engine',
         'fcp_pipeline',
         'closed_cognitive_loop',

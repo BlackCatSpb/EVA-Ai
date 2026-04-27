@@ -31,8 +31,7 @@ def define_dependencies() -> Dict[str, List[str]]:
         'web_search_engine': ['fractal_graph_v2'],
         'qwen_api_enhancer': ['fractal_graph_v2'],
         'gui': [],
-        'fractal_storage': [],
-        'self_reasoning_engine': ['fractal_storage', 'fractal_graph_v2'],
+        'self_reasoning_engine': ['fractal_graph_v2'],
         'closed_cognitive_loop': ['fractal_graph_v2', 'fcp_pipeline'],
     }
 

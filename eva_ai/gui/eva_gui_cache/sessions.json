@@ -6780,6 +6780,36 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "03d1d837-9b3e-440a-aec2-ac59a35c5cb5": {
+      "id": "03d1d837-9b3e-440a-aec2-ac59a35c5cb5",
+      "user_id": "22cc4309-322c-43a9-96c9-90485cdf5866",
+      "name": "Сессия admin",
+      "created_at": "2026-04-27T23:01:29.302055",
+      "last_active": "2026-04-27T23:01:29.302055",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "e67a4af5-3bbf-4812-8eb0-4da2e56f3295": {
+      "id": "e67a4af5-3bbf-4812-8eb0-4da2e56f3295",
+      "user_id": "9bc74b92-37f8-44dc-adae-5b570e15f94e",
+      "name": "Новый чат",
+      "created_at": "2026-04-28T00:59:14.982170",
+      "last_active": "2026-04-28T00:59:14.982170",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "aca66be0-1199-4d6e-83bb-32feb1bd944e": {
+      "id": "aca66be0-1199-4d6e-83bb-32feb1bd944e",
+      "user_id": "f548a2ec-6df1-4480-aae9-eb159b8c52c8",
+      "name": "Сессия admin",
+      "created_at": "2026-04-28T01:28:53.659138",
+      "last_active": "2026-04-28T01:28:53.659138",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

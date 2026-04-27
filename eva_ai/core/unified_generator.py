@@ -228,7 +228,7 @@ class UnifiedGenerator:
         logic_model_path: Optional[Path] = None,
         context_model_path: Optional[Path] = None,
         n_ctx: int = 32768,
-        n_threads: int = 4,
+        n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
         fractal_graph=None,
         brain=None,
         use_openvino: bool = False,
@@ -379,8 +379,8 @@ class UnifiedGenerator:
             context_model = self._model_paths.get(ModelType.CONTEXT)
             
             # NUM_STREAMS = cpu_count для максимальной загрузки
-            # Intel i5-12450H: 8 ядер, 12 потоков - используем 10 для баланса
-            num_streams = min(cpu_count, 10)
+            # Intel i5-12450H: 8 ядер, 12 потоков - используем ВСЕ для максимальной загрузки
+            num_streams = cpu_count  # 12 logical processors - all cores utilized
             
             # LOGIC scheduler - маленькие батчи, высокая частота
             # Intel i5-12450H: маленькие батчи = быстрее response time

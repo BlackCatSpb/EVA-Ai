@@ -1,0 +1,164 @@
+{
+  "triplets": [
+    {
+      "subject": "Москва",
+      "relation": "столица",
+      "object": "Россия"
+    },
+    {
+      "subject": "Москва",
+      "relation": "находится",
+      "object": "Европа"
+    },
+    {
+      "subject": "Санкт-Петербург",
+      "relation": "находится",
+      "object": "Россия"
+    },
+    {
+      "subject": "Волга",
+      "relation": "длина",
+      "object": "3530 км"
+    },
+    {
+      "subject": "Урал",
+      "relation": "горы",
+      "object": " Россия"
+    },
+    {
+      "subject": "Байкал",
+      "relation": "глубина",
+      "object": "1642 м"
+    },
+    {
+      "subject": "Россия",
+      "relation": "площадь",
+      "object": "17.1 млн км2"
+    },
+    {
+      "subject": "Россия",
+      "relation": "население",
+      "object": "146 млн"
+    },
+    {
+      "subject": "Исаак Ньютон",
+      "relation": "родился",
+      "object": "1643"
+    },
+    {
+      "subject": "Исаак Ньютон",
+      "relation": "открыл",
+      "object": "законы движения"
+    },
+    {
+      "subject": "Альберт Эйнштейн",
+      "relation": "создал",
+      "object": "теория относительности"
+    },
+    {
+      "subject": "теория относительности",
+      "relation": "описывает",
+      "object": "гравитация"
+    },
+    {
+      "subject": "Менделеев",
+      "relation": "открыл",
+      "object": "периодическая таблица"
+    },
+    {
+      "subject": "Ломоносов",
+      "relation": "родился",
+      "object": "1711"
+    },
+    {
+      "subject": "Попов",
+      "relation": "изобрел",
+      "object": "радио"
+    },
+    {
+      "subject": "Python",
+      "relation": "язык",
+      "object": "программирования"
+    },
+    {
+      "subject": "Python",
+      "relation": "поддерживает",
+      "object": "ООП"
+    },
+    {
+      "subject": "нейронная сеть",
+      "relation": "тип",
+      "object": "машинное обучение"
+    },
+    {
+      "subject": "машинное обучение",
+      "relation": "раздел",
+      "object": "искусственный интеллект"
+    },
+    {
+      "subject": "OpenVINO",
+      "relation": "инструмент",
+      "object": "оптимизация нейросетей"
+    },
+    {
+      "subject": "вода",
+      "relation": "химическая_формула",
+      "object": "H2O"
+    },
+    {
+      "subject": "кислород",
+      "relation": "элемент",
+      "object": "номер 8"
+    },
+    {
+      "subject": "солнце",
+      "relation": "тип",
+      "object": "звезда"
+    },
+    {
+      "subject": "земля",
+      "relation": "тип",
+      "object": "планета"
+    },
+    {
+      "subject": "кот",
+      "relation": "животное",
+      "object": "млекопитающее"
+    },
+    {
+      "subject": "Толстой",
+      "relation": "написал",
+      "object": "Война и мир"
+    },
+    {
+      "subject": "Пушкин",
+      "relation": "написал",
+      "object": "Евгений Онегин"
+    },
+    {
+      "subject": "Чайковский",
+      "relation": "композитор",
+      "object": "Россия"
+    },
+    {
+      "subject": "Репин",
+      "relation": "художник",
+      "object": "Россия"
+    },
+    {
+      "subject": "EVA AI",
+      "relation": "система",
+      "object": "искусственный интеллект"
+    },
+    {
+      "subject": "FractalGraph",
+      "relation": "тип",
+      "object": "граф знаний"
+    },
+    {
+      "subject": "OpenVINO",
+      "relation": "компания",
+      "object": "Intel"
+    }
+  ]
+}

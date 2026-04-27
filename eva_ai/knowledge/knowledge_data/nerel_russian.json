@@ -1,0 +1,296 @@
+{
+  "documents": [
+    {
+      "id": "doc1",
+      "text": "Владимир Путин родился в Ленинграде в 1952 году.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "PER",
+          "start": 0,
+          "end": 16,
+          "text": "Владимир Путин"
+        },
+        {
+          "id": 1,
+          "type": "LOC",
+          "start": 25,
+          "end": 34,
+          "text": "Ленинград"
+        },
+        {
+          "id": 2,
+          "type": "DATE",
+          "start": 40,
+          "end": 44,
+          "text": "1952"
+        }
+      ],
+      "relations": [
+        {
+          "type": "PER_LOC",
+          "head": 0,
+          "tail": 1
+        },
+        {
+          "type": "PER_DATE",
+          "head": 0,
+          "tail": 2
+        }
+      ]
+    },
+    {
+      "id": "doc2",
+      "text": "Москва - столица России и крупнейший город страны.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "LOC",
+          "start": 0,
+          "end": 6,
+          "text": "Москва"
+        },
+        {
+          "id": 1,
+          "type": "LOC",
+          "start": 18,
+          "end": 24,
+          "text": "Россия"
+        }
+      ],
+      "relations": [
+        {
+          "type": "LOC_LOC",
+          "head": 0,
+          "tail": 1
+        }
+      ]
+    },
+    {
+      "id": "doc3",
+      "text": "Компания Google была основана в СШАLarry Page и Sergey Brin.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "ORG",
+          "start": 0,
+          "end": 6,
+          "text": "Google"
+        },
+        {
+          "id": 1,
+          "type": "LOC",
+          "start": 26,
+          "end": 29,
+          "text": "США"
+        },
+        {
+          "id": 2,
+          "type": "PER",
+          "start": 30,
+          "end": 40,
+          "text": "Larry Page"
+        },
+        {
+          "id": 3,
+          "type": "PER",
+          "start": 45,
+          "end": 56,
+          "text": "Sergey Brin"
+        }
+      ],
+      "relations": [
+        {
+          "type": "ORG_LOC",
+          "head": 0,
+          "tail": 1
+        },
+        {
+          "type": "ORG_PERS",
+          "head": 0,
+          "tail": 2
+        },
+        {
+          "type": "ORG_PERS",
+          "head": 0,
+          "tail": 3
+        }
+      ]
+    },
+    {
+      "id": "doc4",
+      "text": "Альберт Эйнштейн создал теорию относительности в 1905 году.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "PER",
+          "start": 0,
+          "end": 15,
+          "text": "Альберт Эйнштейн"
+        },
+        {
+          "id": 1,
+          "type": "DATE",
+          "start": 45,
+          "end": 49,
+          "text": "1905"
+        }
+      ],
+      "relations": [
+        {
+          "type": "PER_DATE",
+          "head": 0,
+          "tail": 1
+        }
+      ]
+    },
+    {
+      "id": "doc5",
+      "text": "Исаак Ньютон открыл законы движения и гравитации.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "PER",
+          "start": 0,
+          "end": 12,
+          "text": "Исаак Ньютон"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "doc6",
+      "text": "Python - высокоуровневый язык программирования.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "ORG",
+          "start": 0,
+          "end": 6,
+          "text": "Python"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "doc7",
+      "text": "Ева AI использует FractalGraph для хранения знаний.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "ORG",
+          "start": 0,
+          "end": 5,
+          "text": "Ева AI"
+        },
+        {
+          "id": 1,
+          "type": "ORG",
+          "start": 18,
+          "end": 29,
+          "text": "FractalGraph"
+        }
+      ],
+      "relations": [
+        {
+          "type": "ORG_ORG",
+          "head": 0,
+          "tail": 1
+        }
+      ]
+    },
+    {
+      "id": "doc8",
+      "text": "Intel разработала OpenVINO для оптимизации нейросетей.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "ORG",
+          "start": 0,
+          "end": 5,
+          "text": "Intel"
+        },
+        {
+          "id": 1,
+          "type": "ORG",
+          "start": 16,
+          "end": 23,
+          "text": "OpenVINO"
+        }
+      ],
+      "relations": [
+        {
+          "type": "ORG_ORG",
+          "head": 0,
+          "tail": 1
+        }
+      ]
+    },
+    {
+      "id": "doc9",
+      "text": "Ломоносов родился в Архангельской губернии в 1711 году.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "PER",
+          "start": 0,
+          "end": 9,
+          "text": "Ломоносов"
+        },
+        {
+          "id": 1,
+          "type": "LOC",
+          "start": 18,
+          "end": 40,
+          "text": "Архангельской губернии"
+        },
+        {
+          "id": 2,
+          "type": "DATE",
+          "start": 46,
+          "end": 50,
+          "text": "1711"
+        }
+      ],
+      "relations": [
+        {
+          "type": "PER_LOC",
+          "head": 0,
+          "tail": 1
+        },
+        {
+          "type": "PER_DATE",
+          "head": 0,
+          "tail": 2
+        }
+      ]
+    },
+    {
+      "id": "doc10",
+      "text": "Пушкин написал Евгения Онегина и другие литературные произведения.",
+      "entities": [
+        {
+          "id": 0,
+          "type": "PER",
+          "start": 0,
+          "end": 7,
+          "text": "Пушкин"
+        },
+        {
+          "id": 1,
+          "type": "ORG",
+          "start": 17,
+          "end": 30,
+          "text": "Евгений Онегин"
+        }
+      ],
+      "relations": [
+        {
+          "type": "PER_ORG",
+          "head": 0,
+          "tail": 1
+        }
+      ]
+    }
+  ]
+}

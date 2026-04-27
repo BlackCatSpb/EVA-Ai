@@ -393,16 +393,27 @@ class OpenVINOGenerator:
             if self.device == "CPU":
                 import multiprocessing
                 cpu_count = multiprocessing.cpu_count()
-                # Используем 10 потоков из 12 (баланс для GenAI)
-                streams = min(cpu_count, 10)
+                logical_processors = cpu_count
+
+                # i5-12450H: 8 ядер, 12 потоков - используем ВСЕ потоки
+                streams = logical_processors  # 12 для максимальной загрузки
                 config["NUM_STREAMS"] = str(streams)
-                logger.info(f"[CPU_OPTIMIZATION] i5-12450H: {streams} streams (of {cpu_count} logical)")
-                
+                config["INFERENCE_NUM_THREADS"] = str(streams)
+                config["CPU_THREADS_PER_STREAM"] = "AUTO"
+
+                logger.info(f"[CPU_OPTIMIZATION] Using all {streams} logical processors (of {cpu_count} physical)")
+
                 # Intel CPU оптимизации - P-cores для вычислений
                 config["INFERENCE_PRECISION_HINT"] = "f32"  # Максимальная точность
+                config["CPU_BIND_THREAD"] = "HYBRID_AWARE"  # Привязка к P-cores для GenAI
+
                 try:
-                    # CPU_PINNING может не поддерживаться
                     config["ENABLE_CPU_PINNING"] = "YES"
+                except:
+                    pass
+
+                try:
+                    config["ENABLE_HYPER_THREADING"] = "YES"
                 except:
                     pass
                 
