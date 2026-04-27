@@ -312,11 +312,15 @@ def create_analytics_manager(initializer):
 def create_system_monitor(initializer):
     try:
         from eva_ai.monitoring.system_monitor import SystemMonitor
-        system_monitor = SystemMonitor()
+
+        # H4 FIX: Передаём event_bus в SystemMonitor
+        event_bus = getattr(initializer.core_brain, 'event_bus', None)
+        system_monitor = SystemMonitor(event_bus=event_bus)
+
         if hasattr(system_monitor, 'initialize'):
             system_monitor.initialize()
         initializer.core_brain.system_monitor = system_monitor
-        initializer.logger.info("[OK] SystemMonitor создан")
+        initializer.logger.info("[OK] SystemMonitor создан с EventBus интеграцией")
         return system_monitor
     except Exception as e:
         initializer.logger.error(f"[FAIL] Ошибка создания system_monitor: {e}", exc_info=True)

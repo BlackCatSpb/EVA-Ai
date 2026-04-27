@@ -121,6 +121,12 @@ class EventTypes:
     CONCEPT_LIFECYCLE_UPDATE = "concept.lifecycle.update"
     MEMORY_CLUSTERING_COMPLETE = "memory.clustering.complete"
 
+    # System Monitor
+    MONITOR_WARNING = "monitor.warning"
+    MONITOR_ALERT = "monitor.alert"
+    MONITOR_METRICS_UPDATED = "monitor.metrics.updated"
+    MONITOR_HEALTH_CHECK = "monitor.health_check"
+
 class EventBus:
     """Центральная шина событий ЕВА"""
     

@@ -232,13 +232,14 @@ class AlertManager:
 class SystemMonitor:
     """Основной монитор системы."""
 
-    def __init__(self):
+    def __init__(self, event_bus=None):
         self.metrics_collector = MetricsCollector()
         self.health_checker = HealthChecker(self.metrics_collector)
         self.alert_manager = AlertManager(self.metrics_collector)
         self.monitoring_thread: Optional[threading.Thread] = None
         self.running = False
         self.collection_interval = 30  # секунды
+        self.event_bus = event_bus
 
         self._setup_default_checks()
         self._setup_default_alerts()
@@ -413,8 +414,7 @@ class SystemMonitor:
             logger.error(f"Ошибка записи системных метрик: {e}")
 
     def _log_issues(self, health_status: Dict[str, Dict[str, Any]], alerts: List[Alert]):
-        """Логирует проблемы системы."""
-        # Логируем неработоспособные компоненты
+        """Логирует проблемы системы и публикует события в EventBus."""
         unhealthy_components = [
             name for name, status in health_status.items()
             if status.get("status") in ["error", "warning"]
@@ -423,9 +423,40 @@ class SystemMonitor:
         if unhealthy_components:
             logger.warning(f"Unhealthy components: {', '.join(unhealthy_components)}")
 
-        # Логируем новые предупреждения
+            # H4 FIX: Публикуем в EventBus
+            if self.event_bus:
+                try:
+                    from eva_ai.core.event_bus import EventPriority
+                    self.event_bus.publish(
+                        "monitor.warning",
+                        {
+                            "components": unhealthy_components,
+                            "health_status": health_status
+                        },
+                        priority=EventPriority.HIGH
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to publish monitor warning: {e}")
+
         for alert in alerts:
             logger.warning(f"Alert [{alert.level}]: {alert.message}")
+
+            # H4 FIX: Публикуем событие алерта
+            if self.event_bus:
+                try:
+                    from eva_ai.core.event_bus import EventPriority
+                    self.event_bus.publish(
+                        "monitor.alert",
+                        {
+                            "alert_id": alert.alert_id,
+                            "level": alert.level,
+                            "message": alert.message,
+                            "component": alert.component
+                        },
+                        priority=EventPriority.HIGH if alert.level == "critical" else EventPriority.NORMAL
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to publish alert event: {e}")
 
     def register_component_check(self, component_name: str, check_function: Callable[[], Dict[str, Any]]):
         """Регистрирует проверку здоровья компонента."""
