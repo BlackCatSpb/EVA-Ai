@@ -509,16 +509,6 @@ def create_knowledge_components(initializer):
         initializer.logger.warning("[WARN] FGv2 не найден, компоненты знаний не созданы")
         return None
 
-    # Создаём KnowledgeGraph (KGAdapter) для совместимости
-    try:
-        from eva_ai.knowledge.knowledge_graph import KnowledgeGraph
-        knowledge_graph = KnowledgeGraph(fractal_graph=fg)
-        initializer.core_brain.knowledge_graph = knowledge_graph
-        initializer.core_brain.components['knowledge_graph'] = knowledge_graph
-        initializer.logger.info("[OK] KnowledgeGraph (KGAdapter) создан")
-    except Exception as kg_err:
-        initializer.logger.warning(f"[WARN] KnowledgeGraph не создан: {kg_err}")
-
     # Создаём ConceptExtractor для извлечения концептов из запросов
     try:
         from eva_ai.knowledge.concept_extractor import create_concept_extractor
