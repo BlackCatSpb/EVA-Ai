@@ -58,7 +58,7 @@ class HybridLayerPipeline:
         injection_scale: float = 0.1
     ):
         self.openvino_model_path = openvino_model_path
-        self.transformer_model_path = transformer_model_path
+        self.transformer_model_path = transformer_model_path.replace('qwen_layer_model.pt', 'qwenlayermodel.pt')
         self.graph_path = graph_path
         self.lora_dir = lora_dir
         self.num_layers = num_layers
@@ -144,14 +144,27 @@ class HybridLayerPipeline:
         # Use hybrid OpenVINO model (quantized weights)
         hybrid_model_dir = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\hybrid_openvino"
         
-        if not os.path.exists(hybrid_model_dir):
-            logger.warning(f"[HybridLayerPipeline] Hybrid OpenVINO model not found: {hybrid_model_dir}")
-            # Fallback to regular model
-            hybrid_model_dir = self.openvino_model_path
+        # Check if hybrid model is valid (must have model.xml and a valid model.bin)
+        hybrid_valid = False
+        if os.path.exists(hybrid_model_dir):
+            xml_path = os.path.join(hybrid_model_dir, 'model.xml')
+            bin_path = os.path.join(hybrid_model_dir, 'model.bin')
+            if os.path.exists(xml_path) and os.path.exists(bin_path):
+                # Check if .bin is valid (not a corrupted .npz)
+                try:
+                    with open(bin_path, 'rb') as f:
+                        header = f.read(4)
+                        # Valid .bin should NOT be a ZIP file
+                        if header != b'PK\x03\x04':
+                            hybrid_valid = True
+                        else:
+                            logger.warning(f"[HybridLayerPipeline] model.bin is corrupted (ZIP header), skipping hybrid model")
+                except Exception:
+                    pass
         
-        if not os.path.exists(hybrid_model_dir):
-            logger.warning(f"[HybridLayerPipeline] OpenVINO model not found: {self.openvino_model_path}")
-            return
+        if not hybrid_valid:
+            logger.warning("[HybridLayerPipeline] Hybrid OpenVINO model not valid, using regular model")
+            hybrid_model_dir = self.openvino_model_path
         
         try:
             scheduler = ov_genai.SchedulerConfig()
@@ -186,6 +199,38 @@ class HybridLayerPipeline:
             from eva_ai.core.layer_capture_model import LayerCaptureModel
         except ImportError:
             logger.warning("[HybridLayerPipeline] LayerCaptureModel not available")
+            self.layer_capture = None
+            return
+        
+        if not os.path.exists(self.transformer_model_path):
+            logger.warning(f"[HybridLayerPipeline] Transformer model not found: {self.transformer_model_path}")
+            self.layer_capture = None
+            return
+        
+        # Check available RAM before loading (8GB model needs >12GB free)
+        try:
+            import psutil
+            available_gb = psutil.virtual_memory().available / (1024**3)
+            if available_gb < 12:
+                logger.warning(f"[HybridLayerPipeline] Not enough RAM ({available_gb:.1f}GB < 12GB required). Skipping LayerCapture.")
+                self.layer_capture = None
+                return
+        except ImportError:
+            pass
+        
+        try:
+            self.layer_capture = LayerCaptureModel(
+                model_path=self.transformer_model_path,
+                num_layers=self.num_layers,
+                device=self.device
+            )
+            success = self.layer_capture.load()
+            if success:
+                logger.info("[HybridLayerPipeline] LayerCaptureModel loaded")
+            else:
+                self.layer_capture = None
+        except Exception as e:
+            logger.error(f"[HybridLayerPipeline] LayerCaptureModel init failed: {e}")
             self.layer_capture = None
             return
 

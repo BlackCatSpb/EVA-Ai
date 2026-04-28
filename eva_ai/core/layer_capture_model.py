@@ -68,19 +68,159 @@ class LayerCaptureModel:
         """Загрузить модель и токенизатор"""
         try:
             logger.info(f"[LayerCapture] Loading model from {self.model_path}")
-
+            
+            # Check if it's a checkpoint file (.pt)
+            if self.model_path.endswith('.pt') or self.model_path.endswith('.pth'):
+                # Load from checkpoint
+                return self._load_from_checkpoint()
+            else:
+                # Load as regular HuggingFace model
+                return self._load_from_huggingface()
+                
+        except Exception as e:
+            logger.error(f"[LayerCapture] Failed to load model: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _load_from_checkpoint(self) -> bool:
+        """Load from PyTorch checkpoint (.pt file)"""
+        try:
+            import torch
+            from transformers import Qwen3Config
+            logger.info(f"[LayerCapture] Loading checkpoint from {self.model_path}")
+            
+            # Add safe globals for weights_only=True
+            try:
+                torch.serialization.add_safe_globals([Qwen3Config])
+            except Exception:
+                pass
+            
+            # Try weights_only=True first (faster, safer)
+            try:
+                checkpoint = torch.load(
+                    self.model_path, 
+                    map_location='cpu',
+                    weights_only=True
+                )
+                logger.info(f"[LayerCapture] Loaded with weights_only=True")
+            except Exception as e1:
+                logger.warning(f"[LayerCapture] weights_only failed: {e1}, trying pickle...")
+                # Fallback to pickle (slower, less safe)
+                checkpoint = torch.load(
+                    self.model_path,
+                    map_location='cpu',
+                    weights_only=False
+                )
+            
+            logger.info(f"[LayerCapture] Checkpoint loaded. Keys: {list(checkpoint.keys())}")
+            
+            # Get config from checkpoint or create default
+            if 'config' in checkpoint:
+                config_obj = checkpoint['config']
+                from transformers import Qwen3Config
+                
+                # Check if config_obj is already a Qwen3Config or a dict
+                if isinstance(config_obj, Qwen3Config):
+                    # Already a Qwen3Config object - use it directly
+                    self.config = config_obj
+                    logger.info("[LayerCapture] Using Qwen3Config from checkpoint")
+                else:
+                    # It's a dict - create Qwen3Config and copy values
+                    self.config = Qwen3Config()
+                    logger.info("[LayerCapture] Creating Qwen3Config from dict")
+                    # Copy available attributes (dict style)
+                    for key in ['hidden_size', 'num_hidden_layers', 'num_attention_heads', 
+                                'num_key_value_heads', 'intermediate_size', 'hidden_act', 
+                                'rope_theta', 'attention_scaling', 'sliding_window', 
+                                'max_position_embeddings', 'rms_norm_eps', 'use_sliding_window',
+                                'rope_scaling', 'attention_bias', 'attention_dropout', 
+                                'hidden_dropout', 'tie_word_embeddings']:
+                        if key in config_obj:
+                            setattr(self.config, key, config_obj[key])
+            
+            # Create model from config
+            from transformers import AutoModelForCausalLM
+            self.model = AutoModelForCausalLM.from_config(self.config, trust_remote_code=True)
+            
+            # Load state dict
+            if 'model_state_dict' in checkpoint:
+                self.model.load_state_dict(checkpoint['model_state_dict'], strict=False)
+            elif 'state_dict' in checkpoint:
+                self.model.load_state_dict(checkpoint['state_dict'], strict=False)
+            else:
+                logger.warning("[LayerCapture] No state_dict found in checkpoint")
+            
+            self.model = self.model.to(self.device)
+            self.model.eval()
+            
+            # Load tokenizer
+            self._load_tokenizer_from_checkpoint(checkpoint)
+            
+            self._is_loaded = True
+            logger.info(f"[LayerCapture] Model loaded from checkpoint on {self.device}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"[LayerCapture] Failed to load from checkpoint: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _load_tokenizer_from_checkpoint(self, checkpoint):
+        """Load tokenizer from checkpoint or create new one"""
+        try:
+            # Try to get tokenizer from checkpoint
+            if 'tokenizer' in checkpoint:
+                self.tokenizer = checkpoint['tokenizer']
+                logger.info("[LayerCapture] Tokenizer loaded from checkpoint")
+                return
+            
+            # Otherwise create from config
+            if hasattr(self.config, 'name_or_path') and self.config.name_or_path:
+                from transformers import AutoTokenizer
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.config.name_or_path,
+                    trust_remote_code=True
+                )
+            else:
+                # Create a basic tokenizer
+                from transformers import AutoTokenizer
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    'Qwen/Qwen3-4B',
+                    trust_remote_code=True
+                )
+            
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+                
+        except Exception as e:
+            logger.warning(f"[LayerCapture] Tokenizer load failed: {e}")
+            # Create a minimal tokenizer as fallback
+            try:
+                from transformers import AutoTokenizer
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    'Qwen/Qwen3-4B',
+                    trust_remote_code=True
+                )
+            except:
+                logger.error("[LayerCapture] Failed to create fallback tokenizer")
+    
+    def _load_from_huggingface(self) -> bool:
+        """Load as regular HuggingFace model"""
+        try:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.model_path,
                 trust_remote_code=True
             )
             if self.tokenizer.pad_token is None:
                 self.tokenizer.pad_token = self.tokenizer.eos_token
-
+            
             self.config = AutoConfig.from_pretrained(
                 self.model_path,
                 trust_remote_code=True
             )
-
+            
             self.model = AutoModelForCausalLM.from_pretrained(
                 self.model_path,
                 config=self.config,
@@ -89,15 +229,14 @@ class LayerCaptureModel:
                 device_map=self.device,
                 low_cpu_mem_usage=True
             )
-
+            
             self.model.eval()
-
+            
             self._is_loaded = True
             logger.info(f"[LayerCapture] Model loaded on {self.device}")
             return True
-
         except Exception as e:
-            logger.error(f"[LayerCapture] Failed to load model: {e}")
+            logger.error(f"[LayerCapture] Failed to load from HuggingFace: {e}")
             return False
 
     def is_loaded(self) -> bool:
@@ -126,8 +265,22 @@ class LayerCaptureModel:
             raise RuntimeError("Transformers not available")
 
         import torch
-
-        checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
+        import pickle
+        import io
+        
+        # Load checkpoint using pickle directly to handle storage issues
+        logger.info(f"[LayerCapture] Loading checkpoint from {checkpoint_path}")
+        
+        try:
+            # Try torch.load with weights_only=False and map_location
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=False)
+        except Exception as e1:
+            logger.warning(f"[LayerCapture] torch.load failed: {e1}, trying pickle...")
+            # Fallback: use pickle directly
+            with open(checkpoint_path, 'rb') as f:
+                # Use fixed pickle load
+                checkpoint = pickle.load(f, encoding='latin1')
+        
         config = checkpoint['config']
         num_layers = checkpoint['num_layers']
         state_dict = checkpoint['model_state_dict']
@@ -152,6 +305,17 @@ class LayerCaptureModel:
         fresh_config.attention_dropout = getattr(config, 'attention_dropout', 0.0)
         fresh_config.hidden_dropout = getattr(config, 'hidden_dropout', 0.0)
         fresh_config.tie_word_embeddings = getattr(config, 'tie_word_embeddings', False)
+        
+        # Fix layer_types for Qwen3 (required by newer transformers)
+        num_layers = fresh_config.num_hidden_layers
+        if hasattr(config, 'layer_types') and config.layer_types:
+            # Use existing layer_types, pad if needed
+            fresh_config.layer_types = list(config.layer_types)
+            while len(fresh_config.layer_types) < num_layers:
+                fresh_config.layer_types.append("full_attention")
+        else:
+            # Default: all layers are full_attention
+            fresh_config.layer_types = ["full_attention"] * num_layers
 
         # Use provided path or determine from config
         if base_model_path:
