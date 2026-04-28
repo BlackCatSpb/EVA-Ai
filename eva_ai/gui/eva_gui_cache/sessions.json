@@ -6810,6 +6810,16 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "79f7ee5a-3338-4574-9bd4-97cb6f412a8d": {
+      "id": "79f7ee5a-3338-4574-9bd4-97cb6f412a8d",
+      "user_id": "3c6708d4-f3d3-408f-9714-377035e37361",
+      "name": "Сессия admin",
+      "created_at": "2026-04-28T06:13:24.845213",
+      "last_active": "2026-04-28T06:13:24.845213",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

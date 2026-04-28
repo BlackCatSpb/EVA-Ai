@@ -1,1 +1,110 @@
-{}
+{
+  "8e4a4cfbc664d8cc13f45f6c1771b9ac": {
+    "status": "completed",
+    "results": [
+      {
+        "title": "AI News & Artificial Intelligence - TechCrunch",
+        "content": "AI · OpenAI ends Microsoft legal peril over its $50B Amazon deal · DeepMind's David Silver just raised $1.1B to build an AI that learns without human data.",
+        "score": 0.6952351,
+        "raw_content": null
+      },
+      {
+        "title": "AI News | Latest News | Insights Powering AI-Driven Business Growth",
+        "content": "Sony AI robot beats players as humanoid robot wins Beijing race · NVIDIA and Google infrastructure cuts AI inference costs · Siemens introduces AI system for",
+        "score": 0.683948,
+        "raw_content": null
+      },
+      {
+        "title": "AI News | Latest Headlines and Developments | Reuters",
+        "content": "18 hours ago. OpenAI breaks off Microsoft exclusivity to free up path for Amazon, Google deals · 17 hours ago. Elon Musk trial against Sam Altman to reveal",
+        "score": 0.68064564,
+        "raw_content": null
+      },
+      {
+        "title": "Artificial Intelligence - Latest AI News and Analysis - WSJ.com",
+        "content": "The AI Splurge Is Costing Big Tech Its Workforce · Elon Musk Is an Underdog in His $180 Billion Fight Against OpenAI · That Video on Your Phone Might Be Made-in-",
+        "score": 0.6636041,
+        "raw_content": null
+      },
+      {
+        "title": "AI - Bloomberg",
+        "content": "The AI company's own experts warned Mythos could hack the systems beneath most modern computing. Banks and government agencies are racing to gauge the threat.",
+        "score": 0.5391051,
+        "raw_content": null
+      }
+    ],
+    "source": "tavily"
+  },
+  "52ee821692d9ba765527b5c7554b9570": {
+    "status": "completed",
+    "results": [
+      {
+        "title": "Machine Learning - Recent articles and discoveries - Springer Nature",
+        "content": "Uncover the latest and most impactful research in Machine Learning. Explore pioneering discoveries, insightful ideas and new methods from leading researchers",
+        "score": 0.7371019,
+        "raw_content": null
+      },
+      {
+        "title": "Latest papers - Journal of Machine Learning Research",
+        "content": "The Journal of Machine Learning Research (JMLR), established in 2000, provides an international forum for the electronic and paper publication of high-quality",
+        "score": 0.7043437,
+        "raw_content": null
+      },
+      {
+        "title": "Machine Learning - arXiv",
+        "content": "Machine Learning. Authors and titles for recent submissions. Mon, 27 Apr 2026 · Fri, 24 Apr 2026 · Thu, 23 Apr 2026 · Wed, 22 Apr 2026 · Tue, 21 Apr 2026.",
+        "score": 0.8571119,
+        "raw_content": null
+      },
+      {
+        "title": "Machine Learning - arXiv",
+        "content": "Authors and titles for recent submissions. Mon, 27 Apr 2026 · Fri, 24 Apr 2026 ... Title: Beyond Land Surface Temperature: Explainable Spatial Machine Learning",
+        "score": 0.83710164,
+        "raw_content": null
+      },
+      {
+        "title": "[D] The ML Papers That Rocked Our World (2020-2023) - Reddit",
+        "content": "Must-read ML papers from 2020 to 2023. Top machine learning research papers. Best deep learning papers. Trending AI papers. Most cited AI papers.",
+        "score": 0.74563974,
+        "raw_content": null
+      }
+    ],
+    "source": "tavily"
+  },
+  "823437e58ef569b00121f1520fdaf8da": {
+    "status": "completed",
+    "results": [
+      {
+        "title": "Intro to Knowledge Graphs - GraphRAG",
+        "content": "# Intro to Knowledge Graphs. ## Intro to Knowledge Graphs. A knowledge graph model is especially suitable for representing both structured and unstructured data with connected elements. The graph model allows efficient storage, management, querying, and processing of the richness of real-world information. In a knowledge graph, facts and entities are represented as *nodes* with attributes connected with typed *relationships*, which also carry attributes for qualification. This graph model can scale from a simple family tree to the complete digital twin of a company encompassing employees, customers, processes, products, partnerships, and resources, with millions or billions of connections. When we dive into retrieval patterns, we notice how the most advanced techniques rely on the connections within the data. However, in a graph database, establishing real relationships and querying them with simple patterns is much more efficient. In the graph pattern of almost every pattern, you will see the following types of entities. * document nodes that represent the unstructured documents ingested into the graph.",
+        "score": 0.7587435,
+        "raw_content": null
+      },
+      {
+        "title": "Knowledge Graphs: What They Are and Why They Matter - Splunk",
+        "content": "1. **Knowledge graphs are structured networks that connect data entities** through defined relationships, enabling richer context and actionable insights for both humans and machines. 2. **Widely adopted across industries, knowledge graphs enhance** data integration, search, and AI applications by organizing information in a way that supports advanced reasoning and discovery. A knowledge graph is a structured representation of information, where entities (like people, places, or things) are connected by relationships. Ontologies are useful for knowledge graphs because they provide a shared understanding of the data and enable interoperability across different systems. Knowledge graphs break down data silos by connecting disparate sources based on meaning, not just structure. Rather than relying on pre-defined data relationships, knowledge graphs allow for the discovery of new connections and patterns within the data. For example, a chatbot powered by a knowledge graph can understand user queries better and provide more accurate responses by using its reasoning capabilities to analyze the context of the question and find relevant information from multiple interconnected sources.",
+        "score": 0.74652773,
+        "raw_content": null
+      },
+      {
+        "title": "What Is a Knowledge Graph? | Ontotext Fundamentals",
+        "content": "Knowledge graphs put data in context via linking and semantic metadata and this way provide a framework for data integration, unification, analytics and sharing. Knowledge graphs combine characteristics of several data management paradigms:. Knowledge graphs, represented in RDF, provide the best framework for data integration, unification, linking and reuse, because they combine:. When formal semantics are used to express and interpret the data of a knowledge graph, there are a number of representation and modeling instruments:. A graph representation of data is often useful, but it might be unnecessary to capture the semantic knowledge of the data. After years of developing expertise in the news publishing industry, Ontotext produced their knowledge graph of Linked Open Data and news articles about people, organizations and locations. Examples include data and information-heavy services such as intelligent content and package reuse, responsive and contextually aware content recommendation, knowledge graph powered drug discovery, semantic search, investment market intelligence, information discovery in regulatory documents, advanced drug safety analytics, etc.",
+        "score": 0.725824,
+        "raw_content": null
+      },
+      {
+        "title": "What is a Knowledge Graph? A Comprehensive Guide",
+        "content": "Knowledge graphs are advanced data structures that connect real-world entities and their relationships, enabling organizations to derive deeper insights, power AI, and drive smarter decision-making. Authored by Sa Wang, a Software Engineer with expertise in mathematical logic and computer science, this comprehensive guide details the structure, applications, and best practices for building and maintaining knowledge graphs. The article emphasizes that knowledge graphs excel at unifying disparate data sources, uncovering hidden patterns, and supporting applications ranging from search and recommendation systems to fraud detection and AI/LLM augmentation. \\* A knowledge graph is a graph-based data model representing entities and their relationships, providing context and enabling machines to infer, retrieve, and analyze information more intelligently than traditional databases. *“Knowledge graphs organize complex data by representing entities and their relationships, offering a deeper understanding of information.”* – Sa Wang, PuppyGraph Blog, 2025. A knowledge graph is a powerful way to organize and connect data by representing real-world entities—such as people, places, or concepts—and the relationships between them.",
+        "score": 0.70702106,
+        "raw_content": null
+      },
+      {
+        "title": "What Is a Knowledge Graph? - Neo4j Graph Database & Analytics",
+        "content": "+ Neo4j AuraDB  Fully managed graph database as a service. + Neo4j Aura Graph Analytics  Fully managed graph analytics as a service. + Neo4j Graph Data Science  Self managed graph algorithms and ML modeling. + AI Systems  Back your LLMs with a knowledge graph for better business AI. + Industries and Use Cases  Fraud detection, knowledge graphs, financial services, and more. + GraphSummit 2026  Graphs + AI: Transform Your Data Into Knowledge. Back your LLMs with a Knowledge Graph for better business AI. A knowledge graph is an organized representation of real-world entities and their relationships. It is typically stored in a graph database, which natively stores the relationships between data entities. The usefulness of a knowledge graph lies in the way it organizes the principles, data, and relationships to surface new knowledge for your user or business. Since information is organized as a network of entities, Google can tap into the collective intelligence of the knowledge graph to return results tailored to the *meaning* of your query rather than a simple keyword match.",
+        "score": 0.68798697,
+        "raw_content": null
+      }
+    ],
+    "source": "tavily"
+  }
+}

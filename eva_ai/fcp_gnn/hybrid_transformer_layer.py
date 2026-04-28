@@ -24,9 +24,9 @@ class HybridTransformerLayer(nn.Module):
 
     def __init__(
         self,
-        hidden_dim: int = 2048,
-        num_heads: int = 16,
-        ff_dim: int = 5504,
+        hidden_dim: int = 2560,
+        num_heads: int = 32,
+        ff_dim: int = 5120,
         dropout: float = 0.0,
         use_gnn: bool = True,
         use_lora: bool = True,
@@ -39,7 +39,7 @@ class HybridTransformerLayer(nn.Module):
         self.layer_id = layer_id
         self.use_gnn = use_gnn
         self.use_lora = use_lora
-
+        
         self.self_attn = nn.MultiheadAttention(
             hidden_dim,
             num_heads,
@@ -48,7 +48,8 @@ class HybridTransformerLayer(nn.Module):
         )
         self.attn_dropout = nn.Dropout(dropout)
         self.attn_norm = nn.LayerNorm(hidden_dim)
-
+        
+        # SwiGLU FFN: hidden_dim -> ff_dim -> hidden_dim
         self.gate_proj = nn.Linear(hidden_dim, ff_dim)
         self.up_proj = nn.Linear(hidden_dim, ff_dim)
         self.down_proj = nn.Linear(ff_dim, hidden_dim)

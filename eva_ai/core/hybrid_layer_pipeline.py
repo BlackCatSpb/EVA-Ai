@@ -108,11 +108,11 @@ class HybridLayerPipeline:
             HAS_OV = False
             self.openvino_pipeline = None
             return
-
+        
         if not os.path.exists(self.openvino_model_path):
             logger.warning(f"[HybridLayerPipeline] OpenVINO model not found: {self.openvino_model_path}")
             return
-
+        
         try:
             scheduler = ov_genai.SchedulerConfig()
             scheduler.cache_size = 4
@@ -120,7 +120,7 @@ class HybridLayerPipeline:
             scheduler.max_num_batched_tokens = 4096
             scheduler.enable_prefix_caching = True
             scheduler.use_cache_eviction = True
-
+            
             gen_config = ov_genai.GenerationConfig()
             gen_config.max_new_tokens = 4096
             gen_config.temperature = 0.2
@@ -128,14 +128,56 @@ class HybridLayerPipeline:
             gen_config.top_k = 40
             gen_config.repetition_penalty = 1.1
             gen_config.do_sample = True
-
+            
+            # Load REGULAR Qwen model (NOT hybrid - hybrid processing is done separately)
+            logger.info(f"[HybridLayerPipeline] Loading Qwen model from {self.openvino_model_path}")
             self.openvino_pipeline = ov_genai.LLMPipeline(self.openvino_model_path, "CPU",
-                                                          config={"scheduler_config": scheduler})
+                                                           config={"scheduler_config": scheduler})
             self.openvino_pipeline.set_generation_config(gen_config)
-            logger.info("[HybridLayerPipeline] OpenVINO pipeline loaded")
-
+            logger.info("[HybridLayerPipeline] OpenVINO pipeline loaded (regular Qwen)")
+            
         except Exception as e:
             logger.error(f"[HybridLayerPipeline] OpenVINO init failed: {e}")
+            self.openvino_pipeline = None
+            return
+        
+        # Use hybrid OpenVINO model (quantized weights)
+        hybrid_model_dir = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\hybrid_openvino"
+        
+        if not os.path.exists(hybrid_model_dir):
+            logger.warning(f"[HybridLayerPipeline] Hybrid OpenVINO model not found: {hybrid_model_dir}")
+            # Fallback to regular model
+            hybrid_model_dir = self.openvino_model_path
+        
+        if not os.path.exists(hybrid_model_dir):
+            logger.warning(f"[HybridLayerPipeline] OpenVINO model not found: {self.openvino_model_path}")
+            return
+        
+        try:
+            scheduler = ov_genai.SchedulerConfig()
+            scheduler.cache_size = 4
+            scheduler.max_num_seqs = 1
+            scheduler.max_num_batched_tokens = 4096
+            scheduler.enable_prefix_caching = True
+            scheduler.use_cache_eviction = True
+            
+            gen_config = ov_genai.GenerationConfig()
+            gen_config.max_new_tokens = 4096
+            gen_config.temperature = 0.2
+            gen_config.top_p = 0.9
+            gen_config.top_k = 40
+            gen_config.repetition_penalty = 1.1
+            gen_config.do_sample = True
+            
+            # Load hybrid OpenVINO model with quantized weights
+            logger.info(f"[HybridLayerPipeline] Loading hybrid OpenVINO model from {hybrid_model_dir}")
+            self.openvino_pipeline = ov_genai.LLMPipeline(hybrid_model_dir, "CPU",
+                                                           config={"scheduler_config": scheduler})
+            self.openvino_pipeline.set_generation_config(gen_config)
+            logger.info("[HybridLayerPipeline] Hybrid OpenVINO pipeline loaded with quantized weights")
+            
+        except Exception as e:
+            logger.error(f"[HybridLayerPipeline] Hybrid OpenVINO init failed: {e}")
             self.openvino_pipeline = None
 
     def _init_layer_capture(self):
