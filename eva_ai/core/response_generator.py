@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Исправленная версия ResponseGenerator с поддержкой HybridTokenCache
-Оптимизированная версия с улучшенной обработкой ошибок и кэшированием
+ResponseGenerator - simplified for single OpenVINO model (ruadapt qwen3-4b)
 """
-
 import os
 import sys
 import time
 import threading
 import logging
-from typing import Dict, Any, Optional, List, Tuple, Union
+from typing import Dict, Any, Optional, List, Tuple
 
 # Добавляем корневую директорию проекта
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -26,36 +24,6 @@ except (ImportError, ModuleNotFoundError, RuntimeError):
     TORCH_AVAILABLE = False
     logger.warning("PyTorch недоступен, генерация ответов будет ограничена")
 
-# Импорты для работы с кэшем
-try:
-    from eva_ai.memory.hybrid_token_cache import HybridTokenCache
-    HYBRID_CACHE_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    HybridTokenCache = None
-    HYBRID_CACHE_AVAILABLE = False
-    logger.warning("HybridTokenCache недоступен, кэширование будет ограничено")
-
-# Импорты для работы с событиями и инициализацией компонентов
-try:
-    from eva_ai.core.event_system import EventBus, ComponentInitializationManager
-    EVENT_SYSTEM_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    EventBus = None
-    ComponentInitializationManager = None
-    EVENT_SYSTEM_AVAILABLE = False
-    logger.warning("Система событий недоступна, инициализация будет упрощена")
-
-# Импорты для работы с сущностями и обнаружения неоднозначностей
-try:
-    from eva_ai.knowledge.context_entity import EntityExtractor
-except ImportError:
-    EntityExtractor = None
-
-try:
-    from eva_ai.learning.knowledge_awareness import KnowledgeAwareness
-except ImportError:
-    KnowledgeAwareness = None
-
 # Импорты токенизатора
 try:
     from transformers import AutoTokenizer, PreTrainedTokenizer
@@ -65,6 +33,12 @@ except (ImportError, ModuleNotFoundError):
     PreTrainedTokenizer = None
     TRANSFORMERS_AVAILABLE = False
     logger.warning("Transformers недоступен, будет использован fallback токенизатор")
+
+# Импорты для работы с сущностями
+try:
+    from eva_ai.knowledge.context_entity import EntityExtractor
+except ImportError:
+    EntityExtractor = None
 
 
 class ResponseGenerator:
@@ -80,22 +54,9 @@ class ResponseGenerator:
     def __init__(
         self, 
         brain: Optional[Any] = None, 
-        model_manager: Optional[Any] = None, 
-        text_processor: Optional[Any] = None, 
-        deferred_system: Optional[Any] = None,
-        tokenizer_config: Optional[Dict[str, Any]] = None,
-        hybrid_cache: Optional[Any] = None
+        tokenizer_config: Optional[Dict[str, Any]] = None
     ):
-        """Инициализирует генератор ответов.
-        
-        Args:
-            brain: Экземпляр CoreBrain, должен содержать tokenizer
-            model_manager: Менеджер моделей (опционально)
-            text_processor: Устаревший параметр, оставлен для обратной совместимости
-            deferred_system: Система отложенных команд для асинхронной инициализации
-            tokenizer_config: Конфигурация токенизатора
-            hybrid_cache: Гибридный кэш токенов для оптимизации
-        """
+        """Инициализирует генератор ответов."""
         # Конфигурация токенизатора по умолчанию
         self.tokenizer_config = {
             'max_length': 32768,
@@ -110,50 +71,28 @@ class ResponseGenerator:
             self.tokenizer_config.update(tokenizer_config)
         
         self.brain = brain
-        self.model_manager = model_manager or (getattr(self.brain, 'components', {}).get('model_manager') if hasattr(self.brain, 'components') else None)
-        self.deferred_system = deferred_system or getattr(brain, 'deferred_system', None)
         
-        # Параметр оставлен для обратной совместимости
-        self.text_processor = text_processor
-        self.hybrid_cache = hybrid_cache
-        
-        # UnifiedCacheBridge - объединённый кэш модели и графа знаний
-        self.unified_bridge = None
-        
-        # Система инициализации компонентов для предотвращения повторной инициализации
-        self.component_init_manager = None
-        if EVENT_SYSTEM_AVAILABLE and self.brain:
-            event_bus = getattr(self.brain, 'events', None)  # EventBus хранится как 'events' в CoreBrain
-            if event_bus:
-                self.component_init_manager = ComponentInitializationManager(event_bus)
-                logger.info("ComponentInitializationManager инициализирован")
-            else:
-                logger.warning("EventBus не найден в brain, ComponentInitializationManager недоступен")
-        
-        # Инициализируем токенизатор из разных источников
+        # Tokenizer
         self.tokenizer: Optional[Any] = None
         self.token_streamer: Optional[Any] = None
         
-        # Состояния загрузки моделей
+        # States (kept for compatibility)
         self._model_states: Dict[str, Dict[str, Any]] = {}
         self._model_locks: Dict[str, threading.Lock] = {}
         self._init_lock = threading.Lock()
         
-        # Пул потоков для асинхронной генерации
+        # Thread pool (not used with OpenVINO)
         self._thread_pool: Optional[Any] = None
         self._shutdown_event = threading.Event()
         
-        # Семафор для GPU генерации
+        # Semaphore (not needed for single model)
         self._gpu_generate_sema = threading.Semaphore(1)
         
-        # Флаги инициализации
+        # Initialization flags
         self._initialized = False
         self._initializing = False
         
-        # Экстрактор сущностей для обнаружения неоднозначностей
-        self.entity_extractor = EntityExtractor() if EntityExtractor else None
-        
-        # Knowledge Awareness
+        # Knowledge Awareness (optional)
         try:
             if KnowledgeAwareness:
                 self.knowledge_awareness = KnowledgeAwareness(brain)
@@ -164,24 +103,8 @@ class ResponseGenerator:
         
         logger.info("ResponseGenerator создан")
         
-        # Отложенная инициализация компонентов, если доступна система отложенных команд
-        if self.deferred_system and hasattr(self.deferred_system, 'defer_command'):
-            self.deferred_system.defer_command(
-                self._deferred_init_components,
-                priority='high',
-                name='response_generator_init_components'
-            )
-            logger.info("Отложенная инициализация компонентов запланирована")
-        else:
-            # Прямая инициализация
-            self._init_components()
-    
-    def _deferred_init_components(self) -> None:
-        """Отложенная инициализация компонентов."""
-        try:
-            self._init_components()
-        except Exception as e:
-            logger.error(f"Ошибка отложенной инициализации: {e}", exc_info=True)
+        # Direct tokenizer initialization
+        self._init_tokenizer()
     
     def _detect_ambiguity_before_response(self, prompt: str) -> Dict:
         """Check query for ambiguities before generating response."""
@@ -225,49 +148,6 @@ class ResponseGenerator:
                 questions.append(f"Уточните, пожалуйста, что означает '{term}'?")
         
         return "Для лучшего ответа, пожалуйста, уточните: " + "; ".join(questions)
-    
-    def _init_components(self) -> None:
-        """Инициализирует компоненты из brain."""
-        with self._init_lock:
-            if self._initializing or self._initialized:
-                return
-            self._initializing = True
-        
-        try:
-            if not self.brain:
-                logger.warning("CoreBrain не передан, инициализация компонентов пропущена")
-                return
-            
-            # Инициализируем токенизатор с несколькими источниками
-            self._init_tokenizer()
-            
-            # Инициализируем гибридный кэш если доступен
-            self._init_hybrid_cache()
-            
-            # Инициализируем UnifiedCacheBridge - мост модели и графа знаний
-            self._init_unified_bridge()
-            
-            # Проверяем наличие ModelManager (динамическая проверка)
-            if not self.model_manager and hasattr(self.brain, 'components'):
-                self.model_manager = self.brain.components.get('model_manager')
-            
-            if not self.model_manager:
-                logger.warning("ModelManager не инициализирован")
-            else:
-                logger.info("ModelManager найден и доступен")
-            
-            # Проверяем валидность токенизатора
-            if not self._validate_tokenizer(self.tokenizer):
-                logger.warning("Токенизатор не прошел валидацию, создаём fallback")
-                self._create_fallback_tokenizer()
-            
-            self._initialized = True
-            logger.info("Компоненты ResponseGenerator инициализированы")
-            
-        except Exception as e:
-            logger.error(f"Ошибка инициализации компонентов: {e}", exc_info=True)
-        finally:
-            self._initializing = False
     
     def _init_tokenizer(self) -> None:
         """Инициализирует токенизатор из доступных источников с предотвращением повторной инициализации."""
@@ -367,154 +247,24 @@ class ResponseGenerator:
 
         except Exception as e:
             logger.error(f"Ошибка при инициализации токенизатора: {e}", exc_info=True)
-            return False
-    
-    def _init_hybrid_cache(self) -> None:
-        """Инициализирует гибридный кэш токенов."""
-        if self.hybrid_cache is not None:
-            return
-        
-        if not HYBRID_CACHE_AVAILABLE:
-            logger.debug("HybridTokenCache недоступен")
-            return
-        
-        try:
-            cache_dir = os.path.join(
-                getattr(self.brain, 'cache_dir', './cache'), 
-                'hybrid_cache'
-            )
-            self.hybrid_cache = HybridTokenCache(
-                brain=self.brain,
-                max_memory_tokens=10000,
-                disk_cache_dir=cache_dir
-            )
-            logger.info("Гибридный кэш инициализирован")
-        except Exception as e:
-            logger.error(f"Ошибка инициализации гибридного кэша: {e}")
-            self.hybrid_cache = None
-    
-    def _init_unified_bridge(self) -> None:
-        """Инициализирует UnifiedCacheBridge - мост модели и графа знаний."""
-        if self.unified_bridge is not None:
-            return
-        
-        try:
-            from eva_ai.core.unified_cache_bridge import create_unified_bridge
-            
-            knowledge_graph = None
-            if self.brain and hasattr(self.brain, 'knowledge_graph'):
-                knowledge_graph = self.brain.knowledge_graph
-            elif self.brain and hasattr(self.brain, 'components'):
-                knowledge_graph = self.brain.components.get('knowledge_graph')
-            
-            cache_dir = os.path.join(
-                getattr(self.brain, 'cache_dir', './cache'),
-                'unified_bridge'
-            )
-            
-            self.unified_bridge = create_unified_bridge(
-                token_cache=self.hybrid_cache,
-                knowledge_graph=knowledge_graph,
-                cache_dir=cache_dir
-            )
-            
-            if knowledge_graph:
-                logger.info("UnifiedCacheBridge инициализирован с графом знаний")
-            else:
-                logger.info("UnifiedCacheBridge инициализирован (граф знаний недоступен)")
-        except Exception as e:
-            logger.warning(f"Ошибка инициализации UnifiedCacheBridge: {e}")
-            self.unified_bridge = None
-    
-    def _create_fallback_tokenizer(self) -> None:
-        """Создаёт fallback токенизатор если основной недоступен."""
-        if not TRANSFORMERS_AVAILABLE:
-            logger.warning("Transformers недоступен, пропускаем создание fallback токенизатора")
-            return
-        
-        base_path = getattr(self.brain, 'project_root', None) or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        
-        # Получаем путь к модели из brain_config.json
-        model_paths_to_try = []
-        try:
-            config_path = os.path.join(base_path, 'brain_config.json')
-            if os.path.exists(config_path):
-                import json
-                with open(config_path, 'r', encoding='utf-8') as f:
-                    config = json.load(f)
-                model_cfg = config.get('model', {})
-                # Пробуем logic_model_path и context_model_path
-                for key in ['logic_model_path', 'context_model_path', 'coder_model_path']:
-                    path = model_cfg.get(key)
-                    if path and os.path.exists(path):
-                        model_paths_to_try.append(path)
-        except Exception:
-            pass
-        
-        # Если в конфиге нет, используем старые пути как fallback
-        if not model_paths_to_try:
-            model_paths_to_try = [
-                os.path.join(base_path, "eva_pie_architecture", "models", "gguf_models", "ruadapt_qwen3_4b_q4_k_m.gguf"),
-            ]
-        
-        for model_path in model_paths_to_try:
-            try:
-                if os.path.exists(model_path):
-                    self.tokenizer = AutoTokenizer.from_pretrained(
-                        os.path.dirname(model_path), 
-                        local_files_only=True,
-                        trust_remote_code=True
-                    )
-                    if self.tokenizer:
-                        if self.tokenizer.pad_token is None:
-                            if hasattr(self.tokenizer, 'eos_token') and self.tokenizer.eos_token:
-                                self.tokenizer.pad_token = self.tokenizer.eos_token
-                            else:
-                                self.tokenizer.pad_token = '</pad>'
-                        logger.info(f"Создан fallback токенизатор из {os.path.basename(model_path)}")
-                        return
-            except Exception as e:
-                logger.debug(f"Не удалось загрузить токенизатор из {model_path}: {e}")
-                continue
-        
-        logger.info("Токенизатор не загружен (опциональный компонент)")
-        self.tokenizer = None
-    
-    def _validate_tokenizer(self, tokenizer: Any) -> bool:
-        """Проверяет валидность токенизатора.
-
-        Args:
-            tokenizer: Токенизатор для валидации
-
-        Returns:
-            bool: True если токенизатор валиден
-        """
-        if tokenizer is None:
-            logger.debug("Токенизатор не инициализирован (None)")
-            return False
-
-        # Минимальная проверка - объект существует и не является примитивным типом
-        # Это позволит использовать любые объекты как токенизаторы
-        if isinstance(tokenizer, (str, int, float, bool, list, dict)):
-            logger.debug("Токенизатор является примитивным типом")
-            return False
-
-        # Логируем успешную валидацию
-        logger.debug("Токенизатор прошел валидацию")
-        return True
-    
+        return False
+     
     def initialize(self) -> bool:
-        """
-        Инициализирует ResponseGenerator.
-
-        
-        Returns:
-            bool: True если инициализация успешна
-        """
+        """Инициализирует ResponseGenerator."""
         try:
             if not self.brain:
                 logger.error("CoreBrain не передан в ResponseGenerator")
                 return False
+            
+            # Инициализируем токенизатор
+            self._init_tokenizer()
+            
+            logger.info("ResponseGenerator инициализирован")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации: {e}", exc_info=True)
+            return False
             
             if not self._initialized:
                 self._init_components()
@@ -573,47 +323,20 @@ class ResponseGenerator:
             }
         
         try:
-            # ПРИОРИТЕТ 0: Проверяем UnifiedCacheBridge (кэш генерации + граф знаний)
-            if self.unified_bridge:
-                prep = self.unified_bridge.prepare_for_generation(prompt)
-                if prep['cached_response']:
-                    logger.info(f"Ответ найден в кэше генерации (UnifiedCacheBridge)")
-                    return {
-                        "text": prep['cached_response'],
-                        "from_cache": True,
-                        "metadata": {
-                            "source": "unified_cache_bridge",
-                            "generation_time": time.time() - start_time,
-                        }
-                    }
-                if prep['graph_nodes']:
-                    logger.debug(f"Найдено {len(prep['graph_nodes'])} узлов графа, предзагружено {prep['preloaded_count']}")
-                prompt = prep['prompt']
-            
-            # ПРИОРИТЕТ 1: Проверяем фрактальную модель
-            if self._is_fractal_ready():
-                return self._generate_fractal_response(prompt, start_time, kwargs)
-            
-            # ПРИОРИТЕТ 2: Получаем модель из ModelManager
+            # ПРИОРИТЕТ 1: Получаем модель через two_model_pipeline (UnifiedGenerator)
+            # Fractal model removed - using single OpenVINO model
             model, tokenizer, model_name = self._get_model_for_generation(kwargs)
             
             if model is None:
                 return self._create_fallback_response(prompt, "no_model_available")
-            
+                
             # Подготовка промпта
             context = kwargs.get('context')
             final_prompt = self._prepare_prompt(prompt, "text-generation", context)
-            
+                
             # Генерация ответа
             generated_text = self._generate_with_model(model, tokenizer, final_prompt, **kwargs)
-            
-            # Кэшируем результат через UnifiedCacheBridge
-            if self.unified_bridge:
-                self.unified_bridge.cache_generation_result(
-                    prompt, generated_text,
-                    metadata={'model': model_name, 'tokens': len(generated_text)}
-                )
-            
+                
             # Создаём ответ
             clean_kwargs = {k: v for k, v in kwargs.items() if k != 'task'}
             return self._create_response(
@@ -630,67 +353,17 @@ class ResponseGenerator:
             logger.error(f"Ошибка при генерации ответа: {e}", exc_info=True)
             raise RuntimeError(f"Не удалось сгенерировать ответ: {str(e)}") from e
     
-    def _is_fractal_ready(self) -> bool:
-        """Проверяет готовность фрактальной модели."""
-        return (
-            self.brain is not None and 
-            getattr(self.brain, 'fractal_ready', False) and 
-            getattr(self.brain, 'fractal_model_manager', None) is not None
-        )
-    
-    def _generate_fractal_response(self, prompt: str, start_time: float, kwargs: Dict) -> Dict[str, Any]:
-        """Генерирует ответ через фрактальную модель."""
-        try:
-            logger.info(f"Используем фрактальную модель: {prompt[:50]}...")
-            fractal_response = self.brain.fractal_model_manager.generate_response(prompt)
-            
-            return {
-                "text": fractal_response,
-                "tokens": [],
-                "metadata": {
-                    "model": "fractal_model",
-                    "task": "text-generation",
-                    "length": len(fractal_response),
-                    "from_cache": False,
-                    "generation_time": time.time() - start_time,
-                    "token_count": 0,
-                    "params": {k: v for k, v in kwargs.items()},
-                    "source": "fractal_model"
-                }
-            }
-        except Exception as e:
-            logger.warning(f"Ошибка фрактальной модели: {e}")
-            return None
-    
     def _get_model_for_generation(self, kwargs: Dict) -> Tuple[Optional[Any], Optional[Any], str]:
         """Получает модель для генерации.
         
         Returns:
             Tuple: (model, tokenizer, model_name)
         """
+        # FractalModelManager disabled - using single OpenVINO model via two_model_pipeline
+        # This method kept for compatibility, but actual generation goes through UnifiedGenerator
         model = kwargs.get('model')
         tokenizer = kwargs.get('tokenizer')
         model_name = kwargs.get('model_name', 'unknown')
-        
-        if model is None and self.model_manager:
-            try:
-                model_result = self.model_manager.get_model_for_task("text-generation")
-                if model_result is not None:
-                    # Проверяем что вернули кортеж или другой формат
-                    if isinstance(model_result, tuple) and len(model_result) >= 3:
-                        model, tokenizer, model_name = model_result
-                    elif isinstance(model_result, dict):
-                        model = model_result.get('model')
-                        tokenizer = model_result.get('tokenizer')
-                        model_name = model_result.get('model_name', model_name)
-                    else:
-                        # Если вернули только модель
-                        model = model_result
-                else:
-                    logger.warning("ModelManager вернул None для задачи text-generation")
-            except Exception as e:
-                logger.error(f"Ошибка получения модели: {e}")
-                return None, None, model_name
         
         # Fallback: используем self.tokenizer если tokenizer всё ещё None
         if tokenizer is None and self.tokenizer is not None:
@@ -701,15 +374,6 @@ class ResponseGenerator:
     
     def _generate_with_model(self, model: Any, tokenizer: Any, prompt: str, **kwargs) -> str:
         """Генерирует ответ с использованием модели."""
-        
-        # Кэшируем токенизацию если доступен HybridTokenCache
-        if self.hybrid_cache and hasattr(tokenizer, 'name'):
-            cache_key = f"tokens_{tokenizer.name}_{hash(prompt)}"
-            cached_tokens = self.hybrid_cache.get(cache_key)
-            
-            if cached_tokens is not None:
-                logger.debug(f"Используем кэшированные токены для {cache_key}")
-        
         if tokenizer is None:
             raise ValueError("Tokenizer is None - cannot generate response")
         
