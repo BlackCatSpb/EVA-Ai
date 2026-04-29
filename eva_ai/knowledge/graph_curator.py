@@ -248,34 +248,30 @@ class GraphCurator:
         return self._running and self._thread is not None and self._thread.is_alive()
     
     def _run_loop(self):
-        """Главный цикл куратора с адаптивным интервалом."""
-        adaptive_interval = self.check_interval
+        """Главный цикл куратора с ПРИНУДИТЕЛЬНЫМ запуском каждые 5 минут."""
+        # Фиксированный интервал 5 минут (300 сек)
+        forced_interval = 300  # 5 minutes
+        logger.info(f"[Curator] Loop started. Forced run every {forced_interval}s")
         
         while self._running:
             try:
                 if not self._paused:
-                    self._do_curation()
-                
-                # Адаптивный интервал на основе активности графа
-                adaptive_interval = self._compute_adaptive_interval()
-                self.metrics['next_run'] = time.time() + adaptive_interval
-                self.metrics['adaptive_interval'] = adaptive_interval
-                
-                # Используем DCS для планирования если доступен
-                if self._deferred_system:
-                    from eva_ai.core.deferred_command_system import CommandPriority
-                    self._deferred_system.add_command(
-                        command=lambda: self._do_curation() if not self._paused else None,
-                        priority=CommandPriority.LOW
-                    )
-                    # Выходим из цикла ожидания - DCS управляет таймингом
-                    while self._running and not self._paused:
-                        time.sleep(1.0)
-                        if not self._running:
-                            break
+                    current_time = time.time()
+                    # Запускаем если:
+                    # 1. Прошло 5 минут с последнего запуска
+                    # 2. ИЛИ пришло событие system.idle
+                    time_since_last = current_time - self.metrics.get('last_run', 0)
+                    
+                    if time_since_last >= forced_interval:
+                        logger.info(f"[Curator] Forced run (5 min interval passed)")
+                        self._do_curation()
+                    elif self._event_bus:
+                        # Ждем события idle (если есть EventBus)
+                        time.sleep(10)  # Проверяем каждые 10 сек
+                        continue
                 else:
-                    time.sleep(adaptive_interval)
-                
+                    time.sleep(10)
+                    
             except Exception as e:
                 logger.error(f"GraphCurator error: {e}")
                 self.metrics['last_error'] = str(e)
