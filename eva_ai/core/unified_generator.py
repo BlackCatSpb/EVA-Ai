@@ -336,28 +336,6 @@ class UnifiedGenerator:
         else:
             logger.warning(f"CONTEXT model path not found: {context_path}")
     
-    def _init_openvino(self, device: str = "CPU") -> bool:
-        """Инициализировать OpenVINO Generator на указанном устройстве."""
-        try:
-            from eva_ai.core.openvino_generator import OpenVINOGenerator
-            
-            model_path = self._model_paths.get(ModelType.CONTEXT) or self._model_paths.get(ModelType.LOGIC)
-            if not model_path:
-                logger.error("No model path for OpenVINO")
-                return False
-            
-            generator = OpenVINOGenerator(
-                model_path=model_path,
-                device=device
-            )
-            
-            logger.info(f"OpenVINO initialized on {device}")
-            return generator
-            
-        except Exception as e:
-            logger.error(f"Failed to init OpenVINO: {e}")
-            return None
-    
     def _init_openvino_devices(self) -> bool:
         """
         Инициализировать OpenVINO генераторы:
@@ -589,7 +567,7 @@ class UnifiedGenerator:
         
         return task_device_map.get(task_type, ('cpu', 'logic'))
     
-    def _get_generator_for_task(self, task_type: str):
+    def _get_generator_for_task(self, task_type: str) -> Tuple[Any, Optional[ModelType]]:
         """
         Получить генератор для типа задачи.
         
@@ -599,23 +577,20 @@ class UnifiedGenerator:
         Returns:
             Tuple (generator, model_type)
         """
-        # CODER - GPU
-        if task_type in ('coder', 'self_dialog') and self._openvino_coder:
-            return (self._openvino_coder, ModelType.CODER)
+        # Используем доступные генераторы (у нас одна модель ruadapt qwen3-4b)
+        # _openvino_gpu приоритетнее (context model), fallback на _openvino_cpu (logic model)
+        generator = self._openvino_gpu if self._openvino_gpu else self._openvino_cpu
         
-        # CONTEXT - GPU.0 (ВТОРАЯ ФИЗИЧЕСКАЯ МОДЕЛЬ)
-        if task_type == 'context' and self._openvino_gpu:
-            return (self._openvino_gpu, ModelType.CONTEXT)
+        if not generator:
+            return (None, None)
         
-        # LOGIC - CPU
-        if self._openvino_cpu:
-            return (self._openvino_cpu, ModelType.LOGIC)
-        
-        # Fallback: если нет Context, используем CPU
-        if self._openvino_cpu:
-            return (self._openvino_cpu, ModelType.LOGIC)
-        
-        return (None, None)
+        # Определяем тип модели по task_type
+        if task_type in ('coder', 'self_dialog'):
+            return (generator, ModelType.CODER)
+        elif task_type == 'context':
+            return (generator, ModelType.CONTEXT)
+        else:
+            return (generator, ModelType.LOGIC)
     
     def _detect_optimal_threads(self) -> int:
         """Автоопределение оптимального количества потоков для CPU."""
