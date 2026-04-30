@@ -238,15 +238,6 @@ class AdaptiveParameterController:
         
         return params
     
-    def should_skip_model_c(self, resource_usage: dict) -> bool:
-        """Определяет, нужно ли пропустить Model C при высокой нагрузке."""
-        cpu = resource_usage.get('cpu', 0)
-        ram = resource_usage.get('ram', 0)
-        
-        if cpu > 0.85 or ram > 0.90:
-            return True
-        return False
-    
     def get_deferred_params(self, resource_usage: dict) -> dict:
         """Параметры для отложенной генерации."""
         return {

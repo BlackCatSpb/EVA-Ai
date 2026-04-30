@@ -29,7 +29,6 @@ class PipelineAdapter:
         # Атрибуты для совместимости со старым TwoModelPipeline
         self.model_a = None  # LOGIC model
         self.model_b = None  # CONTEXT model
-        self.model_c = None  # CODER model
         
         # Инициализируем ссылки на модели если UnifiedGenerator загружен
         if unified_generator and hasattr(unified_generator, '_model_paths'):
@@ -39,8 +38,6 @@ class PipelineAdapter:
                 self.model_a = str(paths[ModelType.LOGIC])
             if ModelType.CONTEXT in paths:
                 self.model_b = str(paths[ModelType.CONTEXT])
-            if ModelType.CODER in paths:
-                self.model_c = str(paths[ModelType.CODER])
         
         logger.info("PipelineAdapter initialized")
     

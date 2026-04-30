@@ -98,10 +98,6 @@ class CommandHandlers:
                 logger.info(f"Модели выгружены: {results}")
                 if self.brain.event_bus:
                     self.brain.event_bus.publish(_make_event("memory.models_unloaded", data={"results": results}))
-        elif target == "model_c":
-            if hasattr(self.brain, "unload_model_c_only"):
-                self.brain.unload_model_c_only()
-                logger.info("Model C выгружена")
         elif target == "fractal":
             if hasattr(self.brain, "fractal_model_manager") and self.brain.fractal_model_manager:
                 if hasattr(self.brain.fractal_model_manager, "unload"):
@@ -494,10 +490,6 @@ class CommandIssuerMixin:
                 logger.info(f"Модели выгружены: {results}")
                 if self.event_bus:
                     self.event_bus.publish(_make_event("memory.models_unloaded", data={"results": results}))
-        elif target == "model_c":
-            if hasattr(self, "unload_model_c_only"):
-                self.unload_model_c_only()
-                logger.info("Model C выгружена")
         elif target == "fractal":
             if hasattr(self, "fractal_model_manager") and self.fractal_model_manager:
                 if hasattr(self.fractal_model_manager, "unload"):

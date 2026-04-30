@@ -75,6 +75,7 @@
   },
   "fcp": {
     "enabled": true,
+    "use_fcp_pipeline": true,
     "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
     "fcp_pipeline": {
       "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
@@ -106,9 +107,9 @@
       "snapshot_layers": []
     },
     "modules": {
-      "gnn_encoder_path": null,
+      "gnn_encoder_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\graph_encoder.pt",
       "gnn_runtime_path": null,
-      "lora_dir": "eva_ai/models/lora_adapters"
+      "lora_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\models\\lora"
     },
 "generation": {
         "max_new_tokens": 4096,

@@ -68,14 +68,6 @@ class MemoryManagerMixin:
                     results['two_model_pipeline'] = False
                     logger.error(f"Ошибка выгрузки pipeline: {e}")
             
-            # 2. Model C отдельно (если ещё осталась)
-            if hasattr(self, 'two_model_pipeline') and self.two_model_pipeline:
-                try:
-                    self.two_model_pipeline._unload_model_c()
-                    results['model_c'] = True
-                except Exception:
-                    results['model_c'] = False
-            
             # 3. FractalModelManager (GGUF + PyTorch)
             if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager:
                 try:
@@ -164,19 +156,7 @@ class MemoryManagerMixin:
                 self._unload_in_progress = False
         
         return results
-
-    def unload_model_c_only(self) -> bool:
-        """Выгрузить только Model C (Coder) — экономит ~1GB RAM."""
-        try:
-            if hasattr(self, 'two_model_pipeline') and self.two_model_pipeline:
-                if hasattr(self.two_model_pipeline, '_unload_model_c'):
-                    self.two_model_pipeline._unload_model_c()
-                    logger.info("Model C выгружена")
-                    return True
-        except Exception as e:
-            logger.error(f"Ошибка выгрузки Model C: {e}")
-        return False
-
+ 
     def reload_models(self) -> Dict[str, bool]:
         """Перезагрузить все модели после выгрузки."""
         results = {}
@@ -225,10 +205,7 @@ class MemoryManagerMixin:
             if getattr(pipeline, 'model_b', None):
                 usage['models_loaded'].append('Model B (GGUF)')
                 usage['total_estimated_mb'] += 500
-            if getattr(pipeline, 'model_c', None):
-                usage['models_loaded'].append('Model C (Coder GGUF)')
-                usage['total_estimated_mb'] += 300  # ~300MB для 1.5B Q4
-        
+            
         if hasattr(self, 'fractal_model_manager') and self.fractal_model_manager:
             fmm = self.fractal_model_manager
             if getattr(fmm, 'llama_cpp_ready', False):

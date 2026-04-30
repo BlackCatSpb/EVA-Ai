@@ -101,6 +101,13 @@ class ResponseGenerator:
         except Exception:
             self.knowledge_awareness = None
         
+        # Component Initialization Manager (optional)
+        self.component_init_manager = getattr(brain, 'component_init_manager', None)
+        if self.component_init_manager:
+            logger.info("ComponentInitializationManager найден в brain")
+        else:
+            logger.debug("ComponentInitializationManager недоступен")
+        
         logger.info("ResponseGenerator создан")
         
         # Direct tokenizer initialization

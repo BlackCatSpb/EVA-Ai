@@ -8,7 +8,7 @@ Modules:
 - pipeline_core.py - Main class RecursiveModelPipeline, process_query(), load_models(), unload_models()
 - pipeline_quality.py - check_quality(), _sanitize_response, _clean_filler_start, _remove_looping_blocks, _generate_with_timeout
 - pipeline_adaptive.py - AdaptiveParameterController, semantic stuck detection, parameter adaptation
-- pipeline_models.py - generate_with_model_a, generate_with_model_b, generate_with_model_c
+- pipeline_models.py - generate_with_model_a, generate_with_model_b
 """
 
 from .pipeline_core import RecursiveModelPipeline, create_recursive_pipeline
@@ -23,8 +23,6 @@ from .pipeline_quality import (
 from .pipeline_models import (
     generate_with_model_a,
     generate_with_model_b,
-    generate_with_model_c,
-    _load_model_c,
 )
 
 __all__ = [
@@ -38,6 +36,4 @@ __all__ = [
     '_generate_with_timeout',
     'generate_with_model_a',
     'generate_with_model_b',
-    'generate_with_model_c',
-    '_load_model_c',
 ]

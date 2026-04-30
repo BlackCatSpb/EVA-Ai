@@ -25,9 +25,6 @@ from .pipeline_quality import (
 from .pipeline_models import (
     generate_with_model_a,
     generate_with_model_b,
-    generate_with_model_c,
-    _load_model_c,
-    _unload_model_c,
     _generate_response,
 )
 from .resource_manager import ResourceManager
@@ -43,7 +40,6 @@ class RecursiveModelPipeline:
     Пайплайн для последовательной работы GGUF моделей:
     1. Model A (Qwen 2.5 3B) - даёт краткий логичный ответ
     2. Model B (Qwen 2.5 3B) - развивает мысль, добавляет детали
-    3. Model C (Qwen 2.5 Coder 1.5B) - генерирует код, если нужен
     
     Использует create_chat_completion с автоматическим форматированием Qwen
     """
@@ -54,19 +50,12 @@ class RecursiveModelPipeline:
     MODEL_B_MAX_TOKENS = 4096
     MODEL_B_TEMPERATURE = 0.45
     
-    MODEL_C_MAX_TOKENS = 4096
-    MODEL_C_TEMPERATURE = 0.1
-    MODEL_C_TOP_P = 0.9
-    MODEL_C_TOP_K = 50
-    MODEL_C_REPEAT_PENALTY = 1.3
-    
     STOP_TOKENS = ["</s>"]
     
     def __init__(
         self,
         model_a_path: str,
         model_b_path: str,
-        model_c_path: str = None,
         n_ctx: int = 16384,
         n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
         fractal_memory = None,
@@ -76,13 +65,11 @@ class RecursiveModelPipeline:
     ):
         self.model_a_path = model_a_path
         self.model_b_path = model_b_path
-        self.model_c_path = model_c_path
         self.n_ctx = n_ctx
         self.context_size = n_ctx  # Alias for compatibility
         self.n_threads = n_threads
         self.model_a = None
         self.model_b = None
-        self.model_c = None
         self.fractal_memory = fractal_memory
         self.quality_checker = None
         self.event_bus = event_bus
@@ -211,28 +198,6 @@ class RecursiveModelPipeline:
         
         if self.fractal_memory:
             self.fractal_memory.register_model_instance("model_b", self.model_b)
-        
-        self.model_c = None
-        if self.model_c_path and os.path.exists(self.model_c_path):
-            logger.info(f"Model C будет загружена лениво при запросе кода")
-        else:
-            logger.info("Model C не указана")
-    
-    def _is_code_request(self, query: str) -> bool:
-        """Определяет, нужен ли код в ответе"""
-        code_keywords = [
-            'напиши код', 'напиши функцию', 'напиши скрипт', 'код для',
-            'функцию для', 'скрипт для', 'программу', 'код на python',
-            'код на js', 'код на javascript', 'напиши программу',
-            'реализуй', 'реализовать', 'функция которая', 'класс для',
-            'def ', 'import ', 'function ', 'class ', 'const ', 'let ',
-            '```', 'print(', 'return ', 'async ', 'await '
-        ]
-        query_lower = query.lower()
-        for kw in code_keywords:
-            if kw in query_lower:
-                return True
-        return False
     
     def _review_with_model_a(
         self,
@@ -383,7 +348,6 @@ class RecursiveModelPipeline:
                 'query': query,
                 'model_a_result': None,
                 'model_b_result': None,
-                'model_c_result': None,
                 'reasoning_steps': [],
                 'has_code': False,
                 'fractal_context': None,
@@ -425,10 +389,6 @@ class RecursiveModelPipeline:
         if adapted_params_b.get('temperature'):
             b_temperature = adapted_params_b['temperature']
         
-        skip_model_c = self.model_a_params.should_skip_model_c(resource_usage)
-        if skip_model_c:
-            logger.info(f"Skipping Model C due to high resource usage: CPU={resource_usage['cpu']:.2f}, RAM={resource_usage['ram']:.2f}")
-        
         if gen_params:
             params_a = gen_params.get('model_a', {})
             params_b = gen_params.get('model_b', {})
@@ -442,7 +402,6 @@ class RecursiveModelPipeline:
             'query': query,
             'model_a_result': None,
             'model_b_result': None,
-            'model_c_result': None,
             'reasoning_steps': [],
             'has_code': False,
             'fractal_context': None
@@ -571,40 +530,6 @@ class RecursiveModelPipeline:
             logger.warning("Model B failed, falling back to Model A response")
             results['final_response'] = model_a_result.get('natural_response', '')
         
-        if self.model_c and self._is_code_request(query) and not skip_model_c:
-            logger.info("=== Шаг 3: Генерация кода на Model C (Coder) ===")
-            results['has_code'] = True
-            self._publish_event('pipeline.model_c.start', {'query_length': len(query), 'context_length': len(model_b_result.get('natural_response', ''))})
-            model_c_start = time.time()
-            model_c_result = self.generate_with_model_c(query, model_b_result['natural_response'])
-            model_c_elapsed = time.time() - model_c_start
-            logger.info(f"Model C ответ: {model_c_result['natural_response'][:150]}...")
-            results['model_c_result'] = model_c_result
-            self._publish_event('pipeline.model_c.complete', {
-                'response_length': len(model_c_result.get('natural_response', '')),
-                'quality': model_c_result['quality'].get('score', 0.0),
-                'time': round(model_c_elapsed, 2)
-            })
-            
-            results['reasoning_steps'].append({
-                'step': 3,
-                'phase': 'model_c_generation',
-                'thought': model_c_result['natural_response'][:200],
-                'confidence': model_c_result['quality'].get('score', 0.8),
-                'model': 'Model C (Coder)',
-                'action': 'Генерация кода',
-                'input': f"Контекст: {model_b_result['natural_response'][:100]}",
-                'output': model_c_result['natural_response']
-            })
-            
-            results['final_response'] = model_b_result['natural_response'] + "\n\n" + model_c_result['natural_response']
-        
-        # Выгружаем Model C после генерации кода (экономим ~1GB RAM)
-        if results.get('has_code'):
-            self._unload_model_c()
-        else:
-            results['final_response'] = model_b_result['natural_response']
-        
         results['final_quality'] = model_b_result['quality']
         
         if self.fractal_memory and hasattr(self.fractal_memory, 'save_experience'):
@@ -654,7 +579,6 @@ class RecursiveModelPipeline:
         """Выгружает модели и освобождает ресурсы."""
         self.model_a = None
         self.model_b = None
-        self.model_c = None
         self.model_a_params.cleanup()
         self.model_b_params.cleanup()
         try:
@@ -675,7 +599,6 @@ class RecursiveModelPipeline:
 def create_recursive_pipeline(
     model_a_path: str = None,
     model_b_path: str = None,
-    model_c_path: str = None,
     n_ctx: int = 16384,
     n_threads: int = None,  # None = испольовать все ядра (12 для i5-12450H)
     fractal_memory = None,
@@ -692,13 +615,9 @@ def create_recursive_pipeline(
     if model_b_path is None:
         model_b_path = os.path.join(project_root, "eva_ai", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-3b-instruct", "qwen2.5-3b-instruct-q4_k_m.gguf")
     
-    if model_c_path is None:
-        model_c_path = os.path.join(project_root, "eva_ai", "memory", "fractal_torch_storage", "gguf_models", "qwen2.5-coder-1.5b-instruct", "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf")
-    
     pipeline = RecursiveModelPipeline(
         model_a_path=model_a_path,
         model_b_path=model_b_path,
-        model_c_path=model_c_path,
         n_ctx=n_ctx,
         n_threads=n_threads,
         fractal_memory=fractal_memory,
@@ -717,6 +636,3 @@ RecursiveModelPipeline._remove_looping_blocks = _remove_looping_blocks
 RecursiveModelPipeline._generate_with_timeout = _generate_with_timeout
 RecursiveModelPipeline.generate_with_model_a = generate_with_model_a
 RecursiveModelPipeline.generate_with_model_b = generate_with_model_b
-RecursiveModelPipeline.generate_with_model_c = generate_with_model_c
-RecursiveModelPipeline._load_model_c = _load_model_c
-RecursiveModelPipeline._unload_model_c = _unload_model_c

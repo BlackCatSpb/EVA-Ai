@@ -38,6 +38,17 @@ from eva_ai.fcp_gnn import (
     HybridFusionInjector
 )
 
+# FCP State Injection Components (NEW - from Доработка.txt)
+from eva_ai.core.core_injector import LayerwiseStateInjector
+from eva_ai.core.analysis_and_injection import (
+    SemanticQueryAnalyzer,
+    compute_kca_correction,
+    GraphIntegrationManager,
+    SRGFeedbackLoop,
+    inject_graph_vector,
+    apply_sqam_scaling
+)
+
 
 # Системный промпт - ВСЕГДА рассуждать перед ответом
 SYSTEM_PROMPT = """Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...</think>. ОБЯЗАТЕЛЬНО закрой тег </think> после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными."""
@@ -98,6 +109,12 @@ class FCPPipelineV15:
         self.kca = None
         self.srg = None
         self.convergence_controller = None
+        
+        # NEW: State Injector for direct KV-cache access (from Доработка.txt)
+        self.state_injector = None
+        self.sqam_analyzer = None
+        self.graph_mgr = None
+        self.srg_feedback = None
 
         # FCP Hybrid Layer Components (LLM + GNN + LoRA + KCA + SRG)
         self.hybrid_layer_config = HybridLayerConfig(
@@ -128,14 +145,35 @@ class FCPPipelineV15:
         print(f"[FCP] FCPPipelineV15 created: model={model_path}")
     
     def _init_fcp_components(self):
-        """Инициализация FCP компонентов: KCA, SRG, Graph"""
+        """Инициализация FCP компонентов: KCA, SRG, Graph, State Injector"""
         print("[FCP] Initializing FCP components...")
         
-        # SRG (Semantic Relevance Gate)
+        # NEW: State Injector for direct KV-cache access (from Доработка.txt)
+        try:
+            device = "GPU.0" if "GPU" in self.model_path else "CPU"
+            self.state_injector = LayerwiseStateInjector(self.model_path, device)
+            print(f"[FCP] StateInjector initialized: device={device}")
+        except Exception as e:
+            print(f"[FCP] StateInjector init failed: {e}")
+            self.state_injector = None
+        
+        # NEW: SQAM Analyzer
+        self.sqam_analyzer = SemanticQueryAnalyzer()
+        print("[FCP] SQAM Analyzer initialized")
+        
+        # NEW: Graph Integration Manager
+        self.graph_mgr = GraphIntegrationManager(embedding_dim=2560)
+        print("[FCP] GraphIntegrationManager initialized")
+        
+        # NEW: SRG Feedback Loop
+        self.srg_feedback = SRGFeedbackLoop(threshold=0.6)
+        print("[FCP] SRG FeedbackLoop initialized")
+        
+        # SRG (Semantic Relevance Gate) - existing
         self.srg = SemanticRelevanceGate(self.fcp_config)
         print("[FCP] SRG initialized")
         
-        # KCA (Knowledge Conscious Attention)
+        # KCA (Knowledge Conscious Attention) - existing
         self.kca = KnowledgeConsciousAttention(self.fcp_config)
         print("[FCP] KCA initialized")
         
@@ -487,10 +525,45 @@ class FCPPipelineV15:
         """Основной метод генерации с полной гибридной интеграцией"""
         self.stats["queries"] += 1
 
+        # Если требуется полнослойная инъекция (Runtime State Injection)
+        if enable_injection and self.state_injector:
+            # Используем новый метод с полнослойной инъекцией согласно Доработка.txt
+            result = self.generate_with_injection(
+                prompt, 
+                max_new_tokens=max_new_tokens,
+                enable_thinking=enable_thinking,
+                return_metadata=return_metadata
+            )
+            
+            if return_metadata:
+                response, metadata = result
+                metadata["query_count"] = self.stats["queries"]
+                metadata["injection_type"] = "full_layer"
+            else:
+                response = result
+                metadata = {"injection_type": "full_layer"}
+            
+            # Обновляем статистику инъекций
+            self.stats["injections"] += 1
+            
+            # Сохраняем в историю если нужно
+            if add_to_history and response:
+                self.conversation_history.append({
+                    "user": prompt,
+                    "assistant": response
+                })
+                if len(self.conversation_history) > self.max_history:
+                    self.conversation_history = self.conversation_history[-self.max_history:]
+
+                # Сохраняем сессию сразу после изменения
+                self.save_session("default")
+                
+            return response if not return_metadata else (response, metadata)
+
         # 1. Подготовка промпта с историей
         chat_prompt = self._build_prompt(prompt, enable_thinking)
 
-        # 2. Гибридная обработка через HybridLayerProcessor (KCA + GNN + SRG)
+        # 2. Гибридная обработка через HybridLayerProcessor (KCA + GNN + SRG) - fallback
         if enable_injection and self.hybrid_processor and self.fractal_graph:
             processed_prompt, metadata = self._process_with_hybrid_layers(
                 chat_prompt, prompt
@@ -698,6 +771,122 @@ class FCPPipelineV15:
             return result
         except Exception as e:
             return f"Generation error: {e}"
+
+    def generate_with_injection(self, prompt: str, max_new_tokens: int = 1024, 
+                              enable_thinking: bool = True, return_metadata: bool = False) -> str:
+        """
+        Полнослойная инъекция согласно Доработка.txt (FCP specification)
+        Runtime State Injection: модификация Key и Value тензоров на всех слоях
+        """
+        if not self.pipeline or not self.state_injector:
+            # Fallback к обычной генерации если injector недоступен
+            return self._generate(prompt, max_new_tokens, **{})
+        
+        try:
+            # Import here to avoid circular imports
+            import openvino_genai as ov_genai
+            import openvino as ov
+            
+            logger.info(f"[FCP] Starting generation with full-layer injection: '{prompt[:50]}...'")
+            
+            # 1. Pre-fill - обработка промпта для заполнения KV-кеша
+            if hasattr(self, 'tokenizer') and self.tokenizer:
+                input_ids = self.tokenizer.encode(prompt, return_tensors="np")
+            else:
+                # Fallback если токенизатор недоступен
+                return self._generate(prompt, max_new_tokens, **{})
+                
+            # Reset KV-кеша перед новой сессией
+            self.state_injector.reset_all_states()
+            
+            # Запускаем pre-fill inference
+            self.state_injector.request.infer({"input_ids": input_ids})
+            seq_len = input_ids.shape[1]
+            
+            # Получаем текст токенов для анализа
+            token_texts = [self.tokenizer.decode([tid]) for tid in input_ids[0]] if hasattr(self, 'tokenizer') else []
+            
+            # 2. SQAM Analysis & Full-Layer Key Scaling (согласно Доработка.txt)
+            key0 = self.state_injector.get_key(0)  # Первый слой
+            _, importance = self.sqam_analyzer.analyze(key0, seq_len)
+            all_layers = self.state_injector.get_all_layer_indices()
+            
+            # Применяем SQAM ко ВСЕМ слоям (Key scaling)
+            self.state_injector.transform_keys(all_layers, apply_sqam_scaling, weights=importance)
+            
+            # 3. Graph Enrichment - извлечение якорных токенов и обновление центроида
+            anchors = self.sqam_analyzer.get_core_anchors(token_texts, threshold=0.6)
+            key_per_token = key0[0].mean(axis=0)  # Average over heads
+            self.graph_mgr.add_anchors(anchors, key_per_token)
+            
+            # 4. Decoding Loop with Full-Layer KCA Injection
+            generated_ids = input_ids[0].tolist()
+            eos_token_id = getattr(self.tokenizer, 'eos_token_id', 2) if hasattr(self, 'tokenizer') else 2
+            
+            for step in range(max_new_tokens):
+                # Инференс на последнем токене
+                self.state_injector.request.infer({"input_ids": np.array([[generated_ids[-1]]])})
+                logits = self.state_injector.request.get_tensor("logits").data[0, -1]
+                next_token = int(np.argmax(logits))
+                generated_ids.append(next_token)
+                
+                if next_token == eos_token_id:
+                    break
+                
+                # Динамический расчет KCA коррекции
+                # Извлекаем прокси-состояние из последнего слоя (Value тензор)
+                val_proxy = self.state_injector.get_value(all_layers[-1])[0, :, -1, :].mean(axis=0)
+                self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
+                
+                # Применяем KCA ко ВСЕМ слоям Value (инъекция знаний)
+                if np.linalg.norm(self.kca_correction_vec) > 1e-5:
+                    # Адаптивный вес для квантованных моделей (см. Доработка.txt)
+                    kca_weight = 0.07  # Базовый вес для FP16/FP32
+                    if hasattr(self, 'model_path') and 'int4' in self.model_path.lower():
+                        kca_weight = 0.2  # Усиленный вес для INT4
+                    elif 'int8' in self.model_path.lower():
+                        kca_weight = 0.12  # Средний вес для INT8
+                    
+                    self.state_injector.transform_values(
+                        all_layers, 
+                        inject_graph_vector, 
+                        vector=self.kca_correction_vec, 
+                        weight=kca_weight
+                    )
+            
+            # 5. SRG Post-Evaluation (оценка уверенности)
+            final_logits = self.state_injector.request.get_tensor("logits").data[0, -1]
+            srg_metrics = self.srg.evaluate(final_logits) if hasattr(self.srg, 'evaluate') else {"mode": "reasoning", "confidence": 0.5}
+            
+            # Декодируем результат
+            if hasattr(self, 'tokenizer') and self.tokenizer:
+                response = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
+            else:
+                # Fallback если токенизатор недоступен
+                response = f"[Generated {len(generated_ids)} tokens]"
+            
+            logger.info(f"[FCP] Generation completed with injection. SRG: {srg_metrics}")
+            
+            # Сохраняем в историю если нужно
+            if return_metadata:
+                metadata = {
+                    "injection_used": True,
+                    "srg_metrics": srg_metrics,
+                    "tokens_generated": len(generated_ids) - len(input_ids[0]),
+                    "layers_injected": len(all_layers),
+                    "sqam_applied": True,
+                    "kca_applied": np.linalg.norm(self.kca_correction_vec) > 1e-5
+                }
+                return response, metadata
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"[FCP] Injection generation error: {e}")
+            import traceback
+            traceback.print_exc()
+            # Fallback к обычной генерации при ошибке
+            return self._generate(prompt, max_new_tokens, **{})
     
     def load_lora_adapter(self, adapter_name: str = "fcp_finetuned", alpha: float = 0.8):
         """Загрузить LoRA адаптер"""
@@ -934,6 +1123,7 @@ class FCPPipelineV15:
 
             self.conversation_history = []
             self.stats = {"queries": 0, "injections": 0}
+            self.kca_correction_vec = None  # Для хранения вектора коррекции KCA
 
             return True
         except Exception as e:

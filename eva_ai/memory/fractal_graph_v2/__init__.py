@@ -1356,6 +1356,23 @@ class FractalMemoryGraph:
         
         return query_node.id
     
+    def save(self) -> bool:
+        """
+        Сохранить граф в файл.
+        Используется для импорта данных.
+        
+        Returns:
+            True если успешно
+        """
+        try:
+            db_path = os.path.join(self.storage_dir, "fractal_graph.db")
+            self.storage.save_to_file(db_path)
+            logger.info(f"Graph saved: {len(self.nodes)} nodes to {db_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save graph: {e}")
+            return False
+    
     def get_context_for_query(self, query: str, max_length: int = 512, min_similarity: float = 0.5) -> str:
         """
         Получить контекст для запроса.

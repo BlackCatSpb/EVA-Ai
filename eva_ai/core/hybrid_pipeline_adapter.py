@@ -62,10 +62,8 @@ class HybridPipelineAdapter:
         mode: str = 'fractal',
         model_a=None,
         model_b=None,
-        model_c=None,
         model_a_path: str = None,
         model_b_path: str = None,
-        model_c_path: str = None,
         n_ctx: int = 8192,
         n_threads: int = None,  # По умолчанию: все ядра CPU
         load_models: bool = True,
@@ -80,10 +78,8 @@ class HybridPipelineAdapter:
         # Модели (могут быть переданы или загружены)
         self.model_a = model_a
         self.model_b = model_b
-        self.model_c = model_c
         self.model_a_path = model_a_path
         self.model_b_path = model_b_path
-        self.model_c_path = model_c_path
         
         # Получаем параметры модели из графа памяти если доступен
         if fractal_graph is not None:
@@ -200,9 +196,6 @@ class HybridPipelineAdapter:
             )
             logger.info(f"Model B loaded (n_ctx={self.n_ctx})")
         
-        if self.model_c is None and self.model_c_path and os.path.exists(self.model_c_path):
-            logger.info(f"Model C path configured (lazy loading)")
-        
         self._models_loaded = True
         logger.info("All models loaded")
     
@@ -210,7 +203,6 @@ class HybridPipelineAdapter:
         """Выгрузить модели."""
         self.model_a = None
         self.model_b = None
-        self.model_c = None
         self._models_loaded = False
         self.fractal_pipeline = None
         self.dual_generator = None
@@ -298,8 +290,6 @@ class HybridPipelineAdapter:
                 'n_ctx': self.n_ctx,
                 'n_threads': self.n_threads
             }
-            if self.model_c_path:
-                kwargs['model_c_path'] = self.model_c_path
             if self.fractal_graph:
                 kwargs['fractal_memory'] = self.fractal_graph
             
@@ -591,7 +581,6 @@ class HybridPipelineAdapter:
                 'processing_time': elapsed,
                 'model_a_result': {'response': response},
                 'model_b_result': {'response': response},
-                'model_c_result': None,
                 'has_code': False,
                 'fractal_context': None
             }
@@ -656,7 +645,6 @@ class HybridPipelineAdapter:
             'query': query,
             'model_a_result': None,
             'model_b_result': None,
-            'model_c_result': None,
             'reasoning_steps': [],
             'has_code': False,
             'fractal_context': None,

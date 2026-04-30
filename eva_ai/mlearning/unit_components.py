@@ -128,16 +128,13 @@ def _init_response_generator(self):
         try:
             from eva_ai.core.response_generator import ResponseGenerator
             
-            model_manager = getattr(self, 'model_manager', None)
-            text_processor = getattr(self, 'text_processor', None)
-            tokenizer = getattr(text_processor, 'tokenizer', None) if text_processor else None
-            
             self.response_generator = ResponseGenerator(
-                brain=self.brain,
-                model_manager=model_manager,
-                text_processor=text_processor
+                brain=self.brain
             )
             
+            # Set tokenizer if available
+            text_processor = getattr(self, 'text_processor', None)
+            tokenizer = getattr(text_processor, 'tokenizer', None) if text_processor else None
             if tokenizer and hasattr(self.response_generator, 'tokenizer'):
                 self.response_generator.tokenizer = tokenizer
             

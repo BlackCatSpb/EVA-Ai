@@ -331,25 +331,22 @@ def _init_two_model_pipeline(brain):
         # Получаем пути к моделям
         model_a_path = model_config.get('model_a_gguf_path', '')
         model_b_path = model_config.get('model_b_gguf_path', '')
-        model_c_path = model_config.get('model_c_gguf_path', '')
         n_ctx = model_config.get('llama_cpp_n_ctx', 8192)
         n_threads = model_config.get('llama_cpp_threads', os.cpu_count() or 12)
-
+        
         # Проверяем пути
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if not os.path.isabs(model_a_path):
             model_a_path = os.path.join(project_root, model_a_path)
         if not os.path.isabs(model_b_path):
             model_b_path = os.path.join(project_root, model_b_path)
-        if model_c_path and not os.path.isabs(model_c_path):
-            model_c_path = os.path.join(project_root, model_c_path)
-
+        
         if not os.path.exists(model_a_path):
             query_logger.error(f"Model A file not found: {model_a_path}")
             return
         if not os.path.exists(model_b_path):
             model_b_path = model_a_path
-
+        
         # Создаём HybridPipelineAdapter
         try:
             from eva_ai.core.hybrid_pipeline_adapter import HybridPipelineAdapter
@@ -357,7 +354,6 @@ def _init_two_model_pipeline(brain):
             adapter_kwargs = {
                 'model_a_path': model_a_path,
                 'model_b_path': model_b_path,
-                'model_c_path': model_c_path if model_c_path and os.path.exists(model_c_path) else None,
                 'n_ctx': n_ctx,
                 'n_threads': n_threads,
                 'mode': pipeline_mode
@@ -386,8 +382,6 @@ def _init_two_model_pipeline(brain):
                     'n_ctx': n_ctx,
                     'n_threads': n_threads
                 }
-                if model_c_path and os.path.exists(model_c_path):
-                    pipeline_kwargs['model_c_path'] = model_c_path
                 if brain.fractal_memory:
                     pipeline_kwargs['fractal_memory'] = brain.fractal_memory
                 brain.two_model_pipeline = RecursiveModelPipeline(**pipeline_kwargs)

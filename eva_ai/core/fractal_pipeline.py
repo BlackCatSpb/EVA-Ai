@@ -157,7 +157,6 @@ class FractalPipeline:
                 'natural_response': result.response,
                 'quality': {'score': result.quality_score}
             },
-            'model_c_result': None,
             'has_code': False,
             'fractal_context': None
         }
@@ -213,7 +212,6 @@ class FractalPipelineAdapter:
         fractal_graph: FractalGraphV2,
         model_a,  # GGUF модель для генерации
         model_b = None,  # Может быть None если не используется
-        model_c = None,
         **kwargs
     ):
         self.fractal_pipeline = FractalPipeline(
@@ -225,7 +223,6 @@ class FractalPipelineAdapter:
         # Сохраняем оригинальные модели для fallback
         self.model_a = model_a
         self.model_b = model_b
-        self.model_c = model_c
         
         # Режим работы
         self.use_fractal = True
