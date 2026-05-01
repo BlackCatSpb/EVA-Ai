@@ -90,8 +90,23 @@ def _init_performance_monitor(brain):
         brain.performance_monitor = None
 
 
+def _init_self_evaluation(brain):
+    """Initialize SelfEvaluation for answer quality checking."""
+    try:
+        from eva_ai.core.self_evaluation import create_self_evaluation
+        brain.self_evaluation = create_self_evaluation(brain.config.get('self_evaluation', {}))
+        brain.components['self_evaluation'] = brain.self_evaluation
+        logger.info("SelfEvaluation initialized")
+    except Exception as e:
+        query_logger.warning(f"Failed to init SelfEvaluation: {e}")
+        brain.self_evaluation = None
+
+
 def _start_post_init_services(brain):
     """Start services that must run after full initialization."""
+    # Initialize SelfEvaluation
+    _init_self_evaluation(brain)
+    
     if hasattr(brain, 'self_dialog_learning') and brain.self_dialog_learning and hasattr(brain.self_dialog_learning, 'start'):
         try:
             brain.self_dialog_learning.start()

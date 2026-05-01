@@ -772,7 +772,7 @@ class UnifiedGenerator:
         query: str,
         context: Optional[str] = None,
         max_tokens: int = 512,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         system_prompt: Optional[str] = None,
         task_type: str = "default"
     ) -> GenerationResult:
@@ -1184,7 +1184,7 @@ class UnifiedGenerator:
         context: Optional[str] = None,
         max_tokens_logic: int = 256,
         max_tokens_context: int = 512,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         system_prompt: Optional[str] = None,
         check_contradictions: bool = True,
         check_concepts: bool = True
@@ -1878,7 +1878,7 @@ class UnifiedGenerator:
         query: str,
         context: Optional[str] = None,
         max_tokens: int = 1024,
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         chunk_size: int = 50,
         task_type: str = "default"
     ) -> Generator[Dict[str, Any], None, None]:

@@ -1,4 +1,4 @@
-﻿"""
+"""
 FCPPipelineV15 - Основной FCP Pipeline для EVA-Ai
 
 Простой и рабочий пайплайн генерации на базе ruadapt_qwen3_4b OpenVINO.
@@ -49,9 +49,12 @@ from eva_ai.core.analysis_and_injection import (
     apply_sqam_scaling
 )
 
-
 # Системный промпт - ВСЕГДА рассуждать перед ответом
-SYSTEM_PROMPT = """Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...</think>. ОБЯЗАТЕЛЬНО закрой тег </think> после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными."""
+SYSTEM_PROMPT = """Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...</think>.
+ОБЯЗАТЕЛЬНО закрой тег </think> после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными.
+
+ВАЖНО: ВСЕГДА возвращайся к данным запроса! Используй только предоставленный контекст.
+Если в контексте есть факты - опирайся на них. Если контекста нет - говори что не знаешь."""
 
 
 class SimpleStreamer:
@@ -330,8 +333,8 @@ class FCPPipelineV15:
             # GenerationConfig
             gen_config = ov_genai.GenerationConfig()
             gen_config.max_new_tokens = 4096
-            gen_config.temperature = 0.2
-            gen_config.top_p = 0.9
+            gen_config.temperature = 0.15  # Снижаем для точности
+            gen_config.top_p = 0.85
             gen_config.top_k = 40
             gen_config.repetition_penalty = 1.1
             gen_config.no_repeat_ngram_size = 5
@@ -446,8 +449,8 @@ class FCPPipelineV15:
                 try:
                     gen_cfg = self.pipeline.get_generation_config()
                     gen_cfg.max_new_tokens = max_new_tokens
-                    gen_cfg.temperature = 0.2
-                    gen_cfg.top_p = 0.9
+                    gen_cfg.temperature = 0.15  # Снижаем температуру для точности
+                    gen_cfg.top_p = 0.85
                     gen_cfg.top_k = 40
                     gen_cfg.repetition_penalty = 1.1
                     gen_cfg.do_sample = True
@@ -766,15 +769,35 @@ class FCPPipelineV15:
         try:
             gen_cfg = ov_genai.GenerationConfig()
             gen_cfg.max_new_tokens = max_new_tokens
-            gen_cfg.temperature = 0.2
-            gen_cfg.top_p = 0.9
+            gen_cfg.temperature = 0.15  # Снижаем температуру для точности
+            gen_cfg.top_p = 0.85
             gen_cfg.top_k = 40
             gen_cfg.repetition_penalty = 1.1
+            gen_cfg.do_sample = True
             
             result = self.pipeline.generate(prompt, generation_config=gen_cfg, **kwargs)
-            return result
+            
+            # После завершення обробатываєм залишок буфера
+            if hasattr(self, 'buffer') and self.buffer:
+                if hasattr(self, 'in_thinking') and self.in_thinking:
+                    if self.buffer.strip():
+                        print(f"[FCP STREAM] Final reasoning_text, length: {len(self.buffer)}")
+                        if hasattr(self, 'event_queue'):
+                            self.event_queue.put({"type": "reasoning_text", "text": self.buffer})
+                            self.event_queue.put({"type": "reasoning_end"})
+                else:
+                    if self.buffer.strip():
+                        if hasattr(self, 'event_queue'):
+                            self.event_queue.put({"type": "chunk", "text": self.buffer})
         except Exception as e:
+            if hasattr(self, 'event_queue'):
+                self.event_queue.put({"type": "error", "text": str(e)})
             return f"Generation error: {e}"
+        finally:
+            if hasattr(self, 'event_queue'):
+                self.event_queue.put({"type": "done", "timestamp": time.time()})
+        
+        return result
 
     def generate_with_injection(self, prompt: str, max_new_tokens: int = 1024, 
                               enable_thinking: bool = True, return_metadata: bool = False) -> str:

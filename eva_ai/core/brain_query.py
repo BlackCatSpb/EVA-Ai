@@ -174,7 +174,7 @@ class QueryMixin:
             if embeddings is not None:
                 self._state_preserving.set_artifact("embeddings", embeddings)
 
-    def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.7, top_p: float = 0.9, repetition_penalty: float = 1.1) -> Dict[str, Any]:
+    def process_query(self, query: str, user_context: Optional[Dict] = None, context: Optional[Dict] = None, max_new_tokens: int = 2048, temperature: float = 0.4, top_p: float = 0.85, repetition_penalty: float = 1.2) -> Dict[str, Any]:
         """Processes user query via unified generation coordinator with multi-level fallback."""
         start_time = time.time()
         query_logger.info(f"Processing query: {query[:50]}...")
@@ -474,6 +474,27 @@ class QueryMixin:
             if result and result.get('response'):
                 result["processing_time"] = time.time() - start_time
                 result["source"] = "gguf_pipeline"
+                
+                # === SELF-EVALUATION: проверка качества ответа ===
+                if hasattr(self, 'self_evaluation') and self.self_evaluation and result.get('response'):
+                    try:
+                        context_used = result.get('knowledge_context', '') or result.get('context', '')
+                        eval_result = self.self_evaluation.evaluate(
+                            query=query,
+                            response=result['response'],
+                            context=context_used
+                        )
+                        result['self_evaluation'] = {
+                            'total_score': eval_result.total_score,
+                            'accuracy': eval_result.accuracy_score,
+                            'completeness': eval_result.completeness_score,
+                            'should_regenerate': eval_result.should_regenerate,
+                            'issues': eval_result.issues
+                        }
+                        query_logger.info(f"[SelfEval] score={eval_result.total_score:.2f}, regenerate={eval_result.should_regenerate}")
+                    except Exception as e:
+                        query_logger.warning(f"SelfEvaluation error: {e}")
+                
                 if tracker and command_id:
                     tracker.complete(command_id, result.get('response', ''))
                 return result
@@ -729,7 +750,9 @@ class QueryMixin:
             try:
                 query_logger.info("Using LlamaCpp (GGUF) for generation")
                 system_prompt = """Ты - ЕВА. Отвечай на русском языке прямо и кратко. Не задавай встречных вопросов.
-Отвечай на русском языке кратко и по существу. Избегай встречных вопросов — отвечай напрямую.
+
+ВАЖНО: ВСЕГДА возвращайся к данным запроса! Используй только предоставленный контекст.
+Если в контексте есть факты - опирайся на них. Если контекста нет - говори что не знаешь.
 
 Ключевые принципы:
 1. Не навреди — отказывайся от запросов причиняющих вред
