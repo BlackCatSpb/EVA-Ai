@@ -81,7 +81,9 @@ class FractalGraphV2:
         self.word_index: Dict[str, Set[str]] = defaultdict(set)
         
         if lazy:
-            logger.info(f"FractalGraphV2 инициализирован (LAZY mode): {self.db_path}")
+            # LAZY MODE: загружаем только мета-индексы (без контента узлов)
+            self._load_metadata_indexes()
+            logger.info(f"FractalGraphV2 инициализирован (LAZY mode): {self._total_nodes} nodes in DB")
         else:
             # Полная загрузка только если explicitly lazy=False
             self._load_data()
@@ -914,6 +916,11 @@ class FractalGraphV2:
         """Полный перебор (fallback)."""
         results = []
         
+        # LAZY MODE: данные не в памяти - делаем поиск в БД
+        if self._lazy and not self.nodes:
+            return self._lazy_semantic_search(query_vec, top_k, min_level)
+        
+        # FULL MODE: данные в памяти
         # Кэшируем нормализованные вектора если нужно
         if not hasattr(self, '_normalized_embeddings'):
             self._normalized_embeddings = {}
@@ -972,6 +979,56 @@ class FractalGraphV2:
         sorted_ids = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         
         return [node_id for node_id, _ in sorted_ids[:top_k]]
+    
+    def _lazy_semantic_search(
+        self,
+        query_vec: np.ndarray,
+        top_k: int,
+        min_level: int
+    ) -> List[Tuple[str, float, Optional[str]]]:
+        """
+        Lazy семантический поиск - ищем напрямую в БД.
+        """
+        results = []
+        
+        try:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            
+            # Ищем узлы с эмбеддингами (бинарные blob)
+            cursor = conn.execute(
+                "SELECT id, content, embedding, level, parent_group_id FROM nodes WHERE embedding IS NOT NULL AND level >= ? LIMIT 500",
+                (min_level,)
+            )
+            
+            for row in cursor:
+                try:
+                    emb_blob = row['embedding']
+                    if not emb_blob:
+                        continue
+                    
+                    # Десериализуем бинарный blob (float32)
+                    emb = np.frombuffer(emb_blob, dtype=np.float32)
+                    if len(emb) < 100:  # Минимальная длина эмбеддинга
+                        continue
+                    
+                    node_vec = emb.astype(np.float64)
+                    node_vec = node_vec / (np.linalg.norm(node_vec) + 1e-8)
+                    
+                    sim = float(np.dot(query_vec, node_vec))
+                    if sim > 0.3:
+                        results.append((row['id'], sim, row['parent_group_id']))
+                except Exception as e:
+                    continue
+            
+            conn.close()
+            
+        except Exception as e:
+            logger.warning(f"Lazy search error: {e}")
+        
+        # Сортируем и возвращаем top_k
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
     
     def get_group_members(self, group_id: str) -> List[FractalNode]:
         """Получить все узлы группы."""

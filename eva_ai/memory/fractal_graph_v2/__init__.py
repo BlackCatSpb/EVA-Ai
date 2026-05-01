@@ -842,7 +842,8 @@ class FractalMemoryGraph:
             # Фильтр по минимальной схожести
             if similarity < min_similarity:
                 continue
-                
+            
+            # LAZY MODE: получаем данные из БД если не в памяти
             if node_id_or_group_id in self.storage.nodes:
                 node = self.storage.nodes[node_id_or_group_id]
                 formatted.append({
@@ -855,7 +856,22 @@ class FractalMemoryGraph:
                     "similarity": similarity,
                     "group_id": group_id
                 })
-            elif node_id_or_group_id in self.storage.semantic_groups:
+            else:
+                # LAZY: загружаем узел из БД
+                node = self.storage.get_node(node_id_or_group_id)
+                if node:
+                    formatted.append({
+                        "type": "node",
+                        "id": node.id,
+                        "content": node.content,
+                        "node_type": node.node_type,
+                        "level": node.level,
+                        "confidence": node.confidence,
+                        "similarity": similarity,
+                        "group_id": group_id
+                    })
+            
+            if node_id_or_group_id in self.storage.semantic_groups:
                 group = self.storage.semantic_groups[node_id_or_group_id]
                 # Получаем членов группы
                 members = self.storage.get_group_members(group.id)
