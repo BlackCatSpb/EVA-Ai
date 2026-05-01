@@ -8,6 +8,8 @@ FCPPipelineV15 - Основной FCP Pipeline для EVA-Ai
 - Сохранение/загрузка сессий (conversation_history)
 - Семантический поиск релевантного контекста из FractalGraphV2
 - Полная гибридная интеграция: KCA + SRG + GNN + LoRA
+
+Соответствует спецификации: EVA.txt (разделы 2.1-2.3, 3, 4, 5, 8)
 """
 import os
 import time
