@@ -18,10 +18,10 @@ class EvaluationResult:
     issues: list
     should_regenerate: bool
 
-class SelfEvaluationLoop:
+class SelfEvaluation:
     """
     Самооценка качества ответа после генерации.
-    При total_score < 0.65 -> автоперегенерация с очищенным контекстом.
+    При total_score <0.65 -> автоперегенерация с очищенным контекстом.
     """
     
     def __init__(self, config: Optional[Dict] = None):
@@ -149,6 +149,6 @@ class SelfEvaluationLoop:
         return result.should_regenerate
 
 
-def create_self_evaluation(config: Optional[Dict] = None) -> SelfEvaluationLoop:
+def create_self_evaluation(config: Optional[Dict] = None) -> SelfEvaluation:
     """Создать инстанс самооценки."""
-    return SelfEvaluationLoop(config)
+    return SelfEvaluation(config)
