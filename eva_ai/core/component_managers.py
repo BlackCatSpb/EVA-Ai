@@ -351,6 +351,9 @@ class StateManager:
         except Exception as e:
             self.logger.error(f"Ошибка получения состояния {component_name}: {e}")
             return None
+
+
+def create_recovery_manager():
     """
     Создает и возвращает менеджер восстановления.
 
