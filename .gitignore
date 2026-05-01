@@ -178,3 +178,4 @@ eva/gui/eva_gui_cache/
 eva/websearch/eva_web_search_cache/
 eva/memory/fractal_torch_storage/unified_memory/
 stable_branch/
+eva_ai/gui/eva_gui_cache/sessions.json
