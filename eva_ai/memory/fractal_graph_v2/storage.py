@@ -48,8 +48,9 @@ class FractalGraphV2:
     def __init__(
         self,
         storage_dir: str = None,
-        embedding_dim: int = 768,  # intfloat/multilingual-e5-base
-        vector_index_type: str = "simple"  # simple, hnsw, ivf
+        embedding_dim: int = 768,
+        vector_index_type: str = "simple",
+        lazy: bool = False
     ):
         self.storage_dir = storage_dir or os.path.join(
             os.path.dirname(__file__), "fractal_graph_v2_data"
@@ -58,24 +59,34 @@ class FractalGraphV2:
         
         self.embedding_dim = embedding_dim
         self.vector_index_type = vector_index_type
+        self._lazy = lazy
         
         # Пути к файлам
         self.db_path = os.path.join(self.storage_dir, "fractal_graph.db")
         
-        # Инициализация БД
+        # Инициализация БД (только создание таблиц, без данных)
         self._init_database()
         
-        # Загрузка данных в память
+        # Lazy loading - НЕ загружаем всё в память!
         self.nodes: Dict[str, FractalNode] = {}
         self.edges: Dict[str, FractalEdge] = {}
         self.semantic_groups: Dict[str, SemanticGroup] = {}
+        self._node_cache: Dict[str, FractalNode] = {}  # LRU кэш
         
-        self._load_data()
+        # Индексы для быстрого поиска (только мета-данные)
+        self.nodes_by_type: Dict[str, List[str]] = defaultdict(list)
+        self.nodes_by_level: Dict[int, List[str]] = defaultdict(list)
+        self.nodes_by_group: Dict[str, List[str]] = defaultdict(list)
+        self.groups_by_level: Dict[int, List[str]] = defaultdict(list)
+        self.word_index: Dict[str, Set[str]] = defaultdict(set)
         
-        # Индексы для быстрого поиска
-        self._build_indexes()
-        
-        logger.info(f"FractalGraphV2 инициализирован: {len(self.nodes)} узлов, {len(self.semantic_groups)} групп")
+        if lazy:
+            logger.info(f"FractalGraphV2 инициализирован (LAZY mode): {self.db_path}")
+        else:
+            # Полная загрузка только если explicitly lazy=False
+            self._load_data()
+            self._build_indexes()
+            logger.info(f"FractalGraphV2 инициализирован: {len(self.nodes)} узлов, {len(self.semantic_groups)} групп")
     
     def _get_connection(self):
         """Получить соединение с БД."""
@@ -161,8 +172,59 @@ class FractalGraphV2:
         
         logger.info(f"БД инициализирована: {self.db_path}")
     
+    def _load_metadata_indexes(self):
+        """Загрузить только мета-индексы (id, level, type) без контента."""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        
+        # Только мета-данные - id, level, node_type, parent_group_id
+        cursor = conn.execute("SELECT id, level, node_type, parent_group_id FROM nodes")
+        for row in cursor:
+            node_id = row['id']
+            level = row['level']
+            node_type = row['node_type']
+            parent_group_id = row['parent_group_id']
+            
+            # Индексы
+            self.nodes_by_level[level].append(node_id)
+            self.nodes_by_type[node_type].append(node_id)
+            if parent_group_id:
+                self.nodes_by_group[parent_group_id].append(node_id)
+        
+        # Группы - только мета
+        cursor = conn.execute("SELECT id, level, parent_group_id FROM semantic_groups")
+        for row in cursor:
+            group_id = row['id']
+            level = row['level']
+            self.groups_by_level[level].append(group_id)
+        
+        # Только считаем общее количество - НЕ загружаем все узлы!
+        cursor = conn.execute("SELECT COUNT(*) as cnt FROM nodes")
+        self._total_nodes = cursor.fetchone()['cnt']
+        
+        conn.close()
+        
+        logger.info(f"Lazy metadata loaded: {self._total_nodes} nodes (indices only)")
+    
+    def get_node_count_lazy(self) -> int:
+        """Получить количество узлов без загрузки всех данных."""
+        if hasattr(self, '_total_nodes'):
+            return self._total_nodes
+        
+        conn = self._get_connection()
+        cursor = conn.execute("SELECT COUNT(*) as cnt FROM nodes")
+        count = cursor.fetchone()['cnt']
+        conn.close()
+        return count
+    
     def _load_data(self):
         """Загрузка данных из БД в память."""
+        if self._lazy:
+            # LAZY MODE: загружаем только мета-индексы, не узлы!
+            self._load_metadata_indexes()
+            return
+        
+        # FULL MODE: загружаем всё
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         
@@ -270,6 +332,96 @@ class FractalGraphV2:
                 self._group_embeddings[group_id] = gv
         
         logger.info(f"Индексы построены: vectors={len(self._normalized_embeddings)}, groups={len(self._group_embeddings)}")
+    
+    # === LAZY LOADING METHODS ===
+    
+    def get_node(self, node_id: str) -> Optional[FractalNode]:
+        """Получить узел по ID (lazy loading с кэшированием)."""
+        if self._lazy:
+            # Проверяем кэш
+            if node_id in self._node_cache:
+                return self._node_cache[node_id]
+            
+            # Загружаем из БД
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                node = FractalNode(
+                    id=row['id'],
+                    content=row['content'],
+                    node_type=row['node_type'],
+                    level=row['level'],
+                    parent_group_id=row['parent_group_id'],
+                    embedding=self._deserialize_embedding(row['embedding']),
+                    confidence=row['confidence'],
+                    created_at=row['created_at'],
+                    updated_at=row['updated_at'],
+                    last_accessed=row['last_accessed'],
+                    metadata=json.loads(row['metadata']) if row['metadata'] else {},
+                    access_count=row['access_count'],
+                    version=row['version'],
+                    is_static=bool(row['is_static']),
+                    is_contradiction=bool(row['is_contradiction'])
+                )
+                # Кэшируем
+                if len(self._node_cache) < 1000:
+                    self._node_cache[node_id] = node
+                return node
+            return None
+        else:
+            return self.nodes.get(node_id)
+    
+    def search_by_content(self, query: str, limit: int = 10) -> List[FractalNode]:
+        """Поиск узлов по ключевым словам (через SQL, для lazy mode)."""
+        conn = self._get_connection()
+        conn.row_factory = sqlite3.Row
+        
+        words = query.lower().split()
+        results = []
+        
+        for word in words:
+            if len(word) < 2:
+                continue
+            cursor = conn.execute(
+                "SELECT * FROM nodes WHERE content LIKE ? LIMIT ?",
+                (f"%{word}%", limit)
+            )
+            for row in cursor:
+                node = FractalNode(
+                    id=row['id'],
+                    content=row['content'],
+                    node_type=row['node_type'],
+                    level=row['level'],
+                    parent_group_id=row['parent_group_id'],
+                    embedding=self._deserialize_embedding(row['embedding']),
+                    confidence=row['confidence'],
+                    created_at=row['created_at'],
+                    updated_at=row['updated_at'],
+                    last_accessed=row['last_accessed'],
+                    metadata=json.loads(row['metadata']) if row['metadata'] else {},
+                    access_count=row['access_count'],
+                    version=row['version'],
+                    is_static=bool(row['is_static']),
+                    is_contradiction=bool(row['is_contradiction'])
+                )
+                results.append(node)
+                if len(results) >= limit:
+                    break
+        
+        conn.close()
+        return results[:limit]
+    
+    def get_node_count(self) -> int:
+        """Получить количество узлов без загрузки всех данных."""
+        conn = self._get_connection()
+        cursor = conn.execute("SELECT COUNT(*) FROM nodes")
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
     
     # === ОСНОВНЫЕ ОПЕРАЦИИ ===
     
@@ -559,6 +711,93 @@ class FractalGraphV2:
         
         return group
     
+    # === ИЕРАРХИЧЕСКАЯ НАВИГАЦИЯ ===
+    
+    def build_hierarchical_index(self):
+        """Построить иерархический индекс для быстрой навигации."""
+        from .hierarchy_index import create_hierarchical_index
+        
+        self._hierarchical_index = create_hierarchical_index(self.embedding_dim)
+        self._hierarchical_index.build_from_graph(
+            self.nodes,
+            self.semantic_groups,
+            self.nodes_by_level
+        )
+        logger.info("Иерархический индекс построен")
+    
+    def navigate_to_level(
+        self,
+        query_embedding: List[float],
+        target_level: int,
+        min_similarity: float = 0.5
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Навигация от L0 к целевому уровню.
+        
+        Args:
+            query_embedding: Вектор запроса
+            target_level: Целевой уровень (0-3)
+            min_similarity: Минимальная схожесть
+            
+        Returns:
+            (relevant_node_ids, relevant_group_ids)
+        """
+        if not hasattr(self, '_hierarchical_index'):
+            self.build_hierarchical_index()
+        
+        return self._hierarchical_index.navigate_to_level(
+            query_embedding=query_embedding,
+            target_level=target_level,
+            nodes=self.nodes,
+            groups=self.semantic_groups,
+            min_similarity=min_similarity
+        )
+    
+    def get_subgraph_by_level(
+        self,
+        query_embedding: List[float],
+        max_level: int = 3,
+        max_nodes: int = 1000
+    ) -> Dict[str, Any]:
+        """
+        Получить подграф релевантных данных по уровням.
+        
+        Args:
+            query_embedding: Вектор запроса
+            max_level: Максимальный уровень детализации
+            max_nodes: Максимальное количество узлов
+            
+        Returns:
+            {level: {nodes, groups}}
+        """
+        result = {}
+        
+        # Поднимаемся по уровням
+        for level in range(1, max_level + 1):
+            nodes, groups = self.navigate_to_level(
+                query_embedding,
+                target_level=level,
+                min_similarity=0.4
+            )
+            
+            # Собираем подграф
+            level_nodes = []
+            for node_id in nodes[:max_nodes // level]:
+                if node_id in self.nodes:
+                    level_nodes.append(self.nodes[node_id])
+            
+            result[level] = {
+                "nodes": level_nodes,
+                "node_ids": [n.id for n in level_nodes],
+                "groups": [groups[g] for g in groups if g in self.semantic_groups][:10]
+            }
+            
+            # Проверяем лимит
+            if len(level_nodes) >= max_nodes:
+                break
+        
+        return result
+    
     # === ПОИСК ===
     
     def semantic_search(
@@ -566,15 +805,24 @@ class FractalGraphV2:
         query_embedding: List[float],
         top_k: int = 5,
         min_level: int = 1,
-        use_groups: bool = True
+        use_groups: bool = True,
+        use_hierarchy: bool = True
     ) -> List[Tuple[str, float, Optional[str]]]:
         """
         Семантический поиск по косинусному расстоянию.
         
         Оптимизации:
+        - Иерархическая навигация (O(log n) вместо O(n))
         - Кэширование векторизованных узлов
         - Предварительная нормализация векторов
         
+        Args:
+            query_embedding: Вектор запроса
+            top_k: Количество результатов
+            min_level: Минимальный уровень для поиска
+            use_groups: Искать ли в группах
+            use_hierarchy: Использовать ли иерархическую навигацию
+            
         Returns:
             List of (node_id, similarity, group_id)
         """
@@ -592,6 +840,78 @@ class FractalGraphV2:
         
         query_vec = query_vec / (np.linalg.norm(query_vec) + 1e-8)
         
+        # === ОПТИМИЗАЦИЯ: Иерархическая навигация ===
+        if use_hierarchy and hasattr(self, '_hierarchical_index') and self._hierarchical_index:
+            return self._hierarchical_search(query_vec, top_k, min_level, use_groups)
+        
+        # Fallback: полный перебор (старый метод)
+        return self._full_search(query_vec, top_k, min_level, use_groups)
+    
+    def _hierarchical_search(
+        self,
+        query_vec: np.ndarray,
+        top_k: int,
+        min_level: int,
+        use_groups: bool
+    ) -> List[Tuple[str, float, Optional[str]]]:
+        """Оптимизированный поиск через иерархическую навигацию."""
+        results = []
+        
+        # Навигация к нужному уровню
+        target_level = max(min_level, 1)
+        relevant_nodes, relevant_groups = self._hierarchical_index.navigate_to_level(
+            query_embedding=query_vec.tolist(),
+            target_level=target_level,
+            min_similarity=0.3
+        )
+        
+        # Поиск только в релевантных узлах
+        for node_id in relevant_nodes[:500]:  # Limit для производительности
+            if node_id in self.nodes:
+                node = self.nodes[node_id]
+                if node.embedding and node.level >= min_level:
+                    if not hasattr(self, '_normalized_embeddings'):
+                        self._normalized_embeddings = {}
+                    
+                    if node_id not in self._normalized_embeddings:
+                        v = np.array(node.embedding)
+                        v = v / (np.linalg.norm(v) + 1e-8)
+                        self._normalized_embeddings[node_id] = v
+                    
+                    sim = float(np.dot(query_vec, self._normalized_embeddings[node_id]))
+                    if sim > 0.4:
+                        results.append((node_id, sim, node.parent_group_id))
+        
+        # Поиск в группах
+        if use_groups:
+            for group_id in relevant_groups[:100]:
+                if group_id in self.semantic_groups:
+                    group = self.semantic_groups[group_id]
+                    if group.embedding and group.level >= min_level:
+                        if not hasattr(self, '_group_embeddings'):
+                            self._group_embeddings = {}
+                        
+                        if group_id not in self._group_embeddings:
+                            gv = np.array(group.embedding)
+                            gv = gv / (np.linalg.norm(gv) + 1e-8)
+                            self._group_embeddings[group_id] = gv
+                        
+                        sim = float(np.dot(query_vec, self._group_embeddings[group_id]))
+                        if sim > 0.4:
+                            results.append((group_id, sim, group.parent_group_id))
+        
+        # Сортируем и возвращаем top_k
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
+    
+    def _full_search(
+        self,
+        query_vec: np.ndarray,
+        top_k: int,
+        min_level: int,
+        use_groups: bool
+    ) -> List[Tuple[str, float, Optional[str]]]:
+        """Полный перебор (fallback)."""
         results = []
         
         # Кэшируем нормализованные вектора если нужно
@@ -1036,6 +1356,22 @@ class FractalGraphV2:
     
     def get_stats(self) -> Dict[str, Any]:
         """Получить статистику графа."""
+        # В LAZY режиме используем мета-индексы
+        if self._lazy and not self.nodes:
+            return {
+                "total_nodes": getattr(self, '_total_nodes', 0),
+                "total_edges": 0,
+                "total_groups": len(self.groups_by_level.get(2, [])) + len(self.groups_by_level.get(1, [])),
+                "nodes_by_type": {k: len(v) for k, v in self.nodes_by_type.items()},
+                "nodes_by_level": {k: len(v) for k, v in self.nodes_by_level.items()},
+                "groups_by_level": {k: len(v) for k, v in self.groups_by_level.items()},
+                "nodes_with_embeddings": 0,
+                "groups_with_embeddings": 0,
+                "contradictions": 0,
+                "mode": "lazy"
+            }
+        
+        # Полный режим
         return {
             "total_nodes": len(self.nodes),
             "total_edges": len(self.edges),
@@ -1045,7 +1381,8 @@ class FractalGraphV2:
             "groups_by_level": {k: len(v) for k, v in self.groups_by_level.items()},
             "nodes_with_embeddings": sum(1 for n in self.nodes.values() if n.embedding),
             "groups_with_embeddings": sum(1 for g in self.semantic_groups.values() if g.embedding),
-            "contradictions": sum(1 for n in self.nodes.values() if n.is_contradiction)
+            "contradictions": sum(1 for n in self.nodes.values() if n.is_contradiction),
+            "mode": "full"
         }
     
     # === EVA CONTAINER: Graph Serialization ===
@@ -1323,12 +1660,14 @@ class FractalGraphV2:
 
 def create_fractal_graph(
     storage_dir: str = None,
-    embedding_dim: int = 768
+    embedding_dim: int = 768,
+    lazy: bool = False
 ) -> FractalGraphV2:
     """Фабричная функция для создания графа."""
     return FractalGraphV2(
         storage_dir=storage_dir,
-        embedding_dim=embedding_dim
+        embedding_dim=embedding_dim,
+        lazy=lazy
     )
 
 

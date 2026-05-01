@@ -10,7 +10,8 @@ from typing import List, Optional, Tuple
 from eva_ai.fcp_core.config import StackConfig
 from eva_ai.fcp_core.types import LayerState, HaltDecision
 from eva_ai.fcp_core.hybrid_layer import FractalGatedHybridLayer
-from eva_ai.fcp_core.fractal_graph import FractalGraphV2
+from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
+FractalGraphV2 = FractalMemoryGraph
 
 
 class HybridStack:

@@ -209,7 +209,8 @@ class FCPPipelineV15:
         """Инициализировать системы управления знаниями."""
         try:
             from fcp_knowledge.learning_manager import LearningGraphManager, LearningOrchestrator
-            from fcp_knowledge.graph_curator import GraphCurator, ContradictionDetector
+            from eva_ai.knowledge.graph_curator import GraphCurator
+            from eva_ai.contradiction.detect_core import ContradictionDetector
             
             self.learning_mgr = LearningGraphManager(num_layers=32)
             self.learning_orch = LearningOrchestrator(
@@ -220,9 +221,8 @@ class FCPPipelineV15:
             self.contradiction_detector = ContradictionDetector(self.graph) if self.graph else None
             
             self.graph_curator = GraphCurator(
-                self.graph,
-                self.contradiction_detector,
-                getattr(self, 'clarification_generator', None)
+                brain=self,
+                config={'enabled': True}
             )
             
         except Exception as e:

@@ -119,7 +119,7 @@ class FCPPipelineV15:
         # FCP Hybrid Layer Components (LLM + GNN + LoRA + KCA + SRG)
         self.hybrid_layer_config = HybridLayerConfig(
             hidden_dim=2560,
-            num_layers=32,
+            num_layers=36,
             use_gnn=True,
             use_lora=True,
             use_kca=True,
@@ -151,8 +151,10 @@ class FCPPipelineV15:
         # NEW: State Injector for direct KV-cache access (from Доработка.txt)
         try:
             device = "GPU.0" if "GPU" in self.model_path else "CPU"
-            self.state_injector = LayerwiseStateInjector(self.model_path, device)
-            print(f"[FCP] StateInjector initialized: device={device}")
+            # StateInjector needs path to XML file, not folder
+            model_xml = os.path.join(self.model_path, "openvino_model.xml")
+            self.state_injector = LayerwiseStateInjector(model_xml, device)
+            print(f"[FCP] StateInjector initialized: device={device}, model={model_xml}")
         except Exception as e:
             print(f"[FCP] StateInjector init failed: {e}")
             self.state_injector = None
@@ -182,15 +184,17 @@ class FCPPipelineV15:
         print("[FCP] ConvergenceController initialized")
         
         # FractalGraphV2
+        graph_dir = os.path.dirname(self.graph_path) if self.graph_path else None
         if self.graph_path and os.path.exists(self.graph_path):
             try:
-                self.fractal_graph = FractalGraphV2.load(self.graph_path)
-                print(f"[FCP] FractalGraphV2 loaded: {self.fractal_graph.node_count} nodes")
+                self.fractal_graph = FractalGraphV2(storage_dir=graph_dir, lazy=True)
+                # Lazy - не обращаемся к storage.nodes сразу
+                print(f"[FCP] FractalGraphV2 loaded (lazy): {self.graph_path}")
             except Exception as e:
                 print(f"[FCP] Graph load failed: {e}, creating empty graph")
-                self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+                self.fractal_graph = FractalGraphV2(storage_dir=graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
         else:
-            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+            self.fractal_graph = FractalGraphV2(storage_dir=graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
             print("[FCP] FractalGraphV2 created (empty)")
         
         print("[FCP] All FCP components initialized")
@@ -208,10 +212,9 @@ class FCPPipelineV15:
         print("[FCP] HybridLayerManager initialized")
 
         # Загружаем обученный GNN энкодер если есть
-        gnn_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            'models', 'graph_encoder.pt'
-        )
+        # Исправляем путь: from eva_ai/core -> project root
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        gnn_path = os.path.join(project_root, 'models', 'graph_encoder.pt')
         if os.path.exists(gnn_path):
             success = self.hybrid_processor.load_trained_encoder(gnn_path)
             if success:
@@ -650,14 +653,15 @@ class FCPPipelineV15:
                     )
 
                     # 4. Если reasoning mode - запускаем KCA
-                    if self.kca and subgraph["embeddings"].shape[0] > 0:
+                    # Subgraph объект имеет атрибут node_embeddings
+                    if self.kca and not subgraph.is_empty and subgraph.node_embeddings is not None:
                         # Создаём synthetic hidden states для KCA
                         hidden_dim = query_embedding.shape[-1]
                         seq_len = 4
                         initial_states = np.tile(query_embedding, (seq_len, 1)).astype(np.float32)
 
-                        # KCA forward pass
-                        corrected_states, kca_info = self.kca.forward(initial_states, subgraph)
+                        # KCA forward pass - передаём dict формат
+                        corrected_states, kca_info = self.kca.forward(initial_states, subgraph.to_dict())
 
                         metadata["kca_cycles"] = kca_info.get("cycles", 0)
                         metadata["kca_status"] = kca_info.get("status", "unknown")
@@ -964,7 +968,7 @@ class FCPPipelineV15:
             top_k=self.fcp_config.graph_top_k
         )
         
-        if subgraph["embeddings"].shape[0] == 0:
+        if subgraph.is_empty or subgraph.node_embeddings is None:
             return initial_hidden_state, {"status": "NO_SUBGRAPH", "cycles": 0}
         
         # 2. SRG Evaluation
@@ -987,7 +991,7 @@ class FCPPipelineV15:
     def add_knowledge_node(self, text: str, embedding: np.ndarray, metadata: dict = None) -> int:
         """Добавить узел знаний в граф"""
         if self.fractal_graph is None:
-            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+            self.fractal_graph = FractalGraphV2(storage_dir="eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
         
         return self.fractal_graph.add_node(embedding, metadata)
     

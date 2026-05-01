@@ -641,6 +641,194 @@ class GraphCurator:
     def force_curation(self):
         """Принудительный запуск курирования"""
         threading.Thread(target=self._do_curation, daemon=True).start()
+    
+    # === ИЕРАРХИЧЕСКАЯ ОПТИМИЗАЦИЯ ===
+    
+    def build_hierarchical_index(self, force: bool = False):
+        """Построить иерархический индекс для быстрого поиска."""
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'storage'):
+            logger.warning("FGv2 not available for hierarchical index")
+            return
+        
+        storage = fg.storage
+        
+        if hasattr(storage, 'build_hierarchical_index'):
+            if force or not hasattr(storage, '_hierarchical_index') or not storage._hierarchical_index:
+                logger.info("Building hierarchical index...")
+                storage.build_hierarchical_index()
+                logger.info("Hierarchical index built successfully")
+        
+        if hasattr(fg, '_hierarchical_index'):
+            fg._hierarchical_index = storage._hierarchical_index
+    
+    def optimize_hierarchical_index(self):
+        """Оптимизировать иерархический индекс - обновить при изменениях графа."""
+        fg = self._get_fractal_graph()
+        if not fg:
+            return
+        
+        storage = getattr(fg, 'storage', None)
+        if not storage:
+            return
+        
+        if hasattr(storage, '_hierarchical_index') and storage._hierarchical_index:
+            try:
+                storage._hierarchical_index.build_from_graph(
+                    storage.nodes,
+                    storage.semantic_groups,
+                    storage.nodes_by_level
+                )
+                logger.debug("Hierarchical index optimized")
+            except Exception as e:
+                logger.warning(f"Hierarchical index optimization failed: {e}")
+    
+    # === ОБЪЕДИНЕННЫЕ МЕТОДЫ (из FCP Curator) ===
+    
+    def detect_contradictions(self, storage) -> int:
+        """Обнаружение противоречий в графе."""
+        if not hasattr(storage, 'detect_contradiction'):
+            return 0
+        
+        contradictions_found = 0
+        groups = list(storage.semantic_groups.values())
+        
+        for group in groups[:20]:
+            if not group.embedding:
+                continue
+            
+            try:
+                is_contr, distance = storage.detect_contradiction(
+                    group.embedding,
+                    group.id,
+                    threshold=0.7
+                )
+                if is_contr:
+                    contradictions_found += 1
+                    storage.mark_contradiction(group.id, "Auto-detected by curator")
+            except Exception as e:
+                logger.debug(f"Contradiction detection error: {e}")
+        
+        self.metrics['contradictions_found'] = (
+            self.metrics.get('contradictions_found', 0) + contradictions_found
+        )
+        logger.info(f"Detected {contradictions_found} potential contradictions")
+        return contradictions_found
+    
+    def prune_duplicates(self, storage, threshold: float = 0.95) -> int:
+        """Удаление дубликатов - объединение очень похожих узлов."""
+        if not hasattr(storage, 'nodes'):
+            return 0
+        
+        removed = 0
+        nodes_by_type = defaultdict(list)
+        
+        for node_id, node in storage.nodes.items():
+            if node.embedding:
+                nodes_by_type[node.node_type].append((node_id, node))
+        
+        for node_type, nodes in nodes_by_type.items():
+            if len(nodes) < 2:
+                continue
+            
+            merged = set()
+            for i, (id1, node1) in enumerate(nodes):
+                if id1 in merged:
+                    continue
+                
+                for j, (id2, node2) in enumerate(nodes[i+1:], i+1):
+                    if id2 in merged or not node2.embedding:
+                        continue
+                    
+                    try:
+                        emb1 = np.array(node1.embedding)
+                        emb2 = np.array(node2.embedding)
+                        emb1 = emb1 / (np.linalg.norm(emb1) + 1e-8)
+                        emb2 = emb2 / (np.linalg.norm(emb2) + 1e-8)
+                        
+                        sim = float(np.dot(emb1, emb2))
+                        if sim >= threshold:
+                            if node1.confidence >= node2.confidence:
+                                storage.mark_contradiction(id2, f"Duplicate of {id1} (sim={sim:.2f})")
+                                merged.add(id2)
+                            else:
+                                storage.mark_contradiction(id1, f"Duplicate of {id2} (sim={sim:.2f})")
+                                merged.add(id1)
+                            removed += 1
+                    except:
+                        pass
+        
+        self.metrics['duplicates_pruned'] = self.metrics.get('duplicates_pruned', 0) + removed
+        logger.info(f"Pruned {removed} duplicate nodes")
+        return removed
+    
+    def decay_nodes(self, storage) -> int:
+        """Временной распад - снижение уверенности старых узлов."""
+        decayed = 0
+        now = time.time()
+        
+        for node_id, node in storage.nodes.items():
+            if self._is_protected_node(node):
+                continue
+            
+            last_access = getattr(node, 'last_accessed', now)
+            days_inactive = (now - last_access) / 86400
+            
+            if days_inactive > 30:
+                lambda_decay = getattr(node, 'domain_lambda', 0.01)
+                decay_factor = np.exp(-lambda_decay * days_inactive)
+                new_confidence = node.confidence * decay_factor
+                
+                if new_confidence < 0.1:
+                    node.confidence = 0.1
+                else:
+                    node.confidence = new_confidence
+                
+                if hasattr(storage, '_save_node'):
+                    storage._save_node(node)
+                decayed += 1
+        
+        self.metrics['nodes_decayed'] = self.metrics.get('nodes_decayed', 0) + decayed
+        logger.info(f"Decayed {decayed} inactive nodes")
+        return decayed
+    
+    # === РАСШИРЕННЫЙ ЦИКЛ КУРИРОВАНИЯ ===
+    
+    def _do_extended_curation(self):
+        """Расширенный цикл курирования с иерархической оптимизацией."""
+        with self._lock:
+            try:
+                fg = self._get_fractal_graph()
+                if not fg or not hasattr(fg, 'storage'):
+                    return
+                
+                storage = fg.storage
+                
+                # Стандартные операции
+                if self.cleanup_enabled:
+                    self._cleanup_garbage(storage)
+                if self.promotion_enabled:
+                    self._process_level_promotions(storage)
+                if self.consolidation_enabled:
+                    self._consolidate_nodes(storage)
+                
+                # Расширенные операции (низкий приоритет)
+                if self.metrics['cycles_completed'] % 3 == 0:
+                    self.detect_contradictions(storage)
+                
+                if self.metrics['cycles_completed'] % 5 == 0:
+                    self.prune_duplicates(storage)
+                    self.decay_nodes(storage)
+                
+                # Обновление иерархического индекса
+                if self.metrics['cycles_completed'] % 10 == 0:
+                    self.optimize_hierarchical_index()
+                
+                self._update_metrics(storage)
+                self.metrics['cycles_completed'] += 1
+                
+            except Exception as e:
+                logger.error(f"Extended curation error: {e}")
 
 
 def create_graph_curator(brain=None, config=None) -> GraphCurator:

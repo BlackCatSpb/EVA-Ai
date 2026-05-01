@@ -15,7 +15,10 @@ import logging
 logger = logging.getLogger("eva_ai.fcp_core")
 
 from eva_ai.fcp_core.config import FCPConfig, StackConfig
-from eva_ai.fcp_core.fractal_graph import FractalGraphV2, create_fractal_graph_from_texts
+from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph, create_fractal_memory_graph
+FractalGraphV2 = FractalMemoryGraph
+def create_fractal_graph_from_texts(texts):
+    return create_fractal_memory_graph()
 from eva_ai.fcp_core.hybrid_layer import FractalGatedHybridLayer
 from eva_ai.fcp_core.hybrid_stack import HybridStack
 from eva_ai.fcp_core.input_layer import InputLayer, LayerState, GraphContext, LayerOutput

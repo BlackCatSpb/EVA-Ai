@@ -437,10 +437,14 @@ def create_fractal_graph_v2(initializer):
         
         event_bus = getattr(initializer.core_brain, 'event_bus', None)
         
+        # LAZY LOADING - важно для экономии памяти!
+        lazy = config.get('lazy', True)
+        
         fg = FractalMemoryGraph(
             storage_dir=config.get('storage_dir'),
             embedding_device=embedding_device,
-            event_bus=event_bus
+            event_bus=event_bus,
+            lazy=lazy  # LAZY MODE!
         )
         initializer.core_brain.fractal_graph_v2 = fg
         

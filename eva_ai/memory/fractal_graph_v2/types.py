@@ -231,6 +231,89 @@ def create_node_id(content: str, node_type: str) -> str:
     return f"node_{hashlib.sha256(hash_input.encode()).hexdigest()[:16]}"
 
 
+@dataclass
+class Subgraph:
+    """
+    Подграф для гибридных слоёв.
+    
+    Структура для передачи данных Graph → HybridLayer → KCA.
+    Соответствует спецификации EVA.txt раздел 2.2.
+    """
+    # IDs узлов графа
+    node_ids: List[str] = field(default_factory=list)
+    
+    # Эмбеддинги узлов [N, D]
+    node_embeddings: Optional[np.ndarray] = None
+    
+    # Текстовые содержания узлов
+    node_contents: List[str] = field(default_factory=list)
+    
+    # Типы узлов
+    node_types: List[str] = field(default_factory=list)
+    
+    # Уровни узлов
+    node_levels: List[int] = field(default_factory=list)
+    
+    # Связи между узлами (edge list)
+    edges: List[Tuple[str, str, str]] = field(default_factory=list)  # (source, target, relation)
+    
+    # Дополнительные метаданные
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    @property
+    def is_empty(self) -> bool:
+        """Проверка на пустоту."""
+        return len(self.node_ids) == 0
+    
+    @property
+    def embedding_dim(self) -> int:
+        """Размерность эмбеддингов."""
+        if self.node_embeddings is not None and len(self.node_embeddings) > 0:
+            return self.node_embeddings.shape[1]
+        return 0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Конвертация в словарь для KCA."""
+        return {
+            "embeddings": self.node_embeddings,
+            "node_ids": self.node_ids,
+            "node_contents": self.node_contents,
+            "edges": self.edges,
+            "metadata": self.metadata
+        }
+    
+    @staticmethod
+    def from_search_results(results: List[Dict[str, Any]]) -> 'Subgraph':
+        """
+        Создать Subgraph из результатов поиска.
+        
+        Args:
+            results: Список dict с полями id, content, embedding, type, level
+        """
+        subgraph = Subgraph()
+        
+        for r in results:
+            subgraph.node_ids.append(r.get("id", ""))
+            subgraph.node_contents.append(r.get("content", ""))
+            subgraph.node_types.append(r.get("type", "concept"))
+            subgraph.node_levels.append(r.get("level", 2))
+        
+        # Собираем эмбеддинги
+        embeddings = []
+        for r in results:
+            emb = r.get("embedding")
+            if emb is not None:
+                if isinstance(emb, list):
+                    embeddings.append(emb)
+                elif isinstance(emb, np.ndarray):
+                    embeddings.append(emb.tolist())
+        
+        if embeddings:
+            subgraph.node_embeddings = np.array(embeddings, dtype=np.float32)
+        
+        return subgraph
+
+
 def create_edge_id(source_id: str, target_id: str, relation: str) -> str:
     """Создать ID связи."""
     hash_input = f"{source_id}:{target_id}:{relation}"

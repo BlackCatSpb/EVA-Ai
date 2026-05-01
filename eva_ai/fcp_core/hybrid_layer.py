@@ -10,7 +10,8 @@ from typing import Optional, Tuple, List
 from eva_ai.fcp_core.types import (
     Subgraph, LayerState, HaltDecision, TransformerBlockOutput, FusionOutput
 )
-from eva_ai.fcp_core.fractal_graph import FractalGraphV2
+from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
+FractalGraphV2 = FractalMemoryGraph
 
 
 class FractalGatedHybridLayer:

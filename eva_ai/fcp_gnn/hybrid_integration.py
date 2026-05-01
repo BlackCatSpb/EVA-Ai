@@ -8,6 +8,7 @@ Hybrid Layer Integration - Связь всех компонентов: LLM, GNN,
 - KCA: коррекция через лакуны и противоречия
 - SRG: decision gate для режима генерации
 """
+import os
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
@@ -531,12 +532,48 @@ class HybridLayerProcessor:
                     output_dim=self.config.hidden_dim
                 )
 
-            self.graph_encoder.W1 = state_dict.get('W1', self.graph_encoder.W1)
-            self.graph_encoder.W2 = state_dict.get('W2', self.graph_encoder.W2)
-            self.graph_encoder.proj = state_dict.get('proj', self.graph_encoder.proj)
-            self.graph_encoder.gate_W = state_dict.get('gate_W', self.graph_encoder.gate_W)
+            # Маппинг атрибутов из файла -> в класс (MLP энкодер)
+            attr_mapping = {
+                'lin1.weight': 'W_agg',
+                'lin2.weight': 'W_update', 
+                'lin3.weight': 'W_gate',
+                'proj.weight': 'W_proj'
+            }
+            
+            # Загружаем bias если есть
+            bias_mapping = {
+                'lin1.bias': 'b_agg',
+                'lin2.bias': 'b_update',
+                'lin3.bias': 'b_gate',
+                'proj.bias': 'b_proj'
+            }
 
-            logger.info(f"[HLP] Loaded trained encoder from {encoder_path}")
+            loaded_count = 0
+            for old_attr, new_attr in attr_mapping.items():
+                if old_attr in state_dict and hasattr(self.graph_encoder, new_attr):
+                    value = state_dict[old_attr]
+                    # Конвертируем из torch в numpy если нужно
+                    if hasattr(value, 'numpy'):
+                        value = value.numpy()
+                    setattr(self.graph_encoder, new_attr, value)
+                    loaded_count += 1
+            
+            # Загружаем bias
+            for old_attr, new_attr in bias_mapping.items():
+                if old_attr in state_dict:
+                    value = state_dict[old_attr]
+                    if hasattr(value, 'numpy'):
+                        value = value.numpy()
+                    # Добавляем атрибут если нет
+                    if not hasattr(self.graph_encoder, new_attr):
+                        setattr(self.graph_encoder, new_attr, value)
+                    loaded_count += 1
+
+            if loaded_count > 0:
+                logger.info(f"[HLP] Loaded {loaded_count} trained weights from {encoder_path}")
+            else:
+                logger.warning(f"[HLP] No matching weights found, using random init")
+            
             return True
 
         except Exception as e:

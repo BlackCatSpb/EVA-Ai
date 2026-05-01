@@ -972,10 +972,16 @@ def _init_hybrid_dialog_manager(brain):
         model_config = brain.config.get('model', {})
         
         # Check FCP first (новый единый пайплайн)
-        if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline and brain.fcp_pipeline.pipeline:
-            model_a_path = brain.fcp_pipeline.model_path
-            if model_a_path:
-                query_logger.info(f'  FCP Model: {model_a_path}')
+        if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline:
+            if hasattr(brain.fcp_pipeline, 'pipeline') and brain.fcp_pipeline.pipeline:
+                model_a_path = brain.fcp_pipeline.model_path
+                if model_a_path:
+                    query_logger.info(f'  FCP Model: {model_a_path}')
+                    return
+            elif hasattr(brain.fcp_pipeline, 'model_path') and brain.fcp_pipeline.model_path:
+                # FCP существует но pipeline ещё не инициализирован - используем его model_path
+                model_a_path = brain.fcp_pipeline.model_path
+                query_logger.info(f'  FCP Model (pending): {model_a_path}')
                 return
         
         # Legacy: two_model_pipeline
@@ -992,6 +998,13 @@ def _init_hybrid_dialog_manager(brain):
                         model_a_path = brain.two_model_pipeline.model_a_path
                 except:
                     pass
+            
+            # Fallback: проверяем pipeline напрямую
+            if not model_a_path and hasattr(brain, 'pipeline') and brain.pipeline:
+                if hasattr(brain.pipeline, '_model_path'):
+                    model_a_path = brain.pipeline._model_path
+                elif hasattr(brain.pipeline, 'model_path'):
+                    model_a_path = brain.pipeline.model_path
         
         if not model_a_path:
             query_logger.warning('Путь к модели не найден для HybridKnowledgeDialogManager')

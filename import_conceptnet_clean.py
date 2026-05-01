@@ -20,7 +20,7 @@ from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
 def import_conceptnet_clean(
     conceptnet_db_path: str = "conceptnet.db",
     graph_db_path: str = "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db",
-    max_concepts: int = 500000
+    max_concepts: int = None
 ):
     """
     Import ConceptNet concepts into FractalGraphV2.
@@ -65,15 +65,31 @@ def import_conceptnet_clean(
     # Import concepts using direct SQL
     logger.info("Starting import using direct SQL...")
     
-    # Get concept URIs (English concepts from ConceptNet)
+    # Load existing concepts into set for fast lookup (O(1) vs O(n))
+    logger.info("Loading existing concepts for deduplication...")
+    existing_concepts = set()
+    for nid, node in fg.storage.nodes.items():
+        if hasattr(node, 'content') and node.content:
+            existing_concepts.add(node.content)
+    logger.info(f"Existing concepts in graph: {len(existing_concepts)}")
+    
+    # Get concept URIs (Russian concepts from ConceptNet)
     try:
-        cn_cursor.execute("""
-            SELECT c.id, l.text, c.sense_label
-            FROM concept c
-            JOIN label l ON c.label_id = l.id
-            WHERE l.language_id = (SELECT id FROM language WHERE name = 'en')
-            LIMIT ?
-        """, (max_concepts,))
+        if max_concepts:
+            cn_cursor.execute("""
+                SELECT c.id, l.text, c.sense_label
+                FROM concept c
+                JOIN label l ON c.label_id = l.id
+                WHERE l.language_id = (SELECT id FROM language WHERE name = 'ru')
+                LIMIT ?
+            """, (max_concepts,))
+        else:
+            cn_cursor.execute("""
+                SELECT c.id, l.text, c.sense_label
+                FROM concept c
+                JOIN label l ON c.label_id = l.id
+                WHERE l.language_id = (SELECT id FROM language WHERE name = 'ru')
+            """)
         
         rows = cn_cursor.fetchall()
         logger.info(f"Retrieved {len(rows)} concept URIs from ConceptNet")
@@ -94,19 +110,10 @@ def import_conceptnet_clean(
             skipped += 1
             continue
         
-        # Check if concept already exists in graph (using fg.storage.nodes)
-        existing = [nid for nid, node in fg.storage.nodes.items() 
-                       if hasattr(node, 'content') and node.content == concept_label]
-        
-        if existing:
+        # Check if concept already exists in graph (using set for O(1) lookup)
+        if concept_label in existing_concepts:
             skipped += 1
-            if idx < 3:
-                logger.info(f"Skipping existing: {concept_label}")
             continue
-        
-        # Debug first few
-        if idx < 3:
-            logger.info(f"Adding: {concept_label}")
         
         # Add concept node
         try:
@@ -123,8 +130,9 @@ def import_conceptnet_clean(
             
             if node:
                 imported += 1
-                if imported % 500 == 0:
-                    logger.info(f"Imported {imported} concepts so far...")
+                existing_concepts.add(concept_label)  # Add to set to avoid duplicates in batch
+                if imported % 5000 == 0:
+                    logger.info(f"Imported {imported} concepts (total processed {idx+1})...")
             else:
                 skipped += 1
                 

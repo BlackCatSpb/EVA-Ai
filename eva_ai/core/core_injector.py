@@ -30,70 +30,79 @@ class LayerwiseStateInjector:
         """Парсинг имен состояний OpenVINO (past_key_values.N.type)."""
         states = self.request.query_state()
         pattern = re.compile(r"past_key_values\.(\d+)\.(key|value)")
+        
+        # OpenVINO API: state имеет атрибут name вместо метода get_name()
         for state in states:
-            match = pattern.search(state.get_name())
+            try:
+                state_name = state.name if hasattr(state, 'name') else str(state)
+            except:
+                state_name = f"state_{id(state)}"
+            
+            match = pattern.search(state_name)
             if match:
                 layer_idx = int(match.group(1))
                 stype = match.group(2)
                 self._state_map.setdefault(layer_idx, {})[stype] = state
+        
         self._layer_indices = sorted(self._state_map.keys())
-
+        
+        # Определяем API для работы с состояниями
+        self._use_new_api = False
+        if self._layer_indices:
+            test_state = self._state_map[self._layer_indices[0]]["value"]
+            if hasattr(test_state, 'data'):
+                self._use_new_api = True
+                logger.info("Using OpenVINO new API for states")
+    
+    def _get_state_data(self, state, write=False):
+        """Получить данные из состояния (OpenVINO 2026.1 API)."""
+        # VariableState имеет свойство .state которое возвращает Tensor
+        # Tensor имеет .data который является numpy массивом
+        if hasattr(state, 'state'):
+            tensor = state.state
+            if hasattr(tensor, 'data'):
+                return tensor.data
+        raise AttributeError(f"Cannot get data from state: {state}")
+    
     def _infer_shapes(self):
         """Определение размерностей (поддержка GQA)."""
         val_state = self._state_map[self._layer_indices[0]]["value"]
-        shape = val_state.get_state().get_shape()
-        self._kv_heads = shape[1]
-        self._head_dim = shape[3]
+        try:
+            tensor = val_state.state
+            shape = tensor.data.shape
+            self._kv_heads = shape[1]
+            self._head_dim = shape[3]
+            logger.info(f"Inferred shapes: kv_heads={self._kv_heads}, head_dim={self._head_dim}")
+        except Exception as e:
+            logger.warning(f"Could not infer shapes: {e}")
+            self._kv_heads = 8
+            self._head_dim = 128
 
     def reset_all_states(self):
         """Сброс KV-кеша перед новой сессией."""
         for state in self.request.query_state():
-            state.reset()
+            try:
+                state.reset()
+            except:
+                pass
 
     def get_value(self, layer_idx: int) -> np.ndarray:
-        return self._state_map[layer_idx]["value"].get_state().data.copy()
+        state = self._state_map[layer_idx]["value"]
+        return np.array(state.state.data).copy()
 
     def set_value(self, layer_idx: int, data: np.ndarray):
         state = self._state_map[layer_idx]["value"]
-        current_tensor = state.get_state()
-        
-        # 1. Проверка типа данных состояния модели (FP16, FP32, и т.д.)
-        target_type = current_tensor.get_element_type()
-        
-        # 2. Приведение numpy-массива к нужному типу
-        if str(target_type) == "f16":
-            data = data.astype(np.float16)
-        elif str(target_type) == "f32":
-            data = data.astype(np.float32)
-        # Если вдруг INT8 (редко для кеша, но возможно)
-        elif str(target_type) == "u8":
-            # Требуется квантование вектора, иначе данные будут искажены
-            data = np.clip(data * 127, -128, 127).astype(np.int8) 
-        
-        # 3. Запись
+        data = np.asarray(data, dtype=np.float32)
+        # Используем set_state для записи
         state.set_state(ov.Tensor(data))
 
     def get_key(self, layer_idx: int) -> np.ndarray:
-        return self._state_map[layer_idx]["key"].get_state().data.copy()
+        state = self._state_map[layer_idx]["key"]
+        return np.array(state.state.data).copy()
 
     def set_key(self, layer_idx: int, data: np.ndarray):
         state = self._state_map[layer_idx]["key"]
-        current_tensor = state.get_state()
-        
-        # 1. Проверка типа данных состояния модели (FP16, FP32, и т.д.)
-        target_type = current_tensor.get_element_type()
-        
-        # 2. Приведение numpy-массива к нужному типу
-        if str(target_type) == "f16":
-            data = data.astype(np.float16)
-        elif str(target_type) == "f32":
-            data = data.astype(np.float32)
-        # Если вдруг INT8 (редко для кеша, но возможно)
-        elif str(target_type) == "u8":
-            # Требуется квантование вектора, иначе данные будут искажены
-            data = np.clip(data * 127, -128, 127).astype(np.int8) 
-        
-        # 3. Запись
+        data = np.asarray(data, dtype=np.float32)
         state.set_state(ov.Tensor(data))
 
     def get_all_layer_indices(self) -> List[int]:

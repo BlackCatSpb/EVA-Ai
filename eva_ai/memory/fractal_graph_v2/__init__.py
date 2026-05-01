@@ -10,9 +10,11 @@ from typing import Dict, List, Optional, Any, Callable, Tuple
 from collections import OrderedDict
 from functools import wraps
 
-from .types import FractalNode, FractalEdge, SemanticGroup, NodeType, RelationType
+from .types import FractalNode, FractalEdge, SemanticGroup, NodeType, RelationType, Subgraph
 from .storage import FractalGraphV2, create_fractal_graph
 from .embeddings import EmbeddingsManager, create_embeddings_manager
+from .graph_indexer import GraphIndexer, create_indexer
+from .hierarchy_index import HierarchicalIndex, create_hierarchical_index
 from .gguf_parser import parse_gguf_model, extract_to_graph
 from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
 from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
@@ -44,6 +46,10 @@ __all__ = [
     'SemanticGroup',
     'NodeType',
     'RelationType',
+    
+    # Hierarchical Index
+    'HierarchicalIndex',
+    'create_hierarchical_index',
     
     # GGUF
     'parse_gguf_model',
@@ -186,29 +192,34 @@ class FractalMemoryGraph:
     def __init__(
         self,
         storage_dir: str = None,
-        embedding_model: str = None,  # Используем локальный путь из sentence_transformers_cache
+        embedding_model: str = None,
         embedding_device: str = "cuda",
         embedding_dim: int = 768,
-        event_bus = None
+        event_bus = None,
+        lazy: bool = False  # Lazy loading - не грузит весь граф сразу
     ):
         self.storage_dir = storage_dir or os.path.join(
             os.path.dirname(__file__), "fractal_graph_v2_data"
         )
         
-        # Инициализация хранилища
-        self.storage = create_fractal_graph(
-            storage_dir=self.storage_dir,
-            embedding_dim=embedding_dim
-        )
+        # Lazy loading - хранилище создаётся только при обращении
+        self._lazy = lazy
+        self._storage = None
         
-        # Инициализация эмбеддингов
+        # Инициализация эмбеддингов (модель загружается, но не данные графа)
         self.embeddings = create_embeddings_manager(
             model_name=embedding_model,
             device=embedding_device
         )
         
-        # LRU кэш для semantic_search (оптимизация производительности)
+        # LRU кэш для semantic_search
         self._search_cache = LRUCacheWithTTL(maxsize=100, ttl_seconds=300.0)
+        
+        # GraphIndexer для быстрого поиска
+        self._graph_indexer = None
+        
+        # Hierarchical Index для O(log n) навигации по уровням
+        self._hierarchical_index = None
         
         self._background_thread = None
         self._running = False
@@ -217,10 +228,62 @@ class FractalMemoryGraph:
         self._event_bus = event_bus
         self._subscription_ids = []
         
-        logger.info(f"FractalMemoryGraph инициализирован: {self.storage_dir}")
+        logger.info(f"FractalMemoryGraph инициализирован: {self.storage_dir} (lazy={self._lazy})")
         logger.info(f"Semantic search cache: maxsize={self._search_cache.maxsize}, ttl={self._search_cache.ttl}s")
         if self._event_bus:
             logger.info("EventBus интеграция активна")
+    
+    @property
+    def storage(self):
+        """Lazy loading storage - создаёт граф только при обращении."""
+        if self._storage is None:
+            logger.info(f"Lazy loading FractalGraphV2 from {self.storage_dir}")
+            self._storage = create_fractal_graph(
+                storage_dir=self.storage_dir,
+                embedding_dim=768,
+                lazy=self._lazy  # ПЕРЕДАЁМ lazy flag!
+            )
+        return self._storage
+    
+    @storage.setter
+    def storage(self, value):
+        self._storage = value
+    
+    @property
+    def node_count(self) -> int:
+        """Количество узлов в графе."""
+        return len(self.storage.nodes) if self.storage else 0
+    
+    @property
+    def group_count(self) -> int:
+        """Количество семантических групп."""
+        return len(self.storage.semantic_groups) if self.storage else 0
+    
+    @property
+    def edge_count(self) -> int:
+        """Количество связей."""
+        return len(self.storage.edges) if self.storage else 0
+    
+    def build_hierarchical_index(self, force: bool = False):
+        """Построить иерархический индекс для быстрой навигации."""
+        if self._hierarchical_index and not force:
+            logger.info("Иерархический индекс уже построен")
+            return
+        
+        if self._lazy:
+            logger.warning("Hierarchical index не поддерживается в lazy mode")
+            return
+        
+        logger.info("Построение иерархического индекса...")
+        self.storage.build_hierarchical_index()
+        self._hierarchical_index = self.storage._hierarchical_index
+        logger.info("Иерархический индекс построен")
+    
+    def get_hierarchical_stats(self) -> Dict[str, Any]:
+        """Получить статистику иерархического индекса."""
+        if self._hierarchical_index:
+            return self._hierarchical_index.get_level_stats()
+        return {"status": "not_initialized"}
     
     # === EventBus интеграция (1.1.3) ===
     
@@ -1466,6 +1529,56 @@ class FractalMemoryGraph:
             })
         
         return knowledge
+    
+    def retrieve_subgraph(
+        self,
+        query_embedding,
+        top_k: int = 10,
+        min_similarity: float = 0.5
+    ) -> Subgraph:
+        """
+        Получить подграф для гибридных слоёв.
+        
+        Основной метод для Graph → HybridLayer → KCA связи.
+        Соответствует спецификации EVA.txt раздел 2.2 (этап 1: Контекстуальный токенизатор).
+        
+        Args:
+            query_embedding: Вектор запроса (1D или 2D numpy array)
+            top_k: Количество узлов
+            min_similarity: Минимальная схожесть
+            
+        Returns:
+            Subgraph объект для передачи в гибридные слои
+        """
+        from .types import Subgraph
+        
+        # Поддержка разных форматов входных данных
+        if hasattr(query_embedding, 'reshape'):
+            if len(query_embedding.shape) == 2:
+                query_embedding = query_embedding[0]
+            query_vec = query_embedding.astype(np.float32)
+        else:
+            query_vec = np.array(query_embedding, dtype=np.float32)
+        
+        # Используем GraphIndexer для быстрого поиска
+        if not hasattr(self, '_graph_indexer') or self._graph_indexer is None:
+            db_path = os.path.join(self.storage_dir, "fractal_graph.db")
+            from .graph_indexer import create_indexer
+            self._graph_indexer = create_indexer(db_path)
+        
+        # Поиск релевантных узлов
+        results = self._graph_indexer.search(
+            query_embedding=query_vec.tolist(),
+            top_k=top_k,
+            min_similarity=min_similarity
+        )
+        
+        # Создаём Subgraph из результатов
+        subgraph = Subgraph.from_search_results(results)
+        
+        logger.debug(f"Retrieved subgraph: {len(subgraph.node_ids)} nodes, dim={subgraph.embedding_dim}")
+        
+        return subgraph
     
     # === УПРАВЛЕНИЕ LLAMA ИНСТАНСАМИ ===
     
