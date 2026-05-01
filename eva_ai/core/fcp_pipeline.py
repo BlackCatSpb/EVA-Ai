@@ -26,7 +26,9 @@ from eva_ai.fcp_core import (
     ConvergenceController,
     KnowledgeConsciousAttention,
     SemanticRelevanceGate,
-    FractalGraphV2
+    FractalGraphV2,
+    LearningGraphManager,
+    ShadowLoRAManager
 )
 
 # FCP GNN Components
@@ -39,6 +41,9 @@ from eva_ai.fcp_gnn import (
     TextFusionInjector,
     HybridFusionInjector
 )
+
+# Self-Evaluation (SRG-like)
+from eva_ai.core.self_evaluation import SelfEvaluation, EvaluationResult
 
 # FCP State Injection Components (NEW - from Доработка.txt)
 from eva_ai.core.core_injector import LayerwiseStateInjector
