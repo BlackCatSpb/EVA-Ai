@@ -377,6 +377,7 @@ class ModelAccessContext:
         self.timeout = timeout
         self.acquired = False
         self.request_id = None
+        self.event_bus = getattr(manager, 'event_bus', None)
     
     def __enter__(self) -> 'ModelAccessContext':
         self.request_id = self.manager.request_access(
@@ -389,8 +390,9 @@ class ModelAccessContext:
         try:
             result = self.manager.get_result(self.request_id, timeout=self.timeout)
             self.acquired = result
-        except:
+        except Exception as e:
             self.acquired = False
+            logger.debug(f"Failed to get access result: {e}")
         
         return self
     

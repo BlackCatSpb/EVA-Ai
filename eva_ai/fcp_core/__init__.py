@@ -24,6 +24,8 @@ from eva_ai.fcp_core.hybrid_stack import HybridStack
 from eva_ai.fcp_core.input_layer import InputLayer, LayerState, GraphContext, LayerOutput
 from eva_ai.fcp_core.output_layer import OutputLayer, SamplingResult, FCPPipeline
 from eva_ai.fcp_core.adaptive_lora import AdaLoRALayer, AdaLoRALinear
+from eva_ai.fcp_core.learning_orchestrator import LearningGraphManager
+from eva_ai.fcp_core.shadow_lora import ShadowLoRAManager
 from eva_ai.fcp_core.types import (
     Subgraph,
     MemorySegment,
