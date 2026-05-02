@@ -409,13 +409,13 @@ class OpenVINOGenerator:
 
                 try:
                     config["ENABLE_CPU_PINNING"] = "YES"
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to set CPU_PINNING: {e}")
 
                 try:
                     config["ENABLE_HYPER_THREADING"] = "YES"
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to set HYPER_THREADING: {e}")
                 
             elif self.num_streams is not None:
                 config["NUM_STREAMS"] = str(self.num_streams) if self.num_streams != "AUTO" else "AUTO"
@@ -685,7 +685,8 @@ class OpenVINOGenerator:
                         tokens = len(encoded)
                     else:
                         tokens = len(text.split())
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to tokenize text: {e}")
                     tokens = len(text.split())
             else:
                 tokens = len(text.split())
@@ -1108,7 +1109,8 @@ class OpenVINOCacheAdapter:
                 stats = self.hybrid_cache.get_cache_stats()
                 stats['enabled'] = True
                 return stats
-        except:
+        except Exception as e:
+            logger.debug(f"Failed to get cache stats: {e}")
             pass
         
         return {'enabled': True, 'note': 'Stats not available'}

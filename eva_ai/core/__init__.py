@@ -9,7 +9,12 @@ from .event_system import EventSystem
 from .token_processor import TokenProcessor
 from .resource_manager import ResourceManager
 from .config_manager import ConfigManager
-from .unified_generator import UnifiedGenerator, create_unified_generator, ModelType
+try:
+    from .unified_generator import UnifiedGenerator, create_unified_generator, ModelType
+except ImportError:
+    UnifiedGenerator = None
+    create_unified_generator = None
+    ModelType = None
 from .pipeline_adapter import PipelineAdapter, create_pipeline_adapter
 from .hybrid_dialog_manager import (
     HybridKnowledgeDialogManager,

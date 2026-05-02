@@ -383,7 +383,8 @@ class HybridKnowledgeDialogManager:
                 logger.info(f"HybridKnowledgeDialogManager: Model B pipeline SET, path={getattr(generator_b, '_model_path_str', 'unknown')}")
                 try:
                     self._tokenizer_b = self._pipeline_b.get_tokenizer()
-                except:
+                except Exception as e:
+                    logger.debug(f"Failed to get Model B tokenizer: {e}")
                     self._tokenizer_b = self._tokenizer  # Fallback
                 logger.info("HybridKnowledgeDialogManager: Model B pipeline готов")
             else:
