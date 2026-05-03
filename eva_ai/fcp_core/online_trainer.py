@@ -140,7 +140,7 @@ class BackgroundTrainer:
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._step_count = 0
-        self._total_steps = 10000  # Цель обучения
+        self._total_steps = None  # None = без ограничений, учится постоянно
         self._losses: List[float] = []
         
         self._lock = threading.Lock()
@@ -198,8 +198,8 @@ class BackgroundTrainer:
                         if self._step_count % self.save_interval == 0:
                             self.save_checkpoint()
                             
-                        # Проверяем завершение
-                        if self._step_count >= self._total_steps:
+                        # Проверяем завершение (только если задано total_steps)
+                        if self._total_steps is not None and self._step_count >= self._total_steps:
                             self._state = TrainerState.COMPLETED
                             logger.info(f"[{self.__class__.__name__}] Training COMPLETED!")
                             break
@@ -249,13 +249,14 @@ class BackgroundTrainer:
 class GNNTrainer(BackgroundTrainer):
     """
     Непрерывное обучение GNN на эмбеддингах FractalGraphV2.
+    Использует ВСЕ данные графа последовательно (без случайных повторов).
     """
     
     def __init__(
         self,
         graph_db_path: str = "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db",
         input_dim: int = 768,
-        total_steps: int = 100000,  # Без ограничений - обучается постоянно
+        total_steps: int = None,  # None = без ограничений, учится постоянно
         **kwargs
     ):
         super().__init__(
@@ -270,7 +271,13 @@ class GNNTrainer(BackgroundTrainer):
         self._model = None
         self._optimizer = None
         self._loss_fn = None
+        
+        # Данные графа для последовательного обучения
+        self._all_embeddings = []
+        self._batch_idx = 0
+        
         self._init_model()
+        self._load_all_graph_embeddings()
     
     def _init_model(self):
         """Инициализировать GNN модель."""
@@ -336,69 +343,85 @@ class GNNTrainer(BackgroundTrainer):
             logger.error(f"[GNNTrainer] Init failed: {e}")
             self._ready = False
     
-    def _load_batch(self):
-        """Загрузить мини-батч из графа."""
+    def _load_all_graph_embeddings(self):
+        """Загрузить ВСЕ эмбеддинги из графа (без LIMIT)."""
+        self._all_embeddings = []
         import sqlite3
         import numpy as np
-        import torch
-        import random
         
-        nodes_data = []
+        if not os.path.exists(self.graph_db_path):
+            logger.warning(f"[GNNTrainer] Graph DB not found: {self.graph_db_path}")
+            self._add_synthetic_fallback()
+            return
         
         try:
-            if os.path.exists(self.graph_db_path):
-                conn = sqlite3.connect(self.graph_db_path)
-                cur = conn.cursor()
-                
-                cur.execute("SELECT id, embedding FROM nodes WHERE embedding IS NOT NULL LIMIT 100")
-                rows = cur.fetchall()
-                
-                for row in rows:
-                    node_id, emb = row
-                    if emb:
-                        try:
-                            if isinstance(emb, (bytes, bytearray)):
-                                arr = np.frombuffer(bytes(emb), dtype=np.float32).copy()
-                            elif isinstance(emb, str):
-                                arr = np.array([float(x) for x in emb.split(',')])
-                            else:
-                                arr = np.array(emb, dtype=np.float32)
-                            
-                            arr = arr.astype(np.float32)
-                            if len(arr) >= self.input_dim:
-                                nodes_data.append(arr[:self.input_dim])
-                            elif len(arr) > 0:
-                                nodes_data.append(np.pad(arr, (0, self.input_dim - len(arr))))
-                        except Exception as e:
-                            logger.debug(f"[GNNTrainer] Parse error: {e}")
-                
-                conn.close()
+            conn = sqlite3.connect(self.graph_db_path)
+            cur = conn.cursor()
+            # Без LIMIT - загружаем все узлы с эмбеддингами
+            cur.execute("SELECT embedding FROM nodes WHERE embedding IS NOT NULL")
+            rows = cur.fetchall()
+            conn.close()
             
-            # Fallback: синтетические данные если нет данных из БД
-            if len(nodes_data) < 4:
-                logger.debug("[GNNTrainer] Using synthetic data")
-                import random
-                for _ in range(8):
-                    arr = np.random.randn(self.input_dim).astype(np.float32) * 0.1
-                    nodes_data.append(arr)
+            for row in rows:
+                emb = row[0]
+                if not emb:
+                    continue
+                try:
+                    if isinstance(emb, (bytes, bytearray)):
+                        arr = np.frombuffer(bytes(emb), dtype=np.float32).copy()
+                    elif isinstance(emb, str):
+                        arr = np.array([float(x) for x in emb.split(',')], dtype=np.float32)
+                    else:
+                        arr = np.array(emb, dtype=np.float32)
+                    
+                    if len(arr) >= self.input_dim:
+                        self._all_embeddings.append(arr[:self.input_dim])
+                    elif len(arr) > 0:
+                        self._all_embeddings.append(np.pad(arr, (0, self.input_dim - len(arr))))
+                except Exception as e:
+                    logger.debug(f"[GNNTrainer] Parse error: {e}")
             
+            if not self._all_embeddings:
+                logger.warning("[GNNTrainer] No valid embeddings found in graph")
+                self._add_synthetic_fallback()
+            else:
+                logger.info(f"[GNNTrainer] Loaded {len(self._all_embeddings)} graph embeddings")
+                
         except Exception as e:
-            logger.debug(f"[GNNTrainer] Graph load: {e}")
-            # Synthetic fallback
-            import random
-            for _ in range(8):
-                arr = np.random.randn(self.input_dim).astype(np.float32) * 0.1
-                nodes_data.append(arr)
+            logger.warning(f"[GNNTrainer] Failed to load graph embeddings: {e}")
+            self._add_synthetic_fallback()
+    
+    def _add_synthetic_fallback(self):
+        """Минимальный синтетический fallback (только если нет данных графа)."""
+        import numpy as np
+        self._all_embeddings = [np.random.randn(self.input_dim).astype(np.float32) * 0.1 for _ in range(8)]
+        logger.warning("[GNNTrainer] Using synthetic fallback data (no graph data)")
+    
+    def _load_batch(self):
+        """Загрузить следующий батч из графа (последовательно, без случайностей)."""
+        import torch
+        import numpy as np
         
-        if len(nodes_data) < 4:
+        if not self._all_embeddings:
             return None
         
-        # Случайный батч
-        batch_size = min(8, len(nodes_data))
-        batch = random.sample(nodes_data, batch_size)
+        batch_size = min(8, len(self._all_embeddings))
+        
+        # Последовательный доступ (без random.sample)
+        start = self._batch_idx
+        end = start + batch_size
+        
+        batch = self._all_embeddings[start:end]
+        
+        # Циклический перебор (переходим в начало если дошли до конца)
+        if len(batch) < batch_size:
+            batch += self._all_embeddings[:batch_size - len(batch)]
+            self._batch_idx = batch_size - len(batch)
+        else:
+            self._batch_idx = end % len(self._all_embeddings)
         
         x = torch.tensor(np.array(batch), dtype=torch.float32)
-        return x
+        return x.to(self.device)
     
     def _do_training_step(self) -> bool:
         """Один шаг обучения GNN."""
@@ -504,13 +527,15 @@ class GNNTrainer(BackgroundTrainer):
 
 class LoRATrainer(BackgroundTrainer):
     """
-    Непрерывное обучение LoRA на истории диалогов.
+    Непрерывное обучение LoRA на данных графа (аналогично GNN).
+    Использует те же 768-мерные эмбеддинги графа.
     """
     
     def __init__(
         self,
         conversation_history: List[Dict] = None,
-        total_steps: int = 100000,  # Без ограничений
+        total_steps: int = None,  # None = без ограничений, учится постоянно
+        graph_db_path: str = "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db",
         **kwargs
     ):
         super().__init__(
@@ -521,10 +546,16 @@ class LoRATrainer(BackgroundTrainer):
         
         self._conversation_history = conversation_history or []
         self._total_steps = total_steps
+        self.graph_db_path = graph_db_path
         self._lora_layers = {}
         self._optimizer = None
         
+        # Данные графа для обучения (как в GNNTrainer)
+        self._all_embeddings = []
+        self._batch_idx = 0
+        
         self._init_model()
+        self._load_all_graph_embeddings()
     
     def _init_model(self):
         """Инициализировать LoRA слои."""
@@ -549,9 +580,10 @@ class LoRATrainer(BackgroundTrainer):
                 def forward(self, x):
                     return x + x @ self.lora_a.T @ self.lora_b.T * self.scaling
             
+            # Используем 768-мерные эмбеддинги (как в GNN)
             self._lora_layers = {
-                "q_proj": LoRALayer(2048, 2048, rank=4),
-                "v_proj": LoRALayer(2048, 2048, rank=4),
+                "q_proj": LoRALayer(768, 768, rank=4),
+                "v_proj": LoRALayer(768, 768, rank=4),
             }
             
             # Переместить на устройство
@@ -575,16 +607,87 @@ class LoRATrainer(BackgroundTrainer):
             logger.error(f"[LoRATrainer] Init failed: {e}")
             self._ready = False
     
+    def _load_all_graph_embeddings(self):
+        """Загрузить ВСЕ эмбеддинги графа (аналогично GNNTrainer)."""
+        self._all_embeddings = []
+        import sqlite3
+        import numpy as np
+        
+        if not os.path.exists(self.graph_db_path):
+            logger.warning(f"[LoRATrainer] Graph DB not found: {self.graph_db_path}")
+            self._add_synthetic_fallback()
+            return
+        
+        try:
+            conn = sqlite3.connect(self.graph_db_path)
+            cur = conn.cursor()
+            cur.execute("SELECT embedding FROM nodes WHERE embedding IS NOT NULL")
+            rows = cur.fetchall()
+            conn.close()
+            
+            for row in rows:
+                emb = row[0]
+                if not emb:
+                    continue
+                try:
+                    if isinstance(emb, (bytes, bytearray)):
+                        arr = np.frombuffer(bytes(emb), dtype=np.float32).copy()
+                    elif isinstance(emb, str):
+                        arr = np.array([float(x) for x in emb.split(',')], dtype=np.float32)
+                    else:
+                        arr = np.array(emb, dtype=np.float32)
+                    
+                    if len(arr) >= 768:
+                        self._all_embeddings.append(arr[:768])
+                    elif len(arr) > 0:
+                        self._all_embeddings.append(np.pad(arr, (0, 768 - len(arr))))
+                except Exception as e:
+                    logger.debug(f"[LoRATrainer] Parse error: {e}")
+            
+            if not self._all_embeddings:
+                logger.warning("[LoRATrainer] No valid embeddings found")
+                self._add_synthetic_fallback()
+            else:
+                logger.info(f"[LoRATrainer] Loaded {len(self._all_embeddings)} graph embeddings")
+                
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] Failed to load graph embeddings: {e}")
+            self._add_synthetic_fallback()
+    
+    def _add_synthetic_fallback(self):
+        """Минимальный синтетический fallback."""
+        import numpy as np
+        self._all_embeddings = [np.random.randn(768).astype(np.float32) * 0.1 for _ in range(8)]
+        logger.warning("[LoRATrainer] Using synthetic fallback data")
+    
     def update_history(self, history: List[Dict]):
         """Обновить историю диалогов."""
         self._conversation_history = history
     
-    def _do_training_step(self) -> bool:
-        """Один шаг обучения LoRA."""
-        if not self._ready:
-            return False
+    def _load_batch(self):
+        """Загрузить следующий батч из графа (последовательно)."""
+        import torch
+        import numpy as np
         
-        if not self._conversation_history:
+        if not self._all_embeddings:
+            return None
+        
+        batch_size = min(8, len(self._all_embeddings))
+        start = self._batch_idx
+        end = start + batch_size
+        
+        batch = self._all_embeddings[start:end]
+        if len(batch) < batch_size:
+            batch += self._all_embeddings[:batch_size - len(batch)]
+            self._batch_idx = batch_size - len(batch)
+        else:
+            self._batch_idx = end % len(self._all_embeddings)
+        
+        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+    
+    def _do_training_step(self) -> bool:
+        """Один шаг обучения LoRA на данных графа."""
+        if not self._ready:
             return False
         
         try:
@@ -596,20 +699,21 @@ class LoRATrainer(BackgroundTrainer):
                 if not self.gpu_manager.is_available():
                     return False
             
+            # Загрузить батч из графа (вместо dummy input)
+            batch = self._load_batch()
+            if batch is None:
+                return False
+            
             for layer in self._lora_layers.values():
                 layer.train()
             
-            # Dummy input для self-supervised
-            dummy_input = torch.randn(4, 2048, requires_grad=True).to(self.device)
-            
-            # Forward через LoRA
-            output = dummy_input.clone()
+            # Forward через LoRA (вход: 768-мерные эмбеддинги графа)
+            output = batch.clone()
             for layer in self._lora_layers.values():
                 output = layer(output)
             
-            # Target: reconstruction
-            target = dummy_input.detach()
-            
+            # Target: reconstruction (self-supervised)
+            target = batch.detach()
             loss = F.mse_loss(output, target)
             
             if loss.requires_grad:
