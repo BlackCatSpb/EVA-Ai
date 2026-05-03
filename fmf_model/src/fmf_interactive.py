@@ -494,10 +494,8 @@ class FMFGeneratorInteractive:
         
         self.pipe = ov_genai.LLMPipeline(model_path, device, config=config)
         
-        from transformers import AutoTokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path, trust_remote_code=True, fix_mistral_regex=True
-        )
+        from openvino_genai import Tokenizer
+        self.tokenizer = Tokenizer(model_path)
         
         self.graph = FractalGraphV2ThreadSafe(graph_path, enable_embeddings=enable_embeddings) if graph_path else None
         
@@ -575,7 +573,7 @@ class FMFGeneratorInteractive:
         self,
         prompt: str,
         enable_thinking: bool = True,
-        max_tokens: int = 4096
+        max_tokens: int = 2048
     ) -> dict:
         start = time.time()
         

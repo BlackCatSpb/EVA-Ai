@@ -128,7 +128,7 @@ class FCPPipelineV15:
             "top_k": 40,
             "repetition_penalty": 1.1,
             "do_sample": True,
-            "max_new_tokens": 4096,  # Безопасное значение
+            "max_new_tokens": 8192,  # Увеличено
             "min_new_tokens": 1
         }
 
@@ -181,6 +181,10 @@ class FCPPipelineV15:
         self.hybrid_processor = None
         self.memory_snapshot = None
 
+        # ONLINE TRAINER - Фоновое обучение GNN и LoRA
+        self.online_trainer = None
+        self._init_online_trainer()
+
         # Инициализация
         self._init_tokenizer()
         self._init_fcp_components()
@@ -193,6 +197,41 @@ class FCPPipelineV15:
         self.load_session("default")
 
         print(f"[FCP] FCPPipelineV15 created: model={model_path}")
+    
+    def _init_online_trainer(self):
+        """Инициализация онлайн-обучения GNN и LoRA. НЕ запускаем - только создаём."""
+        try:
+            from eva_ai.fcp_core.online_trainer import OnlineTrainerManager
+            
+            self.online_trainer = OnlineTrainerManager({
+                "enabled": True,
+                "gnn_cpu_limit": 2,
+                "gnn_step_interval": 15,
+                "gnn_save_interval": 200,
+                "lora_cpu_limit": 2,
+                "lora_step_interval": 30,
+                "lora_save_interval": 100,
+                "use_gpu": True
+            })
+            
+            # НЕ запускаем автоматически - запустим после старта сервера
+            print("[FCP] Online Trainer initialized (will start after server startup)")
+            
+        except Exception as e:
+            print(f"[FCP] Online Trainer SKIPPED: {e}")
+            self.online_trainer = None
+    
+    def start_online_training(self):
+        """Запустить онлайн-обучение после старта сервера."""
+        print(f"[FCP] start_online_training called, online_trainer={self.online_trainer}")
+        if self.online_trainer:
+            self.online_trainer.start()
+            print("[FCP] Online Trainer started: GNN + LoRA training")
+            # Логируем статус
+            status = self.online_trainer.get_status()
+            print(f"[FCP] GNN: {status['gnn']['ready']}, LoRA: {status['lora']['ready']}")
+        else:
+            print("[FCP] online_trainer is None - cannot start!")
     
     def _init_fcp_components(self):
         """Инициализация FCP компонентов: KCA, SRG, Graph, State Injector"""
@@ -568,10 +607,13 @@ class FCPPipelineV15:
             self.memory_snapshot = None
 
     def _init_tokenizer(self):
-        if HAS_TRANSFORMERS and os.path.exists(self.model_path):
+        if HAS_OV_GENAI and os.path.exists(self.model_path):
             try:
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-            except:
+                from openvino_genai import Tokenizer
+                self.tokenizer = Tokenizer(self.model_path)
+                print(f"[FCP] Tokenizer loaded via OpenVINO GenAI: {self.model_path}")
+            except Exception as e:
+                print(f"[FCP] OpenVINO Tokenizer load failed: {e}")
                 self.tokenizer = None
         else:
             self.tokenizer = None
@@ -822,6 +864,10 @@ class FCPPipelineV15:
 
         # Если требуется полнослойная инъекция (Runtime State Injection)
         if enable_injection and self.state_injector:
+            # Приостановить обучение перед генерацией
+            if self.online_trainer:
+                self.online_trainer.on_generation_start()
+            
             # Используем новый метод с полнослойной инъекцией согласно Доработка.txt
             result = self.generate_with_injection(
                 prompt, 
@@ -854,9 +900,13 @@ class FCPPipelineV15:
                 # Сохраняем сессию сразу после изменения
                 self.save_session("default")
                 
-                # Сохраняем в сценарий (EVA.txt 6.3)
+# Сохраняем в сценарий (EVA.txt 6.3)
                 self.add_dialog_turn("user", prompt)
                 self.add_dialog_turn("assistant", response)
+            
+            # Возобновить обучение после генерации
+            if self.online_trainer:
+                self.online_trainer.on_generation_end()
                 
             return response if not return_metadata else (response, metadata)
 
@@ -876,6 +926,10 @@ class FCPPipelineV15:
                 logger.info(f"[FCP] Hybrid injection applied: srg_mode={metadata.get('srg_mode', 'unknown')}")
         else:
             metadata = {}
+
+        # ONLINE TRAINER: приостановить обучение перед генерацией
+        if self.online_trainer and self.online_trainer.resource_manager:
+            self.online_trainer.on_generation_start()
 
         # 3. Генерация через OpenVINO pipeline
         response = self._generate(chat_prompt, max_new_tokens, **kwargs)
@@ -903,6 +957,11 @@ class FCPPipelineV15:
 
             # Сохраняем сессию сразу после изменения
             self.save_session("default")
+
+        # ONLINE TRAINER: возобновить обучение после генерации + обновить историю
+        if self.online_trainer:
+            self.online_trainer.on_generation_end()
+            self.online_trainer.update_conversation_history(self.conversation_history)
 
         if return_metadata:
             metadata["query_count"] = self.stats["queries"]
