@@ -991,6 +991,7 @@ class FCPPipelineV15:
             if self.fractal_graph and self.fractal_graph.node_count > 0:
                 # Используем внутренний эмбеддинг модели если есть
                 query_embedding = self._get_query_embedding(user_prompt)
+                self.current_query_embedding = query_embedding  # Сохраняем для SRG оценки
 
                 # 2. SRG evaluation - определяем режим
                 if self.srg:
@@ -1642,7 +1643,16 @@ class FCPPipelineV15:
             
             # 5. SRG Post-Evaluation (оценка уверенности)
             final_logits = self.state_injector.request.get_tensor("logits").data[0, -1]
-            srg_metrics = self.srg.evaluate(final_logits) if hasattr(self.srg, 'evaluate') else {"mode": "reasoning", "confidence": 0.5}
+            # Простая оценка на основе энтропии
+            probs = np.exp(final_logits) / np.sum(np.exp(final_logits))
+            entropy = -np.sum(probs * np.log2(probs + 1e-10))
+            # Используем пороги из конфигурации SRG
+            is_confident = entropy <= self.srg.config.srg_entropy_threshold
+            if is_confident:
+                mode = "direct"
+            else:
+                mode = "reasoning"
+            srg_metrics = {"mode": mode, "entropy": entropy, "confidence": 1.0 - entropy / 10.0}
             
             # Декодируем результат
             if hasattr(self, 'tokenizer') and self.tokenizer:

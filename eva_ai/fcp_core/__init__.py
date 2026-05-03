@@ -236,25 +236,5 @@ class SemanticRelevanceGate:
         else:
             return "variational", {"sim": sim, "ent": entropy}
     
-    def evaluate_from_probs(self, query_vec, response_probs: np.ndarray):
-        """
-        Оценка через вероятности (softmax логитов).
-
-        Returns:
-            tuple: (mode, metrics)
-        """
-        entropy = -np.sum(response_probs * np.log2(response_probs + 1e-10))
-        
-        # Косинусное сходство query и распределения (response_vec как weighted sum)
-        response_vec = response_probs @ np.eye(len(response_probs))  # упрощённо
-        sim = np.dot(query_vec, response_vec) / (np.linalg.norm(query_vec) + 1e-8)
-        
-        is_coherent = sim >= self.config.srg_cosine_threshold
-        is_confident = entropy <= self.config.srg_entropy_threshold
-        
-        if is_coherent and is_confident:
-            return "direct", {"sim": sim, "ent": entropy}
-        elif not is_coherent:
-            return "reasoning", {"sim": sim, "ent": entropy}
-        else:
-            return "variational", {"sim": sim, "ent": entropy}
+    # evaluate_from_probs removed: mathematically incorrect (treated probabilities as embeddings)
+    # If needed, implement using token embeddings to compute expected response embedding
