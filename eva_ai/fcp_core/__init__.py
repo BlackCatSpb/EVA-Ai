@@ -116,7 +116,11 @@ class KnowledgeConsciousAttention:
         self.W_Qk = np.eye(d) * 0.5
         self.W_Kk = np.eye(d) * 0.5
         self.W_Vk = np.eye(d) * 0.5
-        self.W_g = np.eye(2 * d, d) * 0.5
+        # Gate веса: используем и X_prev, и E_corr (concat [X_prev, E_corr])
+        # W_g shape (2*d, d): первые d строк для X_prev, следующие d для E_corr
+        self.W_g = np.zeros((2 * d, d))
+        self.W_g[:d, :] = np.eye(d) * 0.5    # веса для X_prev
+        self.W_g[d:, :] = np.eye(d) * 0.5    # веса для E_corr
         self.b_g = np.zeros(d)
     
     def forward(self, X_initial: np.ndarray, subgraph: dict):
