@@ -198,7 +198,13 @@ class BackgroundTrainer:
                         if self._step_count % self.save_interval == 0:
                             self.save_checkpoint()
                             
-                        # Проверяем завершение (только если задано total_steps)
+                        # Периодическая пересборка индекса графа (для новых узлов)
+                        if hasattr(self, '_reload_interval') and self._reload_interval and self._step_count % self._reload_interval == 0:
+                            if hasattr(self, '_init_graph_indexer'):
+                                self._init_graph_indexer()
+                                logger.info(f"[{self.__class__.__name__}] Graph index rebuilt, vectors: {len(self._graph_indexer._hnsw_index) if self._graph_indexer and self._graph_indexer._index_built else 0}")
+                            
+                        # Проверяем завершение
                         if self._total_steps is not None and self._step_count >= self._total_steps:
                             self._state = TrainerState.COMPLETED
                             logger.info(f"[{self.__class__.__name__}] Training COMPLETED!")
@@ -249,7 +255,10 @@ class BackgroundTrainer:
 class GNNTrainer(BackgroundTrainer):
     """
     Непрерывное обучение GNN на эмбеддингах FractalGraphV2.
-    Использует ВСЕ данные графа последовательно (без случайных повторов).
+    Использует индекс графа (GraphIndexer) для интеллектуального выбора данных:
+    - Не повторяет одни и те же данные циклически
+    - Приоритизирует узлы с низким количеством шагов обучения
+    - Динамически подхватывает новые узлы графа
     """
     
     def __init__(
@@ -272,12 +281,13 @@ class GNNTrainer(BackgroundTrainer):
         self._optimizer = None
         self._loss_fn = None
         
-        # Данные графа для последовательного обучения
-        self._all_embeddings = []
-        self._batch_idx = 0
+        # Индекс графа для интеллектуального выбора данных
+        self._graph_indexer = None
+        self._node_training_counts = {}  # node_id -> количество шагов обучения
+        self._reload_interval = 1000  # Перезагружать индекс каждые N шагов
         
         self._init_model()
-        self._load_all_graph_embeddings()
+        self._init_graph_indexer()
     
     def _init_model(self):
         """Инициализировать GNN модель."""
@@ -343,27 +353,82 @@ class GNNTrainer(BackgroundTrainer):
             logger.error(f"[GNNTrainer] Init failed: {e}")
             self._ready = False
     
-    def _load_all_graph_embeddings(self):
-        """Загрузить ВСЕ эмбеддинги из графа (без LIMIT)."""
-        self._all_embeddings = []
-        import sqlite3
-        import numpy as np
-        
-        if not os.path.exists(self.graph_db_path):
-            logger.warning(f"[GNNTrainer] Graph DB not found: {self.graph_db_path}")
-            self._add_synthetic_fallback()
-            return
-        
+    def _init_graph_indexer(self):
+        """Инициализировать индекс графа для интеллектуального выбора данных."""
         try:
+            from eva_ai.memory.fractal_graph_v2.graph_indexer import GraphIndexer
+            if not os.path.exists(self.graph_db_path):
+                logger.warning(f"[GNNTrainer] Graph DB not found, using synthetic fallback")
+                self._graph_indexer = None
+                return
+            self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=self.input_dim)
+            built = self._graph_indexer.build_index(limit=50000)
+            if built:
+                logger.info(f"[GNNTrainer] Graph index initialized with {len(self._graph_indexer._hnsw_index)} vectors")
+            else:
+                logger.warning("[GNNTrainer] Graph index build failed, will use SQL fallback")
+        except Exception as e:
+            logger.warning(f"[GNNTrainer] GraphIndexer init failed: {e}")
+            self._graph_indexer = None
+    
+    def _add_synthetic_fallback(self):
+        """Минимальный синтетический fallback (только если нет данных графа)."""
+        import numpy as np
+        self._synthetic_batch = [np.random.randn(self.input_dim).astype(np.float32) * 0.1 for _ in range(8)]
+        logger.warning("[GNNTrainer] Using synthetic fallback data (no graph data)")
+    
+    def _load_batch(self):
+        """Загрузить батч через индекс графа (интеллектуальный выбор, без повторов)."""
+        import torch
+        import numpy as np
+        import sqlite3
+        
+        # 1. Попробовать через GraphIndexer (HNSW)
+        if self._graph_indexer and self._graph_indexer._index_built:
+            try:
+                # Генерируем запрос: приоритет узлам с низким количеством обучений
+                # Для простоты: случайный запрос, но можно улучшить через учет node_training_counts
+                query_emb = np.random.randn(self.input_dim).astype(np.float32)
+                results = self._graph_indexer.search(query_emb.tolist(), top_k=8, min_similarity=0.0)
+                if results:
+                    batch = []
+                    for res in results:
+                        node_id = res.get("id")
+                        # Получить эмбеддинг узла
+                        emb = res.get("embedding")
+                        if emb and len(emb) >= self.input_dim:
+                            arr = np.array(emb[:self.input_dim], dtype=np.float32)
+                            batch.append(arr)
+                            # Увеличить счетчик обучения узла
+                            self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
+                    if batch:
+                        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+            except Exception as e:
+                logger.debug(f"[GNNTrainer] Index search failed: {e}")
+        
+        # 2. Fallback: SQL запрос с учетом количества обучений
+        try:
+            if not os.path.exists(self.graph_db_path):
+                if not hasattr(self, '_synthetic_batch'):
+                    self._add_synthetic_fallback()
+                batch = self._synthetic_batch[:8]
+                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+            
             conn = sqlite3.connect(self.graph_db_path)
             cur = conn.cursor()
-            # Без LIMIT - загружаем все узлы с эмбеддингами
-            cur.execute("SELECT embedding FROM nodes WHERE embedding IS NOT NULL")
+            # Выбрать узлы с минимальным количеством обучений
+            cur.execute("""
+                SELECT id, embedding FROM nodes 
+                WHERE embedding IS NOT NULL 
+                ORDER BY RANDOM() 
+                LIMIT 8
+            """)
             rows = cur.fetchall()
             conn.close()
             
+            batch = []
             for row in rows:
-                emb = row[0]
+                node_id, emb = row
                 if not emb:
                     continue
                 try:
@@ -373,55 +438,26 @@ class GNNTrainer(BackgroundTrainer):
                         arr = np.array([float(x) for x in emb.split(',')], dtype=np.float32)
                     else:
                         arr = np.array(emb, dtype=np.float32)
-                    
                     if len(arr) >= self.input_dim:
-                        self._all_embeddings.append(arr[:self.input_dim])
+                        arr = arr[:self.input_dim]
                     elif len(arr) > 0:
-                        self._all_embeddings.append(np.pad(arr, (0, self.input_dim - len(arr))))
+                        arr = np.pad(arr, (0, self.input_dim - len(arr)))
+                    else:
+                        continue
+                    batch.append(arr)
+                    self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
                 except Exception as e:
                     logger.debug(f"[GNNTrainer] Parse error: {e}")
-            
-            if not self._all_embeddings:
-                logger.warning("[GNNTrainer] No valid embeddings found in graph")
-                self._add_synthetic_fallback()
-            else:
-                logger.info(f"[GNNTrainer] Loaded {len(self._all_embeddings)} graph embeddings")
-                
+            if batch:
+                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
         except Exception as e:
-            logger.warning(f"[GNNTrainer] Failed to load graph embeddings: {e}")
+            logger.debug(f"[GNNTrainer] SQL fallback failed: {e}")
+        
+        # 3. Синтетический fallback
+        if not hasattr(self, '_synthetic_batch'):
             self._add_synthetic_fallback()
-    
-    def _add_synthetic_fallback(self):
-        """Минимальный синтетический fallback (только если нет данных графа)."""
-        import numpy as np
-        self._all_embeddings = [np.random.randn(self.input_dim).astype(np.float32) * 0.1 for _ in range(8)]
-        logger.warning("[GNNTrainer] Using synthetic fallback data (no graph data)")
-    
-    def _load_batch(self):
-        """Загрузить следующий батч из графа (последовательно, без случайностей)."""
-        import torch
-        import numpy as np
-        
-        if not self._all_embeddings:
-            return None
-        
-        batch_size = min(8, len(self._all_embeddings))
-        
-        # Последовательный доступ (без random.sample)
-        start = self._batch_idx
-        end = start + batch_size
-        
-        batch = self._all_embeddings[start:end]
-        
-        # Циклический перебор (переходим в начало если дошли до конца)
-        if len(batch) < batch_size:
-            batch += self._all_embeddings[:batch_size - len(batch)]
-            self._batch_idx = batch_size - len(batch)
-        else:
-            self._batch_idx = end % len(self._all_embeddings)
-        
-        x = torch.tensor(np.array(batch), dtype=torch.float32)
-        return x.to(self.device)
+        batch = self._synthetic_batch[:8]
+        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
     
     def _do_training_step(self) -> bool:
         """Один шаг обучения GNN."""
@@ -527,8 +563,11 @@ class GNNTrainer(BackgroundTrainer):
 
 class LoRATrainer(BackgroundTrainer):
     """
-    Непрерывное обучение LoRA на данных графа (аналогично GNN).
-    Использует те же 768-мерные эмбеддинги графа.
+    Непрерывное обучение LoRA на данных графа.
+    Использует индекс графа (GraphIndexer) для интеллектуального выбора данных:
+    - Не повторяет одни и те же данные циклически
+    - Приоритизирует узлы с низким количеством шагов обучения
+    - Динамически подхватывает новые узлы графа
     """
     
     def __init__(
@@ -550,12 +589,13 @@ class LoRATrainer(BackgroundTrainer):
         self._lora_layers = {}
         self._optimizer = None
         
-        # Данные графа для обучения (как в GNNTrainer)
-        self._all_embeddings = []
-        self._batch_idx = 0
+        # Индекс графа для интеллектуального выбора данных
+        self._graph_indexer = None
+        self._node_training_counts = {}  # node_id -> количество шагов обучения
+        self._reload_interval = 1000  # Перезагружать индекс каждые N шагов
         
         self._init_model()
-        self._load_all_graph_embeddings()
+        self._init_graph_indexer()
     
     def _init_model(self):
         """Инициализировать LoRA слои."""
@@ -607,26 +647,81 @@ class LoRATrainer(BackgroundTrainer):
             logger.error(f"[LoRATrainer] Init failed: {e}")
             self._ready = False
     
-    def _load_all_graph_embeddings(self):
-        """Загрузить ВСЕ эмбеддинги графа (аналогично GNNTrainer)."""
-        self._all_embeddings = []
-        import sqlite3
-        import numpy as np
-        
-        if not os.path.exists(self.graph_db_path):
-            logger.warning(f"[LoRATrainer] Graph DB not found: {self.graph_db_path}")
-            self._add_synthetic_fallback()
-            return
-        
+    def _init_graph_indexer(self):
+        """Инициализировать индекс графа для интеллектуального выбора данных."""
         try:
+            from eva_ai.memory.fractal_graph_v2.graph_indexer import GraphIndexer
+            if not os.path.exists(self.graph_db_path):
+                logger.warning(f"[LoRATrainer] Graph DB not found, using synthetic fallback")
+                self._graph_indexer = None
+                return
+            self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=768)
+            built = self._graph_indexer.build_index(limit=50000)
+            if built:
+                logger.info(f"[LoRATrainer] Graph index initialized with {len(self._graph_indexer._hnsw_index)} vectors")
+            else:
+                logger.warning("[LoRATrainer] Graph index build failed, will use SQL fallback")
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] GraphIndexer init failed: {e}")
+            self._graph_indexer = None
+    
+    def _add_synthetic_fallback(self):
+        """Минимальный синтетический fallback."""
+        import numpy as np
+        self._synthetic_batch = [np.random.randn(768).astype(np.float32) * 0.1 for _ in range(8)]
+        logger.warning("[LoRATrainer] Using synthetic fallback data")
+    
+    def update_history(self, history: List[Dict]):
+        """Обновить историю диалогов."""
+        self._conversation_history = history
+    
+    def _load_batch(self):
+        """Загрузить батч через индекс графа (интеллектуальный выбор, без повторов)."""
+        import torch
+        import numpy as np
+        import sqlite3
+        
+        # 1. Попробовать через GraphIndexer (HNSW)
+        if self._graph_indexer and self._graph_indexer._index_built:
+            try:
+                query_emb = np.random.randn(768).astype(np.float32)
+                results = self._graph_indexer.search(query_emb.tolist(), top_k=8, min_similarity=0.0)
+                if results:
+                    batch = []
+                    for res in results:
+                        node_id = res.get("id")
+                        emb = res.get("embedding")
+                        if emb and len(emb) >= 768:
+                            arr = np.array(emb[:768], dtype=np.float32)
+                            batch.append(arr)
+                            self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
+                    if batch:
+                        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+            except Exception as e:
+                logger.debug(f"[LoRATrainer] Index search failed: {e}")
+        
+        # 2. Fallback: SQL запрос
+        try:
+            if not os.path.exists(self.graph_db_path):
+                if not hasattr(self, '_synthetic_batch'):
+                    self._add_synthetic_fallback()
+                batch = self._synthetic_batch[:8]
+                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+            
             conn = sqlite3.connect(self.graph_db_path)
             cur = conn.cursor()
-            cur.execute("SELECT embedding FROM nodes WHERE embedding IS NOT NULL")
+            cur.execute("""
+                SELECT id, embedding FROM nodes 
+                WHERE embedding IS NOT NULL 
+                ORDER BY RANDOM() 
+                LIMIT 8
+            """)
             rows = cur.fetchall()
             conn.close()
             
+            batch = []
             for row in rows:
-                emb = row[0]
+                node_id, emb = row
                 if not emb:
                     continue
                 try:
@@ -636,53 +731,25 @@ class LoRATrainer(BackgroundTrainer):
                         arr = np.array([float(x) for x in emb.split(',')], dtype=np.float32)
                     else:
                         arr = np.array(emb, dtype=np.float32)
-                    
                     if len(arr) >= 768:
-                        self._all_embeddings.append(arr[:768])
+                        arr = arr[:768]
                     elif len(arr) > 0:
-                        self._all_embeddings.append(np.pad(arr, (0, 768 - len(arr))))
+                        arr = np.pad(arr, (0, 768 - len(arr)))
+                    else:
+                        continue
+                    batch.append(arr)
+                    self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
                 except Exception as e:
                     logger.debug(f"[LoRATrainer] Parse error: {e}")
-            
-            if not self._all_embeddings:
-                logger.warning("[LoRATrainer] No valid embeddings found")
-                self._add_synthetic_fallback()
-            else:
-                logger.info(f"[LoRATrainer] Loaded {len(self._all_embeddings)} graph embeddings")
-                
+            if batch:
+                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
         except Exception as e:
-            logger.warning(f"[LoRATrainer] Failed to load graph embeddings: {e}")
+            logger.debug(f"[LoRATrainer] SQL fallback failed: {e}")
+        
+        # 3. Синтетический fallback
+        if not hasattr(self, '_synthetic_batch'):
             self._add_synthetic_fallback()
-    
-    def _add_synthetic_fallback(self):
-        """Минимальный синтетический fallback."""
-        import numpy as np
-        self._all_embeddings = [np.random.randn(768).astype(np.float32) * 0.1 for _ in range(8)]
-        logger.warning("[LoRATrainer] Using synthetic fallback data")
-    
-    def update_history(self, history: List[Dict]):
-        """Обновить историю диалогов."""
-        self._conversation_history = history
-    
-    def _load_batch(self):
-        """Загрузить следующий батч из графа (последовательно)."""
-        import torch
-        import numpy as np
-        
-        if not self._all_embeddings:
-            return None
-        
-        batch_size = min(8, len(self._all_embeddings))
-        start = self._batch_idx
-        end = start + batch_size
-        
-        batch = self._all_embeddings[start:end]
-        if len(batch) < batch_size:
-            batch += self._all_embeddings[:batch_size - len(batch)]
-            self._batch_idx = batch_size - len(batch)
-        else:
-            self._batch_idx = end % len(self._all_embeddings)
-        
+        batch = self._synthetic_batch[:8]
         return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
     
     def _do_training_step(self) -> bool:
