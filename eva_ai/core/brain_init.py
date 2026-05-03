@@ -130,18 +130,6 @@ def _start_post_init_services(brain):
         query_logger.warning(f"Failed to start GraphCurator: {e}")
         brain.graph_curator = None
 
-    try:
-        from eva_ai.training.gguf_training_system import GGUFTrainingSystem
-        brain.gguf_training = GGUFTrainingSystem(brain=brain, config=brain.config.get('gguf_training', {}))
-        if brain.gguf_training.initialize_training_model():
-            try:
-                brain.gguf_training.auto_start_if_ready()
-            except Exception:
-                pass
-    except Exception as e:
-        query_logger.warning(f"Failed to initialize GGUFTrainingSystem: {e}")
-        brain.gguf_training = None
-
 
 def _connect_components(brain):
     """Wire up component references after initialization."""

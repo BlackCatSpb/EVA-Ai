@@ -21,7 +21,7 @@ class InputLayer:
         self,
         tokenizer,
         embedding_dim: int = 2048,
-        max_seq_len: int = 4096
+        max_seq_len: int = 2048
     ):
         self.tokenizer = tokenizer
         self.embedding_dim = embedding_dim

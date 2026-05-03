@@ -8,7 +8,7 @@ from typing import Optional, Dict, List
 from threading import Lock
 
 
-class ShadowLoRAManagerOV:
+class ShadowLoRAManager:
     """
     Shadow LoRA Manager для OpenVINO.
     

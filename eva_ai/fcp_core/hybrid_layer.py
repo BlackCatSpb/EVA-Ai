@@ -31,7 +31,7 @@ class FractalGatedHybridLayer:
         layer_id: int,
         hidden_dim: int = 2048,
         num_heads: int = 16,
-        max_seq_len: int = 4096,
+        max_seq_len: int = 2048,
         graph_retrieval_k: int = 32,
         master_tokens: int = 8,
         gnn_iterations: int = 2,

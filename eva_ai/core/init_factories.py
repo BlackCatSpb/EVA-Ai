@@ -729,11 +729,8 @@ def create_hybrid_layer_pipeline(initializer):
         fcp_config = config.get('fcp_pipeline', {})
         openvino_path = fcp_config.get('model_path')
         if not openvino_path:
-            openvino_path = os.path.join(
-                getattr(initializer.core_brain, 'cache_dir', './cache'),
-                'models',
-                'ruadapt_qwen3_4b_openvino_ModelB'
-            )
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            openvino_path = os.path.join(project_root, 'fmf_model', 'model.ov')
 
         transformer_path = fcp_config.get('transformer_model_path')
         if not transformer_path:
@@ -778,20 +775,17 @@ def create_fcp_pipeline(initializer):
     try:
         from eva_ai.core.fcp_pipeline import FCPPipelineV15
         
-        config = initializer.core_brain.config.get('fcp_pipeline', {})
+        config = initializer.core_brain.config.get('fcp', {})
         initializer.logger.info(f"[FCP] config: {config}")
         
-        if not config.get('enabled', False):
+        if not config.get('enabled', True):
             initializer.logger.info("FCPPipelineV15 disabled in config")
             return None
         
         model_path = config.get('model_path')
         if not model_path:
-            model_path = os.path.join(
-                getattr(initializer.core_brain, 'cache_dir', './cache'),
-                'models',
-                'ruadapt_qwen3_4b_openvino'
-            )
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            model_path = os.path.join(project_root, 'fmf_model', 'model.ov')
         
         initializer.logger.info(f"[FCP] model_path: {model_path}")
         initializer.logger.info(f"[FCP] exists: {os.path.exists(model_path)}")

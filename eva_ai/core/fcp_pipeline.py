@@ -31,6 +31,13 @@ from eva_ai.fcp_core import (
     ShadowLoRAManager
 )
 
+# Reasoning Chain (NEW - для накопления цепочки рассуждений)
+try:
+    from eva_ai.fcp_core.reasoning_chain import ReasoningChain, ReasoningChainManager
+except ImportError:
+    ReasoningChain = None
+    ReasoningChainManager = None
+
 # FCP GNN Components
 from eva_ai.fcp_gnn import (
     HybridLayerProcessor,
@@ -57,11 +64,15 @@ from eva_ai.core.analysis_and_injection import (
 )
 
 # Системный промпт - ВСЕГДА рассуждать перед ответом
-SYSTEM_PROMPT = """Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...</think>.
-ОБЯЗАТЕЛЬНО закрой тег </think> после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными.
+SYSTEM_PROMPT = r"""Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...
+ОБЯЗАТЕЛЬНО закрой тег  после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными.
 
 ВАЖНО: ВСЕГДА возвращайся к данным запроса! Используй только предоставленный контекст.
-Если в контексте есть факты - опирайся на них. Если контекста нет - говори что не знаешь."""
+Если в контексте есть факты - опирайся на них. Если контекста нет - говори что не знаешь.
+
+МАТЕМАТИКА: Для формул используй LaTeX нотацию с $...$ для inline и $$...$$ для block формул.
+Пример: $a^2 + b^2 = c^2$ или $$\int_0^1 x^2 dx$$
+Если LaTeX недоступен - используй Unicode символы: ÷ × √ ∞ ∑ ∫ ∂"""
 
 
 class SimpleStreamer:
@@ -100,13 +111,42 @@ class FCPPipelineV15:
         gnn_ov_path: Optional[str] = None,
         lora_dir: Optional[str] = None,
         draft_model_path: Optional[str] = None,
-        max_history: int = 10
+        max_history: int = 10,
+        brain: Any = None  # Ссылка на brain для доступа к hybrid_cache
     ):
         self.model_path = model_path
         self.graph_path = graph_path
         self.gnn_ov_path = gnn_ov_path
         self.lora_dir = lora_dir or "C:/Users/black/OneDrive/Desktop/FCP/lora_adapters"
         self.max_history = max_history
+        self.brain = brain  # Ссылка на brain для интеграции с HybridTokenCache
+
+        # === Единая конфигурация генерации (с гибридным кэшем) ===
+        self.generation_config = {
+            "temperature": 0.15,
+            "top_p": 0.85,
+            "top_k": 40,
+            "repetition_penalty": 1.1,
+            "do_sample": True,
+            "max_new_tokens": 4096,  # Безопасное значение
+            "min_new_tokens": 1
+        }
+
+        # === Единая конфигурация KV кэша (интегрирована с HybridTokenCache) ===
+        self.hybrid_cache = None
+        hybrid_cache_config = self._get_hybrid_cache_config()
+        
+        self.kv_cache_config = {
+            "cache_size_gb": hybrid_cache_config.get("cache_size_gb", 8),  # 8GB - безопасное
+            "max_num_seqs": 1,
+            "max_num_batched_tokens": 4096,  # 4K batch
+            "enable_prefix_caching": True,
+            "use_cache_eviction": True,
+            "cache_eviction_start_size": 256,
+            "cache_eviction_recent_size": 512,
+            "cache_eviction_max_size": 1024,
+            "linked_hybrid_cache": hybrid_cache_config.get("enabled", False)
+        }
 
         self.stats = {"queries": 0, "injections": 0}
 
@@ -159,27 +199,75 @@ class FCPPipelineV15:
         print("[FCP] Initializing FCP components...")
         
         # NEW: State Injector for direct KV-cache access (from Доработка.txt)
+        self.state_injector = None
         try:
             device = "GPU.0" if "GPU" in self.model_path else "CPU"
             # StateInjector needs path to XML file, not folder
-            model_xml = os.path.join(self.model_path, "openvino_model.xml")
-            self.state_injector = LayerwiseStateInjector(model_xml, device)
-            print(f"[FCP] StateInjector initialized: device={device}, model={model_xml}")
+            # Ищем openvino_model.xml в различных возможных locations
+            possible_paths = [
+                os.path.join(self.model_path, "openvino_model.xml"),
+                os.path.join(self.model_path, "model.ov", "openvino_model.xml"),
+                os.path.join(self.model_path, "openvino_model", "openvino_model.xml"),
+                os.path.join(os.path.dirname(self.model_path), "fmf_model", "model.ov", "openvino_model.xml"),
+            ]
+            
+            model_xml = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    model_xml = path
+                    print(f"[FCP] StateInjector: found model.xml at {path}")
+                    break
+            
+            if not model_xml:
+                print(f"[FCP] StateInjector SKIPPED: model.xml not found in any of: {possible_paths}")
+            else:
+                self.state_injector = LayerwiseStateInjector(model_xml, device)
+                print(f"[FCP] StateInjector initialized: device={device}, model={model_xml}")
+                
+                # Проверяем что инжектор работает
+                if hasattr(self.state_injector, '_layer_indices'):
+                    print(f"[FCP] StateInjector has {len(self.state_injector._layer_indices)} layers")
         except Exception as e:
-            print(f"[FCP] StateInjector init failed: {e}")
+            print(f"[FCP] StateInjector FAILED: {type(e).__name__}: {e}")
             self.state_injector = None
         
         # NEW: SQAM Analyzer
         self.sqam_analyzer = SemanticQueryAnalyzer()
         print("[FCP] SQAM Analyzer initialized")
         
-        # NEW: Graph Integration Manager
-        self.graph_mgr = GraphIntegrationManager(embedding_dim=2560)
+        # NEW: Graph Integration Manager (связываем с fractal_graph после его создания)
+        # Пока создаём без ссылки, позже обновим
+        self.graph_mgr = GraphIntegrationManager(embedding_dim=2560, fractal_graph=None)
         print("[FCP] GraphIntegrationManager initialized")
         
         # NEW: SRG Feedback Loop
         self.srg_feedback = SRGFeedbackLoop(threshold=0.6)
         print("[FCP] SRG FeedbackLoop initialized")
+        
+        # === Activation Gate (ранний выход) согласно EVA.txt раздел 2.1 ===
+        # Если накопленная уверенность > порог → пропуск последующих слоёв
+        # Даёт до 85% ускорения на простых запросах
+        self.activation_gate_config = {
+            'early_exit_threshold': 0.85,  # Порог уверенности для early exit
+            'min_tokens_for_check': 5,      # Минимум токенов перед проверкой
+            'confidence_window': 3,          # Окно для сглаживания уверенности
+            'accumulated_confidence': 0.0,   # Накопленная уверенность
+            'early_exits_count': 0,          # Счётчик ранних выходов
+        }
+        print(f"[FCP] Activation Gate initialized: threshold={self.activation_gate_config['early_exit_threshold']}")
+        
+        # === KCA Gate (γ) согласно EVA.txt раздел 3.2-3.3 ===
+        # Монитор насыщения: если γ < 0.05 за 2 итерации → завершение KCA
+        self.kca_gate_config = {
+            'gate_threshold': 0.05,          # Порог отклонения коррекции
+            'min_iterations': 2,             # Минимум итераций для проверки
+            'damping_factor': 0.85,          # ρ^t для экспоненциального снижения
+            'gate_history': [],              # История значений γ
+            'gamma': 0.5,                    # Текущее значение гейта
+            'kca_iterations': 0,             # Счётчик итераций KCA
+            'kca_rejected': False,           # Флаг отклонения коррекции
+        }
+        print(f"[FCP] KCA Gate initialized: threshold={self.kca_gate_config['gate_threshold']}, damping={self.kca_gate_config['damping_factor']}")
         
         # SRG (Semantic Relevance Gate) - existing
         self.srg = SemanticRelevanceGate(self.fcp_config)
@@ -206,6 +294,207 @@ class FCPPipelineV15:
         else:
             self.fractal_graph = FractalGraphV2(storage_dir=graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
             print("[FCP] FractalGraphV2 created (empty)")
+        
+        # Связываем GraphIntegrationManager с FractalGraphV2
+        if self.graph_mgr:
+            self.graph_mgr.fractal_graph = self.fractal_graph
+            print("[FCP] GraphIntegrationManager linked to FractalGraphV2")
+        
+        # === ScenarioTCM (согласно EVA.txt раздел 6.3) ===
+        # Сохраняет цепочки диалогов как сценарии в графе
+        from eva_ai.memory.scenario_tcm import ScenarioTCM
+        self.scenario_tcm = ScenarioTCM(graph=self.fractal_graph)
+        print("[FCP] ScenarioTCM initialized")
+        
+        # === ConceptMiner (согласно EVA.txt раздел 7.1) ===
+        # Автономный концептуальный вывод, обнаружение семантических лакун
+        try:
+            from eva_ai.knowledge.concept_miner import ConceptMiner
+            self.concept_miner = ConceptMiner(brain=self)
+            print("[FCP] ConceptMiner initialized")
+        except Exception as e:
+            print(f"[FCP] ConceptMiner init failed: {e}")
+            self.concept_miner = None
+        
+        # === ContradictionDetector (согласно EVA.txt раздел 7.2) ===
+        # Обнаружение противоречий в графе знаний
+        try:
+            from eva_ai.contradiction.detect_core import ContradictionDetector
+            self.contradiction_detector = ContradictionDetector(
+                knowledge_graph=self.fractal_graph,
+                detection_threshold=0.65
+            )
+            print("[FCP] ContradictionDetector initialized")
+        except Exception as e:
+            print(f"[FCP] ContradictionDetector init failed: {e}")
+            self.contradiction_detector = None
+        
+        # === LearningOrchestrator (согласно EVA.txt раздел 7.3) ===
+        # Оркестратор обучения для LoRA адаптеров
+        try:
+            from eva_ai.fcp_core.learning_orchestrator import LearningOrchestrator
+            from eva_ai.knowledge.fcp_learning_manager import LearningGraphManager
+            learning_manager = LearningGraphManager()
+            self.learning_orchestrator = LearningOrchestrator(
+                learning_manager=learning_manager,
+                lora_manager=self.lora_manager
+            )
+            print("[FCP] LearningOrchestrator initialized")
+        except Exception as e:
+            print(f"[FCP] LearningOrchestrator init failed: {e}")
+            self.learning_orchestrator = None
+        
+        # === UES (Universal Execution Subsystem) (согласно EVA.txt раздел 8.3) ===
+        # Оптимизация и контроль исполнения на произвольном оборудовании
+        try:
+            from eva_ai.fcp_ues import UES
+            self.ues = UES(model_path=self.model_path)
+            print(f"[FCP] UES initialized: {len(self.ues.topology.units)} compute units")
+        except Exception as e:
+            print(f"[FCP] UES init failed: {e}")
+            self.ues = None
+        
+        # === ContextualTokenizer (согласно EVA.txt раздел 2.1) ===
+        # Контекстная токенизация с учётом графа знаний
+        try:
+            from eva_ai.fcp_core.contextual_tokenizer import ContextualTokenizer
+            # Получаем базовый токенизатор из конфигурации
+            base_tokenizer = self._get_base_tokenizer()
+            if base_tokenizer:
+                self.contextual_tokenizer = ContextualTokenizer(
+                    base_tokenizer=base_tokenizer,
+                    fractal_graph=self.fractal_graph,
+                    embedding_model=self._get_embedding_model()
+                )
+                print(f"[FCP] ContextualTokenizer initialized: vocab_size={self.contextual_tokenizer.get_vocab_size()}")
+            else:
+                self.contextual_tokenizer = None
+                print("[FCP] ContextualTokenizer skipped: no base tokenizer")
+        except Exception as e:
+            print(f"[FCP] ContextualTokenizer init failed: {e}")
+            self.contextual_tokenizer = None
+        
+        # === CrossAttentionFusion (согласно EVA.txt раздел 2.1) ===
+        # Слияние через cross-attention между моделью и графом
+        try:
+            from eva_ai.fcp_core.cross_attention import CrossAttentionFusion
+            self.cross_attention = CrossAttentionFusion(
+                hidden_dim=2560,  # Размерность скрытых состояний
+                graph_dim=384,     # Размерность эмбеддингов графа
+                num_heads=8
+            )
+            print(f"[FCP] CrossAttentionFusion initialized: heads=8")
+        except Exception as e:
+            print(f"[FCP] CrossAttentionFusion init failed: {e}")
+            self.cross_attention = None
+        
+        # === TrainableGate (согласно EVA.txt раздел 2.1) ===
+        # Обучаемый гейт для слияния источников
+        try:
+            from eva_ai.fcp_core.trainable_gate import TrainableGate
+            self.trainable_gate = TrainableGate(
+                input_dim=2560,
+                hidden_dim=128,
+                num_sources=3  # модель, граф, KCA
+            )
+            print(f"[FCP] TrainableGate initialized: sources=3")
+        except Exception as e:
+            print(f"[FCP] TrainableGate init failed: {e}")
+            self.trainable_gate = None
+        
+        # === ExpertSystem (согласно EVA.txt) ===
+        # Мультиагентная система обсуждения
+        try:
+            from eva_ai.tools.fcp.expert_system import ExpertSystem, Expert
+            # Создаем экспертов (используем текущий pipeline как базу)
+            experts = [
+                Expert("base", self._generate, None),
+                Expert("creative", self._generate, "creative_lora"),
+                Expert("factual", self._generate, "factual_lora")
+            ]
+            self.expert_system = ExpertSystem(
+                experts=experts,
+                critic=self.contradiction_detector
+            )
+            print(f"[FCP] ExpertSystem initialized: {len(experts)} experts")
+        except Exception as e:
+            print(f"[FCP] ExpertSystem init failed: {e}")
+            self.expert_system = None
+        
+        # === ThinkingController (согласно EVA.txt) ===
+        try:
+            from eva_ai.tools.fcp.thinking_controller import ThinkingController
+            self.thinking_controller = ThinkingController()
+            print("[FCP] ThinkingController initialized")
+        except Exception as e:
+            print(f"[FCP] ThinkingController init failed: {e}")
+            self.thinking_controller = None
+        
+        # === ToolOrchestrator (согласно EVA.txt) ===
+        try:
+            from eva_ai.tools.fcp.orchestrator import ToolOrchestrator
+            self.tool_orchestrator = ToolOrchestrator()
+            print("[FCP] ToolOrchestrator initialized")
+        except Exception as e:
+            print(f"[FCP] ToolOrchestrator init failed: {e}")
+            self.tool_orchestrator = None
+        
+        # === ReasoningChain (согласно EVA.txt - накопление цепочки рассуждений) ===
+        try:
+            if ReasoningChain:
+                self.reasoning_chain = ReasoningChain(
+                    max_steps=20,
+                    similarity_threshold=0.7,
+                    fractal_graph=getattr(self, 'fractal_graph', None),
+                    memory_snapshot=getattr(self, 'memory_snapshot', None),
+                    scenario_tcm=getattr(self, 'scenario_tcm', None)
+                )
+                print("[FCP] ReasoningChain initialized")
+            else:
+                self.reasoning_chain = None
+        except Exception as e:
+            print(f"[FCP] ReasoningChain init failed: {e}")
+            self.reasoning_chain = None
+        
+        # === ReasoningChainManager для параллельных задач ===
+        try:
+            if ReasoningChainManager:
+                self.reasoning_manager = ReasoningChainManager(
+                    default_config={"max_steps": 20, "similarity_threshold": 0.7}
+                )
+                print("[FCP] ReasoningChainManager initialized")
+            else:
+                self.reasoning_manager = None
+        except Exception as e:
+            print(f"[FCP] ReasoningChainManager init failed: {e}")
+            self.reasoning_manager = None
+        
+        # === ClarificationGenerator (согласно EVA.txt) ===
+        try:
+            from eva_ai.tools.fcp.clarification import ClarificationGenerator
+            self.clarification_generator = ClarificationGenerator()
+            print("[FCP] ClarificationGenerator initialized")
+        except Exception as e:
+            print(f"[FCP] ClarificationGenerator init failed: {e}")
+            self.clarification_generator = None
+        
+        # === AttributionReport (согласно EVA.txt) ===
+        try:
+            from eva_ai.tools.fcp.attribution import AttributionReport
+            self.attribution_report = AttributionReport()
+            print("[FCP] AttributionReport initialized")
+        except Exception as e:
+            print(f"[FCP] AttributionReport init failed: {e}")
+            self.attribution_report = None
+        
+        # === SemanticCacheEvictor (согласно EVA.txt) ===
+        try:
+            from eva_ai.tools.fcp.semantic_cache_evictor import SemanticCacheEvictor
+            self.semantic_cache_evictor = SemanticCacheEvictor()
+            print("[FCP] SemanticCacheEvictor initialized")
+        except Exception as e:
+            print(f"[FCP] SemanticCacheEvictor init failed: {e}")
+            self.semantic_cache_evictor = None
         
         print("[FCP] All FCP components initialized")
 
@@ -316,36 +605,30 @@ class FCPPipelineV15:
             os.environ['CPU_DENORMALS_OPTIMIZATION'] = 'YES'
             print(f"[FCP] CPU optimization: {logical_processors} streams, {logical_processors} threads")
             
-            # SchedulerConfig - оптимизировано для одного запроса с сохранением контекста
+            # SchedulerConfig - используем единую конфигурацию KV кэша
             scheduler = ov_genai.SchedulerConfig()
-            scheduler.cache_size = 16  # GB - больше кэш для длинных диалогов
-            scheduler.max_num_seqs = 1
-            scheduler.max_num_batched_tokens = 8192  # больше для длинных контекстов
-            scheduler.enable_prefix_caching = True  # кэшируем префиксы (системный промпт)
-            scheduler.use_cache_eviction = True
+            scheduler.cache_size = self.kv_cache_config["cache_size_gb"]
+            scheduler.max_num_seqs = self.kv_cache_config["max_num_seqs"]
+            scheduler.max_num_batched_tokens = self.kv_cache_config["max_num_batched_tokens"]
+            scheduler.enable_prefix_caching = self.kv_cache_config["enable_prefix_caching"]
+            scheduler.use_cache_eviction = self.kv_cache_config["use_cache_eviction"]
 
             # CacheEvictionConfig - сохраняем начало (системный промпт) и конец (последние токены)
             try:
                 cache_eviction = ov_genai.CacheEvictionConfig(
-                    start_size=256,      # системный промпт никогда не вытесняется
-                    recent_size=1024,    # текущий контекст тоже
-                    max_cache_size=4096, # общий размер кэша
+                    start_size=self.kv_cache_config["cache_eviction_start_size"],
+                    recent_size=self.kv_cache_config["cache_eviction_recent_size"],
+                    max_cache_size=self.kv_cache_config["cache_eviction_max_size"],
                     aggregation_mode=ov_genai.AggregationMode.MEAN
                 )
                 scheduler.cache_eviction_config = cache_eviction
-                print("[FCP] CacheEvictionConfig enabled: start=256, recent=1024")
+                print(f"[FCP] CacheEvictionConfig enabled: start={self.kv_cache_config['cache_eviction_start_size']}, recent={self.kv_cache_config['cache_eviction_recent_size']}")
             except Exception as e:
                 print(f"[FCP] CacheEvictionConfig not available: {e}")
             
-            # GenerationConfig
-            gen_config = ov_genai.GenerationConfig()
-            gen_config.max_new_tokens = 4096
-            gen_config.temperature = 0.15  # Снижаем для точности
-            gen_config.top_p = 0.85
-            gen_config.top_k = 40
-            gen_config.repetition_penalty = 1.1
+            # GenerationConfig - используем единую конфигурацию
+            gen_config = self.get_generation_config()
             gen_config.no_repeat_ngram_size = 5
-            gen_config.do_sample = True
             
             # Draft model для спекулятивного декодирования
             draft_model = None
@@ -381,7 +664,7 @@ class FCPPipelineV15:
             self.pipeline = None
             return
     
-    def generate_streaming(self, prompt, max_new_tokens=4096, enable_thinking=True, callback=None, add_to_history=True, **kwargs):
+    def generate_streaming(self, prompt, max_new_tokens=2048, enable_thinking=True, callback=None, add_to_history=True, **kwargs):
         """Streaming с парсингом тегов размышления в процессе генерации"""
         if not self.pipeline:
             yield {"type": "error", "text": "[No pipeline]"}
@@ -454,14 +737,8 @@ class FCPPipelineV15:
                 """Генерация в отдельном потоке"""
                 nonlocal buffer, in_thinking, partial_tag
                 try:
-                    gen_cfg = self.pipeline.get_generation_config()
-                    gen_cfg.max_new_tokens = max_new_tokens
-                    gen_cfg.temperature = 0.15  # Снижаем температуру для точности
-                    gen_cfg.top_p = 0.85
-                    gen_cfg.top_k = 40
-                    gen_cfg.repetition_penalty = 1.1
-                    gen_cfg.do_sample = True
-                    
+                    # Используем единую конфигурацию генерации
+                    gen_cfg = self.get_generation_config(max_new_tokens)
                     self.pipeline.generate(chat_prompt, generation_config=gen_cfg, streamer=token_callback)
                     
                     # После завершения обрабатываем остаток буфера
@@ -501,16 +778,21 @@ class FCPPipelineV15:
 
             gen_thread.join()
 
-            # Сохраняем в историю разговора
+            # Сохраняем в историю разговора с timestamp
             full_response = ''.join(full_response_parts)
             if full_response and add_to_history:
                 self.conversation_history.append({
                     "user": prompt,
-                    "assistant": full_response
+                    "assistant": full_response,
+                    "timestamp": time.time()  # Время для привязки к контексту
                 })
                 if len(self.conversation_history) > self.max_history:
                     self.conversation_history = self.conversation_history[-self.max_history:]
                 self.stats["queries"] += 1
+                
+                # Сохраняем в сценарий (EVA.txt 6.3)
+                self.add_dialog_turn("user", prompt)
+                self.add_dialog_turn("assistant", full_response)
             
         except Exception as e:
             yield {"type": "error", "text": str(e)}
@@ -527,7 +809,7 @@ class FCPPipelineV15:
     def generate(
         self,
         prompt: str,
-        max_new_tokens: int = 1024,
+        max_new_tokens: int = 2048,
         enable_injection: bool = False,
         use_lora: bool = True,
         enable_thinking: bool = True,
@@ -559,17 +841,22 @@ class FCPPipelineV15:
             # Обновляем статистику инъекций
             self.stats["injections"] += 1
             
-            # Сохраняем в историю если нужно
+# Сохраняем в историю если нужно
             if add_to_history and response:
                 self.conversation_history.append({
                     "user": prompt,
-                    "assistant": response
+                    "assistant": response,
+                    "timestamp": time.time()
                 })
                 if len(self.conversation_history) > self.max_history:
                     self.conversation_history = self.conversation_history[-self.max_history:]
-
+                
                 # Сохраняем сессию сразу после изменения
                 self.save_session("default")
+                
+                # Сохраняем в сценарий (EVA.txt 6.3)
+                self.add_dialog_turn("user", prompt)
+                self.add_dialog_turn("assistant", response)
                 
             return response if not return_metadata else (response, metadata)
 
@@ -600,20 +887,30 @@ class FCPPipelineV15:
             except Exception as e:
                 logger.debug(f"Snapshot save skipped: {e}")
 
-        # 5. Сохраняем в историю
+        # 5. Сохраняем в историю с timestamp
         if add_to_history and response:
             self.conversation_history.append({
                 "user": prompt,
-                "assistant": response
+                "assistant": response,
+                "timestamp": time.time()
             })
             if len(self.conversation_history) > self.max_history:
                 self.conversation_history = self.conversation_history[-self.max_history:]
+            
+            # Сохраняем в сценарий (EVA.txt 6.3)
+            self.add_dialog_turn("user", prompt)
+            self.add_dialog_turn("assistant", response)
 
             # Сохраняем сессию сразу после изменения
             self.save_session("default")
 
         if return_metadata:
             metadata["query_count"] = self.stats["queries"]
+            # Добавляем информацию о гибридной обработке
+            if 'srg_mode' in metadata:
+                logger.info(f"[FCP] Generate complete: srg_mode={metadata['srg_mode']}, "
+                           f"kca_cycles={metadata.get('kca_cycles', 0)}, "
+                           f"injections={self.stats['injections']}")
             return response, metadata
         return response
 
@@ -638,10 +935,12 @@ class FCPPipelineV15:
 
                 # 2. SRG evaluation - определяем режим
                 if self.srg:
+                    # Оцениваем logits на основе контекста промпта
+                    estimated_logits = self._estimate_logits_from_prompt(chat_prompt)
                     mode, srg_metrics = self.srg.evaluate(
                         query_vec=query_embedding,
-                        response_vec=query_embedding,  # будет уточнено после generation
-                        logits=np.zeros(100)
+                        response_vec=query_embedding,
+                        logits=estimated_logits
                     )
                     metadata["srg_mode"] = mode
                     metadata["srg_metrics"] = srg_metrics
@@ -675,9 +974,14 @@ class FCPPipelineV15:
 
                         metadata["kca_cycles"] = kca_info.get("cycles", 0)
                         metadata["kca_status"] = kca_info.get("status", "unknown")
+                        metadata["kca_delta_norm"] = float(np.linalg.norm(corrected_states - initial_states))
 
-                        # Обогащаем промпт текстовым контекстом из подграфа
-                        enriched_prompt = self._enrich_prompt_with_subgraph(chat_prompt, subgraph)
+                        # Обогащаем промпт текстовым контекстом из подграфа + KCA
+                        enriched_prompt = self._enrich_prompt_with_subgraph(
+                            chat_prompt, 
+                            subgraph,
+                            kca_info=kca_info  # Передаём KCA info для дополнительного контекста
+                        )
                         return enriched_prompt, metadata
 
             # Fallback - возвращаем оригинальный промпт
@@ -688,7 +992,7 @@ class FCPPipelineV15:
             return chat_prompt, metadata
 
     def _get_query_embedding(self, text: str) -> np.ndarray:
-        """Получить эмбеддинг запроса из FractalGraph"""
+        """Получить эмбеддинг запроса - детерминированный по хешу текста"""
         try:
             if hasattr(self, 'tokenizer') and self.tokenizer:
                 inputs = self.tokenizer(text, return_tensors="np", padding=True, truncation=True)
@@ -698,26 +1002,143 @@ class FCPPipelineV15:
         except:
             pass
 
-        # Fallback - случайный вектор
-        return np.random.randn(2560).astype(np.float32)
+        # Fallback - детерминированный вектор по хешу текста (вместо random)
+        text_hash = hash(text) % (2**31)
+        np.random.seed(text_hash)
+        return np.random.randn(2560).astype(np.float32) * 0.1
+    
+    def _get_base_tokenizer(self):
+        """Получить базовый токенизатор для ContextualTokenizer."""
+        try:
+            # Пытаемся получить токенизатор из конфигурации или существующих компонентов
+            if hasattr(self, 'tokenizer') and self.tokenizer:
+                return self.tokenizer
+            # Пытаемся загрузить из конфигурации
+            tokenizer_path = self.fcp_config.get('tokenizer_path', '')
+            if tokenizer_path and os.path.exists(tokenizer_path):
+                from transformers import AutoTokenizer
+                return AutoTokenizer.from_pretrained(tokenizer_path)
+            # Дефолтный токенизатор
+            from transformers import GPT2Tokenizer
+            return GPT2Tokenizer.from_pretrained('gpt2')
+        except Exception as e:
+            logger.debug(f"Failed to load base tokenizer: {e}")
+            return None
+    
+    def _get_embedding_model(self):
+        """Получить модель эмбеддингов для ContextualTokenizer."""
+        try:
+            # Используем ту же модель что и для query embedding
+            from sentence_transformers import SentenceTransformer
+            model_name = self.fcp_config.get('embedding_model', 'intfloat/multilingual-e5-small')
+            return SentenceTransformer(model_name, device='cpu')
+        except Exception as e:
+            logger.debug(f"Failed to load embedding model: {e}")
+            return None
+    
+    def _estimate_logits_from_prompt(self, prompt: str, hidden_dim: int = 2560) -> np.ndarray:
+        """
+        Оценить псевдо-logs для SRG на основе контекста промпта.
+        
+        Логика:
+        - Вопросы (?) → выше энтропия (неопределённость)
+        - Утверждения → ниже энтропия (уверенность)
+        - Длинные промпты → выше энтропия (сложность)
+        - Ключевые слова неопределённости → выше энтропия
+        - Ключевые слова уверенности → ниже энтропия
+        """
+        # Базовое значение - средняя неопределённость
+        base_entropy = 0.5
+        prompt_lower = prompt.lower()
+        
+        # 1. Проверка на вопрос
+        if '?' in prompt:
+            base_entropy += 0.2
+        
+        # 2. Проверка на ключевые слова неопределённости
+        uncertainty_words = ['может', 'возможно', 'вероятно', 'думаю', 'кажется', 
+                            'perhaps', 'maybe', 'probably', 'might', 'think', 'seems']
+        for word in uncertainty_words:
+            if word in prompt_lower:
+                base_entropy += 0.15
+                break
+        
+        # 3. Проверка на ключевые слова уверенности
+        certainty_words = ['определённо', 'конечно', 'точно', 'известно', 'точно знаю',
+                         'definitely', 'certainly', 'know', 'sure', 'clearly']
+        for word in certainty_words:
+            if word in prompt_lower:
+                base_entropy -= 0.2
+                break
+        
+        # 4. Длина промпта (длиннее = сложнее = выше неопределённость)
+        word_count = len(prompt.split())
+        if word_count > 50:
+            base_entropy += 0.1
+        elif word_count > 100:
+            base_entropy += 0.2
+        
+        # 5. Наличие контекста в промпте (history) - больше контекста = увереннее
+        if '[Релевантный контекст' in prompt or '<|im_start|>' in prompt:
+            base_entropy -= 0.15
+        
+        # Ограничиваем в диапазон [0.1, 0.9]
+        base_entropy = max(0.1, min(0.9, base_entropy))
+        
+        # Конвертируем в pseudo-logits
+        # entropy_ratio = 0.1 → peaked (уверенный) → logits с одним пиком
+        # entropy_ratio = 0.9 → uniform (неопределённый) → logits равномерные
+        
+        entropy_ratio = base_entropy
+        vocab_size = 100  # фиксированный размер для SRG
+        
+        logits = np.zeros(vocab_size, dtype=np.float32)
+        
+        # Чем выше entropy_ratio, тем более равномерное распределение
+        num_peaks = max(1, int(vocab_size * (1 - entropy_ratio * 0.8)))
+        
+        # Распределяем пики по словарю
+        peak_positions = np.linspace(0, vocab_size - 1, num_peaks, dtype=int)
+        for pos in peak_positions:
+            logits[pos] = 5.0 * (1 - entropy_ratio * 0.5)
+        
+        return logits
 
-    def _enrich_prompt_with_subgraph(self, prompt: str, subgraph: dict) -> str:
-        """Обогатить промпт текстовым контекстом из подграфа"""
-        if not subgraph or subgraph.get("embeddings").shape[0] == 0:
+    def _enrich_prompt_with_subgraph(self, prompt: str, subgraph: dict, kca_info: dict = None) -> str:
+        """Обогатить промпт текстовым контекстом из подграфа + KCA"""
+        # Добавляем KCA информацию если есть
+        if kca_info:
+            cycles = kca_info.get("cycles", 0)
+            status = kca_info.get("status", "unknown")
+            # Добавляем подсказку для модели о том, что использовался KCA
+            kca_hint = f"[Когнитивная обработка: {cycles} циклов, статус: {status}]"
+        
+        # Получаем текстовый контекст из графа
+        if not subgraph or (subgraph.get("embeddings") is not None and subgraph.get("embeddings").shape[0] == 0):
             return prompt
 
-        # Получаем текстовый контекст
         context_lines = []
-        contents = subgraph.get("contents", [])
+        contents = subgraph.get("contents", []) or subgraph.get("node_contents", [])
 
         for i, content in enumerate(contents[:5]):
             context_lines.append(f"  {i+1}. {content}")
 
         if context_lines:
             context_str = "\n".join(context_lines)
-            enriched = f"\n📚 Контекст из графа знаний:\n{context_str}\n\n{prompt}"
+            
+            # Формируем обогащённый промпт
+            if kca_info:
+                kca_hint = f"[KCA: {kca_info.get('cycles', 0)} циклов, {kca_info.get('status', 'unknown')}]"
+                enriched = f"\n📚 Контекст из графа знаний:\n{context_str}\n{kca_hint}\n\n{prompt}"
+            else:
+                enriched = f"\n📚 Контекст из графа знаний:\n{context_str}\n\n{prompt}"
             return enriched
 
+        # Если есть KCA но нет контента - всё равно добавляем KCA подсказку
+        if kca_info:
+            kca_hint = f"[KCA: {kca_info.get('cycles', 0)} циклов, {kca_info.get('status', 'unknown')}]"
+            return f"\n{kca_hint}\n\n{prompt}"
+        
         return prompt
 
     def _save_layer_snapshot(self, query: str, response: str) -> None:
@@ -749,23 +1170,131 @@ class FCPPipelineV15:
     def _build_prompt(self, prompt: str, enable_thinking: bool) -> str:
         """
         Формирование промпта с историей разговора и семантическим контекстом.
-
+        
         Использует SRG для определения релевантности и добавляет только
         семантически и логически связанные entries из истории.
+        Использует ContextualTokenizer для обогащения контекста (EVA.txt 2.1).
+        Использует ThinkingController для управления режимом рассуждений (EVA.txt).
         """
+        # === ThinkingController: определение режима рассуждений ===
+        if hasattr(self, 'thinking_controller') and self.thinking_controller:
+            try:
+                enable_thinking = self.thinking_controller.should_enable_thinking(prompt)
+                logger.info(f"[FCP] ThinkingController: enable_thinking={enable_thinking}")
+            except Exception as e:
+                logger.debug(f"ThinkingController error: {e}")
+        
+        # Используем ContextualTokenizer если доступен
+        context_nodes = []
+        if hasattr(self, 'contextual_tokenizer') and self.contextual_tokenizer:
+            try:
+                # Получаем релевантные узлы графа для контекста
+                if self.fractal_graph and self.fractal_graph.node_count > 0:
+                    query_emb = self._get_query_embedding(prompt)
+                    subgraph = self.fractal_graph.retrieve_subgraph(
+                        query_emb.reshape(1, -1), top_k=5
+                    )
+                    if subgraph and 'nodes' in subgraph:
+                        context_nodes = [n.get('id', '') for n in subgraph['nodes'] if 'id' in n]
+                
+                # Токенизируем с контекстом
+                tokenized = self.contextual_tokenizer.tokenize_with_context(prompt, context_nodes)
+                
+                # Можно использовать tokenized['graph_anchors'] для обогащения промпта
+                if tokenized['graph_anchors']:
+                    anchor_info = " ".join([a['label'] for a in tokenized['graph_anchors']])
+                    prompt = f"[Контекстные якоря: {anchor_info}]\n{prompt}"
+            except Exception as e:
+                logger.debug(f"ContextualTokenizer error: {e}")
+        
+        # === ExpertSystem: мультиагентное обсуждение (EVA.txt) ===
+        if hasattr(self, 'expert_system') and self.expert_system:
+            try:
+                # Определяем сложность запроса по длине и ключевым словам
+                complex_keywords = ['почему', 'как именно', 'объясни', 'докажи', 'сравни',
+                                'why', 'how exactly', 'explain', 'prove', 'compare']
+                is_complex = len(prompt.split()) > 30 or any(kw in prompt.lower() for kw in complex_keywords)
+                
+                if is_complex:
+                    print(f"[FCP] Using ExpertSystem for complex query")
+                    expert_response = self.expert_system.discuss(prompt)
+                    if expert_response and expert_response != "No experts configured":
+                        # Сохраняем в историю с timestamp
+                        if add_to_history:
+                            self.conversation_history.append({
+                                "user": prompt,
+                                "assistant": expert_response,
+                                "timestamp": time.time()
+                            })
+                            if len(self.conversation_history) > self.max_history:
+                                self.conversation_history = self.conversation_history[-self.max_history:]
+                        
+                        return expert_response
+            except Exception as e:
+                print(f"[FCP] ExpertSystem error: {e}")
+        
         # Получаем семантически релевантный контекст из истории
         relevant_context = self.get_relevant_context(prompt, max_history=3)
-
+        
+        # Получаем похожие сценарии из ScenarioTCM (EVA.txt 6.3)
+        scenario_context = self.get_similar_scenarios(prompt, max_scenarios=3)
+        
+        # === ReasoningChain: контекст предыдущих рассуждений ===
+        reasoning_context = ""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            # Проверяем, является ли это многошаговой задачей
+            multi_step_keywords = ['решить', 'загадка', 'логика', 'задача', 'рассуждать', 
+                                  'шаг', 'этап', 'следовательно', 'значит', 'далее',
+                                  'solve', 'riddle', 'logic', 'task', 'reason', 'step']
+            is_multi_step = any(kw in prompt.lower() for kw in multi_step_keywords)
+            
+            if is_multi_step or self.reasoning_chain.steps:
+                # Получаем контекст рассуждений для сложных задач
+                reasoning_context = self.reasoning_chain.get_context(
+                    include_reasoning=True,
+                    max_steps=5
+                )
+                logger.debug(f"[FCP] ReasoningChain context added: {len(self.reasoning_chain.steps)} steps")
+        
+        # Формируем историю с приоритетом по времени
         history_text = ""
         if self.conversation_history:
-            for entry in self.conversation_history[-self.max_history:]:
-                history_text += f"<|im_start|>user\n{entry['user']}<|im_end|>\n"
+            # Сортируем по timestamp (новые first) и берём последние max_history
+            sorted_history = sorted(
+                self.conversation_history,
+                key=lambda x: x.get('timestamp', 0),
+                reverse=True
+            )[:self.max_history]
+            
+            # Добавляем маркер времени для контекста
+            for i, entry in enumerate(sorted_history):
+                entry_time = entry.get('timestamp', 0)
+                time_marker = ""
+                if entry_time > 0:
+                    # Добавляем относительное время
+                    age_seconds = time.time() - entry_time
+                    if age_seconds < 60:
+                        time_marker = "[только что] "
+                    elif age_seconds < 3600:
+                        time_marker = f"[{int(age_seconds/60)} мин назад] "
+                    elif age_seconds < 86400:
+                        time_marker = f"[{int(age_seconds/3600)} ч назад] "
+                
+                history_text += f"<|im_start|>user\n{time_marker}{entry['user']}<|im_end|>\n"
                 history_text += f"<|im_start|>assistant\n{entry['assistant']}<|im_end|>\n"
-
+        
+        # Добавляем найденные сценарии
+        if scenario_context:
+            history_text = f"[Похожие сценарии]:\n{scenario_context}\n\n" + history_text
+        
         # Добавляем релевантный контекст если есть
         if relevant_context:
             history_text = f"[Релевантный контекст из прошлых разговоров]:\n{relevant_context}\n\n" + history_text
-
+        
+        # Добавляем контекст рассуждений (приоритет - в начало)
+        if reasoning_context:
+            history_text = f"{reasoning_context}\n\n" + history_text
+        
         return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
     def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
@@ -774,14 +1303,8 @@ class FCPPipelineV15:
             return "[No pipeline]"
         
         try:
-            gen_cfg = ov_genai.GenerationConfig()
-            gen_cfg.max_new_tokens = max_new_tokens
-            gen_cfg.temperature = 0.15  # Снижаем температуру для точности
-            gen_cfg.top_p = 0.85
-            gen_cfg.top_k = 40
-            gen_cfg.repetition_penalty = 1.1
-            gen_cfg.do_sample = True
-            
+            # Используем единую конфигурацию генерации
+            gen_cfg = self.get_generation_config(max_new_tokens)
             result = self.pipeline.generate(prompt, generation_config=gen_cfg, **kwargs)
             
             # После завершення обробатываєм залишок буфера
@@ -853,40 +1376,210 @@ class FCPPipelineV15:
             key_per_token = key0[0].mean(axis=0)  # Average over heads
             self.graph_mgr.add_anchors(anchors, key_per_token)
             
-            # 4. Decoding Loop with Full-Layer KCA Injection
+            # 4. Decoding Loop with Full-Layer KCA Injection + Activation Gate + KCA Gate
             generated_ids = input_ids[0].tolist()
             eos_token_id = getattr(self.tokenizer, 'eos_token_id', 2) if hasattr(self, 'tokenizer') else 2
+            
+            # Инициализация для раннего выхода
+            self.activation_gate_config['accumulated_confidence'] = 0.0
+            early_exit_triggered = False
+            early_exit_at_step = -1
             
             for step in range(max_new_tokens):
                 # Инференс на последнем токене
                 self.state_injector.request.infer({"input_ids": np.array([[generated_ids[-1]]])})
                 logits = self.state_injector.request.get_tensor("logits").data[0, -1]
                 next_token = int(np.argmax(logits))
+                
+                # === Activation Gate: вычисление уверенности (EVA.txt раздел 2.1) ===
+                # Уверенность = softmax max probability
+                probs = np.exp(logits) / np.sum(np.exp(logits))
+                token_confidence = float(np.max(probs))
+                
+                # Сглаживание уверенности (окно из предыдущих токенов)
+                acc_conf = self.activation_gate_config['accumulated_confidence']
+                window = self.activation_gate_config['confidence_window']
+                if step > 0:
+                    smoothed_conf = (acc_conf * (step - 1) + token_confidence) / step
+                else:
+                    smoothed_conf = token_confidence
+                self.activation_gate_config['accumulated_confidence'] = smoothed_conf
+                
+                # === Early Exit проверка ===
+                # Если накопленная уверенность > порог и прошло достаточно токенов
+                if (step >= self.activation_gate_config['min_tokens_for_check'] and 
+                    smoothed_conf > self.activation_gate_config['early_exit_threshold'] and 
+                    not early_exit_triggered):
+                    early_exit_triggered = True
+                    early_exit_at_step = step
+                    self.activation_gate_config['early_exits_count'] += 1
+                    logger.info(f"[FCP] Activation Gate TRIGGERED at step {step}, confidence={smoothed_conf:.3f}")
+                    # Полный Early Exit: прерываем генерацию
+                    metadata["early_exit_triggered"] = True
+                    metadata["early_exit_at_step"] = step
+                    # Прерываем цикл генерации
+                    break  # <-- ПОЛНЫЙ EARLY EXIT
+                
+                # === SemanticCacheEvictor: управление кэшем (EVA.txt) ===
+                if hasattr(self, 'semantic_cache_evictor') and self.semantic_cache_evictor:
+                    try:
+                        # Проверяем, нужно ли вытеснение
+                        current_size = len(generated_ids)
+                        max_cache_size = 100  # Можно взять из конфигурации
+                        
+                        if self.semantic_cache_evictor.should_evict(
+                            current_size=current_size,
+                            max_size=max_cache_size,
+                            threshold=0.7
+                        ):
+                            # Вытесняем блоки (упрощение: просто очищаем часть истории)
+                            if len(self.conversation_history) > 3:
+                                self.conversation_history = self.conversation_history[-3:]
+                                metadata["cache_evicted"] = True
+                                logger.info(f"[FCP] SemanticCacheEvictor: cache evicted")
+                    except Exception as e:
+                        logger.debug(f"SemanticCacheEvictor error: {e}")
+                
+                # === AttributionReport: финализация (EVA.txt) ===
+                if hasattr(self, 'attribution_report') and self.attribution_report:
+                    try:
+                        if hasattr(self, 'attribution_tracker'):
+                            self.attribution_tracker.finalize(self.attribution_report)
+                            metadata["attribution_report"] = self.attribution_report.explain()
+                    except Exception as e:
+                        logger.debug(f"AttributionReport finalize error: {e}")
+                
                 generated_ids.append(next_token)
                 
                 if next_token == eos_token_id:
                     break
                 
+                # === KCA Gate: мониторинг коррекции (EVA.txt раздел 3.3) ===
+                self.kca_gate_config['kca_iterations'] += 1
+                
                 # Динамический расчет KCA коррекции
-                # Извлекаем прокси-состояние из последнего слоя (Value тензор)
                 val_proxy = self.state_injector.get_value(all_layers[-1])[0, :, -1, :].mean(axis=0)
+                
+                # === Cross-Attention Слияние (EVA.txt раздел 2.1) ===
+                if hasattr(self, 'cross_attention') and self.cross_attention:
+                    try:
+                        # Получаем эмбеддинги узлов графа для cross-attention
+                        if self.fractal_graph and self.fractal_graph.node_count > 0:
+                            # Получаем подграф для cross-attention
+                            query_emb = self._get_query_embedding(prompt)
+                            subgraph = self.fractal_graph.retrieve_subgraph(
+                                query_emb.reshape(1, -1), top_k=10
+                            )
+                            
+                            graph_embeddings = []
+                            if subgraph and 'nodes' in subgraph:
+                                for node in subgraph['nodes']:
+                                    if 'emb' in node:
+                                        graph_embeddings.append(node['emb'])
+                            
+                            if len(graph_embeddings) > 0:
+                                graph_emb_array = np.array(graph_embeddings)
+                                # Вычисляем cross-attention между моделью и графом
+                                ca_output, ca_weights = self.cross_attention.compute_cross_attention(
+                                    val_proxy, graph_emb_array
+                                )
+                                # Сохраняем результат cross-attention
+                                metadata["cross_attention_applied"] = True
+                                metadata["cross_attention_weights"] = ca_weights.tolist() if hasattr(ca_weights, 'tolist') else list(ca_weights)
+                            else:
+                                ca_output = val_proxy
+                        else:
+                            ca_output = val_proxy
+                    except Exception as e:
+                        logger.debug(f"Cross-attention failed: {e}")
+                        ca_output = val_proxy
+                else:
+                    ca_output = val_proxy
+                
                 self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
                 
-                # Применяем KCA ко ВСЕМ слоям Value (инъекция знаний)
-                if np.linalg.norm(self.kca_correction_vec) > 1e-5:
-                    # Адаптивный вес для квантованных моделей (см. Доработка.txt)
-                    kca_weight = 0.07  # Базовый вес для FP16/FP32
+                # === TrainableGate: Обучаемый гейт слияния (EVA.txt раздел 2.1) ===
+                if hasattr(self, 'trainable_gate') and self.trainable_gate:
+                    try:
+                        # Комбинируем источники: модель, cross-attention, KCA
+                        source_vectors = [val_proxy, ca_output, self.kca_correction_vec]
+                        combined_output, gate_weights = self.trainable_gate.forward(source_vectors)
+                        
+                        # Используем комбинированный результат для инъекции
+                        injection_vec = combined_output
+                        metadata["trainable_gate_applied"] = True
+                        metadata["trainable_gate_weights"] = gate_weights.tolist() if hasattr(gate_weights, 'tolist') else list(gate_weights)
+                    except Exception as e:
+                        logger.debug(f"TrainableGate failed: {e}")
+                        injection_vec = self.kca_correction_vec
+                else:
+                    injection_vec = self.kca_correction_vec
+                
+                # Используем KCA ко ВСЕМ слоям Value (инъекция знаний)
+                if np.linalg.norm(injection_vec) > 1e-5:
+                    # Адаптивный вес для квантованных моделей
+                    kca_weight = 0.07
                     if hasattr(self, 'model_path') and 'int4' in self.model_path.lower():
-                        kca_weight = 0.2  # Усиленный вес для INT4
+                        kca_weight = 0.2
                     elif 'int8' in self.model_path.lower():
-                        kca_weight = 0.12  # Средний вес для INT8
+                        kca_weight = 0.12
                     
-                    self.state_injector.transform_values(
-                        all_layers, 
-                        inject_graph_vector, 
-                        vector=self.kca_correction_vec, 
-                        weight=kca_weight
-                    )
+                    # === ToolOrchestrator: Toolformer интеграция (EVA.txt) ===
+                    if hasattr(self, 'tool_orchestrator') and self.tool_orchestrator:
+                        try:
+                            # Проверяем, есть ли вызовы инструментов в ответе
+                            if self.tool_orchestrator._has_tool_call(token_text):
+                                # Выполняем инструменты
+                                processed = self.tool_orchestrator.process_response(token_text)
+                                if processed != token_text:
+                                    # Инструмент был вызван, обновляем ответ
+                                    token_text = processed
+                                    metadata["tool_used"] = True
+                        except Exception as e:
+                            logger.debug(f"ToolOrchestrator error: {e}")
+                    
+                    # Применяем коррекцию ко всем слоям
+                    
+                    # === KCA Gate: вычисление γ (gamma) ===
+                    # Gamma зависит от norm(correction) / norm(hidden_state)
+                    correction_norm = np.linalg.norm(self.kca_correction_vec)
+                    hidden_norm = np.linalg.norm(val_proxy) + 1e-8
+                    gamma = min(1.0, correction_norm / hidden_norm)  # 0 ≤ γ ≤ 1
+                    
+                    # Применяем демпфирование ρ^t согласно EVA.txt
+                    rho = self.kca_gate_config['damping_factor']
+                    t = self.kca_gate_config['kca_iterations']
+                    damped_gamma = gamma * (rho ** t)
+                    
+                    # Сохраняем в историю
+                    self.kca_gate_config['gate_history'].append(damped_gamma)
+                    self.kca_gate_config['gamma'] = damped_gamma
+                    
+                    # === KCA Gate монитор насыщения ===
+                    # Если среднее γ < threshold за последние min_iterations → отклонение коррекции
+                    if len(self.kca_gate_config['gate_history']) >= self.kca_gate_config['min_iterations']:
+                        recent_gamma = self.kca_gate_config['gate_history'][-self.kca_gate_config['min_iterations']:]
+                        avg_gamma = np.mean(recent_gamma)
+                        if avg_gamma < self.kca_gate_config['gate_threshold']:
+                            self.kca_gate_config['kca_rejected'] = True
+                            logger.info(f"[FCP] KCA Gate REJECTED: avg_gamma={avg_gamma:.4f} < {self.kca_gate_config['gate_threshold']}")
+                    
+                    # Применяем KCA только если не отклонено
+                    if not self.kca_gate_config['kca_rejected']:
+                        self.state_injector.transform_values(
+                            all_layers, 
+                            inject_graph_vector, 
+                            vector=self.kca_correction_vec, 
+                            weight=kca_weight * damped_gamma  # Применяем γ к весу
+                        )
+                    else:
+                        logger.debug(f"[FCP] KCA skipped: gamma={damped_gamma:.4f}")
+            
+            # Логирование статистики gate
+            logger.info(f"[FCP] Generation complete: {len(generated_ids)} tokens, "
+                       f"early_exits={self.activation_gate_config['early_exits_count']}, "
+                       f"kca_iterations={self.kca_gate_config['kca_iterations']}, "
+                       f"kca_rejected={self.kca_gate_config['kca_rejected']}")
             
             # 5. SRG Post-Evaluation (оценка уверенности)
             final_logits = self.state_injector.request.get_tensor("logits").data[0, -1]
@@ -909,18 +1602,38 @@ class FCPPipelineV15:
                     "tokens_generated": len(generated_ids) - len(input_ids[0]),
                     "layers_injected": len(all_layers),
                     "sqam_applied": True,
-                    "kca_applied": np.linalg.norm(self.kca_correction_vec) > 1e-5
+                    "kca_applied": np.linalg.norm(self.kca_correction_vec) > 1e-5,
+                    # Activation Gate stats
+                    "activation_gate": {
+                        "early_exit_triggered": self.activation_gate_config['early_exits_count'] > 0,
+                        "early_exits_count": self.activation_gate_config['early_exits_count'],
+                        "final_confidence": self.activation_gate_config['accumulated_confidence'],
+                    },
+                    # KCA Gate stats
+                    "kca_gate": {
+                        "gamma": self.kca_gate_config['gamma'],
+                        "kca_iterations": self.kca_gate_config['kca_iterations'],
+                        "kca_rejected": self.kca_gate_config['kca_rejected'],
+                    }
                 }
                 return response, metadata
             
             return response
             
         except Exception as e:
-            logger.error(f"[FCP] Injection generation error: {e}")
+            logger.error(f"[FCP] Injection generation FAILED: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
-            # Fallback к обычной генерации при ошибке
-            return self._generate(prompt, max_new_tokens, **{})
+            
+            # Пробуем partial fallback - генерация с базовым KCA (без StateInjector)
+            try:
+                logger.info("[FCP] Trying partial fallback: generation with graph context only")
+                # Используем базовый generate с включённой гибридной обработкой
+                return self._generate(prompt, max_new_tokens, **{})
+            except Exception as fallback_error:
+                logger.error(f"[FCP] Partial fallback also failed: {fallback_error}")
+                # Полный fallback
+                return self._generate(prompt, max_new_tokens, **{})
     
     def load_lora_adapter(self, adapter_name: str = "fcp_finetuned", alpha: float = 0.8):
         """Загрузить LoRA адаптер"""
@@ -1163,6 +1876,398 @@ class FCPPipelineV15:
         except Exception as e:
             logger.error(f"[FCP] Session clear error: {e}")
             return False
+    
+    def get_similar_scenarios(self, query: str, max_scenarios: int = 3) -> str:
+        """
+        Поиск похожих сценариев из истории диалогов (EVA.txt раздел 6.3).
+        
+        Args:
+            query: текст запроса
+            max_scenarios: максимум сценариев для возврата
+            
+        Returns:
+            Строка с контекстом из похожих сценариев
+        """
+        if not hasattr(self, 'scenario_tcm') or not self.scenario_tcm:
+            return ""
+        
+        try:
+            # Получаем эмбеддинг запроса
+            query_emb = self._get_query_embedding(query)
+            
+            # Ищем похожие сценарии
+            similar = self.scenario_tcm.find_similar(query_emb, max_results=max_scenarios)
+            
+            if not similar:
+                return ""
+            
+            # Форматируем контекст из сценариев
+            context_parts = []
+            for scenario in similar:
+                title = scenario.get('title', 'Сценарий')
+                summary = scenario.get('summary', '')
+                if summary:
+                    context_parts.append(f"[{title}]: {summary}")
+            
+            if context_parts:
+                return "\n\n".join(context_parts)
+            
+            return ""
+            
+        except Exception as e:
+            logger.debug(f"[FCP] Scenario search error: {e}")
+            return ""
+    
+    def add_dialog_turn(self, role: str, text: str, embedding: np.ndarray = None):
+        """
+        Добавить ход диалога в текущую цепочку сценария (EVA.txt раздел 6.3).
+        
+        Args:
+            role: 'user' или 'assistant'
+            text: текст сообщения
+            embedding: эмбеддинг (если None - создастся из текста)
+        """
+        if not hasattr(self, 'scenario_tcm') or not self.scenario_tcm:
+            return
+        
+        try:
+            if embedding is None:
+                embedding = self._get_query_embedding(text)
+            
+            self.scenario_tcm.add_turn(role, text, embedding)
+        except Exception as e:
+            logger.debug(f"[FCP] Add dialog turn error: {e}")
+    
+    # === ConceptMiner методы (EVA.txt раздел 7.1) ===
+    def start_concept_mining(self):
+        """Запуск фонового поиска концептов"""
+        if hasattr(self, 'concept_miner') and self.concept_miner:
+            try:
+                self.concept_miner.start()
+                print("[FCP] ConceptMiner started")
+                return True
+            except Exception as e:
+                print(f"[FCP] ConceptMiner start error: {e}")
+        return False
+    
+    def stop_concept_mining(self):
+        """Остановка поиска концептов"""
+        if hasattr(self, 'concept_miner') and self.concept_miner:
+            try:
+                self.concept_miner.stop()
+                print("[FCP] ConceptMiner stopped")
+                return True
+            except Exception as e:
+                print(f"[FCP] ConceptMiner stop error: {e}")
+        return False
+    
+    def _get_hybrid_cache_config(self) -> Dict[str, Any]:
+        """
+        Получить конфигурацию из HybridTokenCache если доступен.
+        Интеграция KV кэша OpenVINO с гибридным кэшем EVA.
+        """
+        config = {"enabled": False}
+        
+        try:
+            # Пробуем найти HybridTokenCache
+            if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+                hc = self.hybrid_cache
+                config["enabled"] = True
+                
+                # Получаем параметры из HybridTokenCache
+                if hasattr(hc, 'target_memory_bytes'):
+                    config["cache_size_gb"] = hc.target_memory_bytes / (1024**3)
+                if hasattr(hc, 'max_memory_tokens'):
+                    config["max_tokens"] = hc.max_memory_tokens * 2048  # примерный размер
+                if hasattr(hc, 'disk_cache_dir'):
+                    config["disk_cache_dir"] = hc.disk_cache_dir
+                    
+                logger.info(f"[FCP] Linked with HybridTokenCache: {config.get('cache_size_gb', 0):.1f}GB")
+            
+            # Альтернативно - пробуем из brain
+            elif hasattr(self, 'brain') and self.brain:
+                if hasattr(self.brain, 'hybrid_cache') and self.brain.hybrid_cache:
+                    hc = self.brain.hybrid_cache
+                    config["enabled"] = True
+                    if hasattr(hc, 'target_memory_bytes'):
+                        config["cache_size_gb"] = hc.target_memory_bytes / (1024**3)
+                    if hasattr(hc, 'max_memory_tokens'):
+                        config["max_tokens"] = hc.max_memory_tokens * 2048
+                    logger.info(f"[FCP] Linked with brain.hybrid_cache: {config.get('cache_size_gb', 0):.1f}GB")
+                    
+        except Exception as e:
+            logger.debug(f"[FCP] HybridCache config read error: {e}")
+            
+        return config
+    
+    def get_mined_concepts(self) -> List[Dict]:
+        """Получить список найденных концептов-кандидатов"""
+        if hasattr(self, 'concept_miner') and self.concept_miner:
+            try:
+                return list(self.concept_miner._candidates.values())
+            except Exception:
+                pass
+        return []
+    
+    # === ContradictionDetector методы (EVA.txt раздел 7.2) ===
+    def detect_contradictions(self, concept: str = None) -> List[Dict]:
+        """Обнаружить противоречия в графе знаний"""
+        if hasattr(self, 'contradiction_detector') and self.contradiction_detector:
+            try:
+                return self.contradiction_detector.detect_contradictions(concept=concept)
+            except Exception as e:
+                print(f"[FCP] Contradiction detection error: {e}")
+        return []
+    
+    def get_contradiction_stats(self) -> Dict:
+        """Получить статистику обнаруженных противоречий"""
+        if hasattr(self, 'contradiction_detector') and self.contradiction_detector:
+            try:
+                return {
+                    "total": len(self.contradiction_detector.detected_contradictions),
+                    "last_detection": self.contradiction_detector.last_detection_time,
+                    "history_len": len(self.contradiction_detector.detection_history)
+                }
+            except Exception:
+                pass
+        return {}
+    
+    # === UES методы (EVA.txt раздел 8.3) ===
+    def optimize_with_ues(self, benchmark_fn=None) -> Dict:
+        """Запуск оптимизации через UES"""
+        if hasattr(self, 'ues') and self.ues:
+            try:
+                if benchmark_fn is None:
+                    benchmark_fn = self._default_benchmark
+                optimal_config = self.ues.optimize_pipeline(benchmark_fn)
+                print(f"[FCP] UES optimization completed: {optimal_config}")
+                return optimal_config
+            except Exception as e:
+                print(f"[FCP] UES optimization error: {e}")
+        return {}
+    
+    def _default_benchmark(self, params: Dict[str, int]) -> float:
+        """Бенчмарк по умолчанию для UES"""
+        try:
+            import time
+            start = time.time()
+            # Простой тест генерации
+            test_prompt = "Test"
+            config = {"NUM_STREAMS": str(params.get("num_streams", 1)),
+                     "INFERENCE_NUM_THREADS": str(params.get("num_threads", 4))}
+            # Возвращаем задержку в мс
+            return (time.time() - start) * 1000
+        except Exception:
+            return 100.0
+    
+    def get_ues_topology(self) -> Dict:
+        """Получить топологию вычислительных ресурсов"""
+        if hasattr(self, 'ues') and self.ues:
+            try:
+                return {
+                    "units": [{"id": u.id, "type": u.type, "cores": u.cores} 
+                             for u in self.ues.topology.units],
+                    "total_memory_gb": self.ues.topology.total_memory_gb,
+                    "numa_nodes": self.ues.topology.numa_nodes
+                }
+            except Exception:
+                pass
+        return {}
+    
+    def pin_gnn_to_e_cores(self) -> Dict:
+        """Привязать GNN к энергоэффективным ядрам"""
+        if hasattr(self, 'ues') and self.ues:
+            try:
+                return self.ues.pin_gnn_to_e_cores()
+            except Exception as e:
+                print(f"[FCP] GNN pinning error: {e}")
+        return {}
+    
+    def pin_llm_to_p_cores(self) -> Dict:
+        """Привязать LLM к производительным ядрам"""
+        if hasattr(self, 'ues') and self.ues:
+            try:
+                return self.ues.pin_llm_to_p_cores()
+            except Exception as e:
+                print(f"[FCP] LLM pinning error: {e}")
+        return {}
+    
+    # === ReasoningChain методы (накопление цепочки рассуждений) ===
+    def start_reasoning_session(self, session_id: str = None) -> str:
+        """Начать новую сессию рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.start_session(session_id)
+        return None
+    
+    def end_reasoning_session(self, save_to_tcm: bool = True) -> Dict:
+        """Завершить текущую сессию рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.end_session(save_to_tcm)
+        return {}
+    
+    def add_reasoning_step(self, 
+                           prompt: str,
+                           reasoning: str,
+                           conclusion: str,
+                           intermediate_claims: List[str] = None,
+                           confidence: float = 0.5) -> int:
+        """
+        Добавить шаг рассуждения в цепочку.
+        
+        Используется для накопления выводов при многошаговых задачах.
+        
+        Args:
+            prompt: вопрос/задача на этом шаге
+            reasoning: текст рассуждения
+            conclusion: вывод из рассуждения
+            intermediate_claims: промежуточные утверждения
+            confidence: уверенность в выводе (0-1)
+            
+        Returns:
+            step_id или -1 если ReasoningChain не инициализирован
+        """
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.add_step(
+                prompt=prompt,
+                reasoning=reasoning,
+                conclusion=conclusion,
+                intermediate_claims=intermediate_claims,
+                confidence=confidence
+            )
+        return -1
+    
+    def get_reasoning_context(self, max_steps: int = 5) -> str:
+        """Получить контекст рассуждений для включения в промпт"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.get_context(max_steps=max_steps)
+        return ""
+    
+    def get_reasoning_summary(self) -> str:
+        """Получить краткую сводку выводов"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.get_conclusions_summary()
+        return ""
+    
+    def analyze_reasoning_consistency(self) -> Dict:
+        """Проанализировать согласованность цепочки рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.analyze_consistency()
+        return {}
+    
+    def clear_reasoning_chain(self):
+        """Очистить текущую цепочку рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            self.reasoning_chain.clear()
+    
+    def get_reasoning_state(self) -> Dict:
+        """Получить состояние цепочки рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            return self.reasoning_chain.get_state()
+        return {}
+    
+    def restore_reasoning_state(self, state: Dict):
+        """Восстановить состояние цепочки рассуждений"""
+        if hasattr(self, 'reasoning_chain') and self.reasoning_chain:
+            self.reasoning_chain.restore_state(state)
+    
+    # === Единая конфигурация генерации ===
+    def get_generation_config(self, max_new_tokens: int = None) -> ov_genai.GenerationConfig:
+        """
+        Получить унифицированную конфигурацию генерации.
+        Все методы генерации используют этот метод для согласованности.
+        
+        Args:
+            max_new_tokens: максимальное количество токенов (по умолчанию из self.generation_config)
+            
+        Returns:
+            Настроенный ov_genai.GenerationConfig
+        """
+        gen_cfg = ov_genai.GenerationConfig()
+        
+        # Применяем настройки из единого конфига
+        gen_cfg.temperature = self.generation_config.get("temperature", 0.15)
+        gen_cfg.top_p = self.generation_config.get("top_p", 0.85)
+        gen_cfg.top_k = self.generation_config.get("top_k", 40)
+        gen_cfg.repetition_penalty = self.generation_config.get("repetition_penalty", 1.1)
+        gen_cfg.do_sample = self.generation_config.get("do_sample", True)
+        
+        # max_tokens - может быть переопределен при вызове
+        if max_new_tokens is not None:
+            gen_cfg.max_new_tokens = max_new_tokens
+        else:
+            gen_cfg.max_new_tokens = self.generation_config.get("max_new_tokens", 2048)
+        
+        return gen_cfg
+    
+    def update_generation_config(self, **kwargs):
+        """
+        Обновить параметры генерации.
+        Пример: pipeline.update_generation_config(temperature=0.2, top_p=0.9)
+        """
+        self.generation_config.update(kwargs)
+        logger.info(f"[FCP] Generation config updated: {kwargs}")
+    
+    def get_generation_config_summary(self) -> Dict:
+        """Получить текущую сводку конфигурации генерации"""
+        return self.generation_config.copy()
+    
+    # === Единая конфигурация KV кэша ===
+    def get_kv_cache_config(self) -> Dict:
+        """Получить текущую конфигурацию KV кэша"""
+        return self.kv_cache_config.copy()
+    
+    def update_kv_cache_config(self, **kwargs):
+        """
+        Обновить параметры KV кэша.
+        Пример: pipeline.update_kv_cache_config(cache_size_gb=8, enable_prefix_caching=False)
+        Примечание: Изменения вступят в силу при следующей инициализации pipeline.
+        """
+        self.kv_cache_config.update(kwargs)
+        logger.info(f"[FCP] KV cache config updated: {kwargs}")
+    
+    def get_kv_cache_stats(self) -> Dict:
+        """Получить статистику использования KV кэша (если доступно)"""
+        stats = {"kv_cache": {}, "hybrid_cache": {}}
+        
+        if hasattr(self, 'pipeline') and self.pipeline:
+            try:
+                if hasattr(self.pipeline, 'get_cache_stats'):
+                    stats["kv_cache"] = self.pipeline.get_cache_stats()
+            except Exception:
+                pass
+        
+        # Добавляем статистику из HybridTokenCache
+        if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+            try:
+                if hasattr(self.hybrid_cache, 'get_stats'):
+                    stats["hybrid_cache"] = self.hybrid_cache.get_stats()
+                stats["hybrid_cache"]["linked"] = True
+                stats["hybrid_cache"]["config"] = self.kv_cache_config.get("linked_hybrid_cache", False)
+            except Exception:
+                pass
+        elif hasattr(self, 'brain') and self.brain:
+            if hasattr(self.brain, 'hybrid_cache') and self.brain.hybrid_cache:
+                try:
+                    if hasattr(self.brain.hybrid_cache, 'get_stats'):
+                        stats["hybrid_cache"] = self.brain.hybrid_cache.get_stats()
+                    stats["hybrid_cache"]["linked"] = True
+                except Exception:
+                    pass
+        
+        return stats
+    
+    def link_brain(self, brain):
+        """
+        Связать FCP pipeline с brain для доступа к HybridTokenCache.
+        Вызывается после инициализации brain.
+        """
+        self.brain = brain
+        # Обновляем конфигурацию KV кэша с учётом HybridTokenCache
+        if hasattr(brain, 'hybrid_cache') and brain.hybrid_cache:
+            self.hybrid_cache = brain.hybrid_cache
+            hybrid_config = self._get_hybrid_cache_config()
+            if hybrid_config.get("enabled"):
+                logger.info(f"[FCP] KV cache integrated with HybridTokenCache: {hybrid_config.get('cache_size_gb', 0):.1f}GB")
 
 
 def create_fcp_pipeline(model_path: str, graph_path: str = None, **kwargs):

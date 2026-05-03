@@ -207,7 +207,7 @@ def _init_llama_cpp(brain):
             from eva_ai.mlearning.hot_deployment.llama_cpp_hot import LlamaCppHotDeployment
             brain.llama_cpp_deployment = LlamaCppHotDeployment(
                 model_path=model_config.get('gguf_model_path', ''),
-                n_ctx=model_config.get('llama_cpp_n_ctx', 4096),
+                n_ctx=model_config.get('llama_cpp_n_ctx', 2048),
                 n_threads=model_config.get('llama_cpp_threads', os.cpu_count() or 12)
             )
             if brain.llama_cpp_deployment.initialize(preload_root=True):
@@ -255,7 +255,7 @@ def _init_fcp_pipeline(brain):
         model_path = fcp_config.get('model_path')
         if not model_path:
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            model_path = os.path.join(project_root, 'models', 'ruadapt_qwen3_4b_openvino_ModelB')
+            model_path = os.path.join(project_root, 'fmf_model', 'model.ov')
         
         graph_path = fcp_config.get('graph_path')
         gnn_ov_path = fcp_config.get('gnn_ov_path')
@@ -914,7 +914,7 @@ def _init_unified_generator(brain):
         
         model_path = fcp_config.get('model_path')
         if not model_path:
-            model_path = os.path.join(project_root, 'models', 'ruadapt_qwen3_4b_openvino_ModelB')
+            model_path = os.path.join(project_root, 'fmf_model', 'model.ov')
         
         query_logger.info(f"Model path: {model_path}, exists: {os.path.exists(model_path)}")
         
@@ -1041,7 +1041,7 @@ def _init_hybrid_dialog_manager(brain):
             device=device,
             enable_validation=True,
             max_history=50,
-            max_tokens=4096,
+            max_tokens=2048,
             temperature=0.7
         )
         

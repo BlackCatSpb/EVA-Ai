@@ -7,6 +7,7 @@ FCP Core Components - KCA, SRG, ConvergenceController, Types
 - Convergence Controller
 - FractalGraphV2
 - FCP Types (Subgraph, LayerState, HaltDecision, etc.)
+- ReasoningChain (накопление цепочки рассуждений)
 """
 import numpy as np
 from scipy.special import softmax
@@ -26,6 +27,7 @@ from eva_ai.fcp_core.output_layer import OutputLayer, SamplingResult, FCPPipelin
 from eva_ai.fcp_core.adaptive_lora import AdaLoRALayer, AdaLoRALinear
 from eva_ai.fcp_core.learning_orchestrator import LearningGraphManager
 from eva_ai.fcp_core.shadow_lora import ShadowLoRAManager
+from eva_ai.fcp_core.reasoning_chain import ReasoningChain, ReasoningChainManager
 from eva_ai.fcp_core.types import (
     Subgraph,
     MemorySegment,
