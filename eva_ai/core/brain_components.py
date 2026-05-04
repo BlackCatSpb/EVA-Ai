@@ -931,20 +931,17 @@ def _init_unified_generator(brain):
         lora_dir = fcp_config.get('lora_dir')
         
         query_logger.info("Creating FCPPipelineV15 instance...")
-        pipeline = FCPPipelineV15(
-            graph_path=graph_path,
+        pipeline = FCPipeline(
             gnn_ov_path=gnn_ov_path,
             lora_dir=lora_dir
         )
         query_logger.info(f"FCPPipelineV15 created: {type(pipeline)}")
-        
         brain.fcp_pipeline = pipeline
         brain.fcp_pipeline_ready = True
         brain.two_model_pipeline = pipeline
         brain.two_model_pipeline_ready = True
         
         query_logger.info(f"FCPPipelineV15 ready!")
-        
     except Exception as e:
         import traceback
         query_logger.error(f"ERROR: {e}")

@@ -799,15 +799,15 @@ def create_fcp_pipeline(initializer):
         lora_dir = config.get('lora_dir')
         
         initializer.logger.info(f"[FCP] Creating FCPPipelineV15...")
-        pipeline = FCPPipelineV15(
-            model_path=model_path,
+        initializer.logger.info(f"[FCP] Creating FCPipeline instance...")
+        pipeline = FCPipeline(
             graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
             lora_dir=lora_dir
         )
         
         initializer.logger.info(f"[FCP] FCPPipelineV15 created: {pipeline}")
-        initializer.logger.info(f"[FCP] inner pipeline: {getattr(pipeline, 'pipeline', 'NO ATTR')}")
+        initializer.logger.info(f"[FCP] FCPipeline created: {pipeline}")
         
         initializer.core_brain.fcp_pipeline = pipeline
         if hasattr(initializer.core_brain, 'components'):
