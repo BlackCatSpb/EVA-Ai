@@ -932,6 +932,8 @@ def _init_unified_generator(brain):
         
         query_logger.info("Creating FCPPipelineV15 instance...")
         pipeline = FCPipeline(
+            model_path=model_path,
+            graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
             lora_dir=lora_dir
         )

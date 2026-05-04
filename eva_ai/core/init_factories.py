@@ -801,6 +801,7 @@ def create_fcp_pipeline(initializer):
         initializer.logger.info(f"[FCP] Creating FCPPipelineV15...")
         initializer.logger.info(f"[FCP] Creating FCPipeline instance...")
         pipeline = FCPipeline(
+            model_path=model_path,
             graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
             lora_dir=lora_dir
