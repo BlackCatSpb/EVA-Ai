@@ -773,7 +773,7 @@ def create_fcp_pipeline(initializer):
     """Создаёт FCPPipelineV15 - основной FCP пайплайн с GNN инъекцией."""
     initializer.logger.info("[FCP] === create_fcp_pipeline STARTED ===")
     try:
-        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        from eva_ai.core.fcp_pipeline import FCPipeline
         
         config = initializer.core_brain.config.get('fcp', {})
         initializer.logger.info(f"[FCP] config: {config}")
