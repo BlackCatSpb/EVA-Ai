@@ -433,7 +433,11 @@ def _init_qwen_config(brain):
 
 def _init_background(brain):
     try:
-        from .background_coordinator import BackgroundCoordinator, Policies
+        try:
+            from .background_coordinator import BackgroundCoordinator, Policies
+        except ImportError:
+            query_logger.warning("background_coordinator module not found, skipping")
+            return
         brain.background = BackgroundCoordinator(
             brain=brain, deferred_system=getattr(brain, 'deferred_system', None),
             resource_manager=getattr(brain, 'resource_manager', None),
@@ -907,7 +911,7 @@ def _init_unified_generator(brain):
         
         # Debug: проверяем импорт
         query_logger.info("Importing FCPPipelineV15...")
-        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        from eva_ai.core.fcp_pipeline import FCPipeline
         query_logger.info("Import OK")
         
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
