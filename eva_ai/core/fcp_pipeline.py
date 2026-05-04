@@ -101,7 +101,7 @@ except ImportError:
     HAS_TRANSFORMERS = False
 
 
-class FCPPipelineV15:
+class FCPipeline:
     """Основной FCP Pipeline с KCA и SRG"""
 
     def __init__(
