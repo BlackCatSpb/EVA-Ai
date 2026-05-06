@@ -301,12 +301,6 @@ def register_chat_routes(app, web_gui_instance):
                     # Генерируем со стримингом чанков
                     full_text = ""
                     chunk_count = 0
-                    reasoning_steps = []
-                    
-                    # State machine для парсинга reasoning из стрима
-                    in_reasoning = False
-                    reasoning_buffer = ""
-                    reasoning_step_num = 0
                     
                     for chunk_data in pipeline.generate_streaming(
                         prompt=enhanced_message,
@@ -316,44 +310,47 @@ def register_chat_routes(app, web_gui_instance):
                         task_type="context"
                     ):
                         chunk_type = chunk_data.get('type', 'chunk')
-                        chunk_text = chunk_data.get('text', '')
                         
-                        if chunk_text:
-                            # Парсим reasoning tags из стрима
-                            remaining = chunk_text
-                            while remaining:
-                                if not in_reasoning:
-                                    # Ищем начало reasoning
-                                    start_idx = remaining.find('<think>')
-                                    if start_idx != -1:
-                                        in_reasoning = True
-                                        reasoning_buffer = ""
-                                        remaining = remaining[start_idx + len('<think>'):]
-                                    else:
-                                        # Это часть ответа — накапливаем
-                                        full_text += remaining
-                                        chunk_count += 1
-                                        remaining = ""
-                                else:
-                                    # Внутри reasoning — ищем конец
-                                    end_idx = remaining.find('</think>')
-                                    if end_idx != -1:
-                                        reasoning_buffer += remaining[:end_idx]
-                                        remaining = remaining[end_idx + len('</think>'):]
-                                        in_reasoning = False
-                                        # Отправляем reasoning step
-                                        reasoning_step_num += 1
-                                        step_data = {
-                                            'step': reasoning_step_num,
-                                            'phase': 'thinking',
-                                            'thought': reasoning_buffer.strip(),
-                                            'confidence': 0.8
-                                        }
-                                        reasoning_steps.append(step_data)
-                                        yield f"data: {json.dumps({
-                                            'type': 'reasoning_step',
-                                            'step': step_data
-                                        })}\n\n"
+                        # Просто передаём события от pipeline кліенту
+                        # pipeline.generate_streaming() уже отправляет:
+                        # - reasoning_start, reasoning_text, reasoning_end
+                        # - chunk (текст ответа)
+                        # - done (финальное событие)
+                        
+                        if chunk_type == 'chunk':
+                            # Текст ответа
+                            chunk_text = chunk_data.get('text', '')
+                            if chunk_text:
+                                full_text += chunk_text
+                                chunk_count += 1
+                                yield f"data: {json.dumps(chunk_data)}\n\n"
+                        
+                        elif chunk_type in ['reasoning_start', 'reasoning_text', 'reasoning_end', 'start', 'done']:
+                            # События reasoning — передаём как есть
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                        
+                        elif chunk_type == 'error':
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
+                            break
+                        
+                        # Если это финальный чанк (is_final или done)
+                        if chunk_data.get('is_final', False) or chunk_type == 'done':
+                            break
+                    
+                    # Сохраняем в историю
+                    if session_id and full_text:
+                        web_ui_instance.session_manager.add_chat_message(
+                            session_id, 'assistant', full_text
+                        )
+                    
+                    # Отправляем завершение если не было отправлено
+                    if chunk_data.get('type') != 'done':
+                        yield f"data: {json.dumps({
+                            'type': 'done',
+                            'full_text': full_text,
+                            'chunks_sent': chunk_count,
+                            'reasoning': None
+                        })}\n\n"
                                     else:
                                         reasoning_buffer += remaining
                                         remaining = ""
