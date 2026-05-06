@@ -10,15 +10,14 @@ import openvino as ov
 from typing import Optional, Tuple, Dict, List, Callable
 import os
 
-MODEL_PATH = "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml"
-
 class SplitModelRunner:
     """
     Split LLM into Part1 and Part2 for GNN injection.
     Also provides layer-by-layer analysis for ConceptMiner/ContradictionMiner.
     """
 
-    def __init__(self, split_layer: int = 6, device: str = "CPU"):
+    def __init__(self, model_path: str = None, split_layer: int = 6, device: str = "CPU"):
+        self.model_path = model_path or "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml"
         self.split_layer = split_layer
         self.device = device
         self.core = ov.Core()
@@ -31,7 +30,7 @@ class SplitModelRunner:
         # Layer analysis: cache of single-layer extraction models
         self._single_layer_models = {}
 
-        print(f"SplitModelRunner initialized: split_layer={split_layer}")
+        print(f"SplitModelRunner initialized: model_path={self.model_path}, split_layer={split_layer}")
 
     def load_models(self):
         """Load Part1 and Part2 models."""
@@ -39,9 +38,12 @@ class SplitModelRunner:
         print("LOADING MODELS")
         print("=" * 60)
 
+        if not os.path.exists(self.model_path):
+            raise FileNotFoundError(f"Model not found: {self.model_path}")
+
         # Create Part1 with add_outputs
         print("\n--- Creating Part1 (add_outputs approach) ---")
-        part1_model = self.core.read_model(MODEL_PATH)
+        part1_model = self.core.read_model(self.model_path)
 
         target_op = None
         for op in part1_model.get_ops():

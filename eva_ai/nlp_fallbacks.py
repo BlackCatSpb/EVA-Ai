@@ -388,12 +388,24 @@ def tokenize(text: str) -> List[str]:
     return _processor.tokenize_text(text, method='advanced')
 
 
+class DummyProcessor:
+    """Fallback processor when TextProcessor is not available."""
+    stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+                  'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+                  'should', 'may', 'might', 'must', 'shall', 'can', 'need', 'dare',
+                  'и', 'в', 'не', 'на', 'я', 'быть', 'он', 'она', 'это', 'что', 'как'}
+    def analyze_sentiment(self, text, detailed=False):
+        return {'pos': 0.0, 'neu': 1.0, 'neg': 0.0, 'compound': 0.0}
+    def tokenize_text(self, text, method='basic'):
+        return text.split()
+
+_processor = DummyProcessor()
+
 def get_stopwords(languages=("english", "russian")) -> Set[str]:
     """
     Возвращает множество стоп-слов для указанных языков.
     В текущей реализации стоп-слова едины для всех языков.
     """
-    # Возвращаем копию, чтобы избежать случайного изменения оригинального множества
     return set(_processor.stop_words)
 
 

@@ -23,11 +23,13 @@ logger = logging.getLogger("eva_ai.core.hybrid_layer_pipeline")
 
 from eva_ai.fcp_core import (
     FCPConfig,
-    FractalGraphV2,
     ConvergenceController,
     KnowledgeConsciousAttention,
     SemanticRelevanceGate
 )
+
+# FractalGraphV2 Singleton
+from eva_ai.memory.fractal_graph_v2 import get_fractal_graph
 from eva_ai.fcp_gnn import (
     HybridLayerConfig,
     HybridLayerProcessor,
@@ -48,7 +50,7 @@ class HybridLayerPipeline:
     def __init__(
         self,
         openvino_model_path: str,
-        transformer_model_path: str,
+        transformer_model_path: str = None,
         graph_path: Optional[str] = None,
         lora_dir: Optional[str] = None,
         num_layers: int = 32,
@@ -58,7 +60,14 @@ class HybridLayerPipeline:
         injection_scale: float = 0.1
     ):
         self.openvino_model_path = openvino_model_path
-        self.transformer_model_path = transformer_model_path.replace('qwen_layer_model.pt', 'qwenlayermodel.pt')
+        
+        # Use correct transformer model path
+        if transformer_model_path:
+            self.transformer_model_path = transformer_model_path.replace('qwen_layer_model.pt', 'qwenlayermodel.pt')
+        else:
+            # Default to the correct model file
+            self.transformer_model_path = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\qwenlayermodel.pt"
+        
         self.graph_path = graph_path
         self.lora_dir = lora_dir
         self.num_layers = num_layers
@@ -86,91 +95,53 @@ class HybridLayerPipeline:
         logger.info("[HybridLayerPipeline] Initialized successfully")
 
     def _init_fractal_graph(self):
-        """Инициализация FractalGraphV2"""
-        if self.graph_path and os.path.exists(self.graph_path):
-            try:
-                self.fractal_graph = FractalGraphV2.load(self.graph_path)
-                logger.info(f"[HybridLayerPipeline] Graph loaded: {self.fractal_graph.node_count} nodes")
-            except Exception as e:
-                logger.warning(f"[HybridLayerPipeline] Graph load failed: {e}")
-                self.fractal_graph = FractalGraphV2(config=self.fcp_config)
-        else:
-            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
-            logger.info("[HybridLayerPipeline] Empty graph created")
+        """Инициализация FractalGraphV2 (use singleton)"""
+        graph_dir = self.graph_path if self.graph_path else "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data"
+        
+        try:
+            self.fractal_graph = get_fractal_graph(storage_dir=graph_dir, lazy=True)
+            logger.info(f"[HybridLayerPipeline] Graph singleton loaded: {self.fractal_graph.node_count} nodes")
+        except Exception as e:
+            logger.warning(f"[HybridLayerPipeline] Graph singleton init failed: {e}")
+            self.fractal_graph = None
 
     def _init_openvino_pipeline(self):
         """Инициализация OpenVINO LLMPipeline для генерации"""
         try:
             import openvino_genai as ov_genai
-            HAS_OV = True
         except ImportError:
             logger.warning("[HybridLayerPipeline] OpenVINO GenAI not available")
-            HAS_OV = False
             self.openvino_pipeline = None
             return
         
         if not os.path.exists(self.openvino_model_path):
             logger.warning(f"[HybridLayerPipeline] OpenVINO model not found: {self.openvino_model_path}")
-            return
-        
-        try:
-            scheduler = ov_genai.SchedulerConfig()
-            scheduler.cache_size = 4
-            scheduler.max_num_seqs = 1
-            scheduler.max_num_batched_tokens = 4096
-            scheduler.enable_prefix_caching = True
-            scheduler.use_cache_eviction = True
-            
-            gen_config = ov_genai.GenerationConfig()
-            gen_config.max_new_tokens = 4096
-            gen_config.temperature = 0.2
-            gen_config.top_p = 0.9
-            gen_config.top_k = 40
-            gen_config.repetition_penalty = 1.1
-            gen_config.do_sample = True
-            
-            # Load REGULAR Qwen model (NOT hybrid - hybrid processing is done separately)
-            logger.info(f"[HybridLayerPipeline] Loading Qwen model from {self.openvino_model_path}")
-            self.openvino_pipeline = ov_genai.LLMPipeline(self.openvino_model_path, "CPU",
-                                                           config={"scheduler_config": scheduler})
-            self.openvino_pipeline.set_generation_config(gen_config)
-            logger.info("[HybridLayerPipeline] OpenVINO pipeline loaded (regular Qwen)")
-            
-        except Exception as e:
-            logger.error(f"[HybridLayerPipeline] OpenVINO init failed: {e}")
             self.openvino_pipeline = None
             return
         
-        # Use hybrid OpenVINO model (quantized weights)
+        # Try hybrid model first, fallback to regular
         hybrid_model_dir = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\hybrid_openvino"
+        model_to_load = self.openvino_model_path
         
-        # Check if hybrid model is valid (must have model.xml and a valid model.bin)
-        hybrid_valid = False
         if os.path.exists(hybrid_model_dir):
             xml_path = os.path.join(hybrid_model_dir, 'model.xml')
             bin_path = os.path.join(hybrid_model_dir, 'model.bin')
             if os.path.exists(xml_path) and os.path.exists(bin_path):
-                # Check if .bin is valid (not a corrupted .npz)
+                # Check if .bin is valid (not a corrupted .npz/ZIP)
                 try:
                     with open(bin_path, 'rb') as f:
                         header = f.read(4)
-                        # Valid .bin should NOT be a ZIP file
-                        if header != b'PK\x03\x04':
-                            hybrid_valid = True
-                        else:
-                            logger.warning(f"[HybridLayerPipeline] model.bin is corrupted (ZIP header), skipping hybrid model")
-                except Exception:
-                    pass
-        
-        if not hybrid_valid:
-            logger.warning("[HybridLayerPipeline] Hybrid OpenVINO model not valid, using regular model")
-            hybrid_model_dir = self.openvino_model_path
+                    if header != b'PK\x03\x04':  # Not a ZIP file
+                        model_to_load = hybrid_model_dir
+                        logger.info(f"[HybridLayerPipeline] Using hybrid model: {hybrid_model_dir}")
+                except Exception as e:
+                    logger.warning(f"[HybridLayerPipeline] Error checking hybrid model: {e}")
         
         try:
             scheduler = ov_genai.SchedulerConfig()
             scheduler.cache_size = 4
             scheduler.max_num_seqs = 1
-            scheduler.max_num_batched_tokens = 4096
+            scheduler.max_num_batched_tokens = 2048
             scheduler.enable_prefix_caching = True
             scheduler.use_cache_eviction = True
             
@@ -182,15 +153,14 @@ class HybridLayerPipeline:
             gen_config.repetition_penalty = 1.1
             gen_config.do_sample = True
             
-            # Load hybrid OpenVINO model with quantized weights
-            logger.info(f"[HybridLayerPipeline] Loading hybrid OpenVINO model from {hybrid_model_dir}")
-            self.openvino_pipeline = ov_genai.LLMPipeline(hybrid_model_dir, "CPU",
+            logger.info(f"[HybridLayerPipeline] Loading OpenVINO model from {model_to_load}")
+            self.openvino_pipeline = ov_genai.LLMPipeline(model_to_load, "CPU",
                                                            config={"scheduler_config": scheduler})
             self.openvino_pipeline.set_generation_config(gen_config)
-            logger.info("[HybridLayerPipeline] Hybrid OpenVINO pipeline loaded with quantized weights")
+            logger.info("[HybridLayerPipeline] OpenVINO pipeline loaded successfully")
             
         except Exception as e:
-            logger.error(f"[HybridLayerPipeline] Hybrid OpenVINO init failed: {e}")
+            logger.error(f"[HybridLayerPipeline] OpenVINO init failed: {e}")
             self.openvino_pipeline = None
 
     def _init_layer_capture(self):
@@ -292,7 +262,7 @@ class HybridLayerPipeline:
     def process_query(
         self,
         query: str,
-        max_new_tokens: int = 1024,
+        max_new_tokens: int = 2048,
         enable_layer_capture: bool = True,
         enable_kca: bool = True,
         return_metadata: bool = False,
@@ -485,7 +455,8 @@ class HybridLayerPipeline:
     def add_knowledge_node(self, text: str, embedding: np.ndarray, metadata: dict = None) -> int:
         """Добавить узел в граф"""
         if self.fractal_graph is None:
-            self.fractal_graph = FractalGraphV2(config=self.fcp_config)
+            graph_dir = self.graph_path if self.graph_path else "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data"
+            self.fractal_graph = FractalGraphV2(storage_dir=graph_dir, lazy=True)
         return self.fractal_graph.add_node(embedding, metadata)
 
     def save_graph(self, path: Optional[str] = None):

@@ -15,9 +15,24 @@ from .storage import FractalGraphV2, create_fractal_graph
 from .embeddings import EmbeddingsManager, create_embeddings_manager
 from .graph_indexer import GraphIndexer, create_indexer
 from .hierarchy_index import HierarchicalIndex, create_hierarchical_index
-from .gguf_parser import parse_gguf_model, extract_to_graph
-from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
-from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
+
+try:
+    from .gguf_parser import parse_gguf_model, extract_to_graph
+except ImportError:
+    parse_gguf_model = None
+    extract_to_graph = None
+
+try:
+    from .gguf_extractor import GGUFKnowledgeExtractor, create_extractor
+except ImportError:
+    GGUFKnowledgeExtractor = None
+    create_extractor = None
+
+try:
+    from .gguf_shadow import GGUFShadowProfiler, create_gguf_shadow_profiler
+except ImportError:
+    GGUFShadowProfiler = None
+    create_gguf_shadow_profiler = None
 from .hybrid_tokenizer import HybridTokenizer, create_hybrid_tokenizer
 from .eva_generator import EVAGenerator, create_eva_generator, GenerationRequest, GenerationResult
 from .semantic_context_cache import SemanticContextCache, create_semantic_context_cache
@@ -181,6 +196,51 @@ class LRUCacheWithTTL:
                 'hit_rate': hit_rate,
                 'ttl_seconds': self.ttl
             }
+
+
+# ============================================================================
+# FractalGraphV2 Singleton - Единый экземпляр для всей системы
+# ============================================================================
+
+_fractal_graph_instance = None
+_fractal_graph_lock = threading.Lock()
+
+def get_fractal_graph(storage_dir: str = None, lazy: bool = False) -> 'FractalMemoryGraph':
+    """Получить единственный экземпляр FractalGraphV2.
+    
+    Предотвращает дублирование инициализации.
+    """
+    global _fractal_graph_instance
+    
+    if _fractal_graph_instance is not None:
+        # Проверяем, что директория та же
+        if storage_dir is None or _fractal_graph_instance.storage_dir == storage_dir:
+            logger.debug(f"Returning existing FractalGraphV2 instance: {_fractal_graph_instance.storage_dir}")
+            return _fractal_graph_instance
+        else:
+            # Директория отличается - создаём новый экземпляр
+            logger.warning(f"Different storage_dir requested: {storage_dir} vs {_fractal_graph_instance.storage_dir}")
+    
+    with _fractal_graph_lock:
+        if _fractal_graph_instance is None:
+            storage_dir = storage_dir or os.path.join(
+                os.path.dirname(__file__), "fractal_graph_v2_data"
+            )
+            logger.info(f"Creating new FractalGraphV2 singleton: {storage_dir}")
+            _fractal_graph_instance = FractalMemoryGraph(
+                storage_dir=storage_dir,
+                lazy=lazy
+            )
+        return _fractal_graph_instance
+
+
+def reset_fractal_graph():
+    """Сбросить синглтон (для тестирования)."""
+    global _fractal_graph_instance
+    with _fractal_graph_lock:
+        if _fractal_graph_instance is not None:
+            logger.info("Resetting FractalGraphV2 singleton")
+            _fractal_graph_instance = None
 
 
 # ============================================================================

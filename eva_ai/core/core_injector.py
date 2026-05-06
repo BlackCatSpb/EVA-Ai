@@ -14,7 +14,48 @@ class LayerwiseStateInjector:
     def __init__(self, model_path: str, device: str = "CPU"):
         self.core = ov.Core()
         self.model = self.core.read_model(model_path)
-        self.compiled = self.core.compile_model(self.model, device)
+        
+        # Компилируем с динамическими формами - разрешаем любую длину последовательности
+        # Сначала устанавливаем динамические формы для всех входов
+        for inp in self.model.inputs:
+            inp_name = list(inp.names)[0] if inp.names else str(inp)
+            shape = list(inp.shape)
+            # Делаем последнее измерение динамическим (-1)
+            if len(shape) > 0:
+                # Проверяем, уже ли форма динамическая
+                is_already_dynamic = any(s == -1 or isinstance(s, str) for s in shape)
+                if not is_already_dynamic:
+                    shape[-1] = -1
+                    try:
+                        self.model.reshape({inp_name: shape})
+                        logger.info(f"[StateInjector] Set dynamic shape for {inp_name}: {shape}")
+                    except Exception as e:
+                        logger.warning(f"[StateInjector] Could not reshape {inp_name}: {e}")
+                else:
+                    logger.info(f"[StateInjector] Shape already dynamic for {inp_name}: {shape}")
+        
+        # Компилируем модель - пробуем сначала с динамическими формами
+        try:
+            self.compiled = self.core.compile_model(self.model, device)
+            logger.info("[StateInjector] Model compiled with dynamic shapes")
+        except Exception as e:
+            logger.warning(f"[StateInjector] Dynamic shape compile failed: {e}, trying fixed shape")
+            # Fallback: компилируем с фиксированной формой (1 токен, 2048 макс)
+            try:
+                fixed_model = self.core.read_model(model_path)
+                for inp in fixed_model.inputs:
+                    inp_name = list(inp.names)[0] if inp.names else str(inp)
+                    shape = list(inp.shape)
+                    # Фиксируем форму: [batch, seq]
+                    if len(shape) >= 2:
+                        shape[-1] = 1  # Один токен
+                    fixed_model.reshape({inp_name: shape})
+                self.compiled = self.core.compile_model(fixed_model, device)
+                logger.info("[StateInjector] Model compiled with fixed shape (fallback)")
+            except Exception as e2:
+                logger.error(f"[StateInjector] Both dynamic and fixed compile failed: {e2}")
+                raise RuntimeError(f"StateInjector cannot compile model: {e2}")
+        
         self.request = self.compiled.create_infer_request()
         
         self._state_map: Dict[int, Dict[str, ov.State]] = {}
@@ -87,23 +128,54 @@ class LayerwiseStateInjector:
                 pass
 
     def get_value(self, layer_idx: int) -> np.ndarray:
-        state = self._state_map[layer_idx]["value"]
-        return np.array(state.state.data).copy()
+        if layer_idx not in self._state_map:
+            return np.array([])
+        try:
+            state = self._state_map[layer_idx]["value"]
+            return np.array(state.state.data).copy()
+        except Exception as e:
+            logger.warning(f"[StateInjector] get_value failed at layer {layer_idx}: {e}")
+            return np.array([])
 
     def set_value(self, layer_idx: int, data: np.ndarray):
-        state = self._state_map[layer_idx]["value"]
-        data = np.asarray(data, dtype=np.float32)
-        # Используем set_state для записи
-        state.set_state(ov.Tensor(data))
+        if layer_idx not in self._state_map:
+            return
+        try:
+            state = self._state_map[layer_idx]["value"]
+            data = np.asarray(data, dtype=np.float32)
+            # Проверяем форму
+            current_shape = state.state.shape
+            if any(s == -1 or isinstance(s, str) for s in current_shape):
+                logger.warning(f"[StateInjector] set_value: dynamic shape {current_shape}, skipping")
+                return
+            state.set_state(ov.Tensor(data))
+        except Exception as e:
+            logger.warning(f"[StateInjector] set_value failed at layer {layer_idx}: {e}")
 
     def get_key(self, layer_idx: int) -> np.ndarray:
-        state = self._state_map[layer_idx]["key"]
-        return np.array(state.state.data).copy()
+        if layer_idx not in self._state_map:
+            return np.array([])
+        try:
+            state = self._state_map[layer_idx]["key"]
+            return np.array(state.state.data).copy()
+        except Exception as e:
+            logger.warning(f"[StateInjector] get_key failed at layer {layer_idx}: {e}")
+            return np.array([])
 
     def set_key(self, layer_idx: int, data: np.ndarray):
-        state = self._state_map[layer_idx]["key"]
-        data = np.asarray(data, dtype=np.float32)
-        state.set_state(ov.Tensor(data))
+        if layer_idx not in self._state_map:
+            return
+        try:
+            state = self._state_map[layer_idx]["key"]
+            data = np.asarray(data, dtype=np.float32)
+            # Проверяем форму
+            current_shape = state.state.shape
+            if any(s == -1 or isinstance(s, str) for s in current_shape):
+                logger.warning(f"[StateInjector] set_key: dynamic shape {current_shape}, skipping")
+                return
+            state.set_state(ov.Tensor(data))
+        except Exception as e:
+            logger.warning(f"[StateInjector] set_key failed at layer {layer_idx}: {e}")
 
     def get_all_layer_indices(self) -> List[int]:
         return self._layer_indices
@@ -112,14 +184,20 @@ class LayerwiseStateInjector:
         """Применяет функцию модификации к Value тензорам указанных слоев."""
         for idx in layer_indices:
             if idx in self._state_map:
-                val = self.get_value(idx)
-                val = func(val, **kwargs)
-                self.set_value(idx, val)
+                try:
+                    val = self.get_value(idx)
+                    val = func(val, **kwargs)
+                    self.set_value(idx, val)
+                except Exception as e:
+                    logger.warning(f"[StateInjector] transform_values failed at layer {idx}: {e}")
 
     def transform_keys(self, layer_indices: List[int], func: Callable, **kwargs):
         """Применяет функцию модификации к Key тензорам указанных слоев."""
         for idx in layer_indices:
             if idx in self._state_map:
-                key = self.get_key(idx)
-                key = func(key, **kwargs)
-                self.set_key(idx, key)
+                try:
+                    key = self.get_key(idx)
+                    key = func(key, **kwargs)
+                    self.set_key(idx, key)
+                except Exception as e:
+                    logger.warning(f"[StateInjector] transform_keys failed at layer {idx}: {e}")

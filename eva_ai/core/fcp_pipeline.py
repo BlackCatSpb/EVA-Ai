@@ -26,10 +26,12 @@ from eva_ai.fcp_core import (
     ConvergenceController,
     KnowledgeConsciousAttention,
     SemanticRelevanceGate,
-    FractalGraphV2,
     LearningGraphManager,
     ShadowLoRAManager
 )
+
+# FractalGraphV2 Singleton
+from eva_ai.memory.fractal_graph_v2 import get_fractal_graph
 
 # Reasoning Chain (NEW - для накопления цепочки рассуждений)
 try:
@@ -270,6 +272,18 @@ class FCPipeline:
             print(f"[FCP] StateInjector FAILED: {type(e).__name__}: {e}")
             self.state_injector = None
         
+        # NEW: FCP Inference API
+        self.fcp_api = None
+        try:
+            from eva_ai.fcp_core.fcp_inference_api import FCPInferenceAPI
+            self.fcp_api = FCPInferenceAPI(model_path=self.model_path, device=device, max_seq_len=2048)
+            if self.fcp_api.is_initialized():
+                logger.info("[FCP] FCP Inference API initialized")
+            else:
+                self.fcp_api = None
+        except Exception as e:
+            logger.info(f"[FCP] FCP Inference API not available: {e}")
+        
         # NEW: SQAM Analyzer
         self.sqam_analyzer = SemanticQueryAnalyzer()
         print("[FCP] SQAM Analyzer initialized")
@@ -320,19 +334,15 @@ class FCPipeline:
         self.convergence_controller = ConvergenceController(self.fcp_config)
         print("[FCP] ConvergenceController initialized")
         
-        # FractalGraphV2
+        # FractalGraphV2 (use singleton to avoid duplicate initialization)
         graph_dir = os.path.dirname(self.graph_path) if self.graph_path else None
-        if self.graph_path and os.path.exists(self.graph_path):
-            try:
-                self.fractal_graph = FractalGraphV2(storage_dir=graph_dir, lazy=True)
-                # Lazy - не обращаемся к storage.nodes сразу
-                print(f"[FCP] FractalGraphV2 loaded (lazy): {self.graph_path}")
-            except Exception as e:
-                print(f"[FCP] Graph load failed: {e}, creating empty graph")
-                self.fractal_graph = FractalGraphV2(storage_dir=graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
-        else:
-            self.fractal_graph = FractalGraphV2(storage_dir=graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data", lazy=True)
-            print("[FCP] FractalGraphV2 created (empty)")
+        graph_dir = graph_dir or "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data"
+        try:
+            self.fractal_graph = get_fractal_graph(storage_dir=graph_dir, lazy=True)
+            print(f"[FCP] FractalGraphV2 singleton loaded: {self.fractal_graph.node_count} nodes")
+        except Exception as e:
+            print(f"[FCP] FractalGraphV2 singleton init failed: {e}")
+            self.fractal_graph = None
         
         # Связываем GraphIntegrationManager с FractalGraphV2
         if self.graph_mgr:
@@ -357,31 +367,34 @@ class FCPipeline:
         
         # === ContradictionDetector (согласно EVA.txt раздел 7.2) ===
         # Обнаружение противоречий в графе знаний
+        self.contradiction_detector = None
         try:
             from eva_ai.contradiction.detect_core import ContradictionDetector
             self.contradiction_detector = ContradictionDetector(
-                knowledge_graph=self.fractal_graph,
+                knowledge_graph=self.fractal_graph if hasattr(self, 'fractal_graph') else None,
                 detection_threshold=0.65
             )
             print("[FCP] ContradictionDetector initialized")
         except Exception as e:
-            print(f"[FCP] ContradictionDetector init failed: {e}")
-            self.contradiction_detector = None
+            print(f"[FCP] ContradictionDetector init failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
         
         # === LearningOrchestrator (согласно EVA.txt раздел 7.3) ===
         # Оркестратор обучения для LoRA адаптеров
+        self.learning_orchestrator = None
+        lora_mgr = getattr(self, 'lora_manager', None)
         try:
             from eva_ai.fcp_core.learning_orchestrator import LearningOrchestrator
             from eva_ai.knowledge.fcp_learning_manager import LearningGraphManager
             learning_manager = LearningGraphManager()
             self.learning_orchestrator = LearningOrchestrator(
                 learning_manager=learning_manager,
-                lora_manager=self.lora_manager
+                lora_manager=lora_mgr
             )
             print("[FCP] LearningOrchestrator initialized")
         except Exception as e:
-            print(f"[FCP] LearningOrchestrator init failed: {e}")
-            self.learning_orchestrator = None
+            print(f"[FCP] LearningOrchestrator init failed: {type(e).__name__}: {e}")
         
         # === UES (Universal Execution Subsystem) (согласно EVA.txt раздел 8.3) ===
         # Оптимизация и контроль исполнения на произвольном оборудовании
@@ -617,6 +630,19 @@ class FCPipeline:
                 self.tokenizer = None
         else:
             self.tokenizer = None
+        
+        # HuggingFace tokenizer for decoding with fix_mistral_regex
+        try:
+            from transformers import AutoTokenizer
+            self.hf_tokenizer = AutoTokenizer.from_pretrained(
+                self.model_path, 
+                trust_remote_code=True, 
+                fix_mistral_regex=True
+            )
+            print(f"[FCP] HF Tokenizer loaded with fix_mistral_regex")
+        except Exception as e:
+            print(f"[FCP] HF Tokenizer load failed: {e}")
+            self.hf_tokenizer = None
     
     def _init_pipeline(self, draft_model_path=None):
         import os
@@ -661,7 +687,7 @@ class FCPipeline:
                     start_size=self.kv_cache_config["cache_eviction_start_size"],
                     recent_size=self.kv_cache_config["cache_eviction_recent_size"],
                     max_cache_size=self.kv_cache_config["cache_eviction_max_size"],
-                    aggregation_mode=ov_genai.AggregationMode.MEAN
+                    aggregation_mode=ov_genai.AggregationMode.SUM
                 )
                 scheduler.cache_eviction_config = cache_eviction
                 print(f"[FCP] CacheEvictionConfig enabled: start={self.kv_cache_config['cache_eviction_start_size']}, recent={self.kv_cache_config['cache_eviction_recent_size']}")
@@ -720,124 +746,108 @@ class FCPipeline:
         if enable_thinking:
             yield {"type": "reasoning_start"}
         
-        try:
-            import queue
-            import threading
+        import queue
+        import threading
+        
+        event_queue = queue.Queue()
+        
+        buffer = ""
+        in_thinking = False
+        partial_tag = ""
+        
+        def token_callback(token_text: str):
+            nonlocal buffer, in_thinking, partial_tag
+            buffer += token_text
             
-            event_queue = queue.Queue()
-            
-            # Состояние парсера
-            buffer = ""
-            in_thinking = False  # Начинаем с обычного режима, ждём <think>
-            partial_tag = ""  # Для накопления частичных тегов
-            
-            def token_callback(token_text: str):
-                nonlocal buffer, in_thinking, partial_tag
-                buffer += token_text
-                
-                while True:
-                    if in_thinking:
-                        # Режим рассуждений - ищем конец </think>
-                        # Ищем как подстроку
-                        idx = buffer.find("</think>")
-                        if idx != -1:
-                            print(f"[FCP STREAM] Found </think> tag, switching to answer mode")
-                            thinking = buffer[:idx]
-                            if thinking.strip():
-                                print(f"[FCP STREAM] Sending reasoning_text, length: {len(thinking)}")
-                                event_queue.put({"type": "reasoning_text", "text": thinking})
-                            in_thinking = False
-                            partial_tag = ""
-                            buffer = buffer[idx + len("</think>"):]
-                            event_queue.put({"type": "reasoning_end"})
-                        else:
-                            # Тег не найден, отправляем как есть
-                            if buffer:
-                                event_queue.put({"type": "reasoning_text", "text": buffer})
-                            buffer = ""
-                            break
-                    else:
-                        # Режим основного ответа - ищем <think>
-                        idx = buffer.find("<think>")
-                        if idx != -1:
-                            print(f"[FCP STREAM] Found <think> tag, switching to thinking mode")
-                            # Текст до <think> - отправляем как chunk
-                            if idx > 0:
-                                event_queue.put({"type": "chunk", "text": buffer[:idx]})
-                            in_thinking = True
-                            buffer = buffer[idx + len("<think>"):]
-                            event_queue.put({"type": "reasoning_start"})
-                        else:
-                            # Тега нет, отправляем буфер как чанк
-                            if buffer:
-                                event_queue.put({"type": "chunk", "text": buffer})
-                                buffer = ""
-                            break
-                return False
-            
-            def generate():
-                """Генерация в отдельном потоке"""
-                nonlocal buffer, in_thinking, partial_tag
-                try:
-                    # Используем единую конфигурацию генерации
-                    gen_cfg = self.get_generation_config(max_new_tokens)
-                    self.pipeline.generate(chat_prompt, generation_config=gen_cfg, streamer=token_callback)
-                    
-                    # После завершения обрабатываем остаток буфера
-                    if buffer:
-                        if in_thinking:
-                            if buffer.strip():
-                                print(f"[FCP STREAM] Final reasoning_text, length: {len(buffer)}")
-                                event_queue.put({"type": "reasoning_text", "text": buffer})
-                            event_queue.put({"type": "reasoning_end"})
-                        else:
-                            if buffer.strip():
-                                event_queue.put({"type": "chunk", "text": buffer})
-                except Exception as e:
-                    event_queue.put({"type": "error", "text": str(e)})
-                finally:
-                    event_queue.put({"type": "done", "timestamp": time.time()})
-            
-            # Запускаем генерацию
-            gen_thread = threading.Thread(target=generate)
-            gen_thread.start()
-
-            full_response_parts = []
-
-            # Читаем события из очереди
             while True:
-                try:
-                    event = event_queue.get(timeout=0.1)
-                    # Накапливаем текст ответа для истории
-                    if event['type'] == 'chunk':
-                        full_response_parts.append(event.get('text', ''))
-                    yield event
-                    if event['type'] == 'done':
+                if in_thinking:
+                    idx = buffer.find("")
+                    if idx != -1:
+                        thinking = buffer[:idx]
+                        if thinking.strip():
+                            event_queue.put({"type": "reasoning_text", "text": thinking})
+                        in_thinking = False
+                        buffer = buffer[idx + len(""):]
+                        event_queue.put({"type": "reasoning_end"})
+                    else:
+                        if buffer:
+                            event_queue.put({"type": "reasoning_text", "text": buffer})
+                        buffer = ""
                         break
-                except queue.Empty:
-                    if not gen_thread.is_alive():
+                else:
+                    idx = buffer.find("<think>")
+                    if idx != -1:
+                        if idx > 0:
+                            event_queue.put({"type": "chunk", "text": buffer[:idx]})
+                        in_thinking = True
+                        buffer = buffer[idx + len("<think>"):]
+                        event_queue.put({"type": "reasoning_start"})
+                    else:
+                        if buffer:
+                            event_queue.put({"type": "chunk", "text": buffer})
+                            buffer = ""
                         break
-
-            gen_thread.join()
-
-            # Сохраняем в историю разговора с timestamp
-            full_response = ''.join(full_response_parts)
-            if full_response and add_to_history:
-                self.conversation_history.append({
-                    "user": prompt,
-                    "assistant": full_response,
-                    "timestamp": time.time()  # Время для привязки к контексту
-                })
-                if len(self.conversation_history) > self.max_history:
-                    self.conversation_history = self.conversation_history[-self.max_history:]
-                self.stats["queries"] += 1
+            return False
+        
+        def generate():
+            nonlocal buffer, in_thinking, partial_tag, chat_prompt
+            try:
+                # 1. Гибридная обработка (KCA + GNN + SRG) согласно EVA.txt
+                logger.info(f"[HYBRID_CHECK] hybrid_processor={self.hybrid_processor is not None}, fractal_graph={self.fractal_graph is not None if hasattr(self, 'fractal_graph') else 'N/A'}")
+                if self.hybrid_processor and self.fractal_graph:
+                    processed_prompt, metadata = self._process_with_hybrid_layers(chat_prompt, prompt)
+                    if processed_prompt != chat_prompt:
+                        chat_prompt = processed_prompt
+                        logger.info(f"[HYBRID] srg_mode={metadata.get('srg_mode')}, kca_cycles={metadata.get('kca_cycles')}, kca_delta={metadata.get('kca_delta_norm', 0):.4f}")
                 
-                # Сохраняем в сценарий (EVA.txt 6.3)
-                self.add_dialog_turn("user", prompt)
-                self.add_dialog_turn("assistant", full_response)
+                # 2. Генерация с поддержкой потока (всегда используем pipeline с гибридными слоями)
+                gen_cfg = self.get_generation_config(max_new_tokens)
+                self.pipeline.generate(chat_prompt, generation_config=gen_cfg, streamer=token_callback)
             
-        except Exception as e:
-            yield {"type": "error", "text": str(e)}
+            except Exception as e:
+                event_queue.put({"type": "error", "text": str(e)})
+            finally:
+                if buffer:
+                    if in_thinking:
+                        if buffer.strip():
+                            event_queue.put({"type": "reasoning_text", "text": buffer})
+                        event_queue.put({"type": "reasoning_end"})
+                    else:
+                        if buffer.strip():
+                            event_queue.put({"type": "chunk", "text": buffer})
+                event_queue.put({"type": "done", "timestamp": time.time()})
+        
+        gen_thread = threading.Thread(target=generate)
+        gen_thread.start()
+
+        full_response_parts = []
+
+        while True:
+            try:
+                event = event_queue.get(timeout=0.1)
+                if event['type'] == 'chunk':
+                    full_response_parts.append(event.get('text', ''))
+                yield event
+                if event['type'] == 'done':
+                    break
+            except queue.Empty:
+                if not gen_thread.is_alive():
+                    break
+
+        gen_thread.join()
+
+        full_response = ''.join(full_response_parts)
+        if full_response and add_to_history:
+            self.conversation_history.append({
+                "user": prompt,
+                "assistant": full_response,
+                "timestamp": time.time()
+            })
+            if len(self.conversation_history) > self.max_history:
+                self.conversation_history = self.conversation_history[-self.max_history:]
+            self.stats["queries"] += 1
+            self.add_dialog_turn("user", prompt)
+            self.add_dialog_turn("assistant", full_response)
     
     def _init_lora_manager(self):
         self.current_adapter = None
@@ -960,6 +970,11 @@ class FCPipeline:
 
         # ONLINE TRAINER: возобновить обучение после генерации + обновить историю
         if self.online_trainer:
+            # Запустить обучение после ПЕРВОГО ответа
+            if not self._training_started:
+                self._training_started = True
+                self.online_trainer.start()
+                print("[FCP] Training started after first response")
             self.online_trainer.on_generation_end()
             self.online_trainer.update_conversation_history(self.conversation_history)
 
@@ -1077,7 +1092,7 @@ class FCPipeline:
             tokenizer_path = self.fcp_config.get('tokenizer_path', '')
             if tokenizer_path and os.path.exists(tokenizer_path):
                 from transformers import AutoTokenizer
-                return AutoTokenizer.from_pretrained(tokenizer_path)
+                return AutoTokenizer.from_pretrained(tokenizer_path, trust_remote_code=True, fix_mistral_regex=True)
             # Дефолтный токенизатор
             from transformers import GPT2Tokenizer
             return GPT2Tokenizer.from_pretrained('gpt2')
@@ -1088,13 +1103,29 @@ class FCPipeline:
     def _get_embedding_model(self):
         """Получить модель эмбеддингов для ContextualTokenizer."""
         try:
-            # Используем ту же модель что и для query embedding
             from sentence_transformers import SentenceTransformer
             model_name = self.fcp_config.get('embedding_model', 'intfloat/multilingual-e5-small')
             return SentenceTransformer(model_name, device='cpu')
         except Exception as e:
             logger.debug(f"Failed to load embedding model: {e}")
             return None
+    
+    def _convert_tokenized_to_numpy(self, tokenized):
+        """Convert tokenized output to numpy array for OpenVINO inference."""
+        import numpy as np
+        if tokenized is None:
+            return None
+        if hasattr(tokenized, 'input_ids'):
+            tokenized = tokenized.input_ids
+        if hasattr(tokenized, 'data'):
+            tokenized = tokenized.data
+        if hasattr(tokenized, 'tolist'):
+            return np.array(tokenized.tolist(), dtype=np.int64)
+        if isinstance(tokenized, (list, tuple)):
+            return np.array(tokenized, dtype=np.int64)
+        if hasattr(tokenized, 'shape'):
+            return np.array(tokenized, dtype=np.int64)
+        return np.array(tokenized, dtype=np.int64)
     
     def _estimate_logits_from_prompt(self, prompt: str, hidden_dim: int = 2560) -> np.ndarray:
         """
@@ -1399,6 +1430,9 @@ class FCPipeline:
             # Fallback к обычной генерации если injector недоступен
             return self._generate(prompt, max_new_tokens, **{})
         
+        # Track if StateInjector is working
+        injector_working = True
+        
         try:
             # Import here to avoid circular imports
             import openvino_genai as ov_genai
@@ -1414,10 +1448,21 @@ class FCPipeline:
                 return self._generate(prompt, max_new_tokens, **{})
                 
             # Reset KV-кеша перед новой сессией
-            self.state_injector.reset_all_states()
+            try:
+                self.state_injector.reset_all_states()
+            except Exception as e:
+                logger.warning(f"[FCP] StateInjector reset failed: {e}")
+                injector_working = False
+            
+            if not injector_working:
+                return self._generate(prompt, max_new_tokens, **{})
             
             # Запускаем pre-fill inference
-            self.state_injector.request.infer({"input_ids": input_ids})
+            try:
+                self.state_injector.request.infer({"input_ids": input_ids})
+            except Exception as e:
+                logger.warning(f"[FCP] StateInjector pre-fill failed: {e}, falling back")
+                return self._generate(prompt, max_new_tokens, **{})
             seq_len = input_ids.shape[1]
             
             # Получаем текст токенов для анализа
@@ -1939,6 +1984,7 @@ class FCPipeline:
 
             self.conversation_history = []
             self.stats = {"queries": 0, "injections": 0}
+            self._training_started = False  # Обучение начнётся после первого ответа
             self.kca_correction_vec = None  # Для хранения вектора коррекции KCA
 
             return True

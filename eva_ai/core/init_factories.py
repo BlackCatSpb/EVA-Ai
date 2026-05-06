@@ -734,7 +734,17 @@ def create_hybrid_layer_pipeline(initializer):
 
         transformer_path = fcp_config.get('transformer_model_path')
         if not transformer_path:
-            transformer_path = "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\qwen_quant"
+            # По умолчанию ищем в папке models
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            transformer_path = os.path.join(project_root, 'models', 'qwenlayermodel.pt')
+        
+        # Проверяем существование файла
+        if not os.path.exists(transformer_path):
+            # Пробуем альтернативный путь
+            alt_path = os.path.join(project_root, 'models', 'qwen_layer_model.pt')
+            if os.path.exists(alt_path):
+                transformer_path = alt_path
+                initializer.logger.info(f"[HybridLayer] Using alternative: {transformer_path}")
 
         graph_path = fcp_config.get('graph_path')
         lora_dir = config.get('modules', {}).get('lora_dir')
@@ -934,8 +944,9 @@ def create_closed_cognitive_loop(initializer):
 
         initializer.logger.info("[START] Creating ClosedCognitiveLoop...")
 
-        # Get SplitModelRunner
-        split_runner = SplitModelRunner(split_layer=6)
+        # Get SplitModelRunner with correct model path
+        model_path = "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml"
+        split_runner = SplitModelRunner(model_path=model_path, split_layer=6)
         split_runner.load_models()
         initializer.logger.info("[OK] SplitModelRunner created")
 

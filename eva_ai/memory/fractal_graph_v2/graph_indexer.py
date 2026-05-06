@@ -32,8 +32,8 @@ class GraphIndexer:
         try:
             from .optimizations import create_hnsw_index
             self._hnsw_index = create_hnsw_index(dim=self.embedding_dim)
-        except ImportError:
-            logger.warning("HNSW не доступен, используем fallback")
+        except ImportError as e:
+            logger.error(f"HNSW import failed: {e}")
             self._hnsw_index = None
             return False
         
@@ -50,23 +50,39 @@ class GraphIndexer:
         
         for row in cursor:
             try:
-                emb_str = row['embedding']
-                if emb_str and emb_str != 'null':
-                    emb = json.loads(emb_str)
-                    if emb and len(emb) == self.embedding_dim:
-                        ids.append(row['id'])
-                        vectors.append(emb)
-            except:
+                emb_data = row['embedding']
+                if emb_data:
+                    # embeddings stored as BLOB (numpy bytes) or JSON string
+                    if isinstance(emb_data, bytes):
+                        # BLOB - deserialize numpy array
+                        import numpy as np
+                        emb = np.frombuffer(emb_data, dtype=np.float32)
+                        if len(emb) == self.embedding_dim:
+                            ids.append(row['id'])
+                            vectors.append(emb.tolist())
+                    elif isinstance(emb_data, str) and emb_data != 'null':
+                        # JSON string fallback
+                        emb = json.loads(emb_data)
+                        if emb and len(emb) == self.embedding_dim:
+                            ids.append(row['id'])
+                            vectors.append(emb)
+            except Exception as e:
+                logger.debug(f"Failed to parse embedding for {row['id']}: {e}")
                 pass
         
         conn.close()
         
         if ids and self._hnsw_index:
-            self._hnsw_index.add_items(ids, vectors)
-            self._index_built = True
-            logger.info(f"HNSW индекс построен: {len(ids)} векторов")
-            return True
+            try:
+                self._hnsw_index.add_items(ids, vectors)
+                self._index_built = True
+                logger.info(f"HNSW индекс построен: {len(ids)} векторов")
+                return True
+            except Exception as e:
+                logger.error(f"HNSW add_items failed: {e}")
+                return False
         
+        logger.warning(f"GraphIndexer: No valid embeddings found (checked nodes)")
         return False
     
     def search(
