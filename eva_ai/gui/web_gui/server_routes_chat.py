@@ -351,35 +351,6 @@ def register_chat_routes(app, web_gui_instance):
                             'chunks_sent': chunk_count,
                             'reasoning': None
                         })}\n\n"
-                                    else:
-                                        reasoning_buffer += remaining
-                                        remaining = ""
-                        
-                        # Отправляем чанк клиенту (только текст ответа, без reasoning)
-                        if chunk_text and not in_reasoning:
-                            yield f"data: {json.dumps({
-                                'type': chunk_type,
-                                'text': chunk_text,
-                                'is_final': chunk_data.get('is_final', False),
-                                'tokens_count': chunk_data.get('tokens_count', 0),
-                                'elapsed_ms': chunk_data.get('elapsed_ms', 0),
-                                'chunk_index': chunk_data.get('chunk_index', 0),
-                                'total_chunks': chunk_data.get('total_chunks', 0),
-                                'progress': chunk_data.get('progress', 0)
-                            })}\n\n"
-                        elif chunk_text and in_reasoning:
-                            # Внутри reasoning — отправляем пустой чанк чтобы не ломать стрим
-                            yield f"data: {json.dumps({
-                                'type': 'chunk',
-                                'text': '',
-                                'is_final': False,
-                                'tokens_count': 0,
-                                'elapsed_ms': chunk_data.get('elapsed_ms', 0),
-                            })}\n\n"
-                        
-                        # Если это финальный чанк - выходим
-                        if chunk_data.get('is_final', False):
-                            break
                     
                     # Если reasoning не был закрыт — добавляем как есть
                     if in_reasoning and reasoning_buffer.strip():
