@@ -11,7 +11,7 @@ import weakref
 from typing import Dict, Any, Optional
 
 from .brain_config import load_brain_config, mask_secrets, ConfigMixin
-from .brain_components import ComponentMixin, _init_managers, _init_fractal_model, _init_llama_cpp, _init_fcp_pipeline, _init_unified_generator, _init_preprocessing, _init_qwen_config, _init_background, _init_mode_controller, _init_hybrid_dialog_manager
+from .brain_components import ComponentMixin, _init_managers, _init_fractal_model, _init_llama_cpp, _init_fcp_pipeline, _init_unified_generator, _init_preprocessing, _init_qwen_config, _init_background, _init_mode_controller, _init_hybrid_dialog_manager, _subscribe_components_to_eventbus
 from .brain_init import _init_fractal_final, _init_gen_coord, _init_wikipedia, _init_reasoning, _init_performance_monitor, _start_post_init_services, _connect_components, _start_components, _stop_components
 from .brain_query import QueryMixin, FALLBACK_RESPONSES, FALLBACK_RESPONSE_DEFAULT
 from .brain_monitoring import MonitoringMixin
@@ -113,6 +113,31 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         except ImportError:
             self.deferred_system = None
 
+        # Command Toolkit - интеграция EventBus и DeferredCommandSystem
+        try:
+            from .command_toolkit import get_command_toolkit
+            self.command_toolkit = get_command_toolkit(self)
+            if self._new_event_bus:
+                self.command_toolkit.initialize(
+                    event_bus=self._new_event_bus,
+                    deferred_system=self.deferred_system
+                )
+                logger.info("[CoreBrain] CommandToolkit initialized")
+        except Exception as e:
+            logger.warning(f"CommandToolkit init failed: {e}")
+            self.command_toolkit = None
+
+        # Component Event Bridge - подписка всех компонентов на EventBus
+        try:
+            from .component_event_bridge import get_component_bridge
+            self.component_bridge = get_component_bridge()
+            if self._new_event_bus:
+                self.component_bridge.initialize(self, self._new_event_bus)
+                logger.info("[CoreBrain] ComponentEventBridge initialized")
+        except Exception as e:
+            logger.warning(f"ComponentEventBridge init failed: {e}")
+            self.component_bridge = None
+
         self.cache_dir = os.path.join(os.path.dirname(__file__), "eva_cache")
         os.makedirs(self.cache_dir, exist_ok=True)
         try:
@@ -198,6 +223,10 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             query_logger.info(f"Ядро ЕВА успешно инициализировано за {total_time:.4f} сек")
             self._execute_deferred_commands()
             _start_post_init_services(self)
+            
+            # Подписать компоненты на EventBus для управления через события
+            _subscribe_components_to_eventbus(self)
+            
             return True
         except Exception as e:
             query_logger.error(f"Ошибка инициализации ядра за {time.time() - start_time:.4f} сек: {e}", exc_info=True)

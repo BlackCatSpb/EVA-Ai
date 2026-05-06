@@ -240,9 +240,20 @@ class SystemMonitor:
         self.running = False
         self.collection_interval = 30  # секунды
         self.event_bus = event_bus
-
+        
         self._setup_default_checks()
         self._setup_default_alerts()
+        
+        # H4 FIX: Подписываемся на события EventBus
+        if self.event_bus:
+            try:
+                self.event_bus.subscribe("system.startup", self._on_system_startup)
+                self.event_bus.subscribe("system.shutdown", self._on_system_shutdown)
+                self.event_bus.subscribe("component.failed", self._on_component_failed)
+                self.event_bus.subscribe("monitoring.request", self._on_monitoring_request)
+                logger.info("[OK] SystemMonitor подписан на EventBus события")
+            except Exception as e:
+                logger.warning(f"Ошибка подписки на EventBus: {e}")
 
     def _setup_default_checks(self):
         """Настраивает проверки здоровья по умолчанию."""
@@ -342,11 +353,18 @@ class SystemMonitor:
         """Запускает мониторинг системы."""
         if self.running:
             return
-
+        
         self.running = True
         self.monitoring_thread = threading.Thread(target=self._monitoring_loop, daemon=True)
         self.monitoring_thread.start()
         logger.info("System monitoring started")
+        
+        # Публикуем событие запуска мониторинга
+        if self.event_bus:
+            try:
+                self.event_bus.publish("monitoring.started", {"timestamp": datetime.now().isoformat()})
+            except Exception as e:
+                logger.debug(f"Failed to publish monitoring.started: {e}")
 
     def stop_monitoring(self):
         """Останавливает мониторинг."""
@@ -354,8 +372,16 @@ class SystemMonitor:
             return
         
         self.running = False
+        
+        # Публикуем событие остановки мониторинга
+        if self.event_bus:
+            try:
+                self.event_bus.publish("monitoring.stopped", {"timestamp": datetime.now().isoformat()})
+            except Exception as e:
+                logger.debug(f"Failed to publish monitoring.stopped: {e}")
+        
         if self.monitoring_thread and self.monitoring_thread.is_alive():
-            # Даем потоку время завершиться
+            # Даём потоку время завершиться
             self.monitoring_thread.join(timeout=2)
             if self.monitoring_thread.is_alive():
                 logger.warning("Поток мониторинга не завершился за 2 секунды")

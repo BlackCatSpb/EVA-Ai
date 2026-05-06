@@ -6,8 +6,33 @@ import atexit
 import signal
 import threading
 import time
+import platform
 
 # ============================================================================
+# UTF-8 Console Setup for Windows
+# ============================================================================
+if platform.system() == 'Windows':
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        kernel32.SetConsoleOutputCP(65001)  # CP_UTF8
+        kernel32.SetConsoleCP(65001)
+    except Exception:
+        pass
+
+# Попытка установить UTF-8 для stdout/stderr
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+# ============================================================================
+
 # CPU OPTIMIZATION: Используем ВСЕ ядра процессора (i5-12450H: 8 ядер, 12 потоков)
 # Устанавливаем переменные среды ДО всех импортов библиотек
 # ============================================================================
@@ -34,6 +59,11 @@ from eva_ai.core.hardware_optimizations import apply_hardware_optimizations
 apply_hardware_optimizations(torch.device('cpu'), config=None)
 
 from eva_ai.core.utils import setup_logging
+
+# Настроить логирование в файл EVA_log.txt
+log_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_file_path = os.path.join(log_dir, "EVA_log.txt")
+setup_logging(log_dir=".", log_file="EVA_log.txt", level=logging.INFO)
 
 logger = logging.getLogger("eva_ai.run")
 

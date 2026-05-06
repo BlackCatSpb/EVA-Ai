@@ -238,7 +238,7 @@ class OpenVINOGenerator:
         self,
         model_path: Optional[Path] = None,
         device: str = "CPU",
-        max_tokens: int = 1024,
+        max_tokens: int = 2048,
         temperature: float = 0.7,
         n_ctx: int = 16384,  # 16K контекст
         scheduler_config: Optional[Dict] = None,
@@ -336,7 +336,7 @@ class OpenVINOGenerator:
         self,
         model_path: Path,
         device: str,
-        max_tokens: int = 1024,
+        max_tokens: int = 2048,
         temperature: float = 0.7,
         n_ctx: int = 16384,
         scheduler_config: Optional[Dict] = None,

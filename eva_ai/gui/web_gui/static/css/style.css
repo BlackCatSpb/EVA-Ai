@@ -793,7 +793,7 @@ body {
 .reasoning-text {
     font-size: 13px;
     line-height: 1.6;
-    white-space: pre-wrap;
+    white-space: normal;
     word-break: break-word;
     color: #94a3b8;
     padding: 8px 4px;

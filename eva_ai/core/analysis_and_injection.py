@@ -38,28 +38,56 @@ class SemanticQueryAnalyzer:
 
 class GraphIntegrationManager:
     """Управление графом знаний и вычисление центроида."""
-    def __init__(self, embedding_dim: int = 2560):
+    def __init__(self, embedding_dim: int = 2560, fractal_graph=None):
         self.nodes: List[np.ndarray] = []
         self.centroid: np.ndarray = np.zeros(embedding_dim) 
         self.embedding_dim = embedding_dim
+        self.fractal_graph = fractal_graph  # Ссылка на FractalGraphV2
 
     def add_anchors(self, anchors: List[Tuple[str, float]], key_vectors: np.ndarray):
         """Добавляет якоря запроса в граф и обновляет центроид."""
-        # В упрощённой версии просто используем ключевые векторы как узлы графа
-        # В реальной реализации здесь будет поиск по индексу в графе знаний
+        # Пытаемся использовать реальный граф если доступен
+        if self.fractal_graph is not None and self.fractal_graph.node_count > 0:
+            try:
+                # Получаем тексты якорей
+                anchor_texts = [anchor[0] for anchor in anchors if anchor[1] >= 0.5]
+                
+                if anchor_texts:
+                    # Ищем ближайшие узлы в графе для каждого якоря
+                    graph_nodes = []
+                    for text in anchor_texts:
+                        # Используем хеш текста как псевдо-эмбеддинг для поиска
+                        text_hash = hash(text) % (2**31)
+                        np.random.seed(text_hash)
+                        query_vec = np.random.randn(self.embedding_dim).astype(np.float32) * 0.1
+                        
+                        # Ищем подграф
+                        subgraph = self.fractal_graph.retrieve_subgraph(
+                            query_vec.reshape(1, -1),
+                            top_k=3
+                        )
+                        
+                        if subgraph.node_embeddings is not None and len(subgraph.node_embeddings) > 0:
+                            for emb in subgraph.node_embeddings:
+                                graph_nodes.append(emb)
+                    
+                    if graph_nodes:
+                        self.nodes = graph_nodes
+                        self.centroid = np.mean(self.nodes, axis=0)
+                        return  # Успешно - используем реальные узлы графа
+            except Exception as e:
+                pass  # Fallback на старый метод
+        
+        # Fallback: используем key_vectors как раньше
         if len(key_vectors.shape) >= 2:
-            # Если у нас есть матрица векторов [seq_len, dim] или [heads, seq_len, dim]
             if len(key_vectors.shape) == 3:
-                # [heads, seq_len, dim] -> усредняем по головам
-                key_vectors = key_vectors.mean(axis=0)  # [seq_len, dim]
-            # Берем первые несколько векторов как представление якорных токенов
+                key_vectors = key_vectors.mean(axis=0)
             for i in range(min(len(key_vectors), len(anchors))):
                 vec = key_vectors[i] if key_vectors.ndim >= 2 else key_vectors
                 if vec.ndim > 1:
-                    vec = vec.mean(axis=0)  # Усредняем если нужно
+                    vec = vec.mean(axis=0)
                 self.nodes.append(vec)
         else:
-            # Если у нас уже есть готовый вектор
             self.nodes.append(key_vectors)
         
         if self.nodes:

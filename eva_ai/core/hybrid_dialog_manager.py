@@ -183,7 +183,7 @@ class HybridKnowledgeDialogManager:
         model_b_path: str = None,
         device: str = "CPU",
         max_history: int = 50,
-        max_tokens: int = 4096,  # Model A: 4K токенов
+        max_tokens: int = 2048,  # Model A: 4K токенов
         temperature: float = 0.7,
         enable_validation: bool = True,
         validation_temperature: float = 0.1,
@@ -344,7 +344,7 @@ class HybridKnowledgeDialogManager:
                     generator_b = OpenVINOGenerator(
                         model_path=model_b_path_obj,
                         device=self.device,
-                        max_tokens=2048,
+                        max_tokens=4096,
                         temperature=self.temperature,
                         use_registry=False
                     )
@@ -1203,7 +1203,7 @@ class HybridKnowledgeDialogManager:
                 
                 try:
                     # Формируем расширенный промпт для Model B с валидацией контекста
-                    n_ctx = getattr(self, 'n_ctx', 4096)
+                    n_ctx = getattr(self, 'n_ctx', 2048)
                     estimated_tokens = len(prompt.split()) + len(response_a.split()) + len(full_reasoning.split())
                     
                     if use_token_api and full_reasoning:

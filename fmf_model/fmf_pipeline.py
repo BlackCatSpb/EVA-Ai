@@ -20,7 +20,7 @@ class FMFPipeline:
         self,
         model_path: str = None,
         graph_path: str = None,
-        n_ctx: int = 4096,
+        n_ctx: int = 2048,
         n_threads: int = 8,
         brain=None,
         **kwargs
@@ -132,7 +132,7 @@ class FMFPipeline:
 def create_fmf_pipeline(
     model_path: str = None,
     graph_path: str = None,
-    n_ctx: int = 4096,
+    n_ctx: int = 2048,
     n_threads: int = 8,
     brain=None,
     **kwargs

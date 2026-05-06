@@ -116,7 +116,7 @@ class MLUnit:
         hc_config = _get_hybrid_cache_config()
         if hybrid_cache_size is None:
             max_hot_tokens = hc_config.get('max_hot_tokens', 8192)
-            token_size_multiplier = hc_config.get('token_size_multiplier', 4096)
+            token_size_multiplier = hc_config.get('token_size_multiplier', 2048)
             available_memory_mb = hc_config.get('available_memory_mb')
             if available_memory_mb is None:
                 available_memory_mb = 512

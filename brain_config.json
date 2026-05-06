@@ -18,7 +18,7 @@
   "system": {
     "log_level": "INFO",
     "query_timeout": 60,
-    "max_tokens": 4096
+    "max_tokens": 2048
   },
   "fractal_graph_v2": {
     "enabled": true,
@@ -76,10 +76,9 @@
   "fcp": {
     "enabled": true,
     "use_fcp_pipeline": true,
-    "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
+"model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
     "fcp_pipeline": {
       "model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\ruadapt_qwen3_4b_openvino_ModelB",
-      "transformer_model_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\qwen_quant",
       "graph_path": "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
     },
     "use_injection": true,
@@ -109,10 +108,10 @@
     "modules": {
       "gnn_encoder_path": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\models\\graph_encoder.pt",
       "gnn_runtime_path": null,
-      "lora_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\models\\lora"
+      "lora_dir": "C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\eva_ai\\training\\checkpoints\\lora"
     },
 "generation": {
-        "max_new_tokens": 4096,
+        "max_new_tokens": 2048,
         "temperature": 0.2,
         "top_p": 0.9,
         "top_k": 40,

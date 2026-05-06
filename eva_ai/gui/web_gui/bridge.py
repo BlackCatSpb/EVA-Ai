@@ -681,7 +681,7 @@ class NetworkBridge:
             
             self._socket.sendall(message.encode('utf-8'))
             
-            response = self._socket.recv(4096)
+            response = self._socket.recv(2048)
             return json.loads(response.decode('utf-8'))
             
         except Exception as e:

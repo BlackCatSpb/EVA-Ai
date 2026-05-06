@@ -28,7 +28,7 @@ class MLModelConfig:
     model_type: ModelType
     model_path: str
     device: str = "auto"
-    max_memory_mb: int = 4096
+    max_memory_mb: int = 2048
     load_in_8bit: bool = False
     load_in_4bit: bool = False
     use_quantization: bool = True

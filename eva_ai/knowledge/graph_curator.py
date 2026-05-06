@@ -126,8 +126,11 @@ class GraphCurator:
         
         # Безопасная обработка event объекта
         try:
-            if hasattr(event, 'data'):
-                data = event.data
+            if hasattr(event, 'data') and event.data is not None:
+                if isinstance(event.data, dict):
+                    data = event.data
+                else:
+                    data = {}
             elif isinstance(event, dict):
                 data = event
             else:
@@ -157,8 +160,11 @@ class GraphCurator:
         
         # Безопасная обработка event объекта
         try:
-            if hasattr(event, 'data'):
-                data = event.data
+            if hasattr(event, 'data') and event.data is not None:
+                if isinstance(event.data, dict):
+                    data = event.data
+                else:
+                    data = {}
             elif isinstance(event, dict):
                 data = event
             else:
@@ -315,6 +321,19 @@ class GraphCurator:
         with self._lock:
             try:
                 logger.debug("_do_curation: started")
+                
+                # Ensure metrics is always a dict with required keys
+                if not isinstance(self.metrics, dict):
+                    logger.warning(f"metrics is not a dict: {type(self.metrics)}, resetting")
+                    self.metrics = {}
+                
+                # Ensure all required keys exist
+                required_keys = ['cycles_completed', 'nodes_promoted', 'nodes_demoted', 
+                               'nodes_consolidated', 'nodes_removed', 'last_run', 'last_error']
+                for key in required_keys:
+                    if key not in self.metrics:
+                        self.metrics[key] = 0 if key != 'last_error' else None
+                
                 self.metrics['last_run'] = time.time()
 
                 fg = self._get_fractal_graph()
@@ -324,6 +343,17 @@ class GraphCurator:
                     return
 
                 storage = fg.storage
+                
+                # Validate storage has expected attributes and is not an Event object
+                if not hasattr(storage, 'nodes') or not hasattr(storage, 'semantic_groups'):
+                    logger.warning(f"storage doesn't have expected attributes: {type(storage)}")
+                    return
+                
+                # Extra check: ensure storage is not an Event object
+                if hasattr(storage, 'event_type'):  # Event objects have event_type
+                    logger.warning(f"storage appears to be an Event object: {type(storage)}")
+                    return
+                
                 logger.debug(f"_do_curation: storage has {len(storage.nodes)} nodes")
 
                 # 1. Очистка мусора (только незащищенных узлов)
@@ -362,9 +392,16 @@ class GraphCurator:
 
             except AttributeError as ae:
                 import traceback
+                tb = traceback.format_exc()
                 logger.error(f"Curation error: {ae}")
-                logger.debug(f"Traceback: {traceback.format_exc()}")
+                logger.error(f"Traceback: {tb}")
                 self.metrics['last_error'] = f"AttributeError: {ae}"
+                # Debug: log metrics type
+                logger.error(f"DEBUG: self.metrics type = {type(self.metrics)}")
+                if hasattr(self, '_fractal_graph'):
+                    logger.error(f"DEBUG: fg type = {type(self._fractal_graph)}")
+                    if hasattr(self._fractal_graph, 'storage'):
+                        logger.error(f"DEBUG: storage type = {type(self._fractal_graph.storage)}")
             except Exception as e:
                 import traceback
                 logger.error(f"Curation error: {e}")

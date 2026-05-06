@@ -114,7 +114,7 @@ class HybridTokenCache:
 
         self.dynamic_memory_limit = dynamic_memory_limit
         self.target_memory_bytes = int(target_memory_gb * 1024 ** 3)
-        self.avg_token_size_bytes = 4096
+        self.avg_token_size_bytes = 2048
 
         if psutil and dynamic_memory_limit:
             total_ram_gb = psutil.virtual_memory().total / (1024 ** 3)

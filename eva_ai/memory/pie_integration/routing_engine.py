@@ -261,7 +261,7 @@ class RoutingEngine:
         # Адаптируем под режим
         if mode == "extended":
             # Для extended увеличиваем max_tokens
-            max_tokens = min(params.max_tokens * 2, 4096)
+            max_tokens = min(params.max_tokens * 2, 2048)
         elif mode == "condensed":
             # Для condensed уменьшаем
             max_tokens = min(params.max_tokens, 512)
@@ -286,7 +286,7 @@ class RoutingEngine:
         """
         default_configs = [
             ("general", RoutingParams(temperature=0.3, repeat_penalty=1.8, max_tokens=1024)),
-            ("coding", RoutingParams(temperature=0.2, repeat_penalty=1.5, max_tokens=2048)),
+            ("coding", RoutingParams(temperature=0.2, repeat_penalty=1.5, max_tokens=4096)),
             ("creative", RoutingParams(temperature=0.8, repeat_penalty=1.2, max_tokens=1536)),
             ("science", RoutingParams(temperature=0.3, repeat_penalty=1.8, max_tokens=1536)),
             ("chat", RoutingParams(temperature=0.7, repeat_penalty=1.3, max_tokens=512)),

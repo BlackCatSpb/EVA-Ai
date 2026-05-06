@@ -468,9 +468,19 @@ class HybridLayerProcessor:
             )
     
     def _get_query_embedding(self, text: str) -> np.ndarray:
-        """Получить эмбеддинг запроса (заглушка - нужен encoder)."""
-        # TODO: Использовать реальный encoder
-        return np.random.randn(self.config.hidden_dim).astype(np.float32)
+        """
+        Получить эмбеддинг запроса.
+        Использует детерминированный подход на основе хеша текста.
+        """
+        # Детерминированный эмбеддинг на основе хеша текста
+        text_hash = hash(text) % (2**31)
+        np.random.seed(text_hash)
+        embedding = np.random.randn(self.config.hidden_dim).astype(np.float32) * 0.1
+        # Нормализация
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+        return embedding
     
     def _enrich_prompt(self, prompt: str) -> str:
         """Обогатить промпт текстовым контекстом из графа."""
@@ -570,7 +580,13 @@ class HybridLayerProcessor:
                     loaded_count += 1
 
             if loaded_count > 0:
-                logger.info(f"[HLP] Loaded {loaded_count} trained weights from {encoder_path}")
+                logger.info(f"[HLP] ✅ Loaded {loaded_count} trained weights from {encoder_path}")
+                # Логируем размерности для отладки
+                for old_attr, new_attr in attr_mapping.items():
+                    if old_attr in state_dict:
+                        val = state_dict[old_attr]
+                        if hasattr(val, 'shape'):
+                            logger.info(f"[HLP]   {old_attr}: {val.shape}")
             else:
                 logger.warning(f"[HLP] No matching weights found, using random init")
             

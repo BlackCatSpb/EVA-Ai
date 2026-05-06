@@ -9,9 +9,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("runner")
 
 MODELS = {
-    "openvino": "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml",
-    "tokenizer": "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b_openvino_ModelB",
-    "graph": "C:/Users/black/OneDrive/Desktop/FMF_EVA/eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
+    "openvino": "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml",
+    "tokenizer": "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB",
+    "graph": "C:/Users/black/OneDrive/Desktop/EVA-Ai/eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
 }
 
 MAX_NEW_TOKENS = 64

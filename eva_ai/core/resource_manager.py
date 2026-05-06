@@ -379,6 +379,6 @@ class ResourceManager:
         if cpu > 0.85 or ram > 0.90:
             return 2048
         elif cpu > 0.70 or ram > 0.75:
-            return 4096
+            return 2048
         else:
             return 8192

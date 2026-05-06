@@ -195,7 +195,7 @@ class ExtendedGenerator:
         self,
         llama_model,
         graph=None,
-        max_tokens: int = 4096,
+        max_tokens: int = 2048,
         temperature: float = 0.35,
         repeat_penalty: float = 1.8,
         frequency_penalty: float = 0.3,
@@ -255,7 +255,7 @@ class ExtendedGenerator:
         self,
         query: str,
         context: str = "",
-        max_total_tokens: int = 4096,
+        max_total_tokens: int = 2048,
         chunk_size: int = 1024,
         max_chunks: int = 4
     ) -> Dict[str, Any]:
@@ -664,7 +664,7 @@ class DualGenerator:
         llama_extended: Any,
         graph=None,
         condensed_max_tokens: int = 1024,
-        extended_max_tokens: int = 4096,
+        extended_max_tokens: int = 2048,
         extended_temperature: float = 0.35,
         extended_repeat_penalty: float = 1.8,
         brain=None  # Добавляем ссылку на brain для компактификации и документов
@@ -746,8 +746,8 @@ class DualGenerator:
             query: Текст запроса
             mode: 'condensed', 'extended', 'large', 'auto'
                 - 'condensed': всегда краткий (до 1024 токенов)
-                - 'extended': всегда развёрнутый (до 4096 токенов)
-                - 'large': большой ответ блоками (до 4096+ токенов)
+                - 'extended': всегда развёрнутый (до 2048 токенов)
+                - 'large': большой ответ блоками (до 2048+ токенов)
                 - 'auto': определяет по ключевым словам
             return_details: возвращать детали (Dict) или только response (str)
         """
@@ -786,7 +786,7 @@ class DualGenerator:
         result = self.extended.generate_chunked(
             query=query,
             context=context,
-            max_total_tokens=4096,
+            max_total_tokens=2048,
             chunk_size=1024,
             max_chunks=4
         )
@@ -1011,7 +1011,7 @@ class DualGenerator:
                 result = self.extended.generate_chunked(
                     query=query,
                     context=context,
-                    max_total_tokens=4096,
+                    max_total_tokens=2048,
                     chunk_size=1024,
                     max_chunks=4
                 )

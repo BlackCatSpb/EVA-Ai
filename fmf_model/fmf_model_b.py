@@ -16,7 +16,7 @@ class FMFModelBAdapter:
         self,
         model_path: str = None,
         graph_path: str = None,
-        n_ctx: int = 4096,
+        n_ctx: int = 2048,
         n_threads: int = 8,
         **kwargs
     ):
@@ -151,7 +151,7 @@ class FMFModelBAdapter:
 def create_fmf_model_b(
     model_path: str = None,
     graph_path: str = None,
-    n_ctx: int = 4096,
+    n_ctx: int = 2048,
     n_threads: int = 8
 ) -> FMFModelBAdapter:
     """Фабрика для создания FMF Model B"""

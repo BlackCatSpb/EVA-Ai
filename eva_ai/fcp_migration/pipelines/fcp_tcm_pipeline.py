@@ -9,7 +9,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("fcp_tcm")
 
-MODEL_PATH = "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b"
+MODEL_PATH = "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB"
 
 sys.path.insert(0, "C:/Users/black/OneDrive/Desktop/FCP/src")
 from memory.temporal_context import TemporalContextMemory

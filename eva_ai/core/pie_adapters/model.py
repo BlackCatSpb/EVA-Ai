@@ -358,7 +358,7 @@ class EvaModel:
                 extended_path = self.container.get_model_path("extended")
                 # TODO: Переключиться на extended модель
                 logger.info("Using extended model")
-                final_max_tokens = min(final_max_tokens * 2, 4096)
+                final_max_tokens = min(final_max_tokens * 2, 2048)
             except ValueError:
                 pass  # Используем текущую модель
         

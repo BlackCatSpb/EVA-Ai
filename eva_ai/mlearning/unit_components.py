@@ -169,7 +169,7 @@ def _init_hybrid_cache(self):
         
         self.hybrid_cache = HybridTokenCache(
             brain=self.brain,
-            max_memory_tokens=self.hybrid_cache_size // 4096,
+            max_memory_tokens=self.hybrid_cache_size // 2048,
             disk_cache_dir=os.path.join(self.cache_dir, "hybrid_cache"),
             target_memory_gb=1.0,
             dynamic_memory_limit=True,

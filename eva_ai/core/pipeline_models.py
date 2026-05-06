@@ -20,7 +20,7 @@ def _generate_response(
     prompt: str,
     max_tokens: int = 512,
     temperature: float = 0.3,
-    max_context: int = 4096
+    max_context: int = 2048
 ) -> str:
     """Helper for Model A review functionality."""
     messages = [

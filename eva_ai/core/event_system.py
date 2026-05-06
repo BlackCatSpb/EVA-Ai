@@ -533,7 +533,15 @@ class EventSystem:
     
     def publish(self, event: Dict):
         """Публикация события - в EventBus если доступен"""
-        if self.external_event_bus and self._compatibility_mode:
+        # Поддержка как dict, так и объекта Event
+        if hasattr(event, 'event_type'):
+            # Это объект Event - передаём напрямую
+            if self.external_event_bus:
+                self.external_event_bus.publish(event)
+            else:
+                self._old_publish(event)
+        elif self.external_event_bus and self._compatibility_mode:
+            # Это dict - конвертируем в Event
             from .event_bus import Event, EventPriority
             new_event = Event(
                 event_type=event.get('type', ''),
@@ -548,7 +556,17 @@ class EventSystem:
     
     def _old_publish(self, event: Dict):
         """Старая логика публикации через trigger"""
-        self.event_bus.trigger(event.get('type', ''), event.get('data', {}))
+        # Поддержка как dict, так и объекта Event
+        if hasattr(event, 'event_type'):
+            # Это объект Event
+            event_type = getattr(event, 'event_type', '')
+            event_data = getattr(event, 'data', {})
+        else:
+            # Это dict
+            event_type = event.get('type', '') if isinstance(event, dict) else ''
+            event_data = event.get('data', {}) if isinstance(event, dict) else {}
+        
+        self.event_bus.trigger(event_type, event_data)
     
     def subscribe(self, event_name: str, callback: Callable, priority: int = 5):
         """Подписывается на событие."""

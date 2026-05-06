@@ -145,7 +145,16 @@
         }
         stopGenTimer();
     }
-
+    
+    /* ── Auto-scroll with MutationObserver ── */
+    const chatMessagesEl = $('#chatMessages');
+    if (chatMessagesEl) {
+        const scrollObserver = new MutationObserver(() => {
+            chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        });
+        scrollObserver.observe(chatMessagesEl, { childList: true, subtree: true, characterData: true });
+    }
+    
     /* ── API ── */
     async function api(path, opts = {}) {
         console.log('API call:', path, opts);
@@ -600,6 +609,23 @@
         c.appendChild(div);
         c.scrollTop = c.scrollHeight;
         
+        // Render math with KaTeX
+        if (window.renderMathInElement) {
+            try {
+                renderMathInElement(div, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            } catch (e) {
+                console.error('KaTeX render error:', e);
+            }
+        }
+        
         // Store message text for action buttons
         messageStore[messageId] = {
             text: text,
@@ -666,6 +692,7 @@
         
         const toggle = container.querySelector('.reasoning-toggle');
         const body = container.querySelector('.reasoning-body');
+        const chatMessages = $('#chatMessages');
         
         const isOpen = toggle.classList.contains('open');
         
@@ -679,6 +706,11 @@
             if (body) {
                 setTimeout(() => { body.scrollTop = body.scrollHeight; }, 50);
             }
+        }
+        
+        // Auto-scroll chat to bottom after toggle
+        if (chatMessages) {
+            setTimeout(() => { chatMessages.scrollTop = chatMessages.scrollHeight; }, 100);
         }
     }
     
@@ -829,6 +861,22 @@
         if (textEl) {
             try {
                 textEl.innerHTML = formatText(text);
+                // Render math with KaTeX
+                if (window.renderMathInElement) {
+                    try {
+                        renderMathInElement(textEl, {
+                            delimiters: [
+                                {left: '$$', right: '$$', display: true},
+                                {left: '$', right: '$', display: false},
+                                {left: '\\(', right: '\\)', display: false},
+                                {left: '\\[', right: '\\]', display: true}
+                            ],
+                            throwOnError: false
+                        });
+                    } catch (e) {
+                        console.error('[REASONING] KaTeX render error:', e);
+                    }
+                }
             } catch (e) {
                 console.error('[REASONING] formatText error:', e);
                 textEl.textContent = text;
@@ -843,6 +891,12 @@
         const body = reasoningContainer.querySelector('.reasoning-body');
         if (body) {
             body.scrollTop = body.scrollHeight;
+        }
+        
+        // Auto-scroll chat to bottom
+        const chatMessages = $('#chatMessages');
+        if (chatMessages) {
+            setTimeout(() => { chatMessages.scrollTop = chatMessages.scrollHeight; }, 50);
         }
     }
     
@@ -909,7 +963,7 @@
                 <span>Рассуждения модели</span>
             </button>
             <div class="reasoning-body">
-                <pre class="reasoning-full-text">${esc(reasoningText)}</pre>
+                <div class="reasoning-full-text">${esc(reasoningText.trim())}</div>
             </div>
         `;
         
@@ -919,6 +973,23 @@
             msgEl.querySelector('.msg-inner').insertBefore(reasoningContainer, msgText);
         } else {
             msgEl.querySelector('.msg-inner').appendChild(reasoningContainer);
+        }
+        
+        // Render math with KaTeX
+        if (window.renderMathInElement) {
+            try {
+                renderMathInElement(reasoningContainer, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            } catch (e) {
+                console.error('KaTeX render error:', e);
+            }
         }
     }
     
@@ -1621,6 +1692,9 @@
         if (!text) return '';
         let html = text;
         
+        // Remove leading whitespace that causes indent in reasoning
+        html = html.trimStart();
+        
         // Удаляем теги рассуждений модели через substring (regex не работает с unicode)
         while (true) {
             const startTag = '<think>';
@@ -1647,51 +1721,6 @@
         
         // Handle escape sequences for markdown characters
         html = html.replace(/\\([\\`*_\[\]()#+\-.!|])/g, '$1');
-        
-        // Math symbols conversion - comprehensive LaTeX support
-        const mathSymbols = {
-            // Greek letters
-            'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε', 'varepsilon': 'ε',
-            'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'vartheta': 'ϑ', 'iota': 'ι', 'kappa': 'κ',
-            'lambda': 'λ', 'mu': 'μ', 'nu': 'ν', 'xi': 'ξ', 'pi': 'π', 'varpi': 'ϖ',
-            'rho': 'ρ', 'varrho': 'ϱ', 'sigma': 'σ', 'varsigma': 'ς', 'tau': 'τ', 'upsilon': 'υ',
-            'phi': 'φ', 'varphi': 'ϕ', 'chi': 'χ', 'psi': 'ψ', 'omega': 'ω',
-            'Gamma': 'Γ', 'Delta': 'Δ', 'Theta': 'Θ', 'Lambda': 'Λ', 'Xi': 'Ξ', 'Pi': 'Π',
-            'Sigma': 'Σ', 'Upsilon': 'Υ', 'Phi': 'Φ', 'Psi': 'Ψ', 'Omega': 'Ω',
-            // Math symbols
-            'infinity': '∞', 'inf': '∞', 'sqrt': '√', 'sum': '∑', 'prod': '∏',
-            'integral': '∫', 'partial': '∂', 'nabla': '∇', 'times': '×', 'div': '÷',
-            'pm': '±', 'mp': '∓', 'cdot': '·', 'star': '⋆', 'ast': '∗',
-            'leq': '≤', 'geq': '≥', 'neq': '≠', 'equiv': '≡', 'approx': '≈',
-            'sim': '∼', 'simeq': '≃', 'cong': '≅', 'propto': '∝',
-            'forall': '∀', 'exists': '∃', 'nexists': '∄', 'in': '∈', 'notin': '∉',
-            'subset': '⊂', 'subseteq': '⊆', 'supset': '⊃', 'supseteq': '⊇',
-            'cup': '∪', 'cap': '∩', 'setminus': '∖', 'emptyset': '∅',
-            'rightarrow': '→', 'leftarrow': '←', 'Rightarrow': '⇒', 'Leftarrow': '⇐',
-            'leftrightarrow': '↔', 'Leftrightarrow': '⇔', 'mapsto': '↦',
-            'uparrow': '↑', 'downarrow': '↓', 'Uparrow': '⇑', 'Downarrow': '⇓',
-            'angle': '∠', 'perp': '⊥', 'parallel': '∥', 'nparallel': '∦',
-            'ldots': '…', 'cdots': '⋯', 'vdots': '⋮', 'ddots': '⋱',
-            'infty': '∞', 'aleph': 'ℵ', 'hbar': 'ℏ', 'ell': 'ℓ', 'Re': 'ℜ', 'Im': 'ℑ',
-            'wp': '℘', 'prime': '′', 'backprime': '‵', 'surd': '√',
-            // Operators
-            'cdot': '·', 'bullet': '•', 'circ': '∘', 'odot': '⊙', 'ominus': '⊖',
-            'oplus': '⊕', 'otimes': '⊗', 'oslash': '⊘', 'bigcirc': '○',
-            'dagger': '†', 'ddagger': '‡', 'amalg': '⨿', 'wr': '≀',
-            // Arrows
-            'to': '→', 'gets': '←', 'leadsto': '⇝', 'longrightarrow': '⟶',
-            'longleftarrow': '⟵', 'Longrightarrow': '⟹', 'Longleftarrow': '⟸'
-        };
-        
-        // LaTeX superscripts/subscripts mapping
-        const superscripts = {
-            '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
-            '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', 'n': 'ⁿ', 'i': 'ⁱ'
-        };
-        const subscripts = {
-            '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-            '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎'
-        };
         
         // Handle bullet points with emoji (like 🔹, 🔸) BEFORE bold/italic
         // This handles lines like "🔹 **Разговорный** — текст"
@@ -1777,8 +1806,8 @@
         // Better handling of multiple newlines - create paragraphs
         html = html.replace(/\n{3,}/g, '\n\n');
         
-        // Tables - convert | col1 | col2 | to HTML table
-        const tableRegex = /^\|(.+)\|\s*\n\|[-:\s|]+\|\s*\n((?:\|.+\|\s*\n?)+)/gm;
+        // Tables - convert | col1 | col2 | to HTML table (handles | - |, ||-|, |---|---| etc.)
+        const tableRegex = /^\|(.+)\|\s*\n\|[\s\-:|]*\|[\s\-:|]*\n((?:\|[^\n]+\|\s*\n?)+)/gm;
         html = html.replace(tableRegex, function(match, headerRow, bodyRows) {
             const headers = headerRow.split('|').filter(h => h.trim()).map(h => h.trim());
             const rows = bodyRows.trim().split('\n').map(row => 
@@ -1796,30 +1825,6 @@
             return tableHtml;
         });
         
-        // Handle superscripts like x^2, x^{10}
-        html = html.replace(/(\w)\^\{(\d+)\}/g, (match, base, exp) => {
-            const sup = exp.split('').map(c => superscripts[c] || c).join('');
-            return base + sup;
-        });
-        html = html.replace(/(\w)\^(\d)/g, (match, base, exp) => {
-            return base + (superscripts[exp] || exp);
-        });
-        
-        // Handle subscripts like x_2, x_{10}
-        html = html.replace(/(\w)_\{(\d+)\}/g, (match, base, sub) => {
-            const subscript = sub.split('').map(c => subscripts[c] || c).join('');
-            return base + subscript;
-        });
-        html = html.replace(/(\w)_(\d)/g, (match, base, sub) => {
-            return base + (subscripts[sub] || sub);
-        });
-        
-        // Math blocks: $$...$$ for display math
-        html = html.replace(/\$\$([^$]+)\$\$/g, '<div class="math-block">$$$1$$</div>');
-        
-        // Math inline: $...$ for inline math
-        html = html.replace(/\$([^$\n]+)\$/g, '<span class="math-inline">$$1$</span>');
-        
         // Line breaks
         html = html.replace(/\n\n/g, '</p><p>');
         html = html.replace(/\n/g, '<br>');
@@ -1836,30 +1841,6 @@
         html = html.replace(/<p>(<blockquote>)/g, '$1');
         html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
         html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
-        
-        // Apply math symbols conversion (only outside tags)
-        // First handle LaTeX \commands
-        html = html.replace(/\\([a-zA-Z]+)/g, (match, cmd) => {
-            return mathSymbols[cmd] || match;
-        });
-        
-        // Then handle text-based symbols
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        const applyMathSymbols = (node) => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                let text = node.textContent;
-                // Replace operators like <=, >=
-                text = text.replace(/<=/g, '≤').replace(/>=/g, '≥');
-                text = text.replace(/!=/g, '≠').replace(/=>/g, '⇒');
-                text = text.replace(/->/g, '→').replace(/<-/g, '←');
-                node.textContent = text;
-            } else if (node.nodeType === Node.ELEMENT_NODE && !['code', 'pre', 'script', 'style'].includes(node.tagName.toLowerCase())) {
-                Array.from(node.childNodes).forEach(applyMathSymbols);
-            }
-        };
-        Array.from(tempDiv.childNodes).forEach(applyMathSymbols);
-        html = tempDiv.innerHTML;
         
         return html;
     }

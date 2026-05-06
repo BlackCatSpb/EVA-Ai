@@ -24,7 +24,7 @@ class ModelConfig:
     architecture: str = "transformer"
     num_layers: int = 32
     num_heads: int = 32
-    hidden_size: int = 4096
+    hidden_size: int = 2048
     vocab_size: int = 32000
     
     # Контекст
@@ -39,7 +39,7 @@ class BackendConfig:
     device: str = "cpu"
     
     # GGUF специфичные
-    n_ctx: int = 4096
+    n_ctx: int = 2048
     n_threads: int = -1  # -1 = auto (все ядра)
     n_batch: int = 512
     n_gpu_layers: int = 0
@@ -92,7 +92,7 @@ class QuantizationConfig:
     
     # Адаптивная
     adaptive_enabled: bool = False
-    target_memory_mb: int = 4096
+    target_memory_mb: int = 2048
 
 
 @dataclass

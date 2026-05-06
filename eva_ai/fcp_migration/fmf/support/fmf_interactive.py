@@ -465,7 +465,7 @@ class FMFGeneratorInteractive:
         self,
         prompt: str,
         enable_thinking: bool = True,
-        max_tokens: int = 4096
+        max_tokens: int = 2048
     ) -> dict:
         start = time.time()
         

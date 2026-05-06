@@ -44,10 +44,10 @@ class RecursiveModelPipeline:
     Использует create_chat_completion с автоматическим форматированием Qwen
     """
     
-    MODEL_A_MAX_TOKENS = 4096
+    MODEL_A_MAX_TOKENS = 2048
     MODEL_A_TEMPERATURE = 0.30
     
-    MODEL_B_MAX_TOKENS = 4096
+    MODEL_B_MAX_TOKENS = 2048
     MODEL_B_TEMPERATURE = 0.45
     
     STOP_TOKENS = ["</s>"]
@@ -153,12 +153,12 @@ class RecursiveModelPipeline:
         
         recommended_ctx = self.resource_manager.get_recommended_context_size()
         
-        if recommended_ctx <= 4096:
-            return {'max_tokens': 4096, 'temperature': 0.3}
+        if recommended_ctx <= 2048:
+            return {'max_tokens': 2048, 'temperature': 0.3}
         elif recommended_ctx <= 8192:
-            return {'max_tokens': 4096, 'temperature': 0.4}
+            return {'max_tokens': 2048, 'temperature': 0.4}
         else:
-            return {'max_tokens': 4096, 'temperature': 0.5}
+            return {'max_tokens': 2048, 'temperature': 0.5}
     
     def load_models(self):
         """Загрузка GGUF моделей - Model A и B как отдельные экземпляры"""

@@ -8,7 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("fcp")
 
-MODEL_PATH = "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b"
+MODEL_PATH = "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB"
 GRAPH_PATH = "C:/Users/black/OneDrive/Desktop/FMF_EVA/eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
 
 sys.path.insert(0, "C:/Users/black/OneDrive/Desktop/FCP/src")

@@ -278,7 +278,7 @@ class FCPV8:
                     layer_id=i,
                     hidden_dim=2048,
                     num_heads=16,
-                    max_seq_len=4096,
+                    max_seq_len=2048,
                     graph_retrieval_k=32,
                     master_tokens=8,
                     gnn_iterations=2,

@@ -115,7 +115,7 @@ class HybridPipelineAdapter:
         """Получить параметры модели из графа памяти."""
         params = {
             'n_ctx': self.n_ctx,
-            'max_tokens': 4096,
+            'max_tokens': 2048,
             'hidden_size': 2560,
             'num_layers': 36,
             'attention_heads': 32,
@@ -260,7 +260,7 @@ class HybridPipelineAdapter:
                 return
             
             extended_config = self._kwargs.get('fractal_graph_v2', {})
-            extended_max_tokens = extended_config.get('extended_max_tokens', 4096)
+            extended_max_tokens = extended_config.get('extended_max_tokens', 2048)
             extended_temperature = extended_config.get('extended_temperature', 0.35)
             extended_repeat_penalty = extended_config.get('extended_repeat_penalty', 1.8)
             

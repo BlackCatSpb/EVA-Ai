@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("runner")
 
 MODEL_PATH = "C:/Users/black/OneDrive/Desktop/Models/Qwen3-4B-PyTorch"
-TOKENIZER_PATH = "C:/Users/black/OneDrive/Desktop/Models/ruadapt_qwen3_4b_openvino_ModelB"
+TOKENIZER_PATH = "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB"
 
 MAX_NEW_TOKENS = 64
 

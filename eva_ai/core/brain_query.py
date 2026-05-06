@@ -836,7 +836,7 @@ class QueryMixin:
 
         response_text, gen_err = self._generate_with_timeout(
             lambda: self.qwen_model_manager.generate(
-                messages, max_new_tokens=2048, temperature=temperature,
+                messages, max_new_tokens=4096, temperature=temperature,
                 top_p=top_p, repetition_penalty=repetition_penalty))
         if gen_err:
             return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",

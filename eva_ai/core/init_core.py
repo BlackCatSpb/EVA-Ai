@@ -63,6 +63,7 @@ class ComponentInitializer:
         'web_search_engine',
         'self_reasoning_engine',
         'fcp_pipeline',
+        'hybrid_layer_pipeline',
         'closed_cognitive_loop',
     ]
 
@@ -70,6 +71,8 @@ class ComponentInitializer:
         'qwen_api_enhancer',
         'web_search_engine',
         'gui',
+        'closed_cognitive_loop',
+        'hybrid_layer_pipeline',
     }
 
     def __init__(self, core_brain):

@@ -85,7 +85,7 @@ class PipelineAdapter:
             # Определяем параметры генерации
             user_context = context or {}
             params = gen_params or {}
-            max_tokens = params.get('max_new_tokens', 4096)  # Минимум 4096
+            max_tokens = params.get('max_new_tokens', 2048)  # Минимум 2048
             temperature = params.get('temperature', 0.7)
             
             # Используем итеративную генерацию с проверкой противоречий
@@ -93,8 +93,8 @@ class PipelineAdapter:
             result = self._generator.generate_iterative(
                 query=query,
                 context=None,
-                max_tokens_logic=4096,
-                max_tokens_context=4096,
+                max_tokens_logic=2048,
+                max_tokens_context=2048,
                 temperature=temperature,
                 check_contradictions=True,
                 check_concepts=True,
@@ -154,7 +154,7 @@ class PipelineAdapter:
                 "source": "pipeline_adapter"
             }
     
-    def generate(self, prompt: str, max_tokens: int = 4096, temperature: float = 0.7) -> str:
+    def generate(self, prompt: str, max_tokens: int = 2048, temperature: float = 0.7) -> str:
         """Прямая генерация (для совместимости)."""
         if not self._generator:
             return "Ошибка: генератор не инициализирован"
@@ -199,7 +199,7 @@ class PipelineAdapter:
             task_type=task_type
         )
     
-    def generate_with_context(self, query: str, context: str = "", max_tokens: int = 4096, temperature: float = 0.7):
+    def generate_with_context(self, query: str, context: str = "", max_tokens: int = 2048, temperature: float = 0.7):
         """
         Генерация с контекстом и чанкованием.
         

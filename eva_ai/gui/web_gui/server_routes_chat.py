@@ -179,7 +179,17 @@ def register_chat_routes(app, web_gui_instance):
                         logger.info(f"Using PipelineAdapter: {type(pipeline)}")
                     
                     if not dialog_manager and not pipeline:
-                        error_msg = 'Pipeline не найден - GUI brain не инициализирован'
+                        # Provide more detailed error for debugging
+                        brain = web_gui_instance.brain if web_gui_instance else None
+                        fcp = getattr(brain, 'fcp_pipeline', None) if brain else None
+                        fcp_pipe = getattr(fcp, 'pipeline', None) if fcp else None
+                        hdm = getattr(brain, 'hybrid_dialog_manager', None) if brain else None
+                        tmp = getattr(brain, 'two_model_pipeline', None) if brain else None
+                        error_msg = (f'Pipeline не найден. Details: '
+                                    f'fcp_pipeline={fcp is not None}, '
+                                    f'fcp_pipeline.pipeline={fcp_pipe is not None}, '
+                                    f'hybrid_dialog_manager={hdm is not None}, '
+                                    f'two_model_pipeline={tmp is not None}')
                         logger.error(error_msg)
                         yield f"data: {json.dumps({'type': 'error', 'text': error_msg})}\n\n"
                         return
@@ -203,15 +213,16 @@ def register_chat_routes(app, web_gui_instance):
                             yield f"data: {json.dumps({'type': 'error', 'text': f'Ошибка: {str(e)[:100]}'})}\n\n"
                             return
                     
-                    # FCPPipelineV15 - используем стриминг
+                    # FCPPipelineV15 - используем стриминг с инъекцией
                     elif pipeline and hasattr(pipeline, 'generate_streaming') and hasattr(pipeline, 'model_path'):
-                        logger.info("Using FCPPipelineV15.generate_streaming()...")
+                        logger.info("Using FCPPipelineV15.generate_streaming() with injection...")
                         try:
-                            # Запускаем стриминг
+                            # Запускаем стриминг с включённой инъекцией
                             for result in pipeline.generate_streaming(
                                 message,
                                 max_new_tokens=4096,
                                 enable_thinking=True,
+                                enable_injection=True,  # Включаем полнослойную инъекцию!
                                 conversation_history=None
                             ):
                                 # result - это dict с type и text

@@ -10,6 +10,43 @@ logger = logging.getLogger("eva_ai.core_brain")
 query_logger = logging.getLogger("eva_ai.core_brain.query_processing")
 
 
+def _subscribe_components_to_eventbus(brain):
+    """Подписать все компоненты brain на EventBus для управления через события."""
+    event_bus = getattr(brain, '_new_event_bus', None)
+    if event_bus is None:
+        logger.info("[brain_components] EventBus not available for component subscriptions")
+        return
+    
+    from eva_ai.core.event_bus import EventTypes, Event
+    
+    def on_system_ready(event: Event):
+        logger.info(f"[brain_components] System ready: {event.data}")
+        if brain.state_manager and hasattr(brain.state_manager, 'set_state'):
+            try:
+                from eva_ai.core.system_state import SystemState
+                brain.state_manager.set_state(SystemState.RUNNING, "Система готова")
+            except:
+                pass
+    
+    def on_component_initialized(event: Event):
+        logger.debug(f"[brain_components] Component initialized: {event.data}")
+    
+    def on_system_error(event: Event):
+        logger.error(f"[brain_components] System error: {event.data}")
+        if brain.state_manager and hasattr(brain.state_manager, 'set_state'):
+            try:
+                from eva_ai.core.system_state import SystemState
+                brain.state_manager.set_state(SystemState.ERROR, str(event.data))
+            except:
+                pass
+    
+    event_bus.subscribe(EventTypes.SYSTEM_READY, on_system_ready, priority=1)
+    event_bus.subscribe(EventTypes.COMPONENT_INITIALIZED, on_component_initialized, priority=5)
+    event_bus.subscribe(EventTypes.SYSTEM_ERROR, on_system_error, priority=1)
+    
+    logger.info("[brain_components] Components subscribed to EventBus")
+
+
 def _init_mode_controller(brain):
     """Инициализация контроллера режимов модели (язык, квантование)."""
     import sys
@@ -219,9 +256,9 @@ def _init_llama_cpp(brain):
 
 
 def _init_fcp_pipeline(brain):
-    """Инициализация FCPPipelineV15 - основной и единственный пайплайн генерации.
+    """Инициализация FCPipeline - основной и единственный пайплайн генерации.
     
-    FCPPipelineV15 включает:
+    FCPipeline включает:
     - OpenVINO GenAI с ruadapt_qwen3_4b
     - GNN инъекция на всех 32 слоях
     - LoRA management (ShadowLoRAManagerOV)
@@ -243,14 +280,14 @@ def _init_fcp_pipeline(brain):
         # Check if enabled at fcp level
         fcp_enabled = brain.config.get('fcp', {}).get('enabled', True)
         if not fcp_enabled:
-            query_logger.info("FCPPipelineV15 отключён в конфигурации (fcp.enabled=false)")
+            query_logger.info("FCPipeline отключён в конфигурации (fcp.enabled=false)")
             return
 
         if not fcp_config.get('enabled', True):
-            query_logger.info("FCPPipelineV15 отключён в конфигурации (fcp_pipeline.enabled=false)")
+            query_logger.info("FCPipeline отключён в конфигурации (fcp_pipeline.enabled=false)")
             return
 
-        from eva_ai.core.fcp_pipeline import FCPPipelineV15
+        from eva_ai.core.fcp_pipeline import FCPipeline
 
         model_path = fcp_config.get('model_path')
         if not model_path:
@@ -261,7 +298,7 @@ def _init_fcp_pipeline(brain):
         gnn_ov_path = fcp_config.get('gnn_ov_path')
         lora_dir = fcp_config.get('lora_dir')
         
-        pipeline = FCPPipelineV15(
+        pipeline = FCPipeline(
             model_path=model_path,
             graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
@@ -271,13 +308,13 @@ def _init_fcp_pipeline(brain):
         brain.fcp_pipeline = pipeline
         brain.fcp_pipeline_ready = True
         
-        query_logger.info(f"FCPPipelineV15 инициализирован: model={model_path}")
+        query_logger.info(f"FCPipeline инициализирован: model={model_path}")
         
         try:
             from eva_ai.core.event_bus import Event, EventTypes
             if brain.events:
                 brain.events.trigger(EventTypes.COMPONENT_INITIALIZED, data={
-                    "component": "FCPPipelineV15",
+                    "component": "FCPipeline",
                     "model_path": model_path,
                     "ready": True
                 })
@@ -285,19 +322,19 @@ def _init_fcp_pipeline(brain):
             pass
         
     except Exception as e:
-        query_logger.error(f"Ошибка инициализации FCPPipelineV15: {e}")
+        query_logger.error(f"Ошибка инициализации FCPipeline: {e}")
         brain.fcp_pipeline = None
         brain.fcp_pipeline_ready = False
 
 
 def _init_two_model_pipeline(brain):
-    """DEPRECATED - используюется FCPPipelineV15 вместо Two-Model Pipeline.
+    """DEPRECATED - используюется FCPipeline вместо Two-Model Pipeline.
     
     Эта функция сохранена для обратной совместимости но НЕ инициализирует старый пайплайн.
     """
     brain.two_model_pipeline = None
     brain.two_model_pipeline_ready = False
-    query_logger.info("Two-Model Pipeline DEPRECATED - используется FCPPipelineV15")
+    query_logger.info("Two-Model Pipeline DEPRECATED - используется FCPipeline")
     
     try:
         model_config = brain.config.get('model', {})
@@ -889,9 +926,9 @@ class ComponentMixin:
 
 
 def _init_unified_generator(brain):
-    '''DEPRECATED - используется FCPPipelineV15.
+    '''DEPRECATED - используется FCPipeline.
     
-    FCPPipelineV15 - основной и единственный пайплайн генерации.
+    FCPipeline - основной и единственный пайплайн генерации.
     '''
     brain.two_model_pipeline = None
     brain.two_model_pipeline_ready = False
@@ -906,11 +943,11 @@ def _init_unified_generator(brain):
             query_logger.warning("FCP config empty or not found")
         
         if not fcp_config.get('enabled', True):
-            query_logger.info("FCPPipelineV15 disabled")
+            query_logger.info("FCPipeline disabled")
             return
         
         # Debug: проверяем импорт
-        query_logger.info("Importing FCPPipelineV15...")
+        query_logger.info("Importing FCPipeline...")
         from eva_ai.core.fcp_pipeline import FCPipeline
         query_logger.info("Import OK")
         
@@ -930,20 +967,20 @@ def _init_unified_generator(brain):
         gnn_ov_path = fcp_config.get('gnn_ov_path')
         lora_dir = fcp_config.get('lora_dir')
         
-        query_logger.info("Creating FCPPipelineV15 instance...")
+        query_logger.info("Creating FCPipeline instance...")
         pipeline = FCPipeline(
             model_path=model_path,
             graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
             lora_dir=lora_dir
         )
-        query_logger.info(f"FCPPipelineV15 created: {type(pipeline)}")
+        query_logger.info(f"FCPipeline created: {type(pipeline)}")
         brain.fcp_pipeline = pipeline
         brain.fcp_pipeline_ready = True
         brain.two_model_pipeline = pipeline
         brain.two_model_pipeline_ready = True
         
-        query_logger.info(f"FCPPipelineV15 ready!")
+        query_logger.info(f"FCPipeline ready!")
     except Exception as e:
         import traceback
         query_logger.error(f"ERROR: {e}")
@@ -1043,7 +1080,7 @@ def _init_hybrid_dialog_manager(brain):
             device=device,
             enable_validation=True,
             max_history=50,
-            max_tokens=2048,
+            max_tokens=4096,
             temperature=0.7
         )
         

@@ -32,7 +32,7 @@ class GGUFBackend(BaseBackend):
     
     Example:
         >>> backend = GGUFBackend()
-        >>> backend.load_model("model.gguf", n_ctx=4096, n_threads=8)
+        >>> backend.load_model("model.gguf", n_ctx=2048, n_threads=8)
         >>> result = backend.generate("Привет!", GenerationConfig(max_tokens=100))
         >>> print(result.text)
     """
@@ -43,7 +43,7 @@ class GGUFBackend(BaseBackend):
         
         Args:
             config: Конфигурация с параметрами:
-                - n_ctx: Размер контекста (по умолчанию 4096)
+                - n_ctx: Размер контекста (по умолчанию 2048)
                 - n_threads: Количество потоков (-1 = auto)
                 - n_gpu_layers: Количество слоёв на GPU (0 = только CPU)
                 - verbose: Логирование
@@ -54,7 +54,7 @@ class GGUFBackend(BaseBackend):
             raise RuntimeError("llama-cpp-python not installed. Install: pip install llama-cpp-python")
         
         self.model: Optional[Llama] = None
-        self.n_ctx = self.config.get("n_ctx", 4096)
+        self.n_ctx = self.config.get("n_ctx", 2048)
         self.n_threads = self.config.get("n_threads", -1)
         self.n_gpu_layers = self.config.get("n_gpu_layers", 0)
         self.verbose = self.config.get("verbose", False)
