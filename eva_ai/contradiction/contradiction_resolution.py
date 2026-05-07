@@ -11,9 +11,11 @@ import random
 import hashlib
 import numpy as np
 import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
+# Lazy import for SentimentIntensityAnalyzer to avoid download errors
+SentimentIntensityAnalyzer = None
 
 logger = logging.getLogger("eva_ai.contradiction.resolution")
 

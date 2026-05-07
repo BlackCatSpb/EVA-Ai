@@ -23,6 +23,7 @@ class GraphIndexer:
         self.embedding_dim = embedding_dim
         self._hnsw_index = None
         self._index_built = False
+        self._vector_count = 0
         
     def _get_connection(self):
         return sqlite3.connect(self.db_path)
@@ -75,8 +76,9 @@ class GraphIndexer:
         if ids and self._hnsw_index:
             try:
                 self._hnsw_index.add_items(ids, vectors)
+                self._vector_count = len(ids)
                 self._index_built = True
-                logger.info(f"HNSW индекс построен: {len(ids)} векторов")
+                logger.info(f"HNSW индекс построен: {self._vector_count} векторов")
                 return True
             except Exception as e:
                 logger.error(f"HNSW add_items failed: {e}")
@@ -185,8 +187,20 @@ class GraphIndexer:
                 "embedding": json.loads(row['embedding']) if row['embedding'] else None
             }
         return None
-
-
+     
+    def __len__(self):
+        """Return number of vectors in HNSW index if built, else 0."""
+        if self._index_built and self._hnsw_index:
+            try:
+                if hasattr(self._hnsw_index, 'get_current_count'):
+                    return self._hnsw_index.get_current_count()
+                else:
+                    return self._vector_count
+            except:
+                return 0
+        return 0
+ 
+ 
 def create_indexer(db_path: str) -> GraphIndexer:
     """Фабричная функция."""
     return GraphIndexer(db_path)

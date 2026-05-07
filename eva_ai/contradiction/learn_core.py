@@ -10,9 +10,11 @@ from typing import Dict, List, Optional, Any, Tuple, Set, Union
 from datetime import datetime, timedelta
 import numpy as np
 import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
+# Lazy import for SentimentIntensityAnalyzer to avoid download errors
+SentimentIntensityAnalyzer = None
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -124,6 +126,14 @@ class ContradictionLearningOpportunity(PatternExtractionMixin, FeedbackProcessin
     
     def _calculate_concept_importance(self, knowledge_graph) -> float:
         """Вычисляет важность концепта на основе его использования и значимости."""
+        global SentimentIntensityAnalyzer
+        if SentimentIntensityAnalyzer is None:
+            try:
+                from nltk.sentiment import SentimentIntensityAnalyzer as SIA
+                SentimentIntensityAnalyzer = SIA
+            except Exception:
+                logger.warning("SentimentIntensityAnalyzer not available, skipping sentiment analysis")
+                return 0.5  # default importance
         sentiment_analyzer = SentimentIntensityAnalyzer()
         stop_words = set(stopwords.words('english') + stopwords.words('russian'))
         

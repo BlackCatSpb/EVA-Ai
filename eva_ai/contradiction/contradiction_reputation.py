@@ -11,9 +11,11 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Tuple, Set, Union
 import tldextract
 import nltk
-from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
+# Lazy import for SentimentIntensityAnalyzer to avoid download errors
+SentimentIntensityAnalyzer = None
 
 logger = logging.getLogger("eva_ai.contradiction.reputation")
 
@@ -797,6 +799,14 @@ class SourceReputationSystem:
             Dict: Результаты анализа контента
         """
         # Инициализируем анализатор тональности
+        global SentimentIntensityAnalyzer
+        if SentimentIntensityAnalyzer is None:
+            try:
+                from nltk.sentiment import SentimentIntensityAnalyzer as SIA
+                SentimentIntensityAnalyzer = SIA
+            except Exception:
+                logger.warning("SentimentIntensityAnalyzer not available, skipping sentiment analysis")
+                return {"error": "SentimentIntensityAnalyzer not available"}
         sentiment_analyzer = SentimentIntensityAnalyzer()
         stop_words = set(stopwords.words('english') + stopwords.words('russian'))
         

@@ -234,8 +234,69 @@ class BackgroundTrainer:
         pass
     
     def load_latest_checkpoint(self) -> bool:
-        """Загрузить последний чекпоинт."""
-        return False
+        """Загрузить последний чекпоинт (поддерживает .safetensors и .pt)."""
+        import torch
+        
+        # Сначала ищем .safetensors
+        safetensors_checkpoints = list(self.checkpoint_dir.glob("lora_model*.safetensors"))
+        pt_checkpoints = list(self.checkpoint_dir.glob("lora_model*.pt"))
+        
+        latest = None
+        if safetensors_checkpoints:
+            latest = max(safetensors_checkpoints, key=os.path.getmtime)
+            return self._load_safetensors_checkpoint(latest)
+        elif pt_checkpoints:
+            latest = max(pt_checkpoints, key=os.path.getmtime)
+            return self._load_pt_checkpoint(latest)
+        else:
+            return False
+    
+    def _load_safetensors_checkpoint(self, path):
+        """Загрузить чекпоинт из .safetensors."""
+        try:
+            from safetensors.torch import load_file
+            state = load_file(path)
+            # Reconstruct per-layer state dicts
+            layer_states = {}
+            for key, tensor in state.items():
+                # key format: "layer_name.weight", etc.
+                if '.' in key:
+                    layer_name, param_name = key.split('.', 1)
+                    if layer_name not in layer_states:
+                        layer_states[layer_name] = {}
+                    layer_states[layer_name][param_name] = tensor
+            for name, state_dict in layer_states.items():
+                if name in self._lora_layers:
+                    self._lora_layers[name].load_state_dict(state_dict)
+            # Load metadata from .pt file if exists
+            meta_path = path.with_suffix('').with_suffix('.pt')  # remove .safetensors, add .pt? Actually meta file is lora_model_meta.pt
+            meta_path = path.parent / (path.stem + "_meta.pt")
+            if meta_path.exists():
+                meta = torch.load(meta_path, weights_only=True)
+                self._optimizer.load_state_dict(meta['optimizer'])
+                self._step_count = meta.get('step_count', 0)
+                self._losses = meta.get('losses', [])
+            logger.info(f"[LoRATrainer] Loaded (safetensors): {path}, step={self._step_count}")
+            return True
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] Load failed (safetensors): {e}")
+            return False
+    
+    def _load_pt_checkpoint(self, path):
+        """Загрузить чекпоинт из .pt (старый формат)."""
+        try:
+            checkpoint = torch.load(path, weights_only=True)
+            for name, state in checkpoint['layers'].items():
+                if name in self._lora_layers:
+                    self._lora_layers[name].load_state_dict(state)
+            self._optimizer.load_state_dict(checkpoint['optimizer'])
+            self._step_count = checkpoint.get('step_count',0)
+            self._losses = checkpoint.get('losses', [])
+            logger.info(f"[LoRATrainer] Loaded (pt): {path}, step={self._step_count}")
+            return True
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] Load failed (pt): {e}")
+            return False
     
     def is_ready(self) -> bool:
         """Готов ли к использованию."""
@@ -677,10 +738,18 @@ class LoRATrainer(BackgroundTrainer):
                     return x + x @ self.lora_a.T @ self.lora_b.T * self.scaling
             
             # Используем 768-мерные эмбеддинги (как в GNN)
-            self._lora_layers = {
-                "q_proj": LoRALayer(768, 768, rank=4),
-                "v_proj": LoRALayer(768, 768, rank=4),
-            }
+            # Иерархические ранги LoRA согласно EVA.txt
+            num_layers = 36  # предполагаемое количество слоев модели
+            self._lora_layers = {}
+            for i in range(num_layers):
+                if i < 8:
+                    rank = 4
+                elif i < 16:
+                    rank = 8
+                else:
+                    rank = 16
+                self._lora_layers[f"layer_{i}_q_proj"] = LoRALayer(768, 768, rank=rank)
+                self._lora_layers[f"layer_{i}_v_proj"] = LoRALayer(768, 768, rank=rank)
             
             # Переместить на устройство
             for layer in self._lora_layers.values():
@@ -714,7 +783,11 @@ class LoRATrainer(BackgroundTrainer):
             self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=768)
             built = self._graph_indexer.build_index(limit=50000)
             if built:
-                logger.info(f"[LoRATrainer] Graph index initialized with {len(self._graph_indexer._hnsw_index)} vectors")
+                try:
+                    count = len(self._graph_indexer)
+                    logger.info(f"[LoRATrainer] Graph index initialized with {count} vectors")
+                except Exception:
+                    logger.info("[LoRATrainer] Graph index initialized (count unknown)")
             else:
                 logger.warning("[LoRATrainer] Graph index build failed, will use SQL fallback")
         except Exception as e:
@@ -827,6 +900,21 @@ class LoRATrainer(BackgroundTrainer):
             if batch is None:
                 return False
             
+            # Verify batch quality
+            batch_mean = batch.mean().item()
+            batch_std = batch.std().item()
+            logger.info(f"[LoRATrainer] Batch stats: shape={batch.shape}, mean={batch_mean:.4f}, std={batch_std:.4f}")
+            
+            # Check if batch appears synthetic (low variance)
+            if batch_std < 1e-6:
+                logger.warning("[LoRATrainer] Batch appears synthetic (low variance). Check graph data loading!")
+            
+            # Log whether we're using graph indexer or fallback
+            if self._graph_indexer and hasattr(self._graph_indexer, '_index_built') and self._graph_indexer._index_built:
+                logger.info("[LoRATrainer] Using GraphIndexer for batch selection")
+            else:
+                logger.warning("[LoRATrainer] GraphIndexer not available, using SQL or synthetic fallback")
+            
             for layer in self._lora_layers.values():
                 layer.train()
             
@@ -840,6 +928,13 @@ class LoRATrainer(BackgroundTrainer):
             
             # Try to get brain's LearningGraphManager for real feedback signals
             learning_manager = None
+            
+            # Check brain reference
+            if self._brain is None:
+                logger.warning("[LoRATrainer] No brain reference - cannot access LearningGraphManager")
+            else:
+                logger.info(f"[LoRATrainer] Brain reference present: {type(self._brain).__name__}")
+            
             if self._brain and hasattr(self._brain, 'learning_graph_manager'):
                 learning_manager = self._brain.learning_graph_manager
             
@@ -900,6 +995,16 @@ class LoRATrainer(BackgroundTrainer):
                 self._optimizer.zero_grad()
                 loss.backward()
                 self._optimizer.step()
+                
+                # Log gradient norm
+                total_norm = 0.0
+                for layer in self._lora_layers.values():
+                    for p in layer.parameters():
+                        if p.grad is not None:
+                            param_norm = p.grad.data.norm(2)
+                            total_norm += param_norm.item() ** 2
+                total_norm = total_norm ** 0.5
+                logger.info(f"[LoRATrainer] Loss: {loss.item():.6f}, Gradient norm: {total_norm:.6f}")
             
             for layer in self._lora_layers.values():
                 layer.eval()
@@ -918,29 +1023,58 @@ class LoRATrainer(BackgroundTrainer):
             return False
     
     def save_checkpoint(self, suffix: str = ""):
-        """Сохранить LoRA веса."""
+        """Сохранить LoRA веса в формате safetensors для OpenVINO GenAI."""
         import torch
-        
-        state = {
-            name: layer.state_dict()
-            for name, layer in self._lora_layers.items()
-        }
-        
-        path = self.checkpoint_dir / f"lora_model{suffix}.pt"
-        torch.save({
-            'layers': state,
-            'optimizer': self._optimizer.state_dict(),
-            'step_count': self._step_count,
-            'losses': self._losses[-100:]
-        }, path)
-        logger.info(f"[LoRATrainer] Saved: {path}")
+        try:
+            from safetensors.torch import save_file
+            # Flatten state dict for safetensors
+            flat_state = {}
+            for name, layer in self._lora_layers.items():
+                layer_state = layer.state_dict()
+                for k, v in layer_state.items():
+                    flat_state[f"{name}.{k}"] = v
+            # Save only LoRA layers in safetensors
+            path = self.checkpoint_dir / f"lora_model{suffix}.safetensors"
+            save_file(flat_state, path)
+            # Save optimizer and metadata separately in .pt file
+            meta_path = self.checkpoint_dir / f"lora_model{suffix}_meta.pt"
+            torch.save({
+                'optimizer': self._optimizer.state_dict(),
+                'step_count': self._step_count,
+                'losses': self._losses[-100:]
+            }, meta_path)
+            logger.info(f"[LoRATrainer] Saved: {path}")
+        except ImportError:
+            # Fallback to .pt if safetensors not available
+            state = {
+                name: layer.state_dict()
+                for name, layer in self._lora_layers.items()
+            }
+            path = self.checkpoint_dir / f"lora_model{suffix}.pt"
+            torch.save({
+                'layers': state,
+                'optimizer': self._optimizer.state_dict(),
+                'step_count': self._step_count,
+                'losses': self._losses[-100:]
+            }, path)
+            logger.info(f"[LoRATrainer] Saved (fallback .pt): {path}")
     
     def load_latest_checkpoint(self) -> bool:
-        """Загрузить последний чекпоинт."""
+        """Загрузить последний чекпоинт (поддерживает .safetensors и .pt)."""
         import torch
         
-        checkpoints = list(self.checkpoint_dir.glob("lora_model*.pt"))
-        if not checkpoints:
+        # Сначала ищем .safetensors
+        safetensors_checkpoints = list(self.checkpoint_dir.glob("lora_model*.safetensors"))
+        pt_checkpoints = list(self.checkpoint_dir.glob("lora_model*.pt"))
+        
+        latest = None
+        if safetensors_checkpoints:
+            latest = max(safetensors_checkpoints, key=os.path.getmtime)
+            return self._load_safetensors_checkpoint(latest)
+        elif pt_checkpoints:
+            latest = max(pt_checkpoints, key=os.path.getmtime)
+            return self._load_pt_checkpoint(latest)
+        else:
             return False
         
         latest = max(checkpoints, key=os.path.getmtime)

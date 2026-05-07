@@ -319,6 +319,9 @@ class FCPipeline:
             'gamma': 0.5,                    # Текущее значение гейта
             'kca_iterations': 0,             # Счётчик итераций KCA
             'kca_rejected': False,           # Флаг отклонения коррекции
+            # Для обнаружения осцилляций (EVA.txt раздел 3.3)
+            'state_history': [],             # История состояний для обнаружения осцилляций
+            'state_change_history': [],      # История изменений состояний
         }
         print(f"[FCP] KCA Gate initialized: threshold={self.kca_gate_config['gate_threshold']}, damping={self.kca_gate_config['damping_factor']}")
         
@@ -852,11 +855,62 @@ class FCPipeline:
     def _init_lora_manager(self):
         self.current_adapter = None
         if self.lora_dir and os.path.exists(self.lora_dir):
-            default_adapter = "fcp_finetuned"
-            adapter_path = os.path.join(self.lora_dir, default_adapter)
-            if os.path.exists(adapter_path):
-                self.current_adapter = default_adapter
-                print(f"[FCP] LoRA adapter ready: {default_adapter}")
+            # Search for adapter files in order of preference
+            candidates = [
+                "lora_model.safetensors",  # New format for OpenVINO GenAI
+                "lora_model.pt",           # Old PyTorch format
+                "fcp_finetuned",           # Legacy name
+                "fcp_finetuned.safetensors",
+                "fcp_finetuned.pt"
+            ]
+            for candidate in candidates:
+                candidate_path = os.path.join(self.lora_dir, candidate)
+                if os.path.exists(candidate_path):
+                    self.current_adapter = candidate
+                    print(f"[FCP] LoRA adapter ready: {candidate}")
+                    break
+            if not self.current_adapter:
+                print(f"[FCP] LoRA adapter not found in {self.lora_dir}")
+        
+        # Try to apply adapter to pipeline if available
+        if self.current_adapter and self.pipeline:
+            self._apply_lora_adapter(self.current_adapter)
+    
+    def _apply_lora_adapter(self, adapter_name: str):
+        """Apply LoRA adapter to pipeline if supported."""
+        if not self.pipeline:
+            print("[FCP] No pipeline to apply LoRA adapter")
+            return False
+        adapter_path = os.path.join(self.lora_dir, adapter_name)
+        if not os.path.exists(adapter_path):
+            print(f"[FCP] Adapter file not found: {adapter_path}")
+            return False
+        
+        try:
+            import openvino_genai as ov_genai
+            
+            # Check if pipeline supports adapters
+            if hasattr(self.pipeline, 'set_adapters') and callable(getattr(self.pipeline, 'set_adapters')):
+                adapter = ov_genai.Adapter(adapter_path)
+                config = ov_genai.AdapterConfig()
+                config.add(adapter, alpha=0.7)
+                self.pipeline.set_adapters(config)
+                print(f"[FCP] LoRA adapter applied to pipeline: {adapter_name}")
+                return True
+            else:
+                # Try alternative: use OpenVINOGenerator wrapper
+                print(f"[FCP] Pipeline does not support set_adapters. Trying alternative...")
+                # The adapter file exists but pipeline doesn't support direct loading
+                # Store adapter path for later use in generation
+                self._pending_adapter = adapter_path
+                print(f"[FCP] Adapter stored for later use: {adapter_path}")
+                return True
+        except ImportError:
+            print("[FCP] openvino_genai not available")
+            return False
+        except Exception as e:
+            print(f"[FCP] Failed to apply LoRA adapter: {e}")
+            return False
     
     def generate(
         self,
@@ -1564,7 +1618,28 @@ class FCPipeline:
                 
                 # Динамический расчет KCA коррекции
                 val_proxy = self.state_injector.get_value(all_layers[-1])[0, :, -1, :].mean(axis=0)
-                
+
+                # === Oscillation detection (EVA.txt раздел 3.3) ===
+                current_state = val_proxy.copy()
+                state_history = self.kca_gate_config['state_history']
+                state_history.append(current_state)
+                if len(state_history) > 3:
+                    state_history.pop(0)
+                # Detect oscillation if we have at least 3 states
+                if len(state_history) >= 3:
+                    h0, h1, h2 = state_history[-3], state_history[-2], state_history[-1]
+                    delta1 = h1 - h0
+                    delta2 = h2 - h1
+                    norm1 = np.linalg.norm(delta1)
+                    norm2 = np.linalg.norm(delta2)
+                    if norm1 > 1e-8 and norm2 > 1e-8:
+                        cos_sim = np.dot(delta1, delta2) / (norm1 * norm2)
+                        if cos_sim < -0.5:
+                            # Average the last three states to damp oscillations
+                            avg_state = (h0 + h1 + h2) / 3.0
+                            val_proxy = avg_state
+                            self.kca_gate_config['state_history'] = []  # reset to avoid repeated oscillation
+                            logger.info(f"[FCP] Oscillation detected (cos_sim={cos_sim:.3f}), averaged last three states.")
                 # === Cross-Attention Слияние (EVA.txt раздел 2.1) ===
                 if hasattr(self, 'cross_attention') and self.cross_attention:
                     try:
@@ -1602,7 +1677,14 @@ class FCPipeline:
                     ca_output = val_proxy
                 
                 self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
-                
+
+                # Apply adaptive damping to correction vector (EVA.txt раздел 3.3)
+                rho = self.kca_gate_config['damping_factor']
+                t = self.kca_gate_config['kca_iterations']
+                damping = rho ** t
+                self.kca_correction_vec = self.kca_correction_vec * damping
+
+
                 # === TrainableGate: Обучаемый гейт слияния (EVA.txt раздел 2.1) ===
                 if hasattr(self, 'trainable_gate') and self.trainable_gate:
                     try:
@@ -1645,41 +1727,35 @@ class FCPipeline:
                     
                     # Применяем коррекцию ко всем слоям
                     
-                    # === KCA Gate: вычисление γ (gamma) ===
-                    # Gamma зависит от norm(correction) / norm(hidden_state)
-                    correction_norm = np.linalg.norm(self.kca_correction_vec)
-                    hidden_norm = np.linalg.norm(val_proxy) + 1e-8
-                    gamma = min(1.0, correction_norm / hidden_norm)  # 0 ≤ γ ≤ 1
-                    
-                    # Применяем демпфирование ρ^t согласно EVA.txt
-                    rho = self.kca_gate_config['damping_factor']
-                    t = self.kca_gate_config['kca_iterations']
-                    damped_gamma = gamma * (rho ** t)
-                    
-                    # Сохраняем в историю
-                    self.kca_gate_config['gate_history'].append(damped_gamma)
-                    self.kca_gate_config['gamma'] = damped_gamma
-                    
-                    # === KCA Gate монитор насыщения ===
-                    # Если среднее γ < threshold за последние min_iterations → отклонение коррекции
-                    if len(self.kca_gate_config['gate_history']) >= self.kca_gate_config['min_iterations']:
-                        recent_gamma = self.kca_gate_config['gate_history'][-self.kca_gate_config['min_iterations']:]
-                        avg_gamma = np.mean(recent_gamma)
-                        if avg_gamma < self.kca_gate_config['gate_threshold']:
-                            self.kca_gate_config['kca_rejected'] = True
-                            logger.info(f"[FCP] KCA Gate REJECTED: avg_gamma={avg_gamma:.4f} < {self.kca_gate_config['gate_threshold']}")
-                    
-                    # Применяем KCA только если не отклонено
-                    if not self.kca_gate_config['kca_rejected']:
-                        self.state_injector.transform_values(
-                            all_layers, 
-                            inject_graph_vector, 
-                            vector=self.kca_correction_vec, 
-                            weight=kca_weight * damped_gamma  # Применяем γ к весу
-                        )
-                    else:
-                        logger.debug(f"[FCP] KCA skipped: gamma={damped_gamma:.4f}")
-            
+                # === KCA Gate: вычисление γ (gamma) ===
+                # Gamma зависит от norm(correction) / norm(hidden_state)
+                correction_norm = np.linalg.norm(self.kca_correction_vec)
+                hidden_norm = np.linalg.norm(val_proxy) + 1e-8
+                gamma = min(1.0, correction_norm / hidden_norm)  # 0 ≤ γ ≤ 1
+
+                # Сохраняем в историю
+                self.kca_gate_config['gate_history'].append(gamma)
+                self.kca_gate_config['gamma'] = gamma
+
+                # === KCA Gate монитор насыщения ===
+                # Если среднее γ < threshold за последние min_iterations → отклонение коррекции
+                if len(self.kca_gate_config['gate_history']) >= self.kca_gate_config['min_iterations']:
+                    recent_gamma = self.kca_gate_config['gate_history'][-self.kca_gate_config['min_iterations']:]
+                    avg_gamma = np.mean(recent_gamma)
+                    if avg_gamma < self.kca_gate_config['gate_threshold']:
+                        self.kca_gate_config['kca_rejected'] = True
+                        logger.info(f"[FCP] KCA Gate REJECTED: avg_gamma={avg_gamma:.4f} < {self.kca_gate_config["gate_threshold"]}")
+
+                # Применяем KCA только если не отклонено
+                if not self.kca_gate_config['kca_rejected']:
+                    self.state_injector.transform_values(
+                        all_layers, 
+                        inject_graph_vector, 
+                        vector=self.kca_correction_vec, 
+                        weight=kca_weight * gamma  # Применяем γ к весу
+                    )
+                else:
+                    logger.debug(f"[FCP] KCA skipped: gamma={gamma:.4f}")
             # Логирование статистики gate
             logger.info(f"[FCP] Generation complete: {len(generated_ids)} tokens, "
                        f"early_exits={self.activation_gate_config['early_exits_count']}, "
@@ -1749,7 +1825,7 @@ class FCPipeline:
                 # Полный fallback
                 return self._generate(prompt, max_new_tokens, **{})
     
-    def load_lora_adapter(self, adapter_name: str = "fcp_finetuned", alpha: float = 0.8):
+    def load_lora_adapter(self, adapter_name: str = "lora_model.pt", alpha: float = 0.8):
         """Загрузить LoRA адаптер"""
         if not self.lora_dir:
             return False

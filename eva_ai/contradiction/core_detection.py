@@ -17,9 +17,11 @@ except ImportError:
     AmbiguousEntity = None
     AmbiguityType = None
 
-from nltk.sentiment import SentimentIntensityAnalyzer
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+
+# Lazy import for SentimentIntensityAnalyzer to avoid download errors
+SentimentIntensityAnalyzer = None
 
 from .core_resolution import ResolutionMixin
 from .core_tracking import TrackingMixin
@@ -101,6 +103,14 @@ class Contradiction:
     
     def _analyze_facts(self):
         try:
+            global SentimentIntensityAnalyzer
+            if SentimentIntensityAnalyzer is None:
+                try:
+                    from nltk.sentiment import SentimentIntensityAnalyzer as SIA
+                    SentimentIntensityAnalyzer = SIA
+                except Exception:
+                    logger.warning("SentimentIntensityAnalyzer not available, skipping sentiment analysis")
+                    return
             sia = SentimentIntensityAnalyzer()
             for idx, fact in enumerate(self.conflicting_facts):
                 text = fact.get("text", fact.get("value", ""))

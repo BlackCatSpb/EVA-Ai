@@ -6,7 +6,7 @@ import numpy as np
 from typing import List, Optional, Dict, Union, Any
 from dataclasses import dataclass, field
 
-from fcp_core.types import MemorySegment, Fact
+from eva_ai.fcp_core.types import MemorySegment, Fact
 
 
 class TemporalContextMemory:

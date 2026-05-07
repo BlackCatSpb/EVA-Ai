@@ -465,6 +465,13 @@
         // Generate message ID if not provided
         const messageId = msgId || ('msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9));
 
+        // Extract thinking from text and format text
+        const fmt = formatText(text);
+        let finalReasoning = reasoning;
+        if (fmt.reasoning && !reasoning) {
+            finalReasoning = fmt.reasoning;
+        }
+
         const div = document.createElement('div');
         div.className = 'msg';
         div.id = messageId;
@@ -483,11 +490,11 @@
         }
         
         // Use reasoning from brain if available
-        if (reasoning) {
+        if (finalReasoning) {
             // Check if reasoning is structured (array of steps) or plain text
-            if (Array.isArray(reasoning) && reasoning.length > 0) {
+            if (Array.isArray(finalReasoning) && finalReasoning.length > 0) {
                 // Render structured reasoning steps
-                const stepsHtml = reasoning.map((step, idx) => {
+                const stepsHtml = finalReasoning.map((step, idx) => {
                     const phase = step.phase || step.action || 'unknown';
                     const thought = step.thought || step.text || '';
                     const conf = step.confidence || 0;
@@ -527,19 +534,19 @@
                     <div class="msg-reasoning collapsed" id="reasoning-${messageId}">
                         <button class="reasoning-toggle" onclick="toggleReasoning(this, '${messageId}')">
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-                            Рассуждения (${reasoning.length} шагов)
+                            Рассуждения (${finalReasoning.length} шагов)
                         </button>
                         <div class="reasoning-body">
                             <div class="reasoning-steps">${stepsHtml}</div>
                         </div>
                         <span class="reasoning-collapsed-badge" onclick="toggleReasoning(this.parentElement.querySelector('.reasoning-toggle'), '${messageId}')">
-                            🧠 ${reasoning.length} шагов рассуждений — показать
+                            🧠 ${finalReasoning.length} шагов рассуждений — показать
                         </span>
                     </div>
                 `;
             } else {
                 // Plain text reasoning
-                const reasoningText = typeof reasoning === 'string' ? reasoning : JSON.stringify(reasoning, null, 2);
+                const reasoningText = typeof finalReasoning === 'string' ? finalReasoning : JSON.stringify(finalReasoning, null, 2);
                 reasoningHtml = `
                     <div class="msg-reasoning collapsed" id="reasoning-${messageId}">
                         <button class="reasoning-toggle" onclick="toggleReasoning(this, '${messageId}')">
@@ -601,7 +608,7 @@
             <div class="msg-inner">
                 <div class="msg-role ${roleClass}">${roleLabel}</div>
                 ${reasoningHtml}
-                <div class="msg-text" id="text-${messageId}">${formatText(text)}</div>
+                <div class="msg-text" id="text-${messageId}">${fmt.text}</div>
                 ${fileHtml}
                 ${actionsHtml}
             </div>
@@ -630,7 +637,7 @@
         messageStore[messageId] = {
             text: text,
             role: role,
-            reasoning: reasoning
+            reasoning: finalReasoning
         };
         
         // Add event listeners for action buttons
@@ -846,11 +853,16 @@
             return;
         }
         
-        const reasoningContainer = msgEl.querySelector('.msg-reasoning');
+        let reasoningContainer = msgEl.querySelector('.msg-reasoning');
         if (!reasoningContainer) {
             console.log('[REASONING] Container not found, creating...');
             openReasoningPanel(msgId);
-            return;
+            // Re-get the container after creating it
+            reasoningContainer = msgEl.querySelector('.msg-reasoning');
+            if (!reasoningContainer) {
+                console.log('[REASONING] Failed to create container');
+                return;
+            }
         }
         
         const textEl = reasoningContainer.querySelector('.reasoning-text');
@@ -860,7 +872,7 @@
         
         if (textEl) {
             try {
-                textEl.innerHTML = formatText(text);
+                textEl.innerHTML = formatText(text).text;
                 // Render math with KaTeX
                 if (window.renderMathInElement) {
                     try {
@@ -1401,11 +1413,19 @@
                             if (data.mode) {
                                 console.log(`[COMPLETE] mode=${data.mode}, lora=${data.lora}`);
                             }
-                        } else if (data.type === 'done') {
-                            updateMessageText(msgId, fullText, true);
-                            
-                            // Auto-collapse reasoning after generation completes
-                            collapseAllReasoning(msgId);
+                         } else if (data.type === 'done') {
+                             updateMessageText(msgId, fullText, true);
+                             
+                             // Save reasoning text to message store
+                             if (reasoningText && reasoningText.trim()) {
+                                 if (messageStore[msgId]) {
+                                     messageStore[msgId].reasoning = reasoningText;
+                                 }
+                                 addReasoningToMessage(msgId, reasoningText);
+                             }
+                             
+                             // Auto-collapse reasoning after generation completes
+                             collapseAllReasoning(msgId);
                             
                             stopGenTimer();
                             clearFile();
@@ -1453,7 +1473,7 @@
             const contentEl = msgEl.querySelector('.msg-inner .msg-text');
             if (contentEl) {
                 // Всегда используем innerHTML с formatText для корректного отображения
-                contentEl.innerHTML = formatText(text);
+                contentEl.innerHTML = formatText(text).text;
                 
                 // Подсветка кода при завершении
                 if (isComplete && window.hljs) {
@@ -1689,13 +1709,15 @@
     });
 
     function formatText(text) {
-        if (!text) return '';
+        if (!text) return { text: '', reasoning: '' };
         let html = text;
         
         // Remove leading whitespace that causes indent in reasoning
         html = html.trimStart();
         
-        // Удаляем теги рассуждений модели через substring (regex не работает с unicode)
+        // Extract thinking tags content
+        let reasoning = '';
+        const thinkParts = [];
         while (true) {
             const startTag = '<think>';
             const endTag = '</think>';
@@ -1703,15 +1725,15 @@
             if (startIdx === -1) break;
             const endIdx = html.indexOf(endTag, startIdx);
             if (endIdx !== -1) {
+                thinkParts.push(html.substring(startIdx + startTag.length, endIdx).trim());
                 html = html.substring(0, startIdx) + html.substring(endIdx + endTag.length);
             } else {
+                thinkParts.push(html.substring(startIdx + startTag.length).trim());
                 html = html.substring(0, startIdx);
                 break;
             }
         }
-        // Удаляем одиночные теги
-        html = html.split('<think>').join('');
-        html = html.split('</think>').join('');
+        reasoning = thinkParts.join('\n\n');
         
         // Normalize Windows line endings
         html = html.replace(/\r\n/g, '\n');
@@ -1842,7 +1864,7 @@
         html = html.replace(/(<\/blockquote>)<\/p>/g, '$1');
         html = html.replace(/<p>(<hr>)<\/p>/g, '$1');
         
-        return html;
+        return { text: html, reasoning: reasoning };
     }
 
     /* ── Status Indicator ── */
