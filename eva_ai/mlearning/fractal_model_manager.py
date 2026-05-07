@@ -181,21 +181,64 @@ class FractalModelManager:
         else:
             return f"Вопрос: {query}\nКраткий ответ:"
     
-    def generate_response(self, query: str, max_new_tokens: int = 2048, **kwargs) -> str:
+    def _load_generation_config(self) -> Dict[str, Any]:
+        """Загружает настройки генерации из brain_config.json."""
+        default_config = {
+            "max_new_tokens": 2048,
+            "temperature": 0.2,
+            "top_p": 0.9,
+            "top_k": 40,
+            "repetition_penalty": 1.1
+        }
+        
+        try:
+            import os
+            import json
+            # Находим путь к brain_config.json (три уровня вверх от eva_ai/mlearning/)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+            config_path = os.path.join(project_root, "brain_config.json")
+            
+            if not os.path.exists(config_path):
+                return default_config
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            gen_config = config.get("generation", {})
+            if gen_config:
+                default_config.update({
+                    "max_new_tokens": gen_config.get("max_new_tokens", default_config["max_new_tokens"]),
+                    "temperature": gen_config.get("temperature", default_config["temperature"]),
+                    "top_p": gen_config.get("top_p", default_config["top_p"]),
+                    "top_k": gen_config.get("top_k", default_config["top_k"]),
+                    "repetition_penalty": gen_config.get("repetition_penalty", default_config["repetition_penalty"])
+                })
+        except Exception:
+            pass
+        
+        return default_config
+
+    def generate_response(self, query: str, max_new_tokens: int = None, **kwargs) -> str:
         """
         Генерирует ответ с использованием модели.
         Приоритет: GGUF/LlamaCpp > PyTorch > Fallback
         """
+        # Загружаем конфигурацию
+        gen_config = self._load_generation_config()
+        if max_new_tokens is None:
+            max_new_tokens = gen_config["max_new_tokens"]
+        
         # Приоритет: GGUF/LlamaCpp
         if self.llama_cpp_ready and self.llama_cpp_deployment:
             try:
                 prompt = self._create_conversational_prompt(query)
                 response_text = self.llama_cpp_deployment.generate(
                     prompt=prompt,
-                    max_new_tokens=max_new_tokens or 100,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repeat_penalty=1.1
+                    max_new_tokens=max_new_tokens,
+                    temperature=gen_config["temperature"],
+                    top_p=gen_config["top_p"],
+                    repeat_penalty=gen_config["repetition_penalty"]
                 )
                 
                 if response_text and len(response_text) > 5:
@@ -217,8 +260,8 @@ class FractalModelManager:
             if any(g in query_lower for g in greeting_words):
                 return self._get_fallback_response(query)
             
-            # Ограничиваем генерацию
-            max_new_tokens = min(max_new_tokens, 2048)  # Allow up to 2048 tokens per DESIGN.md
+            # Ограничиваем генерацию согласно конфигурации
+            max_new_tokens = min(max_new_tokens, gen_config.get("max_new_tokens", 2048))
             
             # Токенизируем
             inputs = self.tokenizer(

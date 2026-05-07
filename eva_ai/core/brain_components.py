@@ -298,6 +298,11 @@ def _init_fcp_pipeline(brain):
         gnn_ov_path = fcp_config.get('gnn_ov_path')
         lora_dir = fcp_config.get('lora_dir')
         
+        # Проверяем, не инициализирован ли уже FCPipeline
+        if brain.fcp_pipeline is not None:
+            logger.info(f"FCPipeline уже инициализирован, используем существующий экземпляр")
+            return
+        
         pipeline = FCPipeline(
             model_path=model_path,
             graph_path=graph_path,
@@ -948,14 +953,24 @@ def _init_unified_generator(brain):
         
         # Debug: проверяем импорт
         query_logger.info("Importing FCPipeline...")
-        from eva_ai.core.fcp_pipeline import FCPipeline
+        from eva_ai.core.fcp_pipeline import FCPipeline, get_fcp_pipeline
         query_logger.info("Import OK")
+        
+        if hasattr(brain, 'fcp_pipeline') and brain.fcp_pipeline is not None:
+            existing = get_fcp_pipeline()
+            if existing is not None:
+                brain.fcp_pipeline = existing
+                query_logger.info(f"FCPipeline already initialized, using existing instance")
+                return
         
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
         model_path = fcp_config.get('model_path')
         if not model_path:
-            model_path = os.path.join(project_root, 'fmf_model', 'model.ov')
+            model_path = fcp_config.get('openvino_path', '')
+            if not model_path or not os.path.exists(model_path):
+                query_logger.warning("No model_path in fcp_pipeline config, FCP will be initialized later")
+                return
         
         query_logger.info(f"Model path: {model_path}, exists: {os.path.exists(model_path)}")
         

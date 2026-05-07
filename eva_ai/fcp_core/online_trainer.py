@@ -688,18 +688,12 @@ class LoRATrainer(BackgroundTrainer):
     def __init__(
         self,
         conversation_history: List[Dict] = None,
-        total_steps: int = None,  # None = без ограничений, учится постоянно
+        total_steps: int = None,
         graph_db_path: str = "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db",
         brain: Any = None,
+        active_lora_dir: str = "eva_ai/models/lora",
         **kwargs
     ):
-        super().__init__(
-            checkpoint_dir="eva_ai/training/checkpoints/lora",
-            save_interval=100,
-            brain=brain,
-            **kwargs
-        )
-        
         self._conversation_history = conversation_history or []
         self._total_steps = total_steps
         self.graph_db_path = graph_db_path
@@ -708,11 +702,21 @@ class LoRATrainer(BackgroundTrainer):
         
         # Индекс графа для интеллектуального выбора данных
         self._graph_indexer = None
-        self._node_training_counts = {}  # node_id -> количество шагов обучения
-        self._reload_interval = 1000  # Перезагружать индекс каждые N шагов
+        self._node_training_counts = {}
+        self._reload_interval = 1000
+        
+        super().__init__(
+            checkpoint_dir="eva_ai/training/checkpoints/lora",
+            save_interval=100,
+            brain=brain,
+            **kwargs
+        )
         
         self._init_model()
         self._init_graph_indexer()
+        
+        # Set active LoRA dir for FCPipeline sync
+        self.set_active_lora_dir(active_lora_dir)
     
     def _init_model(self):
         """Инициализировать LoRA слои."""
@@ -1044,6 +1048,10 @@ class LoRATrainer(BackgroundTrainer):
                 'losses': self._losses[-100:]
             }, meta_path)
             logger.info(f"[LoRATrainer] Saved: {path}")
+
+            # Sync to active LoRA directory for FCPipeline
+            self._sync_to_active_lora_dir(path)
+
         except ImportError:
             # Fallback to .pt if safetensors not available
             state = {
@@ -1058,6 +1066,9 @@ class LoRATrainer(BackgroundTrainer):
                 'losses': self._losses[-100:]
             }, path)
             logger.info(f"[LoRATrainer] Saved (fallback .pt): {path}")
+
+            # Sync .pt fallback too (FCPipeline checks for .safetensors first)
+            self._sync_pt_to_active_lora_dir(path)
     
     def load_latest_checkpoint(self) -> bool:
         """Загрузить последний чекпоинт (поддерживает .safetensors и .pt)."""
@@ -1095,6 +1106,50 @@ class LoRATrainer(BackgroundTrainer):
     def get_lora_layers(self):
         """Получить обученные LoRA слои."""
         return self._lora_layers
+
+    def set_active_lora_dir(self, path: str):
+        """Установить директорию для активных LoRA адаптеров (FCPipeline)."""
+        self._active_lora_dir = Path(path)
+        self._active_lora_dir.mkdir(parents=True, exist_ok=True)
+
+    def _sync_to_active_lora_dir(self, checkpoint_path: Path):
+        """Синхронизировать чекпоинт в активную LoRA директорию."""
+        if not hasattr(self, '_active_lora_dir') or not self._active_lora_dir:
+            # Default: sync to eva_ai/models/lora
+            active_dir = Path("eva_ai/models/lora")
+            active_dir.mkdir(parents=True, exist_ok=True)
+            self._active_lora_dir = active_dir
+        try:
+            from safetensors.torch import load_file, save_file
+            # Load checkpoint weights
+            weights = load_file(checkpoint_path)
+            # Save to active lora dir
+            active_path = self._active_lora_dir / "lora_model.safetensors"
+            save_file(weights, active_path)
+            logger.info(f"[LoRATrainer] Synced to active LoRA dir: {active_path}")
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] Sync to active LoRA dir failed: {e}")
+
+    def _sync_pt_to_active_lora_dir(self, pt_path: Path):
+        """Синхронизировать .pt чекпоинт в активную LoRA директорию."""
+        if not hasattr(self, '_active_lora_dir') or not self._active_lora_dir:
+            active_dir = Path("eva_ai/models/lora")
+            active_dir.mkdir(parents=True, exist_ok=True)
+            self._active_lora_dir = active_dir
+        try:
+            import torch
+            checkpoint = torch.load(pt_path, weights_only=True)
+            layers = checkpoint.get('layers', {})
+            flat_state = {}
+            for name, state_dict in layers.items():
+                for k, v in state_dict.items():
+                    flat_state[f"{name}.{k}"] = v
+            from safetensors.torch import save_file
+            active_path = self._active_lora_dir / "lora_model.safetensors"
+            save_file(flat_state, active_path)
+            logger.info(f"[LoRATrainer] Synced .pt to active LoRA dir: {active_path}")
+        except Exception as e:
+            logger.warning(f"[LoRATrainer] Sync .pt to active LoRA dir failed: {e}")
 
 
 class HotSwapManager:
@@ -1187,7 +1242,8 @@ class OnlineTrainerManager:
             resource_manager=self.resource_manager,
             total_steps=config.get("lora_total_steps", 100000),
             use_gpu=use_gpu,
-            brain=brain
+            brain=brain,
+            active_lora_dir=config.get("lora", {}).get("adapters_dir", "eva_ai/models/lora")
         )
         
         self.hot_swap = HotSwapManager(self.resource_manager)
@@ -1229,9 +1285,12 @@ class OnlineTrainerManager:
             logger.info("[OnlineTrainer] Disabled in config")
             return
         
+        logger.info(f"[OnlineTrainer] GNN ready: {self.gnn_trainer._ready}, LoRA ready: {self.lora_trainer._ready}")
+        
         # Загрузить последние чекпоинты
-        self.gnn_trainer.load_latest_checkpoint()
-        self.lora_trainer.load_latest_checkpoint()
+        gnn_loaded = self.gnn_trainer.load_latest_checkpoint()
+        lora_loaded = self.lora_trainer.load_latest_checkpoint()
+        logger.info(f"[OnlineTrainer] Checkpoints loaded: GNN={gnn_loaded}, LoRA={lora_loaded}")
         
         # Запустить непрерывное обучение
         self.gnn_trainer.start()

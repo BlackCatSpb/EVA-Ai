@@ -764,18 +764,17 @@ class FCPipeline:
             
             while True:
                 if in_thinking:
-                    idx = buffer.find("")
+                    idx = buffer.find("</think>")
                     if idx != -1:
                         thinking = buffer[:idx]
                         if thinking.strip():
                             event_queue.put({"type": "reasoning_text", "text": thinking})
                         in_thinking = False
-                        buffer = buffer[idx + len(""):]
-                        event_queue.put({"type": "reasoning_end"})
+                        buffer = buffer[idx + len("</think>"):]
                     else:
-                        if buffer:
+                        if len(buffer) > 20:
                             event_queue.put({"type": "reasoning_text", "text": buffer})
-                        buffer = ""
+                            buffer = ""
                         break
                 else:
                     idx = buffer.find("<think>")
@@ -784,7 +783,6 @@ class FCPipeline:
                             event_queue.put({"type": "chunk", "text": buffer[:idx]})
                         in_thinking = True
                         buffer = buffer[idx + len("<think>"):]
-                        event_queue.put({"type": "reasoning_start"})
                     else:
                         if buffer:
                             event_queue.put({"type": "chunk", "text": buffer})

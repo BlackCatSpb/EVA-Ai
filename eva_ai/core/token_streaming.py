@@ -137,7 +137,23 @@ class TokenStreamingAPI:
         try:
             if config is None:
                 config = ov_genai.GenerationConfig()
-                config.max_new_tokens = 512
+                # Загружаем параметры из единой конфигурации
+                try:
+                    import os, json
+                    current_dir = os.path.dirname(os.path.abspath(__file__))
+                    project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                    config_path = os.path.join(project_root, "brain_config.json")
+                    if os.path.exists(config_path):
+                        with open(config_path, 'r', encoding='utf-8') as f:
+                            cfg = json.load(f)
+                        gen = cfg.get("generation", {})
+                        config.max_new_tokens = gen.get("max_new_tokens", 2048)
+                        config.temperature = gen.get("temperature", 0.2)
+                        config.top_p = gen.get("top_p", 0.9)
+                        config.top_k = gen.get("top_k", 40)
+                        config.repetition_penalty = gen.get("repetition_penalty", 1.1)
+                except Exception:
+                    config.max_new_tokens = 2048
             
             self._pipeline.generate(prompt, config, streamer=token_callback)
             

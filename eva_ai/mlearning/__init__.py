@@ -16,8 +16,16 @@ from .tokenization_fractal import ExtendedFractalTokenizer
 from .neuromorphic_memory import NeuromorphicMemoryLayer
 from .fractal_trainer import FractalKnowledgeTrainer
 
-# FractalModelManager - GGUF/fallback support
-from .fractal_model_manager import FractalModelManager
+# FractalModelManager - GGUF/fallback support (safe import)
+try:
+    from .fractal_model_manager import FractalModelManager
+    _fractal_model_available = True
+except (ImportError, Exception) as e:
+    FractalModelManager = None
+    _fractal_model_available = False
+    import logging
+    logger = logging.getLogger("eva_ai.mlearning")
+    logger.debug(f"FractalModelManager not available: {e}")
 
 __all__ = [
     "MLUnit",
@@ -30,5 +38,6 @@ __all__ = [
     "NeuromorphicMemoryLayer",
     "FractalKnowledgeTrainer",
     "storage",
-    "FractalModelManager",
 ]
+if _fractal_model_available:
+    __all__.append("FractalModelManager")

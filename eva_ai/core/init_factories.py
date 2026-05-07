@@ -808,7 +808,12 @@ def create_fcp_pipeline(initializer):
         gnn_ov_path = config.get('gnn_ov_path')
         lora_dir = config.get('lora_dir')
         
-        initializer.logger.info(f"[FCP] Creating FCPPipelineV15...")
+        # Проверяем, не инициализирован ли уже FCPipeline
+        if initializer.core_brain.fcp_pipeline is not None:
+            initializer.logger.info(f"[FCP] FCPipeline already initialized, using existing instance")
+            return initializer.core_brain.fcp_pipeline
+        
+        initializer.logger.info(f"[FCP] Creating FCPipelineV15...")
         initializer.logger.info(f"[FCP] Creating FCPipeline instance...")
         pipeline = FCPipeline(
             model_path=model_path,

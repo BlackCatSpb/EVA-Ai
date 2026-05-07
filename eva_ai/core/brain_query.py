@@ -834,9 +834,23 @@ class QueryMixin:
                 "processing_time": time.time() - start_time
             }
 
+        # Загружаем параметры из единой конфигурации
+        try:
+            import os, json
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+            config_path = os.path.join(project_root, "brain_config.json")
+            max_new_tokens = 4096
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                max_new_tokens = config.get("generation", {}).get("max_new_tokens", 4096)
+        except Exception:
+            max_new_tokens = 4096
+        
         response_text, gen_err = self._generate_with_timeout(
             lambda: self.qwen_model_manager.generate(
-                messages, max_new_tokens=4096, temperature=temperature,
+                messages, max_new_tokens=max_new_tokens, temperature=temperature,
                 top_p=top_p, repetition_penalty=repetition_penalty))
         if gen_err:
             return {"response": f"Ошибка генерации: {gen_err}", "text": f"Ошибка генерации: {gen_err}",

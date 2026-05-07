@@ -1718,21 +1718,38 @@
         // Extract thinking tags content
         let reasoning = '';
         const thinkParts = [];
-        while (true) {
-            const startTag = '<think>';
-            const endTag = '</think>';
-            const startIdx = html.indexOf(startTag);
-            if (startIdx === -1) break;
-            const endIdx = html.indexOf(endTag, startIdx);
-            if (endIdx !== -1) {
-                thinkParts.push(html.substring(startIdx + startTag.length, endIdx).trim());
-                html = html.substring(0, startIdx) + html.substring(endIdx + endTag.length);
-            } else {
-                thinkParts.push(html.substring(startIdx + startTag.length).trim());
-                html = html.substring(0, startIdx);
-                break;
+
+        const extractTag = (text, startTag, endTag) => {
+            const parts = [];
+            let remaining = text;
+            while (true) {
+                const startIdx = remaining.indexOf(startTag);
+                if (startIdx === -1) break;
+                const endIdx = remaining.indexOf(endTag, startIdx);
+                if (endIdx !== -1) {
+                    parts.push(remaining.substring(startIdx + startTag.length, endIdx).trim());
+                    remaining = remaining.substring(0, startIdx) + remaining.substring(endIdx + endTag.length);
+                } else {
+                    parts.push(remaining.substring(startIdx + startTag.length).trim());
+                    remaining = remaining.substring(0, startIdx);
+                    break;
+                }
             }
-        }
+            return { parts, remaining };
+        };
+
+        const r1 = extractTag(html, '<think>', '</think>');
+        thinkParts.push(...r1.parts);
+        html = r1.remaining;
+
+        const r2 = extractTag(html, '<thinking>', '</thinking>');
+        thinkParts.push(...r2.parts);
+        html = r2.remaining;
+
+        const r3 = extractTag(html, '<reasoning>', '</reasoning>');
+        thinkParts.push(...r3.parts);
+        html = r3.remaining;
+
         reasoning = thinkParts.join('\n\n');
         
         // Normalize Windows line endings

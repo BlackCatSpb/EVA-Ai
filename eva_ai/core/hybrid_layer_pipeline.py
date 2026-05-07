@@ -15,6 +15,7 @@ HybridLayerPipeline - Гибридный пайплайн с LayerCaptureModel
 """
 import os
 import time
+import json
 from typing import Dict, Any, Optional, List, Callable, Tuple
 import numpy as np
 import logging
@@ -146,11 +147,31 @@ class HybridLayerPipeline:
             scheduler.use_cache_eviction = True
             
             gen_config = ov_genai.GenerationConfig()
-            gen_config.max_new_tokens = 4096
-            gen_config.temperature = 0.2
-            gen_config.top_p = 0.9
-            gen_config.top_k = 40
-            gen_config.repetition_penalty = 1.1
+            max_new_tokens = 2048
+            temperature = 0.2
+            top_p = 0.9
+            top_k = 40
+            repetition_penalty = 1.1
+            try:
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                config_path = os.path.join(project_root, "brain_config.json")
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    gen_config_dict = config.get("generation", {})
+                    max_new_tokens = gen_config_dict.get("max_new_tokens", max_new_tokens)
+                    temperature = gen_config_dict.get("temperature", temperature)
+                    top_p = gen_config_dict.get("top_p", top_p)
+                    top_k = gen_config_dict.get("top_k", top_k)
+                    repetition_penalty = gen_config_dict.get("repetition_penalty", repetition_penalty)
+            except Exception:
+                pass
+            gen_config.max_new_tokens = max_new_tokens
+            gen_config.temperature = temperature
+            gen_config.top_p = top_p
+            gen_config.top_k = top_k
+            gen_config.repetition_penalty = repetition_penalty
             gen_config.do_sample = True
             
             logger.info(f"[HybridLayerPipeline] Loading OpenVINO model from {model_to_load}")

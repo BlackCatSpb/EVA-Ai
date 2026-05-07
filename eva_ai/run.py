@@ -285,10 +285,14 @@ def main():
         # Запустить онлайн-обучение GNN и LoRA после старта системы
         try:
             from eva_ai.fcp_core.online_trainer import integrate_online_trainer
+            logger.info("[RUN] About to call integrate_online_trainer...")
             manager = integrate_online_trainer(brain)
+            logger.info(f"[RUN] integrate_online_trainer returned: {manager}")
             logger.info("Online training started")
         except Exception as e:
+            import traceback
             logger.warning(f"Could not start online training: {e}")
+            logger.warning(traceback.format_exc())
             
         logger.info("EVA успешно запущена")
         logger.info(f"BRAIN OBJECT: {brain}")

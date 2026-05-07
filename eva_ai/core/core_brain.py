@@ -344,7 +344,20 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
         elif msg == "health":
             return f"Health: fractal_ready={self.fractal_ready}, learning={hasattr(self, 'self_dialog_learning') and self.self_dialog_learning is not None}"
         elif msg == "test":
-            return self.fractal_model_manager.generate_response("Привет", max_new_tokens=30) if self.fractal_model_manager else "Model not available"
+            # Загружаем max_new_tokens из единой конфигурации
+            max_new_tokens = 30
+            try:
+                import os, json
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(current_dir))
+                config_path = os.path.join(project_root, "brain_config.json")
+                if os.path.exists(config_path):
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = json.load(f)
+                    max_new_tokens = config.get("generation", {}).get("max_new_tokens", 30)
+            except Exception:
+                pass
+            return self.fractal_model_manager.generate_response("Привет", max_new_tokens=max_new_tokens) if self.fractal_model_manager else "Model not available"
         elif msg == "memory":
             if hasattr(self, 'memory_manager') and self.memory_manager:
                 return f"Memory: initialized={getattr(self.memory_manager, 'initialized', False)}"
