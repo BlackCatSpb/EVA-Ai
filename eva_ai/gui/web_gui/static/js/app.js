@@ -1845,20 +1845,24 @@
         // Better handling of multiple newlines - create paragraphs
         html = html.replace(/\n{3,}/g, '\n\n');
         
-        // Tables - convert | col1 | col2 | to HTML table (handles | - |, ||-|, |---|---| etc.)
-        const tableRegex = /^\|(.+)\|\s*\n\|[\s\-:|]*\|[\s\-:|]*\n((?:\|[^\n]+\|\s*\n?)+)/gm;
+        // Tables - convert | col1 | col2 | to HTML table
+        // Handles: | col1 | col2 |, |:---|:---|, |---|---|, etc.
+        const tableRegex = /\n\|(.+)\|\s*\n\|[\s\-:|]+\|\n((?:\|[^\n]+\|\s*\n?)+)/g;
         html = html.replace(tableRegex, function(match, headerRow, bodyRows) {
             const headers = headerRow.split('|').filter(h => h.trim()).map(h => h.trim());
             const rows = bodyRows.trim().split('\n').map(row => 
                 row.split('|').filter(c => c.trim()).map(c => c.trim())
-            );
+            ).filter(row => row.some(cell => cell.length > 0);
+            if (headers.length === 0 || rows.length === 0) return match;
             let tableHtml = '<div class="table-wrapper"><table class="md-table"><thead><tr>';
             headers.forEach(h => { tableHtml += `<th>${h}</th>`; });
             tableHtml += '</tr></thead><tbody>';
             rows.forEach(row => {
-                tableHtml += '<tr>';
-                row.forEach(cell => { tableHtml += `<td>${cell}</td>`; });
-                tableHtml += '</tr>';
+                if (row.length > 0) {
+                    tableHtml += '<tr>';
+                    row.forEach(cell => { tableHtml += `<td>${cell}</td>`; });
+                    tableHtml += '</tr>';
+                }
             });
             tableHtml += '</tbody></table></div>';
             return tableHtml;
@@ -1867,6 +1871,10 @@
         // Line breaks
         html = html.replace(/\n\n/g, '</p><p>');
         html = html.replace(/\n/g, '<br>');
+        
+        // Fix table-wrapper inside paragraphs
+        html = html.replace(/<p>(<div class="table-wrapper)/g, '$1');
+        html = html.replace(/(<\/div>)<\/p>/g, '$1');
         
         // Wrap in paragraphs
         html = '<p>' + html + '</p>';
