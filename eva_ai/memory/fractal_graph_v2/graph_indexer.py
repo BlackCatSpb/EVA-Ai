@@ -87,16 +87,68 @@ class GraphIndexer:
         logger.warning(f"GraphIndexer: No valid embeddings found (checked nodes)")
         return False
     
+    def get_subgraph_embeddings(self, node_ids: List[str]) -> np.ndarray:
+        """
+        Получить эмбеддинги для списка узлов.
+        
+        Returns:
+            np.ndarray [num_nodes, embedding_dim] - эмбеддинги узлов
+        """
+        if not node_ids:
+            return np.array([]).reshape(0, self.embedding_dim)
+        
+        conn = self._get_connection()
+        conn.row_factory = sqlite3.Row
+        
+        embeddings = []
+        valid_ids = []
+        
+        placeholders = ','.join(['?'] * len(node_ids))
+        cursor = conn.execute(
+            f"SELECT id, embedding FROM nodes WHERE id IN ({placeholders}) AND embedding IS NOT NULL",
+            node_ids
+        )
+        
+        for row in cursor:
+            emb_data = row['embedding']
+            if isinstance(emb_data, bytes):
+                emb = np.frombuffer(emb_data, dtype=np.float32)
+                if len(emb) == self.embedding_dim:
+                    embeddings.append(emb)
+                    valid_ids.append(row['id'])
+            elif isinstance(emb_data, str) and emb_data != 'null':
+                try:
+                    emb = json.loads(emb_data)
+                    if emb and len(emb) == self.embedding_dim:
+                        embeddings.append(np.array(emb, dtype=np.float32))
+                        valid_ids.append(row['id'])
+                except:
+                    pass
+        
+        conn.close()
+        
+        if embeddings:
+            return np.array(embeddings, dtype=np.float32)
+        return np.array([]).reshape(0, self.embedding_dim)
+    
     def search(
         self, 
         query_embedding: List[float], 
         top_k: int = 10,
-        min_similarity: float = 0.5
+        min_similarity: float = 0.5,
+        include_embeddings: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Семантический поиск - загружает только релевантные узлы.
+        
+        Args:
+            query_embedding: запрос в виде эмбеддинга
+            top_k: количество результатов
+            min_similarity: минимальная похожесть (0.0 - 1.0 для нормализованной)
+            include_embeddings: включать ли эмбеддинги в результат
         """
         results = []
+        node_ids = []
         
         # 1. Пробуем HNSW
         if self._hnsw_index and self._index_built:
@@ -104,65 +156,80 @@ class GraphIndexer:
                 hnsw_results = self._hnsw_index.search(query_embedding, k=top_k * 2)
                 for node_id, similarity in hnsw_results:
                     if similarity >= min_similarity:
+                        node_ids.append(node_id)
                         results.append({
                             "id": node_id,
-                            "similarity": similarity,
+                            "similarity": float(similarity),
                             "type": "hnsw"
                         })
                 if results:
-                    return results[:top_k]
+                    results = results[:top_k]
             except Exception as e:
                 logger.debug(f"HNSW failed: {e}")
         
-        # 2. Fallback: SQL поиск с векторным вычислением
-        conn = self._get_connection()
-        conn.row_factory = sqlite3.Row
-        
-        # Простой поиск по ключевым словам для начала
-        query_str = str(query_embedding)[:50]
-        words = [w for w in query_str.split() if len(w) > 3][:3]
-        
-        if not words:
-            words = ['knowledge', 'concept']
-        
-        for word in words:
-            cursor = conn.execute(
-                """SELECT id, content, node_type, level, confidence, embedding 
-                   FROM nodes 
-                   WHERE content LIKE ? AND embedding IS NOT NULL
-                   LIMIT ?""",
-                (f"%{word}%", top_k)
-            )
+        # 2. Fallback: SQL поиск с векторным вычислением если HNSW не дал результатов
+        if not results:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
             
-            for row in cursor:
-                try:
-                    emb = json.loads(row['embedding']) if row['embedding'] else None
-                    if emb:
-                        # Вычисляем косинусную схожесть
-                        q = np.array(query_embedding, dtype=np.float32)
-                        e = np.array(emb, dtype=np.float32)
-                        q = q / (np.linalg.norm(q) + 1e-8)
-                        e = e / (np.linalg.norm(e) + 1e-8)
-                        sim = float(np.dot(q, e))
-                        
-                        if sim >= min_similarity:
-                            results.append({
-                                "id": row['id'],
-                                "content": row['content'],
-                                "type": row['node_type'],
-                                "level": row['level'],
-                                "confidence": row['confidence'],
-                                "similarity": sim,
-                                "embedding": emb
-                            })
-                except:
-                    pass
+            query_str = str(query_embedding)[:50]
+            words = [w for w in query_str.split() if len(w) > 3][:3]
+            
+            if not words:
+                words = ['knowledge', 'concept']
+            
+            for word in words:
+                cursor = conn.execute(
+                    """SELECT id, content, node_type, level, confidence, embedding 
+                       FROM nodes 
+                       WHERE content LIKE ? AND embedding IS NOT NULL
+                       LIMIT ?""",
+                    (f"%{word}%", top_k)
+                )
+                
+                for row in cursor:
+                    try:
+                        emb = json.loads(row['embedding']) if row['embedding'] else None
+                        if emb:
+                            q = np.array(query_embedding, dtype=np.float32)
+                            e = np.array(emb, dtype=np.float32)
+                            q = q / (np.linalg.norm(q) + 1e-8)
+                            e = e / (np.linalg.norm(e) + 1e-8)
+                            sim = float(np.dot(q, e))
+                            
+                            if sim >= min_similarity:
+                                results.append({
+                                    "id": row['id'],
+                                    "content": row['content'],
+                                    "type": row['node_type'],
+                                    "level": row['level'],
+                                    "confidence": row['confidence'],
+                                    "similarity": sim,
+                                    "embedding": emb
+                                })
+                    except:
+                        pass
+            
+            conn.close()
+            results.sort(key=lambda x: x['similarity'], reverse=True)
+            results = results[:top_k]
         
-        conn.close()
+        # 3. Загрузить эмбеддинги для результатов если нужно
+        if include_embeddings and results:
+            result_ids = [r['id'] for r in results]
+            embeddings = self.get_subgraph_embeddings(result_ids)
+            
+            # Сопоставить эмбеддинги с результатами
+            emb_map = {}
+            if len(embeddings) > 0:
+                for i, node_id in enumerate(result_ids[:len(embeddings)]):
+                    emb_map[node_id] = embeddings[i]
+            
+            for r in results:
+                if r['id'] in emb_map:
+                    r['embedding'] = emb_map[r['id']]
         
-        # Сортируем и возвращаем
-        results.sort(key=lambda x: x['similarity'], reverse=True)
-        return results[:top_k]
+        return results
     
     def get_node(self, node_id: str) -> Optional[Dict[str, Any]]:
         """Получить конкретный узел по ID."""

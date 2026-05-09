@@ -5,6 +5,7 @@
 
 import logging
 import time
+import abc
 from typing import Dict, Any, Optional
 from enum import Enum
 
@@ -24,7 +25,7 @@ class BrainCommandCategory(Enum):
     MONITORING = "monitoring"
 
 
-class BrainCommand:
+class BrainCommand(abc.ABC):
     """Базовый класс команды для brain"""
     
     category = BrainCommandCategory.SYSTEM
@@ -35,9 +36,10 @@ class BrainCommand:
         self.created_at = time.time()
         self.result = None
     
+    @abc.abstractmethod
     def execute(self) -> Dict[str, Any]:
-        """Выполнить команду - переопределить в подклассах"""
-        raise NotImplementedError
+        """Выполнить команду - должен быть переопределён в подклассах"""
+        pass
     
     def validate(self) -> bool:
         """Валидация перед выполнением"""

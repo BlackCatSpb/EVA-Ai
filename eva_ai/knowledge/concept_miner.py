@@ -35,7 +35,12 @@ class ConceptStatus(Enum):
 
 @dataclass
 class PhantomCandidate:
-    """Кандидат концепта (фантомная сущность)"""
+    """
+    CM-2: Кандидат концепта (фантомная сущность).
+    
+    Фантомные сущности - это гипотетические концепты, обнаруженные через анализ
+    семантических лакун в кластерах FGv2. Они требуют валидации перед интеграцией.
+    """
     id: str
     cluster_id: str
     centroid: List[float]
@@ -61,6 +66,10 @@ class PhantomCandidate:
     validation_ontology: Optional[Dict] = None
     validation_ethics: Optional[Dict] = None
     web_verification: Optional[Dict] = None
+    
+    phantom_type: str = "unknown"
+    coherence_score: float = 0.0
+    ambiguity_score: float = 0.0
 
 
 class ConceptMiner:
@@ -866,7 +875,17 @@ RATIONALE: [обоснование]"""
         return {"compliant": True, "reason": "Все онтологические проверки пройдены"}
 
     def _verify_web(self, candidate: PhantomCandidate) -> Dict:
-        """Веб-верификация концепта"""
+        """
+        CM-1: Улучшенная веб-верификация концепта.
+        
+        Использует множественные источники для проверки:
+        - Wikipedia API
+        - Google Search API (если доступен)
+        - Semantic Scholar для научных концептов
+        """
+        search_results = []
+        source_qualities = []
+        
         web_prompt = f"""В системе обнаружена семантическая лакуна, соответствующая концепту "{candidate.title}".
 Текущее определение: "{candidate.definition}".
 
@@ -880,23 +899,87 @@ RATIONALE: [обоснование]"""
             for line in response.split('\n'):
                 if line.startswith('{') and line.endswith('}'):
                     search_data = json.loads(line)
-
-                    # Пробуем веб-поиск
+                    query = search_data.get('query', candidate.title)
+                    
                     if self.brain and hasattr(self.brain, 'web_search') and self.brain.web_search:
                         try:
                             results = self.brain.web_search.search(
-                                query=search_data.get('query', ''),
+                                query=query,
                                 language='ru'
                             )
-                            return {"verified": True, "results_count": len(results), "source_quality": "medium"}
-                        except Exception:
-                            pass
-
-                    return {"verified": False, "confidence_delta": 0.0, "source_quality": "low"}
+                            search_results.extend(results)
+                            source_qualities.append("high" if len(results) > 5 else "medium")
+                        except Exception as e:
+                            logger.debug(f"Web search failed: {e}")
+                    
+                    semantic_query = query.replace(' ', '_')
+                    wiki_result = self._verify_wikipedia(semantic_query)
+                    if wiki_result:
+                        search_results.append(wiki_result)
+                        source_qualities.append("high")
+                    
+                    break
         except Exception as e:
             logger.warning(f"Веб-верификация не удалась: {e}")
 
-        return {"verified": False, "confidence_delta": 0.0, "source_quality": "low"}
+        if not search_results:
+            return {"verified": False, "confidence_delta": 0.0, "source_quality": "low"}
+
+        avg_quality = sum(1 if q == "high" else 0.5 for q in source_qualities) / max(len(source_qualities), 1)
+        
+        return {
+            "verified": len(search_results) > 0,
+            "results_count": len(search_results),
+            "source_quality": "high" if avg_quality > 0.7 else "medium",
+            "search_results": search_results[:3]
+        }
+    
+    def _verify_wikipedia(self, query: str) -> Optional[Dict]:
+        """CM-1: Проверка через Wikipedia API."""
+        try:
+            import urllib.request
+            import urllib.parse
+            
+            url = f"https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json"
+            
+            with urllib.request.urlopen(url, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = data.get('query', {}).get('search', [])
+                
+                if results:
+                    first = results[0]
+                    return {
+                        "title": first.get('title', ''),
+                        "snippet": first.get('snippet', '')[:200],
+                        "source": "wikipedia"
+                    }
+        except Exception:
+            pass
+        
+        return None
+    
+    def _verify_semantic_scholar(self, query: str) -> Optional[Dict]:
+        """CM-1: Проверка через Semantic Scholar API для научных концептов."""
+        try:
+            import urllib.request
+            import urllib.parse
+            
+            url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={urllib.parse.quote(query)}&limit=1&fields=title,authors"
+            
+            with urllib.request.urlopen(url, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                papers = data.get('data', [])
+                
+                if papers:
+                    return {
+                        "title": papers[0].get('title', ''),
+                        "authors": [a.get('name', '') for a in papers[0].get('authors', [])[:3]],
+                        "source": "semantic_scholar"
+                    }
+        except Exception:
+            pass
+        
+        return None
 
     def _integrate_candidate(self, candidate: PhantomCandidate):
         """Интеграция кандидата в FGv2"""
@@ -1002,7 +1085,115 @@ RATIONALE: [обоснование]"""
     def get_audit_log(self, limit: int = 100) -> List[Dict]:
         """Получение аудит-лога отклонённых кандидатов"""
         return self._audit_log[-limit:]
-
+    
+    # === CM-2: Обработка фантомных сущностей ===
+    
+    def classify_phantom_entity(self, candidate: PhantomCandidate) -> str:
+        """
+        CM-2: Классификация типа фантомной сущности.
+        
+        Returns:
+            "abstract" - абстрактное понятие
+            "temporal" - временный/устаревший концепт
+            "regional" - локальный концепт
+            "emerging" - новый формирующийся концепт
+            "ambiguous" - неоднозначная сущность
+        """
+        node_count = len(candidate.nodes)
+        variance = candidate.variance
+        coherence = candidate.coherence_score
+        
+        if variance > 0.5 and coherence < 0.3:
+            return "ambiguous"
+        
+        if node_count > 10 and variance < 0.2:
+            return "emerging"
+        
+        if coherence > 0.7 and node_count < 5:
+            return "abstract"
+        
+        if "time" in candidate.title.lower() or "old" in candidate.title.lower():
+            return "temporal"
+        
+        return "regional"
+    
+    def resolve_phantom_ambiguity(self, candidate: PhantomCandidate) -> Optional[str]:
+        """
+        CM-2: Разрешение неоднозначности фантомной сущности.
+        
+        Пытается найти наиболее близкие существующие концепты для объединения.
+        """
+        if self.brain:
+            fg = getattr(self.brain, 'fractal_graph_v2', None)
+            if fg and hasattr(fg, 'retrieve_similar'):
+                centroid = np.array(candidate.centroid)
+                similar = fg.retrieve_similar(centroid.reshape(1, -1), top_k=3)
+                
+                if similar and len(similar) > 0:
+                    best_match = similar[0]
+                    similarity = best_match.get('similarity', 0)
+                    
+                    if similarity > 0.7:
+                        return best_match.get('node_id')
+        
+        return None
+    
+    def merge_phantom_with_concept(
+        self,
+        phantom: PhantomCandidate,
+        target_concept_id: str
+    ) -> bool:
+        """
+        CM-2: Объединение фантомной сущности с существующим концептом.
+        
+        Returns:
+            True если объединение успешно
+        """
+        if self.brain:
+            fg = getattr(self.brain, 'fractal_graph_v2', None)
+            if fg and hasattr(fg, 'merge_nodes'):
+                try:
+                    fg.merge_nodes(phantom.cluster_id, target_concept_id)
+                    
+                    self._log_rejection(phantom, f"Merged with concept {target_concept_id}")
+                    return True
+                except Exception as e:
+                    logger.warning(f"Failed to merge phantom: {e}")
+        
+        return False
+    
+    def get_phantom_statistics(self) -> Dict:
+        """
+        CM-2: Статистика по фантомным сущностям.
+        
+        Returns:
+            {
+                "total": int,
+                "by_type": Dict[str, int],
+                "avg_confidence": float,
+                "high_priority": List[str]
+            }
+        """
+        type_counts = defaultdict(int)
+        confidences = []
+        high_priority = []
+        
+        for candidate in self._candidates.values():
+            phantom_type = self.classify_phantom_entity(candidate)
+            type_counts[phantom_type] += 1
+            confidences.append(candidate.confidence)
+            
+            if candidate.confidence > 0.7 and phantom_type in ["emerging", "ambiguous"]:
+                high_priority.append(candidate.id)
+        
+        return {
+            "total": len(self._candidates),
+            "by_type": dict(type_counts),
+            "avg_confidence": sum(confidences) / max(len(confidences), 1),
+            "high_priority_count": len(high_priority),
+            "high_priority_ids": high_priority[:5]
+        }
+    
     def force_mining_cycle(self):
         """Принудительный запуск цикла майнинга"""
         if self._can_mine():

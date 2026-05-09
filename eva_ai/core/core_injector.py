@@ -111,11 +111,19 @@ class LayerwiseStateInjector:
         try:
             tensor = val_state.state
             shape = tensor.data.shape
-            self._kv_heads = shape[1]
-            self._head_dim = shape[3]
+            # Проверяем на динамические формы
+            if any(s == -1 or isinstance(s, str) for s in shape):
+                logger.warning(f"[StateInjector] Dynamic shape detected in _infer_shapes: {shape}")
+                # Пробуем получить конкретные размерности из другого источника
+                # Или используем значения по умолчанию
+                self._kv_heads = 8  # Значения по умолчанию для Qwen
+                self._head_dim = 128
+            else:
+                self._kv_heads = shape[1]
+                self._head_dim = shape[3]
             logger.info(f"Inferred shapes: kv_heads={self._kv_heads}, head_dim={self._head_dim}")
         except Exception as e:
-            logger.warning(f"Could not infer shapes: {e}")
+            logger.warning(f"Could not infer shapes: {e}, using defaults (8, 128)")
             self._kv_heads = 8
             self._head_dim = 128
 
@@ -178,8 +186,64 @@ class LayerwiseStateInjector:
             logger.warning(f"[StateInjector] set_key failed at layer {layer_idx}: {e}")
 
     def get_all_layer_indices(self) -> List[int]:
+        """Получить список всех индексов слоёв."""
         return self._layer_indices
-
+    
+    def get_all_layer_states(self) -> Dict[int, Dict[str, np.ndarray]]:
+        """
+        Получить состояния всех слоёв KV-кеша.
+        
+        Returns:
+            {layer_idx: {"key": np.ndarray, "value": np.ndarray}, ...}
+        """
+        all_states = {}
+        for layer_idx in self._layer_indices:
+            if layer_idx in self._state_map:
+                key_data = self.get_key(layer_idx)
+                val_data = self.get_value(layer_idx)
+                all_states[layer_idx] = {
+                    "key": key_data,
+                    "value": val_data
+                }
+        return all_states
+    
+    def set_all_layer_states(self, states_dict: Dict[int, Dict[str, np.ndarray]]):
+        """
+        Установить состояния всех слоёв KV-кеша.
+        
+        Args:
+            states_dict: {layer_idx: {"key": np.ndarray, "value": np.ndarray}, ...}
+        """
+        for layer_idx, states in states_dict.items():
+            if layer_idx not in self._state_map:
+                continue
+            if "key" in states and len(states["key"]) > 0:
+                self.set_key(layer_idx, states["key"])
+            if "value" in states and len(states["value"]) > 0:
+                self.set_value(layer_idx, states["value"])
+    
+    def has_dynamic_shapes(self) -> bool:
+        """Проверить, есть ли динамические формы в состояниях."""
+        if not self._layer_indices:
+            return True
+        try:
+            val_state = self._state_map[self._layer_indices[0]]["value"]
+            state_data = self._get_state_data(val_state)
+            if state_data is None:
+                return True
+            shape = state_data.shape
+            return any(s == -1 or isinstance(s, str) for s in shape)
+        except Exception:
+            return True
+    
+    def get_layer_count(self) -> int:
+        """Получить количество слоёв в модели (ожидается 36 для FCP)."""
+        return len(self._layer_indices)
+    
+    def is_layer_supported(self, layer_idx: int) -> bool:
+        """Проверить, поддерживается ли слой с данным индексом."""
+        return layer_idx in self._state_map
+    
     def transform_values(self, layer_indices: List[int], func: Callable, **kwargs):
         """Применяет функцию модификации к Value тензорам указанных слоев."""
         for idx in layer_indices:

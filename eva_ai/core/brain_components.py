@@ -287,12 +287,28 @@ def _init_fcp_pipeline(brain):
             query_logger.info("FCPipeline отключён в конфигурации (fcp_pipeline.enabled=false)")
             return
 
-        from eva_ai.core.fcp_pipeline import FCPipeline
+        from eva_ai.core.fcp_pipeline import FCPPipelineV15
 
         model_path = fcp_config.get('model_path')
         if not model_path:
+            # Пробуем получить из fcp_pipeline section
+            fcp_pipeline_config = fcp_config.get('fcp_pipeline', {})
+            model_path = fcp_pipeline_config.get('model_path')
+        
+        if not model_path:
+            # Fallback на brain_config.json корневой model секции
+            model_path = brain.config.get('model', {}).get('model_path')
+        
+        if not model_path:
+            # Проверяем стандартный путь
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            model_path = os.path.join(project_root, 'fmf_model', 'model.ov')
+            default_path = os.path.join(project_root, 'models', 'ruadapt_qwen3_4b_openvino_ModelB')
+            if os.path.exists(default_path):
+                model_path = default_path
+            else:
+                query_logger.error("FCPipeline: model_path не указан и стандартный путь не существует")
+                brain.fcp_pipeline_ready = False
+                return
         
         graph_path = fcp_config.get('graph_path')
         gnn_ov_path = fcp_config.get('gnn_ov_path')
@@ -303,11 +319,12 @@ def _init_fcp_pipeline(brain):
             logger.info(f"FCPipeline уже инициализирован, используем существующий экземпляр")
             return
         
-        pipeline = FCPipeline(
+        pipeline = FCPPipelineV15(
             model_path=model_path,
             graph_path=graph_path,
             gnn_ov_path=gnn_ov_path,
-            lora_dir=lora_dir
+            lora_dir=lora_dir,
+            brain=brain
         )
         
         brain.fcp_pipeline = pipeline

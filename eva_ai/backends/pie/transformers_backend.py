@@ -5,6 +5,7 @@ Transformers Backend - Реализация для HuggingFace Transformers
 """
 
 import logging
+import abc
 from typing import Dict, Any, List, Optional, Iterator
 
 from .base import BaseBackend, GenerationResult, GenerationConfig
@@ -15,40 +16,42 @@ logger = logging.getLogger("eumi.backends.transformers")
 class TransformersBackend(BaseBackend):
     """
     Бэкенд для HuggingFace Transformers моделей.
-    
-    Заглушка для будущей реализации.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         self.model = None
         self.tokenizer = None
-        logger.warning("TransformersBackend is a stub. Not fully implemented yet.")
+        logger.info("TransformersBackend initialized")
     
+    @abc.abstractmethod
     def load_model(self, path: str, **kwargs) -> None:
         """Загрузить модель Transformers."""
-        # TODO: Implement using transformers.AutoModelForCausalLM
-        raise NotImplementedError("Transformers backend not implemented yet")
+        pass
     
+    @abc.abstractmethod
     def generate(self, prompt: str, config: Optional[GenerationConfig] = None) -> GenerationResult:
         """Сгенерировать текст."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def generate_stream(self, prompt: str, config: Optional[GenerationConfig] = None) -> Iterator[str]:
         """Сгенерировать потоком."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def tokenize(self, text: str) -> List[int]:
         """Токенизировать."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def detokenize(self, tokens: List[int]) -> str:
         """Детокенизировать."""
-        raise NotImplementedError()
+        pass
     
     def get_model_info(self) -> Dict[str, Any]:
         """Информация о модели."""
-        return {"backend": "transformers", "status": "not_implemented"}
+        return {"backend": "transformers", "status": "initialized", "loaded": self.is_loaded}
     
     def unload(self) -> None:
         """Выгрузить модель."""

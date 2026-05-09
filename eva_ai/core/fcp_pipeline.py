@@ -65,6 +65,10 @@ from eva_ai.core.analysis_and_injection import (
     apply_sqam_scaling
 )
 
+# NEW: KCA and Graph Injection (EVA.txt sections 8.2, 9.3)
+from eva_ai.fcp_core.kca_detector import KCADetector
+from eva_ai.fcp_core.graph_injection import GraphStateInjector, InjectionConfig
+
 # Системный промпт - ВСЕГДА рассуждать перед ответом
 SYSTEM_PROMPT = r"""Ты - интеллектуальный помощник EVA. ВСЕГДА перед ответом выполняй глубокое обдумывание и анализ. Показывай свои рассуждения в тегах <think>...
 ОБЯЗАТЕЛЬНО закрой тег  после завершения рассуждений, затем давай окончательный ответ. Рассуждения должны быть подробными, логичными и полезными.
@@ -168,6 +172,15 @@ class FCPipeline:
         self.graph_mgr = None
         self.srg_feedback = None
 
+        # LoRA Hot-Reload tracking
+        self._lora_adapter_path = None
+        self._lora_file_mtime = None
+        self._pending_adapter = None
+        
+        # GNN Hot-Reload tracking
+        self._gnn_hybrid_path = None
+        self._gnn_file_mtime = None
+        
         # FCP Hybrid Layer Components (LLM + GNN + LoRA + KCA + SRG)
         self.hybrid_layer_config = HybridLayerConfig(
             hidden_dim=2560,
@@ -207,14 +220,19 @@ class FCPipeline:
             
             self.online_trainer = OnlineTrainerManager({
                 "enabled": True,
-                "gnn_cpu_limit": 2,
                 "gnn_step_interval": 15,
                 "gnn_save_interval": 200,
-                "lora_cpu_limit": 2,
                 "lora_step_interval": 30,
                 "lora_save_interval": 100,
-                "use_gpu": True
-            })
+                "use_gpu": True  # GPU-only training (no CPU fallback per EVA.txt)
+            }, brain=self)
+            
+            # Connect GNN encoder to GraphStateInjector if available
+            if hasattr(self.online_trainer, 'gnn_trainer') and self.online_trainer.gnn_trainer:
+                gnn_encoder = self.online_trainer.gnn_trainer.get_encoder()
+                if gnn_encoder and hasattr(self, 'graph_state_injector') and self.graph_state_injector:
+                    self.graph_state_injector.gnn_encoder = gnn_encoder
+                    logger.info("[FCP] GNN encoder from OnlineTrainer connected to GraphStateInjector")
             
             # НЕ запускаем автоматически - запустим после старта сервера
             print("[FCP] Online Trainer initialized (will start after server startup)")
@@ -268,6 +286,30 @@ class FCPipeline:
                 # Проверяем что инжектор работает
                 if hasattr(self.state_injector, '_layer_indices'):
                     print(f"[FCP] StateInjector has {len(self.state_injector._layer_indices)} layers")
+                    
+                    # NEW: Initialize GraphStateInjector with state_injector
+                    # Full-layer graph injection (EVA.txt section 8.2)
+                    try:
+                        gnn_encoder = getattr(self, 'gnn_encoder', None) or getattr(self, 'hybrid_processor', None)
+                        if gnn_encoder and hasattr(gnn_encoder, 'graph_encoder'):
+                            gnn_encoder = gnn_encoder.graph_encoder
+                        
+                        self.graph_state_injector = GraphStateInjector(
+                            state_injector=self.state_injector,
+                            gnn_encoder=gnn_encoder,
+                            kca_detector=self.kca_detector,
+                            config=InjectionConfig(
+                                graph_correction_strength=0.15,
+                                key_scaling_strength=0.10,
+                                activation_gate_threshold=0.85,
+                                use_gate_weights=True,
+                                num_layers=len(self.state_injector._layer_indices)
+                            )
+                        )
+                        print(f"[FCP] GraphStateInjector initialized with {len(self.state_injector._layer_indices)} layers")
+                    except Exception as e:
+                        print(f"[FCP] GraphStateInjector init failed: {e}")
+                        self.graph_state_injector = None
         except Exception as e:
             print(f"[FCP] StateInjector FAILED: {type(e).__name__}: {e}")
             self.state_injector = None
@@ -296,6 +338,22 @@ class FCPipeline:
         # NEW: SRG Feedback Loop
         self.srg_feedback = SRGFeedbackLoop(threshold=0.6)
         print("[FCP] SRG FeedbackLoop initialized")
+        
+        # NEW: KCA Detector (EVA.txt раздел 9.3)
+        # Knowledge Cognitive Analyzer для обнаружения лакун и противоречий
+        self.kca_detector = KCADetector(
+            embedding_dim=256,
+            lacuna_threshold=0.3,
+            contradiction_threshold=0.4,
+            correction_strength=0.15
+        )
+        print("[FCP] KCADetector initialized")
+        
+        # NEW: GraphStateInjector (EVA.txt раздел 8.2)
+        # Полнослойная инъекция графа в KV-кеш
+        # Инициализируется позже когда появится state_injector
+        self.graph_state_injector = None
+        print("[FCP] GraphStateInjector (lazy init)")
         
         # === Activation Gate (ранний выход) согласно EVA.txt раздел 2.1 ===
         # Если накопленная уверенность > порог → пропуск последующих слоёв
@@ -568,18 +626,21 @@ class FCPipeline:
         # Загружаем обученный GNN энкодер если есть
         # Исправляем путь: from eva_ai/core -> project root
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        gnn_path = os.path.join(project_root, 'models', 'graph_encoder.pt')
-        if os.path.exists(gnn_path):
-            success = self.hybrid_processor.load_trained_encoder(gnn_path)
+        
+        # 1. Приоритет: GNN веса от OnlineTrainer (после обучения)
+        gnn_hybrid_path = os.path.join(project_root, 'eva_ai', 'training', 'checkpoints', 'gnn', 'gnn_for_hybrid.pt')
+        if os.path.exists(gnn_hybrid_path):
+            success = self.hybrid_processor.load_trained_encoder(gnn_hybrid_path)
             if success:
-                print(f"[FCP] Loaded trained GNN encoder into HybridLayerProcessor")
+                print(f"[FCP] Loaded trained GNN from OnlineTrainer: {gnn_hybrid_path}")
                 self.gnn_encoder = self.hybrid_processor.graph_encoder
+                self._gnn_hybrid_path = gnn_hybrid_path
+                self._gnn_file_mtime = os.path.getmtime(gnn_hybrid_path)
             else:
-                print(f"[FCP] Failed to load GNN encoder")
-                self.gnn_encoder = None
+                self._try_load_pretrained_gnn(project_root)
         else:
-            print(f"[FCP] GNN encoder not found at {gnn_path}")
-            self.gnn_encoder = None
+            # 2. Fallback: pretrained GNN encoder
+            self._try_load_pretrained_gnn(project_root)
 
         # Добавляем FractalGraphV2 в гибридный менеджер
         if self.fractal_graph and self.fractal_graph.node_count > 0:
@@ -910,6 +971,92 @@ class FCPipeline:
             print(f"[FCP] Failed to apply LoRA adapter: {e}")
             return False
     
+    def _try_load_pretrained_gnn(self, project_root: str):
+        """Загрузить pretrained GNN encoder (fallback если нет обученных весов)."""
+        gnn_path = os.path.join(project_root, 'models', 'graph_encoder.pt')
+        if os.path.exists(gnn_path):
+            success = self.hybrid_processor.load_trained_encoder(gnn_path)
+            if success:
+                print(f"[FCP] Loaded pretrained GNN encoder")
+                self.gnn_encoder = self.hybrid_processor.graph_encoder
+            else:
+                print(f"[FCP] Failed to load pretrained GNN encoder")
+                self.gnn_encoder = None
+        else:
+            print(f"[FCP] No pretrained GNN encoder found")
+            self.gnn_encoder = None
+    
+    def _check_and_reload_gnn(self):
+        """
+        Проверить и перезагрузить GNN веса из OnlineTrainer если обновились.
+        Вызывается перед каждой генерацией для hot-reload обученных весов.
+        """
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        gnn_hybrid_path = os.path.join(project_root, 'eva_ai', 'training', 'checkpoints', 'gnn', 'gnn_for_hybrid.pt')
+        
+        if not os.path.exists(gnn_hybrid_path):
+            return
+        
+        try:
+            current_mtime = os.path.getmtime(gnn_hybrid_path)
+            
+            # Перезагрузить если файл обновился или ещё не загружен
+            if self._gnn_file_mtime is None or current_mtime > self._gnn_file_mtime:
+                if self._gnn_file_mtime is not None:
+                    logger.info(f"[FCP] GNN weights updated, reloading from OnlineTrainer")
+                
+                success = self.hybrid_processor.load_trained_encoder(gnn_hybrid_path)
+                if success:
+                    self.gnn_encoder = self.hybrid_processor.graph_encoder
+                    self._gnn_hybrid_path = gnn_hybrid_path
+                    self._gnn_file_mtime = current_mtime
+                    logger.info(f"[FCP] GNN hot-reload complete")
+                else:
+                    logger.warning(f"[FCP] GNN hot-reload failed")
+        except Exception as e:
+            logger.debug(f"[FCP] GNN file check error: {e}")
+    
+    def _check_and_reload_lora(self):
+        """
+        Проверить и перезагрузить LoRA адаптер если веса обновились.
+        Вызывается перед каждой генерацией для hot-reload обученных весов.
+        """
+        if not self.lora_dir or not os.path.exists(self.lora_dir):
+            return
+        
+        # Определить текущий адаптер
+        adapter_name = None
+        for candidate in ["lora_model.safetensors", "lora_model.pt", "fcp_finetuned.safetensors", "fcp_finetuned.pt"]:
+            candidate_path = os.path.join(self.lora_dir, candidate)
+            if os.path.exists(candidate_path):
+                adapter_name = candidate
+                break
+        
+        if not adapter_name:
+            return
+        
+        adapter_path = os.path.join(self.lora_dir, adapter_name)
+        
+        # Проверить timestamp файла
+        try:
+            current_mtime = os.path.getmtime(adapter_path)
+            
+            # Перезагрузить если файл обновился или ещё не загружен
+            if self._lora_file_mtime is None or current_mtime > self._lora_file_mtime:
+                if self._lora_file_mtime is not None:
+                    logger.info(f"[FCP] LoRA weights updated, reloading: {adapter_name}")
+                
+                # Применить адаптер к pipeline
+                success = self._apply_lora_adapter(adapter_name)
+                if success:
+                    self._lora_adapter_path = adapter_path
+                    self._lora_file_mtime = current_mtime
+                    logger.info(f"[FCP] LoRA hot-reload complete: {adapter_name}")
+                else:
+                    logger.warning(f"[FCP] LoRA hot-reload failed for: {adapter_name}")
+        except Exception as e:
+            logger.debug(f"[FCP] LoRA file check error: {e}")
+    
     def generate(
         self,
         prompt: str,
@@ -929,6 +1076,10 @@ class FCPipeline:
             # Приостановить обучение перед генерацией
             if self.online_trainer:
                 self.online_trainer.on_generation_start()
+            
+            # HOT-RELOAD: проверить обновлённые веса перед инъекцией
+            self._check_and_reload_gnn()
+            self._check_and_reload_lora()
             
             # Используем новый метод с полнослойной инъекцией согласно Доработка.txt
             result = self.generate_with_injection(
@@ -962,9 +1113,12 @@ class FCPipeline:
                 # Сохраняем сессию сразу после изменения
                 self.save_session("default")
                 
-# Сохраняем в сценарий (EVA.txt 6.3)
+                # Сохраняем в сценарий (EVA.txt 6.3)
                 self.add_dialog_turn("user", prompt)
                 self.add_dialog_turn("assistant", response)
+                
+                # SYNC с HybridTokenCache
+                self._sync_cache_with_history(prompt, response)
             
             # Возобновить обучение после генерации
             if self.online_trainer:
@@ -992,7 +1146,13 @@ class FCPipeline:
         # ONLINE TRAINER: приостановить обучение перед генерацией
         if self.online_trainer and self.online_trainer.resource_manager:
             self.online_trainer.on_generation_start()
-
+        
+        # HOT-RELOAD GNN: проверить и перезагрузить веса из OnlineTrainer
+        self._check_and_reload_gnn()
+        
+        # HOT-RELOAD LoRA: проверить и перезагрузить адаптер если веса обновились
+        self._check_and_reload_lora()
+        
         # 3. Генерация через OpenVINO pipeline
         response = self._generate(chat_prompt, max_new_tokens, **kwargs)
 
@@ -1019,6 +1179,9 @@ class FCPipeline:
 
             # Сохраняем сессию сразу после изменения
             self.save_session("default")
+            
+            # SYNC с HybridTokenCache: добавляем контекст после каждого диалога
+            self._sync_cache_with_history(prompt, response)
 
         # ONLINE TRAINER: возобновить обучение после генерации + обновить историю
         if self.online_trainer:
@@ -1441,34 +1604,15 @@ class FCPipeline:
         return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
     def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
-        """Генерация ответа"""
+        """Генерация ответа (non-streaming, возвращает полный результат)"""
         if not self.pipeline:
             return "[No pipeline]"
         
         try:
-            # Используем единую конфигурацию генерации
             gen_cfg = self.get_generation_config(max_new_tokens)
             result = self.pipeline.generate(prompt, generation_config=gen_cfg, **kwargs)
-            
-            # После завершення обробатываєм залишок буфера
-            if hasattr(self, 'buffer') and self.buffer:
-                if hasattr(self, 'in_thinking') and self.in_thinking:
-                    if self.buffer.strip():
-                        print(f"[FCP STREAM] Final reasoning_text, length: {len(self.buffer)}")
-                        if hasattr(self, 'event_queue'):
-                            self.event_queue.put({"type": "reasoning_text", "text": self.buffer})
-                            self.event_queue.put({"type": "reasoning_end"})
-                else:
-                    if self.buffer.strip():
-                        if hasattr(self, 'event_queue'):
-                            self.event_queue.put({"type": "chunk", "text": self.buffer})
         except Exception as e:
-            if hasattr(self, 'event_queue'):
-                self.event_queue.put({"type": "error", "text": str(e)})
             return f"Generation error: {e}"
-        finally:
-            if hasattr(self, 'event_queue'):
-                self.event_queue.put({"type": "done", "timestamp": time.time()})
         
         return result
 
@@ -1527,6 +1671,42 @@ class FCPipeline:
             
             # Применяем SQAM ко ВСЕМ слоям (Key scaling)
             self.state_injector.transform_keys(all_layers, apply_sqam_scaling, weights=importance)
+            
+            # NEW: GraphStateInjector - Full-layer graph injection (EVA.txt section 8.2)
+            # После prefill, инжектируем graph_vector во все Value тензоры
+            if hasattr(self, 'graph_state_injector') and self.graph_state_injector and self.fractal_graph:
+                try:
+                    # Get subgraph embeddings from fractal_graph
+                    query_emb = self._get_query_embedding(prompt)
+                    subgraph = self.fractal_graph.retrieve_subgraph(query_emb.reshape(1, -1), top_k=8)
+                    
+                    subgraph_embeddings = None
+                    if subgraph and 'nodes' in subgraph:
+                        node_embs = []
+                        for node in subgraph['nodes']:
+                            if 'emb' in node:
+                                emb = node['emb']
+                                if isinstance(emb, list):
+                                    node_embs.append(emb)
+                                elif hasattr(emb, 'tolist'):
+                                    node_embs.append(emb.tolist())
+                        
+                        if node_embs:
+                            import numpy as np
+                            subgraph_embeddings = np.array(node_embs, dtype=np.float32)
+                    
+                    if subgraph_embeddings is not None and len(subgraph_embeddings) > 0:
+                        inj_result = self.graph_state_injector.inject_graph(
+                            subgraph_embeddings=subgraph_embeddings,
+                            apply_kca=True
+                        )
+                        logger.info(f"[FCP] Graph injection: {inj_result['layers_processed']} layers, "
+                                   f"lacuna={inj_result['kca_results']['lacuna_detected']}, "
+                                   f"early_exit={inj_result['early_exit_triggered']}")
+                        metadata["graph_injection_applied"] = True
+                        metadata["graph_injection_layers"] = inj_result['layers_processed']
+                except Exception as e:
+                    logger.debug(f"[FCP] GraphStateInjector failed: {e}")
             
             # 3. Graph Enrichment - извлечение якорных токенов и обновление центроида
             anchors = self.sqam_analyzer.get_core_anchors(token_texts, threshold=0.6)
@@ -1674,7 +1854,52 @@ class FCPipeline:
                 else:
                     ca_output = val_proxy
                 
-                self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
+                # NEW: Use KCADetector for advanced lacuna/contradiction detection
+                if hasattr(self, 'kca_detector') and self.kca_detector and hasattr(self, 'state_injector') and self.state_injector:
+                    try:
+                        # Get layer indices from state_injector
+                        layer_indices = self.state_injector.get_all_layer_indices()
+                        
+                        # Generate gate weights if not available
+                        # For simplicity, use a fixed pattern based on position
+                        gate_weights = np.array([
+                            0.5 + 0.3 * np.sin(i * np.pi / 18) for i in range(len(layer_indices))
+                        ], dtype=np.float32)
+                        
+                        # Use graph vector from graph_mgr as proxy
+                        graph_vec = self.graph_mgr.get_centroid()
+                        if len(graph_vec) >= 256:
+                            graph_vec = graph_vec[:256]
+                        else:
+                            graph_vec = np.pad(graph_vec, (0, 256 - len(graph_vec)))
+                        
+                        # Run KCA detection
+                        kca_result = self.kca_detector.detect(
+                            graph_vector=graph_vec,
+                            layer_indices=layer_indices,
+                            gate_weights=gate_weights
+                        )
+                        
+                        # If KCA detected lacunas or contradictions, adjust correction
+                        if kca_result['lacuna_detected'] or kca_result['contradiction_detected']:
+                            # Use KCA correction embedding
+                            corrections = kca_result.get('corrections', {})
+                            if corrections:
+                                # Average all correction embeddings
+                                correction_embs = [c['embedding'] for c in corrections.values() if 'embedding' in c]
+                                if correction_embs:
+                                    kca_correction = np.mean(correction_embs, axis=0)
+                                    self.kca_correction_vec = kca_correction * kca_result['confidence']
+                                    metadata["kca_lacunas"] = len(kca_result['lacuna_layers'])
+                                    metadata["kca_contradictions"] = len(kca_result['contradiction_layers'])
+                                    metadata["kca_confidence"] = kca_result['confidence']
+                        else:
+                            self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
+                    except Exception as e:
+                        logger.debug(f"KCADetector failed: {e}")
+                        self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
+                else:
+                    self.kca_correction_vec = compute_kca_correction(val_proxy, self.graph_mgr.get_centroid())
 
                 # Apply adaptive damping to correction vector (EVA.txt раздел 3.3)
                 rho = self.kca_gate_config['damping_factor']
@@ -2445,6 +2670,39 @@ class FCPipeline:
         
         return stats
     
+    def _sync_cache_with_history(self, user_query: str, assistant_response: str):
+        """
+        Синхронизировать HybridTokenCache с историей диалога.
+        
+        После каждого диалогового turn добавляем контекст в кэш
+        для улучшения последующих ответов.
+        """
+        cache = None
+        if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+            cache = self.hybrid_cache
+        elif hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'hybrid_cache'):
+            cache = self.brain.hybrid_cache
+        
+        if cache is None:
+            return
+        
+        try:
+            import re
+            words = re.findall(r'\b[A-ZА-Я][a-zа-я]+|\b\d+(?:\.\d+)*\b', user_query + " " + assistant_response)
+            entities = list(set(words))[:20]
+            
+            if hasattr(cache, 'add_context'):
+                cache.add_context(
+                    session_id="fcp_default",
+                    query=user_query,
+                    entities=entities,
+                    raw_text=f"Q: {user_query}\nA: {assistant_response}",
+                    ttl=3600
+                )
+                logger.debug(f"[FCP] Synced {len(entities)} entities to HybridTokenCache")
+        except Exception as e:
+            logger.debug(f"[FCP] Cache sync error: {e}")
+    
     def link_brain(self, brain):
         """
         Связать FCP pipeline с brain для доступа к HybridTokenCache.
@@ -2462,3 +2720,42 @@ class FCPipeline:
 def create_fcp_pipeline(model_path: str, graph_path: str = None, **kwargs):
     """Factory function"""
     return FCPPipelineV15(model_path, graph_path, **kwargs)
+
+    def _sync_cache_with_history(self, user_query: str, assistant_response: str):
+        """
+        Синхронизировать HybridTokenCache с историей диалога.
+        
+        После каждого диалогового turn добавляем контекст в кэш
+        для улучшения последующих ответов.
+        """
+        # Определяем какой кэш использовать
+        cache = None
+        if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
+            cache = self.hybrid_cache
+        elif hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'hybrid_cache'):
+            cache = self.brain.hybrid_cache
+        
+        if cache is None:
+            return
+        
+        try:
+            # Извлекаем сущности из запроса и ответа
+            entities = []
+            
+            # Простой извлекатель сущностей: ищем capitalized words и numbers
+            import re
+            words = re.findall(r'\b[A-ZА-Я][a-zа-я]+|\b\d+(?:\.\d+)*\b', user_query + " " + assistant_response)
+            entities = list(set(words))[:20]  # Ограничиваем 20 сущностями
+            
+            # Добавляем контекст в кэш
+            if hasattr(cache, 'add_context'):
+                cache.add_context(
+                    session_id="fcp_default",
+                    query=user_query,
+                    entities=entities,
+                    raw_text=f"Q: {user_query}\nA: {assistant_response}",
+                    ttl=3600  # 1 час
+                )
+                logger.debug(f"[FCP] Synced {len(entities)} entities to HybridTokenCache")
+        except Exception as e:
+            logger.debug(f"[FCP] Cache sync error: {e}")

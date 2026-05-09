@@ -94,17 +94,43 @@ class CondensedGenerator:
         self,
         llama_model,
         graph=None,
-        max_tokens: int = 512,
-        temperature: float = 0.1,
-        repeat_penalty: float = 1.8
+        max_tokens: int = None,
+        temperature: float = None,
+        repeat_penalty: float = None
     ):
         self.llama = llama_model
         self.graph = graph
-        self.max_tokens = max_tokens
-        self.temperature = temperature
-        self.repeat_penalty = repeat_penalty
+        
+        # Загружаем настройки из brain_config.json
+        config = self._load_config()
+        self.max_tokens = max_tokens if max_tokens is not None else config.get("max_new_tokens", 512)
+        self.temperature = temperature if temperature is not None else config.get("temperature", 0.1)
+        self.repeat_penalty = repeat_penalty if repeat_penalty is not None else config.get("repetition_penalty", 1.8)
+        
         self.stats = GeneratorStats()
-        logger.info(f"CondensedGenerator инициализирован: max_tokens={max_tokens}")
+        logger.info(f"CondensedGenerator инициализирован: max_tokens={self.max_tokens}")
+    
+    def _load_config(self) -> dict:
+        """Загружает конфигурацию из brain_config.json."""
+        default = {"max_new_tokens": 512, "temperature": 0.1, "repetition_penalty": 1.8}
+        try:
+            import os, json
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
+            config_path = os.path.join(project_root, "brain_config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                gen_config = config.get("generation", {})
+                if gen_config:
+                    default.update({
+                        "max_new_tokens": gen_config.get("max_new_tokens", default["max_new_tokens"]),
+                        "temperature": gen_config.get("temperature", default["temperature"]),
+                        "repetition_penalty": gen_config.get("repetition_penalty", default["repetition_penalty"])
+                    })
+        except Exception:
+            pass
+        return default
     
     def generate(self, query: str, context: str = "") -> str:
         """Генерация краткого ответа."""
@@ -195,22 +221,26 @@ class ExtendedGenerator:
         self,
         llama_model,
         graph=None,
-        max_tokens: int = 2048,
-        temperature: float = 0.35,
-        repeat_penalty: float = 1.8,
+        max_tokens: int = None,
+        temperature: float = None,
+        repeat_penalty: float = None,
         frequency_penalty: float = 0.3,
         presence_penalty: float = 0.2
     ):
         self.llama = llama_model
         self.graph = graph
-        self.max_tokens = max_tokens
-        self.temperature = temperature
-        self.repeat_penalty = repeat_penalty
+        
+        # Загружаем настройки из brain_config.json
+        config = self._load_config()
+        self.max_tokens = max_tokens if max_tokens is not None else config.get("max_new_tokens", 2048)
+        self.temperature = temperature if temperature is not None else config.get("temperature", 0.35)
+        self.repeat_penalty = repeat_penalty if repeat_penalty is not None else config.get("repetition_penalty", 1.8)
+        
         self.frequency_penalty = frequency_penalty
         self.presence_penalty = presence_penalty
         self.stats = GeneratorStats()
         self._seen_ngrams = set()
-        logger.info(f"ExtendedGenerator инициализирован: max_tokens={max_tokens}, repeat_penalty={repeat_penalty}")
+        logger.info(f"ExtendedGenerator инициализирован: max_tokens={self.max_tokens}, repeat_penalty={self.repeat_penalty}")
     
     def generate(self, query: str, context: str = "") -> str:
         """Генерация развёрнутого ответа."""
@@ -663,26 +693,49 @@ class DualGenerator:
         llama_condensed: Any,
         llama_extended: Any,
         graph=None,
-        condensed_max_tokens: int = 1024,
-        extended_max_tokens: int = 2048,
-        extended_temperature: float = 0.35,
-        extended_repeat_penalty: float = 1.8,
+        condensed_max_tokens: int = None,
+        extended_max_tokens: int = None,
+        extended_temperature: float = None,
+        extended_repeat_penalty: float = None,
         brain=None  # Добавляем ссылку на brain для компактификации и документов
     ):
+        # Загружаем конфигурацию из brain_config.json
+        config = self._load_dual_config()
+        
         self.condensed = CondensedGenerator(
             llama_model=llama_condensed,
             graph=graph,
-            max_tokens=condensed_max_tokens,
-            repeat_penalty=1.8
+            max_tokens=condensed_max_tokens or config.get("condensed_max_tokens", 1024)
         )
         
         self.extended = ExtendedGenerator(
             llama_model=llama_extended,
             graph=graph,
-            max_tokens=extended_max_tokens,
+            max_tokens=extended_max_tokens or config.get("extended_max_tokens", 2048),
             temperature=extended_temperature,
             repeat_penalty=extended_repeat_penalty
         )
+    
+    def _load_dual_config(self) -> dict:
+        """Загружает конфигурацию для DualGenerator из brain_config.json."""
+        default = {
+            "condensed_max_tokens": 1024,
+            "extended_max_tokens": 2048
+        }
+        try:
+            import os, json
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
+            config_path = os.path.join(project_root, "brain_config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                gen_config = config.get("generation", {})
+                if gen_config:
+                    default["extended_max_tokens"] = gen_config.get("max_new_tokens", default["extended_max_tokens"])
+        except Exception:
+            pass
+        return default
         
         self.graph = graph
         self.brain = brain  # Сохраняем ссылку на brain
@@ -1248,14 +1301,15 @@ class DualGenerator:
             prompt_a = DUAL_CIRCUIT_PROMPT_A.format(query=query)
             
             # Вызываем A через ExtendedGenerator (он же condensed в терминах dual)
+            # Используем настройки из конфигурации конденсора
             reasoning_a = self.condensed.llama.create_chat_completion(
                 messages=[
                     {"role": "system", "content": "Ты - исследователь. Размышляй вслух."},
                     {"role": "user", "content": prompt_a}
                 ],
-                max_tokens=1024,
-                temperature=0.4,
-                repeat_penalty=1.8
+                max_tokens=self.condensed.max_tokens,
+                temperature=self.condensed.temperature,
+                repeat_penalty=self.condensed.repeat_penalty
             )
             
             if isinstance(reasoning_a, dict):
@@ -1286,9 +1340,9 @@ class DualGenerator:
                     {"role": "system", "content": "Ты - эксперт. Дай точный ответ на основе фактов."},
                     {"role": "user", "content": prompt_b}
                 ],
-                max_tokens=512,
-                temperature=0.2,
-                repeat_penalty=1.9
+                max_tokens=self.extended.max_tokens,
+                temperature=self.extended.temperature,
+                repeat_penalty=self.extended.repeat_penalty
             )
             
             if isinstance(reasoning_b, dict):
@@ -1403,15 +1457,17 @@ class DualGenerator:
             
             model_a = self.condensed.llama
             
-            def generate_sync(prompt, max_tokens=1024):
+            def generate_sync(prompt, max_tokens=None):
+                # Используем настройки из конфигурации конденсора
+                _max_tokens = max_tokens if max_tokens else self.condensed.max_tokens
                 response = model_a.create_chat_completion(
                     messages=[
                         {"role": "system", "content": "Ты - исследователь. Рассуждай подробно."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=max_tokens,
-                    temperature=0.4,
-                    repeat_penalty=1.8
+                    max_tokens=_max_tokens,
+                    temperature=self.condensed.temperature,
+                    repeat_penalty=self.condensed.repeat_penalty
                 )
                 if isinstance(response, dict):
                     return response.get('choices', [{}])[0].get('text', '')
@@ -1424,7 +1480,7 @@ class DualGenerator:
                 return await reflective.generate_with_reflection(
                     prompt=prompt,
                     model_instance=mock_model,
-                    max_tokens=1024,
+                    max_tokens=self.condensed.max_tokens,
                     iterations=reflection_iterations
                 )
             

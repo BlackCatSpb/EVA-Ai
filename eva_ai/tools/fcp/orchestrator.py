@@ -7,6 +7,7 @@ import json
 import re
 import os
 import subprocess
+import abc
 from typing import Dict, Any, Callable, Optional
 import urllib.request
 import urllib.parse
@@ -20,11 +21,12 @@ except ImportError:
     HAS_REQUESTS = False
 
 
-class Tool:
+class Tool(abc.ABC):
     """Базовый класс инструмента."""
     
+    @abc.abstractmethod
     def execute(self, params: Dict) -> str:
-        raise NotImplementedError
+        pass
 
 
 class CalculatorTool(Tool):

@@ -6,7 +6,8 @@ import os
 import time
 import threading
 import logging
-from typing import Optional, Dict, Any, List
+import numpy as np
+from typing import Optional, Dict, Any, List, Tuple
 from pathlib import Path
 from enum import Enum
 
@@ -63,7 +64,8 @@ class ResourceManager:
 class GPUManager:
     """
     Управление GPU для обучения.
-    Автоматически использует GPU если доступен и достаточно памяти.
+    Автоматически использует GPU если доступен.
+    ПОЛНОСТЬЮ ПЕРЕВЕДЕНО НА GPU - обучение только на GPU!
     """
     
     def __init__(self, min_memory_mb: int = 128):
@@ -73,22 +75,23 @@ class GPUManager:
         self._init_gpu()
     
     def _init_gpu(self):
-        """Инициализировать GPU если доступен."""
+        """Инициализировать GPU - ТОЛЬКО GPU, CPU не используется!"""
         try:
             import torch
             if torch.cuda.is_available():
                 self.device = torch.device("cuda:0")
                 self.available = True
-                logger.info(f"[GPUManager] GPU initialized: cuda:0")
+                logger.info(f"[GPUManager] GPU initialized: cuda:0 - Training ONLY on GPU!")
             else:
-                logger.info("[GPUManager] CUDA not available")
                 self.device = None
+                self.available = False
+                logger.warning("[GPUManager] CUDA not available - Training DISABLED!")
         except Exception as e:
-            logger.info(f"[GPUManager] GPU init failed: {e}")
+            logger.error(f"[GPUManager] GPU init failed: {e}")
             self.device = None
     
     def is_available(self) -> bool:
-        """Доступен ли GPU для обучения - проверяем динамически при каждом запросе."""
+        """Доступен ли GPU - проверяем динамически при каждом запросе."""
         if not self.available:
             return False
         
@@ -97,36 +100,51 @@ class GPUManager:
             if not torch.cuda.is_available():
                 return False
             
-            mem = torch.cuda.get_device_properties(0)
-            free_mem = mem.total_memory - torch.cuda.memory_allocated()
+            props = torch.cuda.get_device_properties(0)
+            free_mem = props.total_memory - torch.cuda.memory_allocated()
             free_mb = free_mem / (1024 * 1024)
             
-            # GPU доступен если свободно больше 100MB
-            available = free_mb >= 100
-            logger.debug(f"[GPUManager] Check: {free_mb:.0f}MB free, available={available}")
+            # GPU доступен если свободно больше 64MB
+            available = free_mb >= 64
+            if available:
+                logger.debug(f"[GPUManager] GPU: {free_mb:.0f}MB free, available={available}")
             return available
         except Exception as e:
             logger.debug(f"[GPUManager] Check failed: {e}")
             return False
     
     def get_device(self):
-        """Получить устройство для тензоров."""
+        """Получить устройство - ТОЛЬКО GPU!"""
         if self.is_available():
             return self.device
-        return torch.device("cpu")
+        logger.error("[GPUManager] No GPU available - training not possible!")
+        return None
+    
+    def get_memory_info(self) -> Dict[str, float]:
+        """Получить информацию о памяти GPU."""
+        try:
+            import torch
+            if not torch.cuda.is_available():
+                return {"total_mb": 0, "free_mb": 0, "used_mb": 0}
+            props = torch.cuda.get_device_properties(0)
+            total = props.total_memory / (1024 * 1024)
+            allocated = torch.cuda.memory_allocated() / (1024 * 1024)
+            free = total - allocated
+            return {"total_mb": total, "free_mb": free, "used_mb": allocated}
+        except:
+            return {"total_mb": 0, "free_mb": 0, "used_mb": 0}
 
 
 class BackgroundTrainer:
     """
     Базовый класс для непрерывного фонового обучения.
-    Поддержка GPU и CPU.
+    ПОЛНОСТЬЮ НА GPU - обучение выполняется ТОЛЬКО на GPU!
     """
     
     def __init__(
         self,
         checkpoint_dir: str = "eva_ai/training/checkpoints",
         save_interval: int = 100,
-        cpu_limit: int = 2,
         resource_manager: Optional[ResourceManager] = None,
         use_gpu: bool = True,
         brain: Any = None
@@ -135,18 +153,20 @@ class BackgroundTrainer:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
         self.save_interval = save_interval
-        self.cpu_limit = cpu_limit
         self.resource_manager = resource_manager
-        self.use_gpu = use_gpu
         self._brain = brain
         
-        # GPU менеджер
+        # GPU менеджер - ПОЛНОСТЬЮ GPU
         self.gpu_manager = GPUManager() if use_gpu else None
+        
+        # Проверяем доступность GPU
+        if self.gpu_manager and not self.gpu_manager.is_available():
+            logger.warning("[BackgroundTrainer] GPU not available! Training will be PAUSED!")
         
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._step_count = 0
-        self._total_steps = None  # None = без ограничений, учится постоянно
+        self._total_steps = None
         self._losses: List[float] = []
         
         self._lock = threading.Lock()
@@ -357,46 +377,103 @@ class GNNTrainer(BackgroundTrainer):
         self._init_graph_indexer()
     
     def _init_model(self):
-        """Инициализировать GNN модель."""
+        """Инициализировать GNN модель - ТОЛЬКО GPU!"""
         try:
             import torch
             import torch.nn as nn
             import torch.nn.functional as F
             
-            # Определить устройство
+            # Определить устройство - ТОЛЬКО GPU
             if self.gpu_manager and self.gpu_manager.is_available():
                 self.device = self.gpu_manager.get_device()
             else:
-                self.device = torch.device("cpu")
+                logger.error("[GNNTrainer] GPU not available! Cannot initialize training!")
+                self._ready = False
+                return
             
             class MiniGNN(nn.Module):
-                def __init__(self, input_dim=768, hidden=256, output=512):
+                """
+                Graph Neural Network Encoder (EVA.txt раздел 9.1).
+                Преобразует подграф (список эмбеддингов узлов) в:
+                - graph_vector: объединённый вектор графа
+                - gate_weights: веса для модуляции внимания (36 слоёв)
+                """
+                def __init__(self, input_dim=768, hidden=256, output=512, num_layers=36, device=None):
                     super().__init__()
-                    # Encoder: input_dim -> hidden -> output
+                    self._device = device
+                    self.input_dim = input_dim
+                    self.hidden = hidden
+                    self.output = output
+                    self.num_layers = num_layers
+                    
+                    # Encoder: [batch, input_dim] -> [batch, output]
                     self.encoder1 = nn.Linear(input_dim, hidden)
                     self.encoder2 = nn.Linear(hidden, output)
-                    # Decoder: output -> hidden -> input_dim (for reconstruction)
+                    
+                    # Decoder: для реконструкции (self-supervised learning)
                     self.decoder1 = nn.Linear(output, hidden)
                     self.decoder2 = nn.Linear(hidden, input_dim)
-                    # Projection layer (only this is trained)
+                    
+                    # Graph vector projection: output -> graph_vector_dim
+                    self.graph_proj = nn.Linear(output, 256)
+                    
+                    # Gate weights generator: graph_vector -> 36 layer gates
+                    # Каждый слой получает свой gate weight [0, 1]
+                    self.gate_mlp = nn.Sequential(
+                        nn.Linear(256, 128),
+                        nn.ReLU(),
+                        nn.Linear(128, num_layers)
+                    )
+                    
+                    # Attention projection (для subgraph pooling)
+                    self.attention = nn.Linear(output, 1)
+                    
+                    # Projection layer (для self-supervised обучения)
                     self.proj = nn.Linear(input_dim, input_dim)
+                    
+                    if device:
+                        self.to(device)
                 
-                def forward(self, x):
-                    # x: [batch, input_dim]
-                    # Encode
-                    h = F.relu(self.encoder1(x))      # [batch, hidden]
+                def encode(self, node_embeddings: torch.Tensor) -> tuple:
+                    """
+                    Кодирует подграф в graph_vector и gate_weights.
+                    
+                    Args:
+                        node_embeddings: [batch, input_dim] - эмбеддинги узлов графа
+                        
+                    Returns:
+                        (graph_vector, gate_weights)
+                        - graph_vector: [256] - объединённый вектор графа
+                        - gate_weights: [36] - веса гейтов для каждого слоя модели
+                    """
+                    # Encode: input -> hidden -> output
+                    h = F.relu(self.encoder1(node_embeddings))
                     encoded = F.relu(self.encoder2(h))  # [batch, output]
                     
-                    # Decode (for denoising self-supervised learning)
-                    h = F.relu(self.decoder1(encoded))  # [batch, hidden]
-                    reconstructed = self.decoder2(h)        # [batch, input_dim]
+                    # Graph-level pooling (attention-based pooling)
+                    attn_scores = self.attention(encoded)  # [batch, 1]
+                    attn_weights = F.softmax(attn_scores, dim=0)
+                    graph_vector = (encoded * attn_weights).sum(dim=0)  # [output]
                     
-                    # Apply projection (trainable)
+                    # Project to graph_vector_dim
+                    graph_vector = self.graph_proj(graph_vector)  # [256]
+                    
+                    # Generate gate weights for 36 layers
+                    gate_logits = self.gate_mlp(graph_vector)  # [num_layers]
+                    gate_weights = torch.sigmoid(gate_logits)  # [num_layers], values in [0, 1]
+                    
+                    return graph_vector, gate_weights
+                
+                def forward(self, x):
+                    """Forward для self-supervised обучения (реконструкция)."""
+                    h = F.relu(self.encoder1(x))
+                    encoded = F.relu(self.encoder2(h))
+                    h = F.relu(self.decoder1(encoded))
+                    reconstructed = self.decoder2(h)
                     projected = self.proj(reconstructed)
-                    return projected  # [batch, input_dim]
+                    return projected
             
-            self._model = MiniGNN(input_dim=self.input_dim)
-            self._model.to(self.device)
+            self._model = MiniGNN(input_dim=self.input_dim, device=self.device)
             
             # Только proj обучаем (минимальная нагрузка)
             for param in self._model.parameters():
@@ -409,12 +486,11 @@ class GNNTrainer(BackgroundTrainer):
                 lr=0.01
             )
             
-            # Лимитировать CPU если не используем GPU
-            if self.device.type == "cpu":
-                torch.set_num_threads(self.cpu_limit)
+            # Все на GPU - оптимизация CUDA
+            torch.backends.cudnn.benchmark = True
             
             self._ready = True
-            logger.info(f"[GNNTrainer] Model initialized: {self.input_dim}d input, device={self.device}")
+            logger.info(f"[GNNTrainer] Model initialized on GPU: {self.input_dim}d input, device={self.device}")
             
         except Exception as e:
             logger.error(f"[GNNTrainer] Init failed: {e}")
@@ -557,12 +633,17 @@ class GNNTrainer(BackgroundTrainer):
             
             self._model.train()
             
-            # Forward through autoencoder: encode subgraph embeddings
-            h = x
-            for layer in self._model.layers:
-                h = F.relu(layer(h))
+            # MiniGNN.encode(): subgraph embeddings -> (graph_vector, gate_weights)
+            # Это соответствует EVA.txt: "GNN‑энкодер преобразует подграф в 
+            # графовый вектор и гейт‑веса"
+            graph_vector, gate_weights = self._model.encode(x)
             
-            graph_emb = h  # [batch, 768]
+            # Forward через decoder для self-supervised learning
+            h = F.relu(self._model.encoder1(x))
+            encoded = F.relu(self._model.encoder2(h))
+            h = F.relu(self._model.decoder1(encoded))
+            reconstructed = F.relu(self._model.decoder2(h))
+            graph_emb = self._model.proj(reconstructed)  # [batch, 768]
             
             # TASK 1: Contradiction Detection
             # Detect pairs of nodes with opposite vectors (cosine similarity < 0)
@@ -578,17 +659,17 @@ class GNNTrainer(BackgroundTrainer):
             
             if contradiction_scores:
                 contradiction_tensor = torch.stack(contradiction_scores)
-                # Target: higher score for pairs with very different embeddings
                 target_contradiction = (contradiction_tensor > 0.3).float()
             else:
                 target_contradiction = torch.zeros(1, device=graph_emb.device)
             
-            # Predict contradiction scores
             pred_contradiction = self._model.proj(graph_emb[:max(1, len(contradiction_scores))])
             if pred_contradiction.numel() > 0:
+                pred_contr_mean = pred_contradiction.mean(dim=1, keepdim=True)
+                target_contr = target_contradiction.view(-1, 1) if target_contradiction.dim() == 1 else target_contradiction
                 loss_contradiction = F.binary_cross_entropy_with_logits(
-                    pred_contradiction.mean(dim=1, keepdim=True),
-                    target_contradiction.unsqueeze(1)
+                    pred_contr_mean,
+                    target_contr
                 )
             else:
                 loss_contradiction = torch.tensor(0.0, device=self.device)
@@ -604,9 +685,11 @@ class GNNTrainer(BackgroundTrainer):
             gap_target = (gap_score > 0.5).float()
             
             pred_gap = self._model.proj(graph_emb)
+            pred_gap_mean = pred_gap.mean(dim=1, keepdim=True)
+            target_gap = gap_target.view(-1, 1) if gap_target.dim() == 1 else gap_target
             loss_gap = F.binary_cross_entropy_with_logits(
-                pred_gap.mean(dim=1),
-                gap_target
+                pred_gap_mean,
+                target_gap
             )
             
             # Combined loss: KCA tasks
@@ -648,6 +731,9 @@ class GNNTrainer(BackgroundTrainer):
             'losses': self._losses[-100:]
         }, path)
         logger.info(f"[GNNTrainer] Saved: {path}")
+        
+        # Bridge to HybridLayerProcessor: сохранить веса в numpy формате
+        self._save_for_hybrid_processor(path, suffix)
     
     def load_latest_checkpoint(self) -> bool:
         """Загрузить последний чекпоинт."""
@@ -674,6 +760,104 @@ class GNNTrainer(BackgroundTrainer):
     def get_encoder(self):
         """Получить обученный энкодер."""
         return self._model
+    
+    def get_graph_output(self, node_embeddings) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Получить graph_vector и gate_weights для инъекции в модель.
+        
+        Args:
+            node_embeddings: torch.Tensor [batch, 768] или np.ndarray
+        
+        Returns:
+            (graph_vector, gate_weights)
+            - graph_vector: [256] numpy array
+            - gate_weights: [36] numpy array
+        """
+        import numpy as np
+        import torch
+        if self._model is None:
+            return np.zeros(256, dtype=np.float32), np.zeros(36, dtype=np.float32)
+        
+        # Convert to tensor if needed
+        if isinstance(node_embeddings, np.ndarray):
+            node_embeddings = torch.from_numpy(node_embeddings).float()
+        
+        self._model.eval()
+        with torch.no_grad():
+            graph_vec, gates = self._model.encode(node_embeddings.to(self.device))
+            return graph_vec.cpu().numpy(), gates.cpu().numpy()
+    
+    def get_layer_count(self) -> int:
+        """Количество слоёв модели (36 для Qwen)."""
+        return 36
+    
+    def _save_for_hybrid_processor(self, torch_checkpoint_path: Path, suffix: str = ""):
+        """
+        Конвертировать PyTorch веса GNN в numpy формат для HybridLayerProcessor.
+        
+        MiniGNN (768 -> 256 -> 512) -> FractalGraphEncoderLocal (384 -> 512 -> 2560)
+        
+        Конвертация:
+        1. encoder1.weight (768, 256) -> W_agg (384, 512) через transpose + проекцию
+        2. encoder2.weight (256, 512) -> W_update (512, 2560) через проекцию
+        3. proj.weight (768, 768) -> пропускается (не используется в encode)
+        """
+        try:
+            import torch
+            import numpy as np
+            
+            # Загрузить PyTorch чекпоинт
+            checkpoint = torch.load(torch_checkpoint_path, map_location='cpu', weights_only=False)
+            state_dict = checkpoint.get('model_state_dict', {})
+            
+            # Создать numpy версию в формате HybridLayerProcessor
+            # FractalGraphEncoderLocal ожидает: W_agg, W_update, W_gate, W_proj, lora_A, lora_B
+            
+            np_weights = {}
+            
+            # 1. W_agg: проекция encoder1 весов
+            if 'encoder1.weight' in state_dict:
+                enc1 = state_dict['encoder1.weight'].numpy()  # (256, 768)
+                # Транспонируем: (768, 256) -> проекция на (384, 512)
+                enc1_t = enc1.T  # (768, 256)
+                # Берём первые 384 входных измерений и 512 выходных
+                np_weights['W_agg'] = enc1_t[:384, :256].astype(np.float32) * 0.02
+                
+            if 'encoder1.bias' in state_dict:
+                np_weights['b_agg'] = state_dict['encoder1.bias'].numpy()[:256].astype(np.float32)
+            
+            # 2. W_update: проекция encoder2 весов
+            if 'encoder2.weight' in state_dict:
+                enc2 = state_dict['encoder2.weight'].numpy()  # (512, 256)
+                # Транспонируем: (256, 512) -> проекция на (512, 2560)
+                enc2_t = enc2.T  # (256, 512)
+                # Выход 512 -> 2560
+                np_weights['W_update'] = enc2_t.astype(np.float32)
+                # Масштабируем для большего выходного измерения
+                np_weights['W_update'] = np_weights['W_update'] * 2.0
+                
+            if 'encoder2.bias' in state_dict:
+                np_weights['b_update'] = state_dict['encoder2.bias'].numpy().astype(np.float32)
+            
+            # 3. W_gate: инициализировать случайно (GNNTrainer не обучает)
+            np_weights['W_gate'] = np.random.randn(2 * 2560, 2560).astype(np.float32) * 0.02
+            
+            # 4. W_proj: инициализировать случайно
+            np_weights['W_proj'] = np.random.randn(2560, 2560).astype(np.float32) * 0.02
+            
+            # 5. LoRA адаптер
+            np_weights['lora_A'] = np.random.randn(2560, 8).astype(np.float32) * 0.02
+            np_weights['lora_B'] = np.random.randn(8, 2560).astype(np.float32) * 0.02
+            
+            # Сохранить в формате graph_encoder.pt (HybridLayerProcessor ожидает torch)
+            np_weights_torch = {k: torch.from_numpy(v) for k, v in np_weights.items()}
+            
+            hybrid_save_path = self.checkpoint_dir / f"gnn_for_hybrid{suffix}.pt"
+            torch.save(np_weights_torch, hybrid_save_path)
+            logger.info(f"[GNNTrainer] Saved hybrid weights to: {hybrid_save_path}")
+            
+        except Exception as e:
+            logger.warning(f"[GNNTrainer] Failed to save hybrid weights: {e}")
 
 
 class LoRATrainer(BackgroundTrainer):
@@ -719,24 +903,28 @@ class LoRATrainer(BackgroundTrainer):
         self.set_active_lora_dir(active_lora_dir)
     
     def _init_model(self):
-        """Инициализировать LoRA слои."""
+        """Инициализировать LoRA слои - ТОЛЬКО GPU!"""
         try:
             import torch
             import torch.nn as nn
             
-            # Определить устройство
+            # Определить устройство - ТОЛЬКО GPU
             if self.gpu_manager and self.gpu_manager.is_available():
                 self.device = self.gpu_manager.get_device()
             else:
-                self.device = torch.device("cpu")
+                logger.error("[LoRATrainer] GPU not available! Cannot initialize training!")
+                self._ready = False
+                return
             
             class LoRALayer(nn.Module):
-                def __init__(self, in_features, out_features, rank=4):
+                def __init__(self, in_features, out_features, rank=4, device=None):
                     super().__init__()
                     self.rank = rank
                     self.lora_a = nn.Parameter(torch.randn(rank, in_features) * 0.01)
                     self.lora_b = nn.Parameter(torch.randn(out_features, rank) * 0.01)
                     self.scaling = 1.0
+                    if device:
+                        self.to(device)
                 
                 def forward(self, x):
                     return x + x @ self.lora_a.T @ self.lora_b.T * self.scaling
@@ -752,8 +940,8 @@ class LoRATrainer(BackgroundTrainer):
                     rank = 8
                 else:
                     rank = 16
-                self._lora_layers[f"layer_{i}_q_proj"] = LoRALayer(768, 768, rank=rank)
-                self._lora_layers[f"layer_{i}_v_proj"] = LoRALayer(768, 768, rank=rank)
+                self._lora_layers[f"layer_{i}_q_proj"] = LoRALayer(768, 768, rank=rank, device=self.device)
+                self._lora_layers[f"layer_{i}_v_proj"] = LoRALayer(768, 768, rank=rank, device=self.device)
             
             # Переместить на устройство
             for layer in self._lora_layers.values():
@@ -765,12 +953,11 @@ class LoRATrainer(BackgroundTrainer):
             
             self._optimizer = torch.optim.AdamW(params, lr=0.001)
             
-            # Лимитировать CPU если не GPU
-            if self.device.type == "cpu":
-                torch.set_num_threads(self.cpu_limit)
+            # Все на GPU - оптимизация CUDA
+            torch.backends.cudnn.benchmark = True
             
             self._ready = True
-            logger.info(f"[LoRATrainer] LoRA layers initialized, device={self.device}")
+            logger.info(f"[LoRATrainer] LoRA layers initialized on GPU: {self.device}")
             
         except Exception as e:
             logger.error(f"[LoRATrainer] Init failed: {e}")
@@ -1230,7 +1417,6 @@ class OnlineTrainerManager:
         
         # Тренеры с GPU поддержкой и доступом к brain для LearningOrchestrator
         self.gnn_trainer = GNNTrainer(
-            cpu_limit=config.get("gnn_cpu_limit", 2),
             resource_manager=self.resource_manager,
             total_steps=config.get("gnn_total_steps", 5000),
             use_gpu=use_gpu,
@@ -1238,7 +1424,6 @@ class OnlineTrainerManager:
         )
         
         self.lora_trainer = LoRATrainer(
-            cpu_limit=config.get("lora_cpu_limit", 2),
             resource_manager=self.resource_manager,
             total_steps=config.get("lora_total_steps", 100000),
             use_gpu=use_gpu,

@@ -249,10 +249,23 @@ class FractalPipelineAdapter:
         return self._fallback_process(query, gen_params)
     
     def _fallback_process(self, query: str, gen_params: Dict = None) -> Dict[str, Any]:
-        """Fallback через оригинальные модели."""
-        # Здесь можно вызвать оригинальный RecursiveModelPipeline
-        # Для обратной совместимости
-        raise NotImplementedError("Fallback to original models not implemented")
+        """Fallback через оригинальные модели (RecursiveModelPipeline)."""
+        try:
+            from eva_ai.core.recursive_model_pipeline import RecursiveModelPipeline
+            # Создаем pipeline с оригинальными моделями
+            pipeline = RecursiveModelPipeline(
+                model_a=self.model_a,
+                model_b=self.model_b,
+                **(gen_params or {})
+            )
+            result = pipeline.process_query(query, gen_params)
+            return result
+        except ImportError:
+            logger.warning("RecursiveModelPipeline not available for fallback")
+            return {"error": "Fallback models not available"}
+        except Exception as e:
+            logger.error(f"Fallback failed: {e}")
+            return {"error": str(e)}
     
     def get_context_stats(self) -> Dict[str, Any]:
         """Получить статистику."""

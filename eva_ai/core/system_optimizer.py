@@ -315,8 +315,13 @@ class SystemOptimizer:
     def _disable_non_critical_features(self):
         """Отключает не критические функции."""
         try:
-            # Placeholder for disabling features through core_brain
-            pass
+            # Disable optional background tasks if available
+            if hasattr(self.core_brain, 'background_tasks'):
+                for task in self.core_brain.background_tasks:
+                    if hasattr(task, 'stop'):
+                        task.stop()
+            # Reduce logging verbosity
+            logging.getLogger('eva_ai').setLevel(logging.WARNING)
         except Exception as e:
             self.logger.error(f"Ошибка отключения некритических функций: {e}")
 
@@ -347,8 +352,13 @@ class SystemOptimizer:
     def _enable_all_features(self):
         """Включает все функции системы."""
         try:
-            # Placeholder for enabling features through core_brain
-            pass
+            # Restore logging level
+            logging.getLogger('eva_ai').setLevel(logging.INFO)
+            # Re-enable background tasks if available
+            if hasattr(self.core_brain, 'background_tasks'):
+                for task in self.core_brain.background_tasks:
+                    if hasattr(task, 'start'):
+                        task.start()
         except Exception as e:
             self.logger.error(f"Ошибка включения всех функций: {e}")
 

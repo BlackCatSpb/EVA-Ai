@@ -55,16 +55,6 @@ class RoutingEngine:
     Выбирает оптимальные параметры генерации на основе домена запроса.
     """
     
-    DEFAULT_PARAMS = RoutingParams(
-        temperature=0.3,
-        repeat_penalty=1.8,
-        max_tokens=1024,
-        quant_profile="Q4_K_M",
-        fallback_chain=["L3_memory", "keyword_response"],
-        priority=1.0,
-        rule_id=None
-    )
-    
     def __init__(
         self,
         graph: FractalGraphL1L2,
@@ -77,6 +67,56 @@ class RoutingEngine:
         """
         self.graph = graph
         self.profiler = profiler
+        
+        # Загружаем доменные настройки из brain_config.json
+        self.domain_configs = self._load_routing_config()
+        
+        # Устанавливаем DEFAULT_PARAMS на основе конфигурации
+        self.DEFAULT_PARAMS = self._get_default_params()
+    
+    def _load_routing_config(self) -> Dict[str, Any]:
+        """Загружает конфигурацию маршрутизации из brain_config.json."""
+        default_domains = {
+            "general": {"max_tokens": 1024, "temperature": 0.3, "repeat_penalty": 1.8},
+            "coding": {"max_tokens": 2048, "temperature": 0.2, "repeat_penalty": 1.5},
+            "creative": {"max_tokens": 1536, "temperature": 0.8, "repeat_penalty": 1.2},
+            "science": {"max_tokens": 1536, "temperature": 0.3, "repeat_penalty": 1.8},
+            "chat": {"max_tokens": 512, "temperature": 0.7, "repeat_penalty": 1.3}
+        }
+        
+        try:
+            import os
+            import json
+            # Находим путь к brain_config.json (три уровня вверх от eva_ai/memory/pie_integration/)
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_dir))))
+            config_path = os.path.join(project_root, "brain_config.json")
+            
+            if not os.path.exists(config_path):
+                return default_domains
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+            
+            routing_config = config.get("routing", {})
+            domains = routing_config.get("domains", default_domains)
+            return domains if domains else default_domains
+            
+        except Exception:
+            return default_domains
+    
+    def _get_default_params(self) -> RoutingParams:
+        """Возвращает параметры по умолчанию на основе домена 'general'."""
+        general_config = self.domain_configs.get("general", {})
+        return RoutingParams(
+            temperature=general_config.get("temperature", 0.3),
+            repeat_penalty=general_config.get("repeat_penalty", 1.8),
+            max_tokens=general_config.get("max_tokens", 1024),
+            quant_profile="Q4_K_M",
+            fallback_chain=["L3_memory", "keyword_response"],
+            priority=1.0,
+            rule_id=None
+        )
         
     def create_rule(
         self,
@@ -174,7 +214,19 @@ class RoutingEngine:
                                 logger.debug(f"Found rule via embedding similarity={similarity:.2f}")
                                 return self._data_to_params(rule_data)
         
-        # 4. Возвращаем дефолтные параметры
+        # 4. Возвращаем параметры из brain_config.json или дефолтные
+        if domain_hint and domain_hint in self.domain_configs:
+            config = self.domain_configs[domain_hint]
+            logger.debug(f"Using routing params from brain_config.json for domain '{domain_hint}'")
+            return RoutingParams(
+                temperature=config.get("temperature", self.DEFAULT_PARAMS.temperature),
+                repeat_penalty=config.get("repeat_penalty", self.DEFAULT_PARAMS.repeat_penalty),
+                max_tokens=config.get("max_tokens", self.DEFAULT_PARAMS.max_tokens),
+                quant_profile=self.DEFAULT_PARAMS.quant_profile,
+                fallback_chain=self.DEFAULT_PARAMS.fallback_chain,
+                priority=config.get("priority", self.DEFAULT_PARAMS.priority)
+            )
+        
         logger.debug("Using default routing params")
         return self.DEFAULT_PARAMS
     

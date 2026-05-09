@@ -167,7 +167,6 @@ class NeuromorphicModule:
             logger.debug(f"Не удалось получить системные метрики: {e}")
 
         nm = metrics.get("neuromorphic", {}) if isinstance(metrics, dict) else {}
-        # Fallback: if not present, probe simulator
         sim = getattr(self.gui.brain, 'neuromorphic_simulator', None) if self.gui and self.gui.brain else None
         if sim and not nm:
             try:
@@ -185,8 +184,21 @@ class NeuromorphicModule:
                         "total_activities": (h.get("analysis", {}) or {}).get("total_activities"),
                         "timestamp": h.get("timestamp"),
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Ошибка получения данных симулятора: {e}")
+
+    def _draw_empty_axes(self, canvas, w: int, h: int):
+        """Draw empty axes grid for placeholder state."""
+        px = 8
+        py = 6
+        border_color = self.gui.colors.get("border", "#ccc")
+        canvas.create_line(px, py, px, h - py, fill=border_color)
+        canvas.create_line(px, h - py, w - px, h - py, fill=border_color)
+        for i in range(1, 5):
+            x = px + (w - 2 * px) * (i / 5)
+            canvas.create_line(x, py, x, h - py, fill=self.gui.colors.get("grid", "#eee"))
+            y = py + (h - 2 * py) * (i / 5)
+            canvas.create_line(px, y, w - px, y, fill=self.gui.colors.get("grid", "#eee"))
 
         # Update labels
         def fmt_bool(v):
@@ -266,8 +278,8 @@ class NeuromorphicModule:
             w = canvas.winfo_width() or 200
             h = canvas.winfo_height() or 120
             if not values:
-                # Draw placeholder grid
                 canvas.create_text(w//2, h//2, text="Нет данных", fill=self.gui.colors.get("text-muted", "#666"))
+                self._draw_empty_axes(canvas, w, h)
                 return
             n = len(values)
             max_v = max(max(values), 1e-6)

@@ -1,3 +1,4 @@
-"""Модуль обучения (placeholder)."""
+"""Модуль обучения."""
+from eva_ai.training.gguf_training_system import GGUFTrainingSystem
 
-__all__ = []
+__all__ = ['GGUFTrainingSystem']

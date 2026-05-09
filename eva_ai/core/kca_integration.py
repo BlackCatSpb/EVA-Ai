@@ -41,9 +41,11 @@ class KCAModule:
         self.rho = 0.85  # Damping coefficient
 
         # State for oscillation detection
-        self.prev_delta = None
-        self.prev_corrections = []
-
+        self.prev_delta: Optional[np.ndarray] = None
+        self.prev_corrections: List[np.ndarray] = []
+        self.oscillation_count: int = 0
+        self.correction_history: List[Dict] = []  # KCA-2: Log all corrections
+        
         print(f"KCA Module initialized: hidden_dim={hidden_dim}, lambda_gap={lambda_gap}, lambda_contra={lambda_contra}")
 
     def compute(self, hidden_states: np.ndarray,
@@ -141,16 +143,26 @@ class KCAModule:
         gamma = np.mean(gate_values)  # Scalar gate
 
         # Step 8: Detect oscillation
-        self._check_oscillation(E_corr, layer_idx)
-
-        return KCACorrection(
+        oscillation_detected = self._check_oscillation(E_corr, layer_idx)
+        
+        # Adaptive damping based on oscillation
+        if oscillation_detected and self.oscillation_count > 1:
+            damping = self.rho ** (iteration + 2)
+        else:
+            damping = self.rho ** iteration
+        E_corr = E_corr * damping
+        
+        correction = KCACorrection(
             gap_embedding=E_lacuna,
             contra_embedding=E_contra,
             total_correction=E_corr,
             gate_value=gamma,
             layer_idx=layer_idx,
-            confidence=1.0 - L_avg  # Higher confidence if no gaps
+            confidence=1.0 - L_avg
         )
+        
+        self.log_correction(correction, layer_idx, iteration)
+        return correction
 
     def apply_correction(self, hidden_states: np.ndarray,
                          correction: KCACorrection) -> np.ndarray:
@@ -175,20 +187,67 @@ class KCAModule:
         return exp_x / (np.sum(exp_x, axis=axis, keepdims=True) + 1e-8)
 
     def _check_oscillation(self, current_correction: np.ndarray, layer_idx: int):
-        """Detect vector oscillation for convergence protocol."""
-        if self.prev_delta is not None:
-            delta = current_correction - self.prev_corrections[-1] if self.prev_corrections else current_correction
-            if self.prev_corrections:
-                prev_delta = self.prev_corrections[-1] - (self.prev_corrections[-2] if len(self.prev_corrections) > 1 else np.zeros_like(current_correction))
-                cos_sim = np.dot(delta.flatten(), prev_delta.flatten()) / (
-                    np.linalg.norm(delta.flatten()) * np.linalg.norm(prev_delta.flatten()) + 1e-8
+        """
+        KCA-1: Detect vector oscillation for convergence protocol.
+        
+        Returns:
+            True if oscillation detected and damping needs increase
+        """
+        oscillation_detected = False
+        
+        if self.prev_corrections and len(self.prev_corrections) >= 1:
+            delta = current_correction - self.prev_corrections[-1]
+            
+            if self.prev_delta is not None:
+                cos_sim = np.dot(delta.flatten(), self.prev_delta.flatten()) / (
+                    np.linalg.norm(delta.flatten()) * np.linalg.norm(self.prev_delta.flatten()) + 1e-8
                 )
+                
                 if cos_sim < -0.5:
+                    oscillation_detected = True
+                    self.oscillation_count += 1
                     print(f"  KCA Layer {layer_idx}: OSCILLATION detected! Cosine similarity: {cos_sim:.3f}")
-
+                    
+                    if self.oscillation_count > 2:
+                        self.rho = min(self.rho * 0.95, 0.5)
+                        print(f"  KCA: Increased damping to {self.rho:.3f}")
+            
+            self.prev_delta = delta.copy()
+        
         self.prev_corrections.append(current_correction.copy())
         if len(self.prev_corrections) > 3:
             self.prev_corrections.pop(0)
+        
+        return oscillation_detected
+    
+    def log_correction(self, correction: KCACorrection, layer_idx: int, iteration: int):
+        """
+        KCA-2: Log correction for analysis.
+        """
+        self.correction_history.append({
+            'layer': layer_idx,
+            'iteration': iteration,
+            'gamma': correction.gate_value,
+            'confidence': correction.confidence,
+            'gap_norm': float(np.linalg.norm(correction.gap_embedding)),
+            'contra_norm': float(np.linalg.norm(correction.contra_embedding)),
+            'total_norm': float(np.linalg.norm(correction.total_correction)),
+            'oscillation_count': self.oscillation_count
+        })
+        
+        if len(self.correction_history) > 1000:
+            self.correction_history = self.correction_history[-500:]
+    
+    def get_correction_log(self) -> List[Dict]:
+        """Get correction log for analysis."""
+        return self.correction_history
+    
+    def reset_oscillation_state(self):
+        """Reset oscillation detection state."""
+        self.oscillation_count = 0
+        self.rho = 0.85
+        self.prev_delta = None
+        self.prev_corrections = []
 
     def get_correction_for_batch(self, hidden_states: np.ndarray,
                                   graph_data: Dict) -> KCACorrection:

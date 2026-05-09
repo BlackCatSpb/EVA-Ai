@@ -85,6 +85,16 @@ class HNSWIndex:
             self._id_to_idx = {id_: i for i, id_ in enumerate(ids)}
             self._idx_to_id = {i: id_ for i, id_ in enumerate(ids)}
     
+    def __len__(self) -> int:
+        """Return number of indexed vectors."""
+        if self._faiss_index is not None:
+            return self._faiss_index.ntotal
+        return len(self._idx_to_id)
+    
+    def __bool__(self) -> bool:
+        """Return True if HNSW index is available."""
+        return self._faiss_index is not None or self._index is not None
+    
     def search(self, query_vec: List[float], k: int = 5) -> List[Tuple[str, float]]:
         """Search for k nearest neighbors."""
         query = np.array([query_vec], dtype=np.float32)

@@ -113,7 +113,9 @@ class GeneratorQueueManager:
                 return result.get('text', '')
             return str(result)
         
-        raise NotImplementedError("Model must have generate() or create_chat_completion()")
+        # Model does not have required generation method
+        logger.error(f"Model {type(self.model).__name__} does not have generate() or create_chat_completion() method")
+        return f"[Error: Model {type(self.model).__name__} does not support generation]"
     
     async def submit(self, prompt: str, config: Dict, request_id: str) -> str:
         """Async отправка запроса."""

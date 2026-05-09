@@ -47,7 +47,16 @@ logger = logging.getLogger("eva_ai.contradiction.detection")
 
 
 class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, TemporalDetectionMixin):
-    """Класс для обнаружения противоречий в знаниях системы."""
+    """
+    CD: Класс для обнаружения противоречий в знаниях системы.
+    
+    Features:
+    - Семантическая детекция через embeddings
+    - Логическая детекция (negation, antonymy)
+    - Временная детекция (история изменений)
+    - CD-1: Улучшенный алгоритм с контекстным анализом
+    - CD-2: Интеграция с GNN для анализа контекста
+    """
     
     def __init__(self, knowledge_graph, nlp_model=None, 
                  source_reputation_system=None, detection_threshold: float = 0.65,
@@ -73,26 +82,29 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
         self.detected_contradictions = []
         self.last_detection_time = 0
         self.detection_history = []
+        
+        # CD-2: GNN integration
+        self.gnn_encoder = None
+        self.gnn_context_window = 5
+        
+        # CD-1: Enhanced detection metrics
+        self.context_cache: Dict[str, List] = {}
+        self.confidence_calibration: Dict[str, float] = {}
+        
         logger.info("Детектор противоречий инициализирован")
     
     def _init_nlp_model(self):
-        """Инициализирует NLP-модель для анализа противоречий."""
-        try:
-            logger.info("Инициализация NLP-модели для обнаружения противоречий...")
-            if get_sentence_transformer is not None:
-                model = get_sentence_transformer(device='auto')
-                if model is not None:
-                    logger.info("NLP-модель загружена через singleton")
-                    return model
-            
-            logger.error("sentence_transformers_cache недоступен!")
-            raise ImportError("sentence_transformers_cache not available")
-        except Exception as e:
-            logger.error(f"Ошибка инициализации NLP-модели: {e}")
-            class DummyNLPModel:
-                def encode(self, texts):
-                    return np.random.rand(len(texts), 768)
-            return DummyNLPModel()
+        """Инициализирует NLP-модель для анализа противоречий из локального синглтона."""
+        logger.info("Инициализация NLP-модели для обнаружения противоречий...")
+        
+        if get_sentence_transformer is not None:
+            model = get_sentence_transformer(device='auto')
+            if model is not None:
+                logger.info("NLP-модель загружена через локальный singleton")
+                return model
+        
+        logger.error("Не удалось загрузить NLP-модель через локальный синглтон!")
+        return None
     
     def detect_contradictions(self, concept: Optional[str] = None,
                             force: bool = False) -> List[Dict[str, Any]]:
@@ -143,7 +155,9 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
             return []
     
     def _detect_contradictions_for_concept(self, concept: str) -> List[Dict[str, Any]]:
-        """Обнаруживает противоречия для конкретного концепта."""
+        """
+        CD-1: Обнаруживает противоречия для конкретного концепта с контекстным анализом.
+        """
         facts = self.knowledge_graph.get_facts_by_concept(concept)
         if len(facts) < 2:
             return []
@@ -157,18 +171,56 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
         for relation_type, fact_group in facts_by_relation.items():
             if len(fact_group) < 2:
                 continue
+            
             potential_contradictions = self._find_potential_contradictions(fact_group)
+            
             for i, j in potential_contradictions:
                 fact1 = fact_group[i]
                 fact2 = fact_group[j]
+                
                 divergence = self._calculate_divergence(fact1, fact2)
-                if divergence > self.detection_threshold:
+                
+                context_score = self._get_context_boost(fact1, fact2)
+                adjusted_divergence = min(1.0, divergence * (1.0 + context_score))
+                
+                if adjusted_divergence > self.detection_threshold:
                     contradiction = self._create_contradiction(
-                        concept, [fact1, fact2], divergence, relation_type=relation_type
+                        concept, [fact1, fact2], adjusted_divergence, relation_type=relation_type
                     )
                     contradictions.append(contradiction)
         
         return contradictions
+    
+    def _get_context_boost(self, fact1: Dict, fact2: Dict) -> float:
+        """
+        CD-1: Вычисляет контекстный буст для расхождения.
+        
+        Учитывает:
+        - Временную близость фактов
+        - Источники (репутация)
+        - Эмоциональную окраску
+        """
+        boost = 0.0
+        
+        t1 = fact1.get("timestamp", 0)
+        t2 = fact2.get("timestamp", 0)
+        if t1 > 0 and t2 > 0:
+            time_diff = abs(t1 - t2) / 86400
+            if time_diff < 1:
+                boost += 0.1
+        
+        if self.source_reputation_system:
+            rep1 = self.source_reputation_system.get_reputation(fact1.get("source", ""))
+            rep2 = self.source_reputation_system.get_reputation(fact2.get("source", ""))
+            if abs(rep1 - rep2) > 0.3:
+                boost += 0.15
+        
+        sentiment1 = fact1.get("sentiment", 0)
+        sentiment2 = fact2.get("sentiment", 0)
+        if sentiment1 * sentiment2 < 0:
+            boost += 0.1
+        
+        return boost
     
     def _find_potential_contradictions(self, facts: List[Dict[str, Any]]) -> List[Tuple[int, int]]:
         """Находит потенциальные пары противоречивых фактов."""
@@ -531,3 +583,121 @@ class ContradictionDetector(SemanticDetectionMixin, LogicalDetectionMixin, Tempo
         all_contradictions.extend(contextual_contradictions)
         self.detected_contradictions.extend(all_contradictions)
         return all_contradictions
+    
+    # === CD-2: GNN Integration ===
+    
+    def set_gnn_encoder(self, gnn_encoder):
+        """
+        CD-2: Установить GNN encoder для анализа контекста.
+        
+        Args:
+            gnn_encoder: Объект GNN encoder с методом encode(nodes, edges)
+        """
+        self.gnn_encoder = gnn_encoder
+        logger.info("GNN encoder установлен для ContradictionDetector")
+    
+    def detect_with_gnn_context(self, concept: str) -> List[Dict]:
+        """
+        CD-2: Детекция противоречий с использованием GNN контекста.
+        
+        Использует GNN для:
+        - Анализа связей между фактами
+        - Выявления паттернов противоречий в графе
+        - Усиления обнаружения через topological features
+        """
+        if self.gnn_encoder is None:
+            return self._detect_contradictions_for_concept(concept)
+        
+        facts = self.knowledge_graph.get_facts_by_concept(concept)
+        if len(facts) < 2:
+            return []
+        
+        try:
+            nodes = [f.get("id", f.get("content", f"")) for f in facts]
+            edges = self._build_fact_graph(facts)
+            
+            graph_vectors = self.gnn_encoder.encode(nodes, edges)
+            
+            gnn_enhanced_contradictions = []
+            for i in range(len(facts)):
+                for j in range(i + 1, len(facts)):
+                    divergence = self._calculate_divergence(facts[i], facts[j])
+                    
+                    if i < len(graph_vectors) and j < len(graph_vectors):
+                        gnn_sim = float(np.dot(graph_vectors[i], graph_vectors[j]) / (
+                            np.linalg.norm(graph_vectors[i]) * np.linalg.norm(graph_vectors[j]) + 1e-8
+                        ))
+                        gnn_boost = 1.0 - gnn_sim
+                        divergence = min(1.0, divergence + gnn_boost * 0.3)
+                    
+                    if divergence > self.detection_threshold:
+                        contradiction = self._create_contradiction(
+                            concept, [facts[i], facts[j]], divergence,
+                            relation_type=facts[i].get("relation_type", "related_to"),
+                            metadata={"gnn_enhanced": True}
+                        )
+                        gnn_enhanced_contradictions.append(contradiction)
+            
+            return gnn_enhanced_contradictions
+            
+        except Exception as e:
+            logger.error(f"GNN context detection error: {e}")
+            return self._detect_contradictions_for_concept(concept)
+    
+    def _build_fact_graph(self, facts: List[Dict]) -> List[Tuple[str, str]]:
+        """CD-2: Построить граф связей между фактами."""
+        edges = []
+        for i, fact1 in enumerate(facts):
+            for j, fact2 in enumerate(facts[i+1:], i+1):
+                shared_keys = set(fact1.keys()) & set(fact2.keys())
+                common_attrs = sum(1 for k in shared_keys if k not in ["id", "content", "value", "timestamp"])
+                
+                if common_attrs > 1:
+                    node1 = fact1.get("id", f"fact_{i}")
+                    node2 = fact2.get("id", f"fact_{j}")
+                    edges.append((node1, node2))
+        
+        return edges
+    
+    def get_gnn_contradiction_analysis(self, concept: str) -> Dict:
+        """
+        CD-2: Получить анализ противоречий с GNN метриками.
+        
+        Returns:
+            {
+                "contradiction_count": int,
+                "gnn_coherence_score": float,
+                "conflict_regions": List[Dict],
+                "recommended_resolution": str
+            }
+        """
+        contradictions = self.detect_with_gnn_context(concept)
+        
+        if not contradictions:
+            return {
+                "contradiction_count": 0,
+                "gnn_coherence_score": 1.0,
+                "conflict_regions": [],
+                "recommended_resolution": "no_conflict"
+            }
+        
+        total_divergence = sum(c.get("divergence_level", 0) for c in contradictions)
+        avg_divergence = total_divergence / len(contradictions)
+        coherence_score = 1.0 - avg_divergence
+        
+        conflict_regions = []
+        for c in contradictions:
+            conflict_regions.append({
+                "facts": [f.get("content", "") for f in c.get("conflicting_facts", [])],
+                "divergence": c.get("divergence_level", 0),
+                "severity": "high" if c.get("divergence_level", 0) > 0.7 else "medium"
+            })
+        
+        recommended = "deep_analysis" if coherence_score < 0.5 else "minor_review"
+        
+        return {
+            "contradiction_count": len(contradictions),
+            "gnn_coherence_score": coherence_score,
+            "conflict_regions": conflict_regions,
+            "recommended_resolution": recommended
+        }

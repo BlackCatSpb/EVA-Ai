@@ -9,7 +9,6 @@ from typing import Dict, List, Optional, Any, Tuple
 from collections import defaultdict
 from io import BytesIO
 
-# Добавляем недостающие импорты
 try:
     import numpy as np
     from matplotlib.figure import Figure
@@ -20,52 +19,9 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
     np = None
 
-try:
-    from eva_ai.ethics.ethics_framework import EthicalDecision as FrameworkEthicalDecision, EthicalIssue as FrameworkEthicalIssue
-    from eva_ai.ethics.principles_manager import PrinciplesManager
-    from eva_ai.ethics.risk_assessment import RiskAssessor
-except ImportError as e:
-    logging.warning(f"Import error for ethics modules: {e}")
-    # Create placeholder classes if imports fail
-    class FrameworkEthicalDecision:
-        def __init__(self, decision, confidence, justification, alternatives, assessment, requires_human_review):
-            self.decision = decision
-            self.confidence = confidence
-            self.justification = justification
-            self.alternatives = alternatives
-            self.assessment = assessment
-            self.requires_human_review = requires_human_review
-    
-    class FrameworkEthicalIssue:
-        def __init__(self, name, description, type, priority, evidence, timestamp=None, resolved=False, resolution=None):
-            self.name = name
-            self.description = description
-            self.type = type
-            self.priority = priority
-            self.evidence = evidence
-            self.timestamp = timestamp or time.time()
-            self.resolved = resolved
-            self.resolution = resolution
-    
-    class PrinciplesManager:
-        def __init__(self):
-            pass
-        def get_principle_by_name(self, name):
-            return None
-        def get_all_principles(self):
-            return {}
-        def add_principle(self, principle):
-            pass
-        def get_assessment_history(self, principle_id, days=7):
-            return []
-    
-    class RiskAssessor:
-        def __init__(self):
-            pass
-        def assess_risk(self, context):
-            return []
-        def get_risk_dashboard_data(self):
-            return {}
+from eva_ai.ethics.ethics_framework import EthicalDecision as FrameworkEthicalDecision, EthicalIssue as FrameworkEthicalIssue
+from eva_ai.ethics.principles_manager import PrinciplesManager
+from eva_ai.ethics.risk_assessment import RiskAssessor
 
 from .situations_db import SituationsDBMixin, EthicalIssue
 from .situations_scenarios import SituationsScenariosMixin, EthicalAssessment, EthicalPrinciple, EthicalDecision

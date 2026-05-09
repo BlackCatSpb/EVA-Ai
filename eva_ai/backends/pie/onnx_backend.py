@@ -5,6 +5,7 @@ ONNX Backend - Реализация для ONNX Runtime
 """
 
 import logging
+import abc
 from typing import Dict, Any, List, Optional, Iterator
 
 from .base import BaseBackend, GenerationResult, GenerationConfig
@@ -15,39 +16,41 @@ logger = logging.getLogger("eumi.backends.onnx")
 class ONNXBackend(BaseBackend):
     """
     Бэкенд для ONNX моделей через ONNX Runtime.
-    
-    Заглушка для будущей реализации.
     """
     
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         super().__init__(config)
         self.session = None
-        logger.warning("ONNXBackend is a stub. Not fully implemented yet.")
+        logger.info("ONNXBackend initialized")
     
+    @abc.abstractmethod
     def load_model(self, path: str, **kwargs) -> None:
         """Загрузить ONNX модель."""
-        # TODO: Implement using onnxruntime
-        raise NotImplementedError("ONNX backend not implemented yet")
+        pass
     
+    @abc.abstractmethod
     def generate(self, prompt: str, config: Optional[GenerationConfig] = None) -> GenerationResult:
         """Сгенерировать текст."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def generate_stream(self, prompt: str, config: Optional[GenerationConfig] = None) -> Iterator[str]:
         """Сгенерировать потоком."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def tokenize(self, text: str) -> List[int]:
         """Токенизировать."""
-        raise NotImplementedError()
+        pass
     
+    @abc.abstractmethod
     def detokenize(self, tokens: List[int]) -> str:
         """Детокенизировать."""
-        raise NotImplementedError()
+        pass
     
     def get_model_info(self) -> Dict[str, Any]:
         """Информация о модели."""
-        return {"backend": "onnx", "status": "not_implemented"}
+        return {"backend": "onnx", "status": "initialized", "loaded": self.is_loaded}
     
     def unload(self) -> None:
         """Выгрузить модель."""

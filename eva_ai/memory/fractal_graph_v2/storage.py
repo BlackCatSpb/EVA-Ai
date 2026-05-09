@@ -80,6 +80,9 @@ class FractalGraphV2:
         self.groups_by_level: Dict[int, List[str]] = defaultdict(list)
         self.word_index: Dict[str, Set[str]] = defaultdict(set)
         
+        # GraphIndexer для HNSW поиска (не-LAZY режим)
+        self.graph_indexer = None
+        
         if lazy:
             # LAZY MODE: загружаем только мета-индексы (без контента узлов)
             self._load_metadata_indexes()
@@ -88,7 +91,28 @@ class FractalGraphV2:
             # Полная загрузка только если explicitly lazy=False
             self._load_data()
             self._build_indexes()
+            # GraphIndexer для быстрого HNSW поиска
+            self._init_graph_indexer()
             logger.info(f"FractalGraphV2 инициализирован: {len(self.nodes)} узлов, {len(self.semantic_groups)} групп")
+    
+    @property
+    def node_count(self) -> int:
+        """
+        Property для совместимости с кодом который использует .node_count.
+        
+        В LAZY режиме возвращает _total_nodes из БД.
+        В полном режиме возвращает len(nodes).
+        """
+        if self._lazy:
+            return getattr(self, '_total_nodes', 0)
+        return len(self.nodes)
+    
+    @property
+    def edge_count(self) -> int:
+        """Количество рёбер в графе."""
+        if self._lazy:
+            return getattr(self, '_total_edges', 0)
+        return len(self.edges)
     
     def _get_connection(self):
         """Получить соединение с БД."""
@@ -165,9 +189,22 @@ class FractalGraphV2:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_type ON nodes(node_type)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_level ON nodes(level)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_parent_group ON nodes(parent_group_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_nodes_last_accessed ON nodes(last_accessed)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_groups_level ON semantic_groups(level)")
+        
+        # FG2-1: Таблица для отслеживания временного распада
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS decay_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_id TEXT,
+                decay_factor REAL,
+                effective_confidence REAL,
+                timestamp REAL,
+                FOREIGN KEY (node_id) REFERENCES nodes(id)
+            )
+        """)
         
         conn.commit()
         conn.close()
@@ -334,6 +371,31 @@ class FractalGraphV2:
                 self._group_embeddings[group_id] = gv
         
         logger.info(f"Индексы построены: vectors={len(self._normalized_embeddings)}, groups={len(self._group_embeddings)}")
+    
+    def _init_graph_indexer(self):
+        """
+        Инициализировать GraphIndexer с HNSW для быстрого семантического поиска.
+        Вызывается после загрузки данных в память (не-LAZY mode).
+        """
+        try:
+            from .graph_indexer import GraphIndexer
+            
+            if not os.path.exists(self.db_path):
+                logger.warning("[FGV2] DB not found, skipping GraphIndexer")
+                self.graph_indexer = None
+                return
+            
+            self.graph_indexer = GraphIndexer(self.db_path, embedding_dim=self.embedding_dim)
+            built = self.graph_indexer.build_index(limit=50000)
+            
+            if built:
+                logger.info(f"[FGV2] GraphIndexer initialized: {len(self.graph_indexer._hnsw_index)} vectors in HNSW")
+            else:
+                logger.warning("[FGV2] GraphIndexer build failed, using fallback")
+                self.graph_indexer = None
+        except Exception as e:
+            logger.warning(f"[FGV2] GraphIndexer init failed: {e}")
+            self.graph_indexer = None
     
     # === LAZY LOADING METHODS ===
     
@@ -842,7 +904,11 @@ class FractalGraphV2:
         
         query_vec = query_vec / (np.linalg.norm(query_vec) + 1e-8)
         
-        # === ОПТИМИЗАЦИЯ: Иерархическая навигация ===
+        # === ОПТИМИЗАЦИЯ: Используем GraphIndexer с HNSW ===
+        if self.graph_indexer and self.graph_indexer._index_built:
+            return self._hnsw_search(query_vec, top_k, min_level)
+        
+        # === Fallback: иерархическая навигация ===
         if use_hierarchy and hasattr(self, '_hierarchical_index') and self._hierarchical_index:
             return self._hierarchical_search(query_vec, top_k, min_level, use_groups)
         
@@ -963,6 +1029,66 @@ class FractalGraphV2:
         results.sort(key=lambda x: x[1], reverse=True)
         
         return results[:top_k]
+    
+    def _hnsw_search(
+        self,
+        query_vec: np.ndarray,
+        top_k: int,
+        min_level: int
+    ) -> List[Tuple[str, float, Optional[str]]]:
+        """
+        Семантический поиск через GraphIndexer с HNSW индексом.
+        O(log n) вместо O(n) для больших графов.
+        """
+        if not self.graph_indexer or not self.graph_indexer._index_built:
+            return []
+        
+        try:
+            results = self.graph_indexer.search(
+                query_embedding=query_vec.tolist(),
+                top_k=top_k * 2,  # Запрашиваем больше для фильтрации по level
+                min_similarity=0.5
+            )
+            
+            filtered_results = []
+            for result in results:
+                node_id = result.get('id')
+                similarity = result.get('similarity', 0)
+                
+                # Получаем level из кэша или БД
+                node_level = self.nodes_by_level.get(node_id) if hasattr(self, 'nodes_by_level') else None
+                if node_id in self.nodes:
+                    node_level = self.nodes[node_id].level
+                else:
+                    # Запрашиваем из БД
+                    node_level = self._get_node_level(node_id)
+                
+                if node_level is not None and node_level >= min_level:
+                    group_id = None
+                    if node_id in self.nodes:
+                        group_id = self.nodes[node_id].parent_group_id
+                    filtered_results.append((node_id, similarity, group_id))
+            
+            filtered_results.sort(key=lambda x: x[1], reverse=True)
+            return filtered_results[:top_k]
+            
+        except Exception as e:
+            logger.warning(f"[FGV2] HNSW search failed: {e}")
+            return []
+    
+    def _get_node_level(self, node_id: str) -> Optional[int]:
+        """Получить level узла из БД (lazy)."""
+        try:
+            conn = self._get_connection()
+            cursor = conn.execute(
+                "SELECT level FROM nodes WHERE id = ?",
+                (node_id,)
+            )
+            row = cursor.fetchone()
+            conn.close()
+            return row[0] if row else None
+        except Exception:
+            return None
     
     def keyword_search(self, query: str, top_k: int = 10) -> List[str]:
         """Поиск по ключевым словам."""
@@ -1337,11 +1463,210 @@ class FractalGraphV2:
             self.nodes[node_id].metadata['contradiction_note'] = note
             self._save_node(self.nodes[node_id])
             
-            # Находим связи этого узла и помечаем их
             for edge_id, edge in self.edges.items():
                 if edge.source_id == node_id or edge.target_id == node_id:
                     edge.contradiction_flag = True
                     self._save_edge(edge)
+    
+    # === FG2-2: ROUTING_RULE и ACTIVATION_PROFILE ===
+    
+    def create_routing_rule(
+        self,
+        domain: str,
+        parameters: Dict,
+        target_model: str = None
+    ) -> FractalNode:
+        """
+        FG2-2: Создать узел routing_rule.
+        
+        Args:
+            domain: Домен (например, "reasoning", "creative")
+            parameters: Параметры генерации {temperature, top_p, ...}
+            target_model: Опционально - целевая модель
+            
+        Returns:
+            Созданный узел
+        """
+        content = f"routing_rule: {domain}"
+        metadata = {
+            "parameters": parameters,
+            "target_model": target_model,
+            "success_count": 0,
+            "failure_count": 0
+        }
+        
+        node = self.add_node(
+            content=content,
+            node_type="routing_rule",
+            level=2,
+            metadata=metadata,
+            is_static=False
+        )
+        
+        return node
+    
+    def get_routing_rule(self, domain: str) -> Optional[FractalNode]:
+        """
+        FG2-2: Получить routing_rule для домена.
+        
+        Returns:
+            Узел routing_rule или None
+        """
+        if self._lazy:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT * FROM nodes WHERE content = ? AND node_type = ?",
+                (f"routing_rule: {domain}", "routing_rule")
+            )
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return self.get_node(row['id'])
+            return None
+        else:
+            for node_id, node in self.nodes.items():
+                if node.node_type == "routing_rule" and f"routing_rule: {domain}" in node.content:
+                    return node
+            return None
+    
+    def update_routing_rule_stats(
+        self,
+        node_id: str,
+        success: bool
+    ) -> bool:
+        """
+        FG2-2: Обновить статистику routing_rule.
+        
+        Args:
+            node_id: ID узла
+            success: True если успех, False если неудача
+            
+        Returns:
+            True если обновлено
+        """
+        node = self.get_node(node_id)
+        if node is None:
+            return False
+        
+        if isinstance(node, dict):
+            metadata = node.get('metadata', {})
+        else:
+            metadata = node.metadata
+        
+        if success:
+            metadata['success_count'] = metadata.get('success_count', 0) + 1
+        else:
+            metadata['failure_count'] = metadata.get('failure_count', 0) + 1
+        
+        if 'success_count' in metadata and 'failure_count' in metadata:
+            total = metadata['success_count'] + metadata['failure_count']
+            metadata['success_rate'] = metadata['success_count'] / total if total > 0 else 0
+        
+        if isinstance(node, dict):
+            conn = sqlite3.connect(self.db_path)
+            conn.execute("UPDATE nodes SET metadata = ? WHERE id = ?", 
+                        (json.dumps(metadata), node_id))
+            conn.commit()
+            conn.close()
+        else:
+            node.metadata = metadata
+            self._save_node(node)
+        
+        return True
+    
+    def create_activation_profile(
+        self,
+        domain: str,
+        model_id: str,
+        layer_stats: Dict,
+        fingerprint: List[float] = None
+    ) -> FractalNode:
+        """
+        FG2-2: Создать узел activation_profile.
+        
+        Args:
+            domain: Домен специализации
+            model_id: ID модели
+            layer_stats: Статистика слоёв {layer_0: {...}, ...}
+            fingerprint: Опциональный вектор профиля (2560 dim)
+            
+        Returns:
+            Созданный узел
+        """
+        content = f"activation_profile: {domain}:{model_id}"
+        metadata = {
+            "layer_stats": layer_stats,
+            "dominant_layers": self._extract_dominant_layers(layer_stats),
+            "model_id": model_id
+        }
+        
+        node = self.add_node(
+            content=content,
+            node_type="activation_profile",
+            level=1,
+            embedding=fingerprint,
+            metadata=metadata,
+            is_static=False
+        )
+        
+        return node
+    
+    def get_activation_profile(
+        self,
+        domain: str,
+        model_id: str = None
+    ) -> Optional[FractalNode]:
+        """
+        FG2-2: Получить activation_profile.
+        
+        Returns:
+            Узел activation_profile или None
+        """
+        search_content = f"activation_profile: {domain}"
+        if model_id:
+            search_content += f":{model_id}"
+        
+        if self._lazy:
+            conn = self._get_connection()
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                "SELECT id FROM nodes WHERE content LIKE ? AND node_type = ?",
+                (f"{search_content}%", "activation_profile")
+            )
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                return self.get_node(row['id'])
+            return None
+        else:
+            for node_id, node in self.nodes.items():
+                if node.node_type == "activation_profile" and search_content in node.content:
+                    return node
+            return None
+    
+    def list_routing_rules(self) -> List[FractalNode]:
+        """FG2-2: Список всех routing_rule."""
+        return self.get_nodes_by_type("routing_rule")
+    
+    def list_activation_profiles(self) -> List[FractalNode]:
+        """FG2-2: Список всех activation_profile."""
+        return self.get_nodes_by_type("activation_profile")
+    
+    def _extract_dominant_layers(self, layer_stats: Dict) -> List[int]:
+        """FG2-2: Извлечь доминирующие слои из статистики."""
+        if not layer_stats:
+            return []
+        
+        top_layers = []
+        for layer_id, stats in layer_stats.items():
+            if isinstance(stats, dict) and 'activation_mean' in stats:
+                top_layers.append((layer_id, abs(stats['activation_mean'])))
+        
+        top_layers.sort(key=lambda x: x[1], reverse=True)
+        return [int(layer_id) for layer_id, _ in top_layers[:5]]
     
     # === ВСПОМОГАТЕЛЬНЫЕ ===
     

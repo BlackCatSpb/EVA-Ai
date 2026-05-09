@@ -149,11 +149,19 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             pass
 
         _init_managers(self)
-        # FractalModelManager and ML unit placeholders - using UnifiedGenerator only
-        self.fractal_model_manager = None
-        self.ml_unit = None
-        # _init_fractal_model(self)
-        # _init_llama_cpp(self)
+        # Initialize FractalModelManager if available
+        try:
+            from eva_ai.mlearning.fractal_model_manager import FractalModelManager
+            self.fractal_model_manager = FractalModelManager()
+        except ImportError:
+            self.fractal_model_manager = None
+        
+        # Initialize ML unit if available
+        try:
+            from eva_ai.mlearning.ml_unit import MLUnit
+            self.ml_unit = MLUnit()
+        except ImportError:
+            self.ml_unit = None
         _init_unified_generator(self)
         _init_hybrid_dialog_manager(self)  # HybridKnowledgeDialogManager
         _init_fcp_pipeline(self)  # FCPPipelineV15

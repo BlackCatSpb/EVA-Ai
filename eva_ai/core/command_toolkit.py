@@ -7,6 +7,7 @@ Command Toolkit для CoreBrain
 import logging
 import threading
 import time
+import abc
 from typing import Dict, Any, Optional, Callable, List
 from enum import Enum
 
@@ -58,7 +59,7 @@ class CommandResult:
         }
 
 
-class CoreBrainCommand:
+class CoreBrainCommand(abc.ABC):
     """Базовый класс команды для CoreBrain"""
     
     def __init__(self, name: str, brain, priority: CommandPriority = CommandPriority.NORMAL):
@@ -67,9 +68,10 @@ class CoreBrainCommand:
         self.priority = priority
         self.created_at = time.time()
     
+    @abc.abstractmethod
     def execute(self) -> CommandResult:
         """Выполнить команду - должен быть переопределён"""
-        raise NotImplementedError
+        pass
     
     def validate(self) -> bool:
         """Валидация команды перед выполнением"""

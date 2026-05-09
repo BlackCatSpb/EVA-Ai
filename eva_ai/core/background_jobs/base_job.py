@@ -5,6 +5,8 @@ BaseJob: интерфейс задач для Автопилота
 """
 from typing import Any
 import logging
+import abc
+
 try:
     from eva_ai.core.deferred_command_system import CommandPriority
 except (ImportError, ModuleNotFoundError) as e:  # fallback when deferred system is unavailable
@@ -16,7 +18,7 @@ except (ImportError, ModuleNotFoundError) as e:  # fallback when deferred system
         HIGH = 30
 
 
-class BaseJob:
+class BaseJob(abc.ABC):
     job_type: str = "base"
     resource_class: str = "CPU"  # CPU | GPU | IO
     default_priority = CommandPriority.LOW
@@ -30,5 +32,6 @@ class BaseJob:
     def cancel(self) -> None:
         self._canceled = True
 
-    def run(self, context: dict) -> None:  # override
-        raise NotImplementedError
+    @abc.abstractmethod
+    def run(self, context: dict) -> None:
+        pass

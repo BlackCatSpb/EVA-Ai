@@ -4,8 +4,21 @@ Contains all create_* functions for EventBus, ResourceManager, MemoryManager, et
 """
 import os
 import logging
+import threading
 
 logger = logging.getLogger("eva_ai.component_initializer.factories")
+
+# Lock для защиты от race conditions при создании компонентов
+_component_locks = {}
+_locks_lock = threading.RLock()
+
+
+def _get_component_lock(component_name: str) -> threading.RLock:
+    """Получить или создать lock для компонента (thread-safe)."""
+    with _locks_lock:
+        if component_name not in _component_locks:
+            _component_locks[component_name] = threading.RLock()
+        return _component_locks[component_name]
 
 
 def _ensure_eva_path():
@@ -68,117 +81,123 @@ def create_config_manager(initializer):
 
 
 def create_memory_manager(initializer):
-    _ensure_eva_path()
-    try:
-        # Проверяем, не создан ли уже
-        existing = getattr(initializer.core_brain, 'memory_manager', None)
-        if existing is not None:
-            initializer.logger.info(f"Используем существующий MemoryManager: {id(existing)}")
-            initializer.memory_manager = existing
-            initializer.core_brain.memory_manager = existing
-            return existing
-        
-        # Проверяем, не создан ли уже в component_instances
-        if hasattr(initializer, 'component_instances'):
-            existing = initializer.component_instances.get('memory_manager')
+    """Создать MemoryManager с thread-safe singleton проверкой."""
+    component_name = 'memory_manager'
+    lock = _get_component_lock(component_name)
+    
+    with lock:
+        _ensure_eva_path()
+        try:
+            existing = getattr(initializer.core_brain, 'memory_manager', None)
             if existing is not None:
-                initializer.logger.info(f"Используем существующий MemoryManager из component_instances: {id(existing)}")
+                initializer.logger.info(f"Используем существующий MemoryManager: {id(existing)}")
                 initializer.memory_manager = existing
                 initializer.core_brain.memory_manager = existing
                 return existing
-        
-        # Simple import approach - используем тот же подход что и в memory_initializer.py
-        try:
-            from eva_ai.memory.memory_manager import MemoryManager
-        except ImportError as e:
-            initializer.logger.warning(f"Не удалось импортировать MemoryManager: {e}")
-            # Skip this component - memory_manager будет инициализирован в другом месте
-            initializer.logger.info("[SKIP] MemoryManager будет инициализирован в memory_initializer")
+            
+            # Проверяем, не создан ли уже в component_instances
+            if hasattr(initializer, 'component_instances'):
+                existing = initializer.component_instances.get('memory_manager')
+                if existing is not None:
+                    initializer.logger.info(f"Используем существующий MemoryManager из component_instances: {id(existing)}")
+                    initializer.memory_manager = existing
+                    initializer.core_brain.memory_manager = existing
+                    return existing
+            
+            # Simple import approach - используем тот же подход что и в memory_initializer.py
+            try:
+                from eva_ai.memory.memory_manager import MemoryManager
+            except ImportError as e:
+                initializer.logger.warning(f"Не удалось импортировать MemoryManager: {e}")
+                initializer.logger.info("[SKIP] MemoryManager будет инициализирован в memory_initializer")
+                return None
+            
+            initializer.logger.info("MemoryManager импортирован успешно")
+            
+            cache_dir = os.path.join(
+                getattr(initializer.core_brain, 'cache_dir', './cache'),
+                'memory'
+            )
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            event_bus = getattr(initializer.core_brain, 'event_bus', None)
+            deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
+            fractal_graph_v2 = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+            
+            memory_manager = MemoryManager(
+                brain=initializer.core_brain,
+                cache_dir=cache_dir,
+                event_bus=event_bus,
+                deferred_system=deferred_system,
+                fractal_graph_v2=fractal_graph_v2
+            )
+            if hasattr(memory_manager, 'initialize'):
+                init_result = memory_manager.initialize()
+                if init_result is False:
+                    initializer.logger.warning("[WARN] MemoryManager.initialize() вернул False - возможны проблемы")
+            initializer.memory_manager = memory_manager
+            initializer.core_brain.memory_manager = memory_manager
+            initializer.logger.info("[OK] MemoryManager создан")
+            return memory_manager
+        except Exception as e:
+            initializer.logger.error(f"[FAIL] Ошибка создания memory_manager: {e}", exc_info=True)
+            initializer.failed_components.add('memory_manager')
             return None
-        
-        initializer.logger.info("MemoryManager импортирован успешно")
-        
-        cache_dir = os.path.join(
-            getattr(initializer.core_brain, 'cache_dir', './cache'),
-            'memory'
-        )
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        event_bus = getattr(initializer.core_brain, 'event_bus', None)
-        deferred_system = getattr(initializer.core_brain, 'deferred_system', None)
-        fractal_graph_v2 = getattr(initializer.core_brain, 'fractal_graph_v2', None)
-        
-        memory_manager = MemoryManager(
-            brain=initializer.core_brain,
-            cache_dir=cache_dir,
-            event_bus=event_bus,
-            deferred_system=deferred_system,
-            fractal_graph_v2=fractal_graph_v2
-        )
-        if hasattr(memory_manager, 'initialize'):
-            init_result = memory_manager.initialize()
-            if init_result is False:
-                initializer.logger.warning("[WARN] MemoryManager.initialize() вернул False - возможны проблемы")
-        initializer.memory_manager = memory_manager
-        initializer.core_brain.memory_manager = memory_manager
-        initializer.logger.info("[OK] MemoryManager создан")
-        return memory_manager
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания memory_manager: {e}", exc_info=True)
-        initializer.failed_components.add('memory_manager')
-        return None
 
 
 def create_hybrid_cache(initializer):
-    _ensure_eva_path()
-    try:
-        # Проверяем, не создан ли уже
-        existing = getattr(initializer.core_brain, 'token_cache', None) or getattr(initializer.core_brain, 'hybrid_cache', None)
-        if existing is not None:
-            initializer.logger.info(f"Используем существующий HybridTokenCache: {id(existing)}")
-            hybrid_cache = existing
-        else:
-            initializer.logger.info("Начало создания HybridTokenCache...")
-            initializer.logger.debug(f"core_brain тип: {type(initializer.core_brain)}")
-            initializer.logger.debug(f"core_brain атрибуты: {dir(initializer.core_brain)}")
+    """Создать HybridTokenCache с thread-safe singleton проверкой."""
+    component_name = 'hybrid_cache'
+    lock = _get_component_lock(component_name)
+    
+    with lock:
+        _ensure_eva_path()
+        try:
+            existing = getattr(initializer.core_brain, 'token_cache', None) or getattr(initializer.core_brain, 'hybrid_cache', None)
+            if existing is not None:
+                initializer.logger.info(f"Используем существующий HybridTokenCache: {id(existing)}")
+                hybrid_cache = existing
+            else:
+                initializer.logger.info("Начало создания HybridTokenCache...")
+                initializer.logger.debug(f"core_brain тип: {type(initializer.core_brain)}")
+                initializer.logger.debug(f"core_brain атрибуты: {dir(initializer.core_brain)}")
 
-            # Try multiple import approaches
-            get_shared_cache = None
-            try:
-                from eva_ai.memory.hybrid_token_cache import get_shared_cache
-            except ImportError:
+                # Try multiple import approaches
+                get_shared_cache = None
                 try:
-                    from eva_ai.memory import get_shared_cache
+                    from eva_ai.memory.hybrid_token_cache import get_shared_cache
                 except ImportError:
-                    pass
+                    try:
+                        from eva_ai.memory import get_shared_cache
+                    except ImportError:
+                        pass
+                
+                if get_shared_cache is None:
+                    raise RuntimeError("Cannot import get_shared_cache")
+                
+                initializer.logger.info("Импортирован get_shared_cache")
+                hybrid_cache = get_shared_cache(initializer.core_brain, "default")
+                initializer.logger.info(f"Создан/получен синглтон HybridTokenCache: {id(hybrid_cache)}")
             
-            if get_shared_cache is None:
-                raise RuntimeError("Cannot import get_shared_cache")
-            
-            initializer.logger.info("Импортирован get_shared_cache")
-            hybrid_cache = get_shared_cache(initializer.core_brain, "default")
-            initializer.logger.info(f"Создан/получен синглтон HybridTokenCache: {id(hybrid_cache)}")
+            if hybrid_cache is None:
+                initializer.logger.error("HybridTokenCache вернул None!")
+                return None
 
-        if hybrid_cache is None:
-            initializer.logger.error("HybridTokenCache вернул None!")
+            if not hasattr(initializer.core_brain, 'components'):
+                initializer.core_brain.components = {}
+            initializer.core_brain.components['hybrid_cache'] = hybrid_cache
+            initializer.logger.info("Добавлен в brain.components")
+
+            initializer.core_brain.token_cache = hybrid_cache
+            initializer.core_brain.hybrid_cache = hybrid_cache
+            initializer.logger.info("Установлены обратные ссылки")
+
+            initializer.logger.info(f"[OK] HybridTokenCache создан: {id(hybrid_cache)}")
+            return hybrid_cache
+        except Exception as e:
+            initializer.logger.error(f"[FAIL] Ошибка создания hybrid_cache: {e}", exc_info=True)
+            initializer.failed_components.add('hybrid_cache')
             return None
-
-        if not hasattr(initializer.core_brain, 'components'):
-            initializer.core_brain.components = {}
-        initializer.core_brain.components['hybrid_cache'] = hybrid_cache
-        initializer.logger.info("Добавлен в brain.components")
-
-        initializer.core_brain.token_cache = hybrid_cache
-        initializer.core_brain.hybrid_cache = hybrid_cache
-        initializer.logger.info("Установлены обратные ссылки")
-
-        initializer.logger.info(f"[OK] HybridTokenCache создан: {id(hybrid_cache)}")
-        return hybrid_cache
-
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания hybrid_cache: {e}", exc_info=True)
-        initializer.failed_components.add('hybrid_cache')
-        return None
 
 
 def create_qwen_api_enhancer(initializer):
@@ -415,51 +434,54 @@ def create_web_search_engine(initializer):
 
 
 def create_fractal_graph_v2(initializer):
-    """Получает или создаёт fractal_graph_v2."""
-    try:
-        existing = getattr(initializer.core_brain, 'fractal_graph_v2', None)
-        if existing is not None:
-            initializer.logger.info(f"Используем существующий fractal_graph_v2: {id(existing)}")
-            return existing
-        
-        from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
-        config = initializer.core_brain.config.get('fractal_graph_v2', {}) if hasattr(initializer.core_brain, 'config') else {}
-        
-        embedding_device = config.get('embedding_device', None)
-        if embedding_device is None:
-            try:
-                import torch
-                embedding_device = 'cuda' if torch.cuda.is_available() else 'cpu'
-                initializer.logger.info(f"Auto-detected embedding device: {embedding_device}")
-            except ImportError:
-                embedding_device = 'cpu'
-                initializer.logger.info("PyTorch not available, using CPU for embeddings")
-        
-        event_bus = getattr(initializer.core_brain, 'event_bus', None)
-        
-        # LAZY LOADING - важно для экономии памяти!
-        lazy = config.get('lazy', True)
-        
-        fg = FractalMemoryGraph(
-            storage_dir=config.get('storage_dir'),
-            embedding_device=embedding_device,
-            event_bus=event_bus,
-            lazy=lazy  # LAZY MODE!
-        )
-        initializer.core_brain.fractal_graph_v2 = fg
-        
-        if hasattr(initializer.core_brain, 'components'):
-            initializer.core_brain.components['fractal_graph_v2'] = fg
-        
-        initializer.logger.info("[OK] FractalGraphV2 создан")
-        
-        _load_model_into_graph(fg, initializer)
-        
-        return fg
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] Ошибка создания fractal_graph_v2: {e}")
-        initializer.failed_components.add('fractal_graph_v2')
-        return None
+    """Получает или создаёт fractal_graph_v2 (thread-safe)."""
+    component_name = 'fractal_graph_v2'
+    lock = _get_component_lock(component_name)
+    
+    with lock:
+        try:
+            existing = getattr(initializer.core_brain, 'fractal_graph_v2', None)
+            if existing is not None:
+                initializer.logger.info(f"Используем существующий fractal_graph_v2: {id(existing)}")
+                return existing
+            
+            from eva_ai.memory.fractal_graph_v2 import FractalMemoryGraph
+            config = initializer.core_brain.config.get('fractal_graph_v2', {}) if hasattr(initializer.core_brain, 'config') else {}
+            
+            embedding_device = config.get('embedding_device', None)
+            if embedding_device is None:
+                try:
+                    import torch
+                    embedding_device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                    initializer.logger.info(f"Auto-detected embedding device: {embedding_device}")
+                except ImportError:
+                    embedding_device = 'cpu'
+                    initializer.logger.info("PyTorch not available, using CPU for embeddings")
+            
+            event_bus = getattr(initializer.core_brain, 'event_bus', None)
+            
+            lazy = config.get('lazy', True)
+            
+            fg = FractalMemoryGraph(
+                storage_dir=config.get('storage_dir'),
+                embedding_device=embedding_device,
+                event_bus=event_bus,
+                lazy=lazy
+            )
+            initializer.core_brain.fractal_graph_v2 = fg
+            
+            if hasattr(initializer.core_brain, 'components'):
+                initializer.core_brain.components['fractal_graph_v2'] = fg
+            
+            initializer.logger.info("[OK] FractalGraphV2 создан")
+            
+            _load_model_into_graph(fg, initializer)
+            
+            return fg
+        except Exception as e:
+            initializer.logger.error(f"[FAIL] Ошибка создания fractal_graph_v2: {e}")
+            initializer.failed_components.add('fractal_graph_v2')
+            return None
 
 
 def _load_model_into_graph(fg, initializer):

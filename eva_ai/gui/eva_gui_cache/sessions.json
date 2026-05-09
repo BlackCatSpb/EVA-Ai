@@ -7660,6 +7660,116 @@
       "chat_history": [],
       "context_nodes": [],
       "entities": []
+    },
+    "25dbe681-8243-4287-a44a-2ab6260b279b": {
+      "id": "25dbe681-8243-4287-a44a-2ab6260b279b",
+      "user_id": "3e0d5b94-5a5d-4f2c-8319-676b6dc05333",
+      "name": "Сессия admin",
+      "created_at": "2026-05-08T01:28:47.835922",
+      "last_active": "2026-05-08T01:28:47.835922",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "aec10a6f-61bc-461f-8770-d293bd57d1b4": {
+      "id": "aec10a6f-61bc-461f-8770-d293bd57d1b4",
+      "user_id": "0bb84152-4be2-4caa-bfe3-910222c875da",
+      "name": "Сессия admin",
+      "created_at": "2026-05-08T01:35:03.326495",
+      "last_active": "2026-05-08T01:35:03.326495",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "5a2eaa6d-f04c-4742-828b-48d5fcf395a0": {
+      "id": "5a2eaa6d-f04c-4742-828b-48d5fcf395a0",
+      "user_id": "6d2b7e8e-47f9-442a-b883-fa9590ed3637",
+      "name": "Сессия admin",
+      "created_at": "2026-05-08T01:46:05.309041",
+      "last_active": "2026-05-08T01:46:05.309041",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "4dff749b-9711-4f41-a906-b0a458a27922": {
+      "id": "4dff749b-9711-4f41-a906-b0a458a27922",
+      "user_id": "66061082-e7d3-4d44-a7a5-bbfbc0174231",
+      "name": "Сессия admin",
+      "created_at": "2026-05-08T01:57:22.097542",
+      "last_active": "2026-05-08T01:57:22.097542",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "c3e3a74f-cf52-46a8-8f48-c4680981d2b0": {
+      "id": "c3e3a74f-cf52-46a8-8f48-c4680981d2b0",
+      "user_id": "73d0e0d9-a54d-4661-8cb4-362da9937a18",
+      "name": "Сессия admin",
+      "created_at": "2026-05-08T02:19:30.887550",
+      "last_active": "2026-05-08T02:19:30.887550",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "c427d449-7691-4b30-a16b-c4e9e76eab93": {
+      "id": "c427d449-7691-4b30-a16b-c4e9e76eab93",
+      "user_id": "ce582229-c0f4-4fbf-ab4d-e48b65bfdd2f",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T07:59:08.186666",
+      "last_active": "2026-05-09T07:59:08.186666",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "be1aa9dc-24a2-4450-acc5-6de07ec45672": {
+      "id": "be1aa9dc-24a2-4450-acc5-6de07ec45672",
+      "user_id": "0ed416b4-f8d8-46a9-97c9-590444585b53",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T08:26:00.710983",
+      "last_active": "2026-05-09T08:26:00.710983",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "9ed1fea1-b8b0-4b1a-bd12-c1494231c4b7": {
+      "id": "9ed1fea1-b8b0-4b1a-bd12-c1494231c4b7",
+      "user_id": "c06ffabe-1e3f-4198-91cf-0985d42bd8ab",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T08:41:35.509043",
+      "last_active": "2026-05-09T08:41:35.509043",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "3f92ee0e-d110-4f15-9b65-366ba7a3ab5b": {
+      "id": "3f92ee0e-d110-4f15-9b65-366ba7a3ab5b",
+      "user_id": "b40974dc-1eff-4218-90f3-ae1daa925f5a",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T09:13:27.567020",
+      "last_active": "2026-05-09T09:13:27.567020",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "b6688e3c-c852-4166-9924-cdd96a6e394a": {
+      "id": "b6688e3c-c852-4166-9924-cdd96a6e394a",
+      "user_id": "696be890-800b-49da-99d9-bfcd5b222000",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T09:43:35.949623",
+      "last_active": "2026-05-09T09:43:35.949623",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
+    },
+    "c2e0d555-a6e3-48d0-90ef-c2d1456e901c": {
+      "id": "c2e0d555-a6e3-48d0-90ef-c2d1456e901c",
+      "user_id": "53459818-3e32-4306-ac8b-4c2ecab4c50a",
+      "name": "Сессия admin",
+      "created_at": "2026-05-09T10:07:53.767205",
+      "last_active": "2026-05-09T10:07:53.767205",
+      "chat_history": [],
+      "context_nodes": [],
+      "entities": []
     }
   }
 }

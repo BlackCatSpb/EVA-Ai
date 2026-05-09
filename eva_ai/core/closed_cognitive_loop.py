@@ -100,11 +100,14 @@ class ConceptMiner:
             # In real implementation, would use more sophisticated method
             concept_emb = pooled
 
+            # Compute confidence based on embedding statistics
+            confidence = float(1.0 / (1.0 + np.std(concept_emb)))
+
             # Create ConceptData
             concept = ConceptData(
                 name=query[:50],
                 embeddings=concept_emb,
-                confidence=0.8,  # Placeholder
+                confidence=confidence,
                 layer_relevance={layer: float(np.std(hs))}
             )
             concepts.append(concept)
@@ -252,16 +255,36 @@ class GNNProcessor:
                 self.graph_encoder = None
                 return
 
+            # Try to load as TorchScript first
+            try:
+                self.graph_encoder = torch.jit.load(self.graph_encoder_path, map_location='cpu')
+                print(f"GNN Processor: Loaded as TorchScript model")
+                return
+            except Exception:
+                pass
+
             state_dict = torch.load(self.graph_encoder_path, map_location='cpu', weights_only=False)
 
-            # Check if it's a state dict or a model
+            # Check if it's a state dict
             if isinstance(state_dict, dict):
-                # It's a state dict - extract a simple vector by averaging
-                # This is a placeholder - real implementation would use actual model
-                print(f"GNN Processor: Loaded state dict with {len(state_dict)} keys")
-                self.graph_encoder = state_dict  # Store for reference
+                # Try to load into FractalGraphEncoder
+                try:
+                    from eva_ai.fcp_gnn.graph_encoder import FractalGraphEncoder
+                    model = FractalGraphEncoder()
+                    model.load_state_dict(state_dict)
+                    model.eval()
+                    self.graph_encoder = model
+                    print(f"GNN Processor: Loaded FractalGraphEncoder from state dict")
+                    return
+                except Exception as e:
+                    print(f"GNN Processor: Could not load as FractalGraphEncoder: {e}")
+                    # Fallback: store state_dict for reference
+                    self.graph_encoder = state_dict
             else:
+                # Assume it's a full model
                 self.graph_encoder = state_dict
+                if hasattr(self.graph_encoder, 'eval'):
+                    self.graph_encoder.eval()
 
             print(f"GNN Processor: Loaded graph_encoder from {self.graph_encoder_path}")
 

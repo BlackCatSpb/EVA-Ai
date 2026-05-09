@@ -35,6 +35,7 @@ class MemorySegment:
     relevance: float = 0.5
     variance: float = 0.1
     consolidated: bool = False
+    segment_type: str = "general"  # Тип: user, assistant, system, tool, reasoning
 
 
 @dataclass

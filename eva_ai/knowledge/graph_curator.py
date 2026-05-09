@@ -1,10 +1,19 @@
 """
 Graph Curator для FractalGraph v2
 Оптимизация, консолидация и обслуживание графа знаний
+
+Features:
+- Защита важных узлов
+- Консолидация по уровням и типам
+- Промоут/демоут между слоями
+- Очистка мусора
+- Поддержание когерентности групп
+- Интеграция с FractalGraphV2 temporal decay
 """
 import logging
 import time
 import threading
+import asyncio
 import numpy as np
 from typing import Dict, List, Optional, Any, Set
 from enum import Enum
@@ -828,6 +837,184 @@ class GraphCurator:
         self.metrics['nodes_decayed'] = self.metrics.get('nodes_decayed', 0) + decayed
         logger.info(f"Decayed {decayed} inactive nodes")
         return decayed
+    
+    # === GC-1: Интеграция с FG2 Temporal Decay ===
+    
+    def integrate_with_fg2_decay(self, force: bool = False) -> Dict:
+        """
+        GC-1: Использовать методы временного распада из FractalGraphV2.
+        
+        Args:
+            force: Если True - применить распад, иначе dry_run
+            
+        Returns:
+            Результаты применения распада
+        """
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'storage'):
+            return {"error": "FG2 not available"}
+        
+        storage = fg.storage
+        
+        if not hasattr(storage, 'apply_temporal_decay'):
+            return {"error": "apply_temporal_decay not available"}
+        
+        try:
+            result = storage.apply_temporal_decay(
+                lambda_base=0.01,
+                min_confidence=0.15,
+                dry_run=not force
+            )
+            
+            logger.info(f"FG2 decay integration: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"FG2 decay integration error: {e}")
+            return {"error": str(e)}
+    
+    def get_fg2_decay_statistics(self) -> Dict:
+        """GC-1: Получить статистику распада из FG2."""
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'storage'):
+            return {}
+        
+        storage = fg.storage
+        
+        if hasattr(storage, 'get_decay_statistics'):
+            return storage.get_decay_statistics()
+        return {}
+    
+    # === GC-2: Асинхронное курирование ===
+    
+    async def async_curation(self):
+        """
+        GC-2: Асинхронный цикл курирования для лучшей интеграции с EventBus.
+        """
+        await asyncio.sleep(0)
+        
+        with self._lock:
+            try:
+                fg = self._get_fractal_graph()
+                if not fg or not hasattr(fg, 'storage'):
+                    return
+                
+                storage = fg.storage
+                
+                tasks = []
+                
+                if self.cleanup_enabled:
+                    tasks.append(self._async_cleanup_garbage(storage))
+                
+                if self.promotion_enabled:
+                    tasks.append(self._async_promotions(storage))
+                
+                if tasks:
+                    await asyncio.gather(*tasks)
+                
+                self.metrics['cycles_completed'] += 1
+                
+            except Exception as e:
+                logger.error(f"Async curation error: {e}")
+    
+    async def _async_cleanup_garbage(self, storage):
+        """GC-2: Асинхронная очистка мусора."""
+        await asyncio.sleep(0)
+        self._cleanup_garbage(storage)
+    
+    async def _async_promotions(self, storage):
+        """GC-2: Асинхронный промоут/демоут."""
+        await asyncio.sleep(0)
+        self._process_level_promotions(storage)
+    
+    # === GC-3: Расширенная статистика графа ===
+    
+    def get_extended_graph_stats(self) -> Dict:
+        """
+        GC-3: Расширенная статистика графа с FG2 decay данными.
+        
+        Returns:
+            {
+                "total_nodes": int,
+                "by_type": dict,
+                "by_level": dict,
+                "decay_stats": dict,
+                "protected_count": int,
+                "contradictions": int
+            }
+        """
+        fg = self._get_fractal_graph()
+        if not fg or not hasattr(fg, 'storage'):
+            return {}
+        
+        storage = fg.storage
+        
+        stats = {
+            "total_nodes": len(storage.nodes),
+            "total_edges": len(storage.edges),
+            "total_groups": len(storage.semantic_groups)
+        }
+        
+        type_counts = defaultdict(int)
+        level_counts = defaultdict(int)
+        
+        for node_id, node in storage.nodes.items():
+            node_type = getattr(node, 'node_type', 'unknown')
+            level = getattr(node, 'level', 0)
+            type_counts[node_type] += 1
+            level_counts[level] += 1
+        
+        stats["by_type"] = dict(type_counts)
+        stats["by_level"] = dict(level_counts)
+        stats["protected_count"] = sum(1 for n in storage.nodes.values() if self._is_protected_node(n))
+        stats["contradictions"] = sum(1 for n in storage.nodes.values() if getattr(n, 'is_contradiction', False))
+        
+        if hasattr(storage, 'get_decay_statistics'):
+            stats["decay_stats"] = storage.get_decay_statistics()
+        
+        return stats
+    
+    def get_curation_recommendations(self) -> List[Dict]:
+        """
+        GC-3: Получить рекомендации по оптимизации графа.
+        
+        Returns:
+            List of {issue, recommendation, priority}
+        """
+        recommendations = []
+        stats = self.get_extended_graph_stats()
+        
+        if not stats:
+            return recommendations
+        
+        decay_stats = stats.get("decay_stats", {})
+        if decay_stats:
+            age_range = decay_stats.get("age_range_days", 0)
+            if age_range > 90:
+                recommendations.append({
+                    "issue": f"Graph contains nodes older than {int(age_range)} days",
+                    "recommendation": "Run FG2 temporal decay to clean up old nodes",
+                    "priority": "medium"
+                })
+        
+        nodes_by_type = stats.get("by_type", {})
+        unknown_count = nodes_by_type.get("unknown", 0)
+        if unknown_count > stats.get("total_nodes", 1) * 0.1:
+            recommendations.append({
+                "issue": f"High count of unknown type nodes: {unknown_count}",
+                "recommendation": "Review and categorize untyped nodes",
+                "priority": "low"
+            })
+        
+        protected_pct = stats.get("protected_count", 0) / max(stats.get("total_nodes", 1), 1)
+        if protected_pct < 0.1:
+            recommendations.append({
+                "issue": f"Very few protected nodes ({protected_pct:.1%})",
+                "recommendation": "Consider marking important concepts as protected",
+                "priority": "low"
+            })
+        
+        return recommendations
     
     # === РАСШИРЕННЫЙ ЦИКЛ КУРИРОВАНИЯ ===
     
