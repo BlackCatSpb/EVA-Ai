@@ -134,7 +134,7 @@ class FCPipeline:
             "top_k": 40,
             "repetition_penalty": 1.1,
             "do_sample": True,
-            "max_new_tokens": 8192,  # Увеличено
+            "max_new_tokens": 4096,  # Максимум для баланса
             "min_new_tokens": 1
         }
 
@@ -796,7 +796,7 @@ class FCPipeline:
             self.pipeline = None
             return
     
-    def generate_streaming(self, prompt, max_new_tokens=2048, enable_thinking=True, callback=None, add_to_history=True, **kwargs):
+    def generate_streaming(self, prompt, max_new_tokens=4096, enable_thinking=True, callback=None, add_to_history=True, **kwargs):
         """Streaming с парсингом тегов размышления в процессе генерации"""
         if not self.pipeline:
             yield {"type": "error", "text": "[No pipeline]"}
@@ -1060,7 +1060,7 @@ class FCPipeline:
     def generate(
         self,
         prompt: str,
-        max_new_tokens: int = 2048,
+        max_new_tokens: int = 4096,
         enable_injection: bool = False,
         use_lora: bool = True,
         enable_thinking: bool = True,
@@ -1603,7 +1603,7 @@ class FCPipeline:
         
         return f"{history_text}<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
 
-    def _generate(self, prompt: str, max_new_tokens: int = 1024, **kwargs) -> str:
+    def _generate(self, prompt: str, max_new_tokens: int = 4096, **kwargs) -> str:
         """Генерация ответа (non-streaming, возвращает полный результат)"""
         if not self.pipeline:
             return "[No pipeline]"
@@ -1616,7 +1616,7 @@ class FCPipeline:
         
         return result
 
-    def generate_with_injection(self, prompt: str, max_new_tokens: int = 1024, 
+    def generate_with_injection(self, prompt: str, max_new_tokens: int = 4096, 
                               enable_thinking: bool = True, return_metadata: bool = False) -> str:
         """
         Полнослойная инъекция согласно Доработка.txt (FCP specification)
