@@ -250,8 +250,8 @@ class BackgroundTrainer:
         return False
     
     def save_checkpoint(self, suffix: str = ""):
-        """Сохранить чекпоинт."""
-        pass
+        """Сохранить чекпоинт - должен быть реализован в подклассах."""
+        raise NotImplementedError("save_checkpoint must be implemented by subclass")
     
     def load_latest_checkpoint(self) -> bool:
         """Загрузить последний чекпоинт (поддерживает .safetensors и .pt)."""
