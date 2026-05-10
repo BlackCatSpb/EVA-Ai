@@ -36,13 +36,7 @@ def __getattr__(name):
         'Contradiction': ('contradiction_core', 'Contradiction'),
         'OptimizedContradictionDetector': ('contradiction_core', 'OptimizedContradictionDetector'),
         'ContradictionManager': ('contradiction_manager', 'ContradictionManager'),
-        'ContradictionResolver': ('contradiction_resolver', 'ContradictionResolver'),
         'ContradictionDetector': ('contradiction_detection', 'ContradictionDetector'),
-        'ContradictionResolution': ('contradiction_resolution', 'ContradictionResolution'),
-        'ContradictionResolutionStrategy': ('contradiction_strategies', 'ContradictionResolutionStrategy'),
-        'ContradictionResponseGenerator': ('contradiction_responses', 'ContradictionResponseGenerator'),
-        'SourceReputationSystem': ('contradiction_reputation', 'SourceReputationSystem'),
-        'ContradictionLearning': ('contradiction_learning', 'ContradictionLearning'),
         'ContradictionGenerator': ('contradiction_generator', 'ContradictionGenerator'),
         'GeneratedContradiction': ('contradiction_generator', 'GeneratedContradiction'),
         'create_contradiction_generator': ('contradiction_generator', 'create_contradiction_generator'),
@@ -50,9 +44,6 @@ def __getattr__(name):
         'ContradictionStatus': ('contradiction_miner', 'ContradictionStatus'),
         'ContradictionCandidate': ('contradiction_miner', 'ContradictionCandidate'),
         'create_contradiction_miner': ('contradiction_miner', 'create_contradiction_miner'),
-        'UnifiedContradictionManager': ('unified_contradiction_manager', 'UnifiedContradictionManager'),
-        'UnifiedContradiction': ('unified_contradiction_manager', 'UnifiedContradiction'),
-        'ContradictionSource': ('unified_contradiction_manager', 'ContradictionSource')
     }
     
     if name in imports:
@@ -69,13 +60,7 @@ __all__ = [
     'Contradiction',
     'OptimizedContradictionDetector',
     'ContradictionManager',
-    'ContradictionResolver',
     'ContradictionDetector',
-    'ContradictionResolution',
-    'ContradictionResolutionStrategy',
-    'ContradictionResponseGenerator',
-    'SourceReputationSystem',
-    'ContradictionLearning',
     'ContradictionGenerator',
     'GeneratedContradiction',
     'create_contradiction_generator',
@@ -83,7 +68,4 @@ __all__ = [
     'ContradictionStatus',
     'ContradictionCandidate',
     'create_contradiction_miner',
-    'UnifiedContradictionManager',
-    'UnifiedContradiction',
-    'ContradictionSource'
 ]

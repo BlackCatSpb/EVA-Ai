@@ -64,9 +64,7 @@ class AnalyticsManager:
             if self.brain:
                 self.brain.performance_analyzer = self.performance_analyzer
             
-            # KnowledgeAnalytics
-            from eva_ai.knowledge.knowledge_analytics import KnowledgeAnalytics
-            self.knowledge_analytics = KnowledgeAnalytics(self.brain)
+            # KnowledgeAnalytics удален - функциональность перемещена в graph_curator
             
             # LearningOpportunityManager
             from eva_ai.learning.learning_opportunity_manager import LearningOpportunityManager
