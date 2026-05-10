@@ -130,14 +130,16 @@ class EventTypes:
 class EventBus:
     """Центральная шина событий ЕВА"""
     
-    def __init__(self, max_history: int = 10000):
+    def __init__(self, max_history: int = 10000, handler_timeout: float = 5.0):
         """
         Инициализация EventBus
         
         Args:
             max_history: Максимальный размер истории событий
+            handler_timeout: Максимальное время выполнения обработчика (сек)
         """
         self.max_history = max_history
+        self.handler_timeout = handler_timeout
         self._subscribers: Dict[str, List[Callable]] = defaultdict(list)
         self._event_history: deque = deque(maxlen=max_history)
         self._event_queue: queue.PriorityQueue = queue.PriorityQueue()
@@ -149,11 +151,12 @@ class EventBus:
             'events_published': 0,
             'events_processed': 0,
             'events_failed': 0,
+            'handlers_timed_out': 0,
             'subscribers_count': 0,
             'start_time': time.time()
         }
         
-        logger.info("EventBus инициализирован с PriorityQueue")
+        logger.info("EventBus инициализирован с PriorityQueue, handler_timeout={}s".format(handler_timeout))
     
     def subscribe(self, event_type: str, handler: Callable[[Event], None], priority: int = 5) -> str:
         """
@@ -388,10 +391,19 @@ class EventBus:
                 # Проверяем тип handler для отладки
                 if callable(handler):
                     logger.info("  Handler {} is callable, calling with event={}".format(handler_name, event))
-                    # ЯВНЫЙ вызов для отладки
+                    # ЯВНЫЙ вызов для отладки с timeout
                     try:
-                        result = handler(event)
-                        logger.info("  Handler {} returned: {}".format(handler_name, result))
+                        import concurrent.futures
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(handler, event)
+                            try:
+                                result = future.result(timeout=self.handler_timeout)
+                                logger.info("  Handler {} returned: {}".format(handler_name, result))
+                            except concurrent.futures.TimeoutError:
+                                logger.warning("  Handler {} timed out after {}s".format(handler_name, self.handler_timeout))
+                                with self._lock:
+                                    self._stats['handlers_timed_out'] += 1
+                                continue
                     except TypeError as te:
                         logger.error("  TypeError when calling handler: {}".format(te))
                         raise
