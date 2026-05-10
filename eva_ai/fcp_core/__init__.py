@@ -119,6 +119,57 @@ class KnowledgeConsciousAttention:
         self.W_g[d:, :] = np.eye(d) * 0.5    # веса для E_corr
         self.b_g = np.zeros(d)
     
+    def load_weights(self, checkpoint_path: str = None) -> bool:
+        """Загрузить веса KCA из чекпоинта (.pt, .safetensors, или .npz).
+        
+        Args:
+            checkpoint_path: путь к файлу чекпоинта. Если None, ищет в
+                           {project_root}/checkpoints/kca_weights.npz
+        Returns:
+            True если веса загружены
+        """
+        if checkpoint_path is None:
+            import os
+            from eva_ai.core.utils import get_project_root
+            checkpoint_path = os.path.join(get_project_root(), 'checkpoints', 'kca_weights.npz')
+        
+        if not os.path.exists(checkpoint_path):
+            logger.debug(f"[KCA] No checkpoint at {checkpoint_path}, using default weights")
+            return False
+        
+        try:
+            if checkpoint_path.endswith('.npz'):
+                data = np.load(checkpoint_path)
+                self.W_Qk = data['W_Qk']
+                self.W_Kk = data['W_Kk']
+                self.W_Vk = data['W_Vk']
+                self.W_g = data['W_g']
+                self.b_g = data.get('b_g', np.zeros(self.config.hidden_dim))
+            elif checkpoint_path.endswith('.safetensors'):
+                try:
+                    from safetensors.numpy import load_file
+                    data = load_file(checkpoint_path)
+                    for k, v in data.items():
+                        setattr(self, k, v)
+                except ImportError:
+                    logger.warning("[KCA] safetensors not installed, skipping checkpoint")
+                    return False
+            elif checkpoint_path.endswith('.pt'):
+                try:
+                    import torch
+                    data = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
+                    for k, v in data.items():
+                        setattr(self, k, v.numpy() if hasattr(v, 'numpy') else v)
+                except ImportError:
+                    logger.warning("[KCA] torch not available, skipping checkpoint")
+                    return False
+            
+            logger.info(f"[KCA] Loaded weights from {checkpoint_path}")
+            return True
+        except Exception as e:
+            logger.warning(f"[KCA] Failed to load checkpoint: {e}")
+            return False
+    
     def forward(self, X_initial: np.ndarray, subgraph: dict):
         """
         X_initial: [T, D] - скрытые состояния модели

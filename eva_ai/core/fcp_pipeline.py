@@ -389,7 +389,8 @@ class FCPipeline:
         
         # KCA (Knowledge Conscious Attention) - existing
         self.kca = KnowledgeConsciousAttention(self.fcp_config)
-        print("[FCP] KCA initialized")
+        kca_loaded = self.kca.load_weights()
+        print(f"[FCP] KCA initialized {'(weights from checkpoint)' if kca_loaded else '(default weights)'}")
         
         # Convergence Controller
         self.convergence_controller = ConvergenceController(self.fcp_config)
@@ -1225,7 +1226,6 @@ class FCPipeline:
 
                 # 2. SRG evaluation - определяем режим
                 if self.srg:
-                    # Оцениваем logits на основе контекста промпта
                     estimated_logits = self._estimate_logits_from_prompt(chat_prompt)
                     mode, srg_metrics = self.srg.evaluate(
                         query_vec=query_embedding,
@@ -1988,18 +1988,18 @@ class FCPipeline:
                        f"kca_iterations={self.kca_gate_config['kca_iterations']}, "
                        f"kca_rejected={self.kca_gate_config['kca_rejected']}")
             
-            # 5. SRG Post-Evaluation (оценка уверенности)
-            final_logits = self.state_injector.request.get_tensor("logits").data[0, -1]
-            # Простая оценка на основе энтропии
-            probs = np.exp(final_logits) / np.sum(np.exp(final_logits))
-            entropy = -np.sum(probs * np.log2(probs + 1e-10))
-            # Используем пороги из конфигурации SRG
-            is_confident = entropy <= self.srg.config.srg_entropy_threshold
-            if is_confident:
-                mode = "direct"
-            else:
-                mode = "reasoning"
-            srg_metrics = {"mode": mode, "entropy": entropy, "confidence": 1.0 - entropy / 10.0}
+            # 5. SRG Post-Evaluation (использует реальные логиты модели)
+            try:
+                final_logits = self.state_injector.request.get_tensor("logits").data[0, -1]
+            except Exception:
+                final_logits = self._estimate_logits_from_prompt(prompt)
+            
+            response_vec = np.mean(self.state_injector.get_value(35), axis=0) if self.state_injector else np.zeros(self.fcp_config.hidden_dim)
+            mode, srg_metrics = self.srg.evaluate(
+                query_vec=self.current_query_embedding if hasattr(self, 'current_query_embedding') else np.zeros(self.fcp_config.hidden_dim),
+                response_vec=response_vec,
+                logits=final_logits
+            )
             
             # Декодируем результат
             if hasattr(self, 'tokenizer') and self.tokenizer:
@@ -2130,9 +2130,10 @@ class FCPipeline:
         if subgraph.is_empty or subgraph.node_embeddings is None:
             return initial_hidden_state, {"status": "NO_SUBGRAPH", "cycles": 0}
         
-        # 2. SRG Evaluation
+        # 2. SRG Evaluation (использует эвристическую оценку до генерации)
         response_vec = initial_hidden_state.mean(axis=0)
-        mode, metrics = self.srg.evaluate(query_embedding, response_vec, np.zeros(100))
+        estimated_logits = self._estimate_logits_from_prompt(query_text)
+        mode, metrics = self.srg.evaluate(query_embedding, response_vec, estimated_logits)
         
         if mode == "direct":
             return initial_hidden_state, {"status": "DIRECT", "mode": mode, "metrics": metrics}

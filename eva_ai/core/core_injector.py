@@ -151,14 +151,9 @@ class LayerwiseStateInjector:
         try:
             state = self._state_map[layer_idx]["value"]
             data = np.asarray(data, dtype=np.float32)
-            # Проверяем форму
-            current_shape = state.state.shape
-            if any(s == -1 or isinstance(s, str) for s in current_shape):
-                logger.warning(f"[StateInjector] set_value: dynamic shape {current_shape}, skipping")
-                return
             state.set_state(ov.Tensor(data))
         except Exception as e:
-            logger.warning(f"[StateInjector] set_value failed at layer {layer_idx}: {e}")
+            logger.debug(f"[StateInjector] set_value failed at layer {layer_idx}: {e}")
 
     def get_key(self, layer_idx: int) -> np.ndarray:
         if layer_idx not in self._state_map:
@@ -176,14 +171,9 @@ class LayerwiseStateInjector:
         try:
             state = self._state_map[layer_idx]["key"]
             data = np.asarray(data, dtype=np.float32)
-            # Проверяем форму
-            current_shape = state.state.shape
-            if any(s == -1 or isinstance(s, str) for s in current_shape):
-                logger.warning(f"[StateInjector] set_key: dynamic shape {current_shape}, skipping")
-                return
             state.set_state(ov.Tensor(data))
         except Exception as e:
-            logger.warning(f"[StateInjector] set_key failed at layer {layer_idx}: {e}")
+            logger.debug(f"[StateInjector] set_key failed at layer {layer_idx}: {e}")
 
     def get_all_layer_indices(self) -> List[int]:
         """Получить список всех индексов слоёв."""
