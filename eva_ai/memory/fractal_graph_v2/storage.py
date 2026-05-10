@@ -561,6 +561,13 @@ class FractalGraphV2:
             v = v / (np.linalg.norm(v) + 1e-8)
             self._normalized_embeddings[node_id] = v
         
+        # Обновление HNSW индекса
+        if self.graph_indexer and self.graph_indexer._hnsw_index:
+            try:
+                self.graph_indexer.add_nodes([node_id])
+            except Exception as e:
+                logger.debug(f"HNSW incremental add failed: {e}")
+        
         logger.debug(f"Добавлен узел: {node_id} ({node_type}), group: {node.parent_group_id}")
         
         return node
