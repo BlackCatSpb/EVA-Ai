@@ -67,23 +67,26 @@ class HNSWIndex:
                 self._index = None
     
     def add_items(self, ids: List[str], vectors: List[List[float]]):
-        """Add vectors to index."""
+        """Add vectors to index. For FAISS, this should be called once with all data."""
         if self._faiss_index is not None:
             vecs = np.array(vectors, dtype=np.float32)
             self._faiss_index.add(vecs)
+            base_idx = len(self._id_to_idx)
             for i, id_ in enumerate(ids):
-                self._id_to_idx[id_] = i
-                self._idx_to_id[i] = id_
-            logger.info(f"Added {len(ids)} vectors to HNSW index")
+                self._id_to_idx[id_] = base_idx + i
+                self._idx_to_id[base_idx + i] = id_
+            logger.info(f"Added {len(ids)} vectors to HNSW index (total: {self._faiss_index.ntotal})")
         elif self._index is not None:
             for i, (id_, vec) in enumerate(zip(ids, vectors)):
                 self._index.addPoint(vec, i)
                 self._id_to_idx[id_] = i
                 self._idx_to_id[i] = id_
         else:
-            self._vectors = vectors
-            self._id_to_idx = {id_: i for i, id_ in enumerate(ids)}
-            self._idx_to_id = {i: id_ for i, id_ in enumerate(ids)}
+            base_idx = len(self._id_to_idx)
+            for i, (id_, vec) in enumerate(zip(ids, vectors)):
+                self._id_to_idx[id_] = base_idx + i
+                self._idx_to_id[base_idx + i] = id_
+                self._vectors.append(vec)
     
     def __len__(self) -> int:
         """Return number of indexed vectors."""

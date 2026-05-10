@@ -28,8 +28,18 @@ class GraphIndexer:
     def _get_connection(self):
         return sqlite3.connect(self.db_path)
     
-    def build_index(self, limit: int = 50000) -> bool:
-        """Построить HNSW индекс из базы данных."""
+    def build_index(self, limit: int = None, force: bool = False) -> bool:
+        """Построить HNSW индекс из базы данных.
+        
+        Args:
+            limit: Лимит узлов (None = все узлы)
+            force: Принудительная перестройка индекса
+        """
+        if self._index_built and not force:
+            if self._vector_count > 0:
+                logger.info(f"HNSW индекс уже построен: {self._vector_count} векторов (пропуск)")
+                return True
+        
         try:
             from .optimizations import create_hnsw_index
             self._hnsw_index = create_hnsw_index(dim=self.embedding_dim)
@@ -41,10 +51,14 @@ class GraphIndexer:
         conn = self._get_connection()
         conn.row_factory = sqlite3.Row
         
-        cursor = conn.execute(
-            "SELECT id, embedding FROM nodes WHERE embedding IS NOT NULL LIMIT ?",
-            (limit,)
-        )
+        if limit:
+            query = "SELECT id, embedding FROM nodes WHERE embedding IS NOT NULL LIMIT ?"
+            params = (limit,)
+        else:
+            query = "SELECT id, embedding FROM nodes WHERE embedding IS NOT NULL"
+            params = ()
+        
+        cursor = conn.execute(query, params)
         
         ids = []
         vectors = []

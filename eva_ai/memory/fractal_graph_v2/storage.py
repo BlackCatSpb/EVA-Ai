@@ -386,7 +386,7 @@ class FractalGraphV2:
                 return
             
             self.graph_indexer = GraphIndexer(self.db_path, embedding_dim=self.embedding_dim)
-            built = self.graph_indexer.build_index(limit=50000)
+            built = self.graph_indexer.build_index(limit=None, force=False)
             
             if built:
                 logger.info(f"[FGV2] GraphIndexer initialized: {len(self.graph_indexer._hnsw_index)} vectors in HNSW")
