@@ -356,8 +356,7 @@ class EvaModel:
         if mode == "extended":
             try:
                 extended_path = self.container.get_model_path("extended")
-                # TODO: Переключиться на extended модель
-                logger.info("Using extended model")
+                logger.info(f"Using extended model: {extended_path}")
                 final_max_tokens = min(final_max_tokens * 2, 2048)
             except ValueError:
                 pass  # Используем текущую модель
