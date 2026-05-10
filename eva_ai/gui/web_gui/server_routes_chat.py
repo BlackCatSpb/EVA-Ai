@@ -339,7 +339,7 @@ def register_chat_routes(app, web_gui_instance):
                     
                     # Сохраняем в историю
                     if session_id and full_text:
-                        web_ui_instance.session_manager.add_chat_message(
+                        web_gui_instance.session_manager.add_chat_message(
                             session_id, 'assistant', full_text
                         )
                     
@@ -351,30 +351,6 @@ def register_chat_routes(app, web_gui_instance):
                             'chunks_sent': chunk_count,
                             'reasoning': None
                         })}\n\n"
-                    
-                    # Если reasoning не был закрыт — добавляем как есть
-                    if in_reasoning and reasoning_buffer.strip():
-                        reasoning_step_num += 1
-                        step_data = {
-                            'step': reasoning_step_num,
-                            'phase': 'thinking',
-                            'thought': reasoning_buffer.strip(),
-                            'confidence': 0.8
-                        }
-                        reasoning_steps.append(step_data)
-                    
-                    # Очищаем full_text от остатков reasoning tags
-                    import re
-                    full_text = re.sub(r'<think>.*?</think>', '', full_text, flags=re.DOTALL)
-                    full_text = re.sub(r'<think>', '', full_text)
-                    full_text = re.sub(r'</think>', '', full_text)
-                    full_text = full_text.strip()
-                    
-                    # Сохраняем в историю
-                    if session_id and full_text:
-                        web_gui_instance.session_manager.add_chat_message(
-                            session_id, 'assistant', full_text
-                        )
                     
                     # Отправляем завершение с reasoning
                     yield f"data: {json.dumps({

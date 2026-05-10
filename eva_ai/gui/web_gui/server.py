@@ -27,7 +27,7 @@ from eva_ai.gui.web_gui.server_auth import (
     EthicsChecker,
 )
 
-from eva_ai.gui.web_gui.server_routes import (
+from eva_ai.gui.web_gui.server_routes_utils import (
     extract_text_from_file,
 )
 

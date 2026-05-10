@@ -26,11 +26,6 @@ def register_analytics_routes(app, web_gui_instance):
         graph_data = {'nodes': [], 'edges': [], 'stats': {}}
 
         try:
-            if hasattr(web_gui_instance, 'bridge') and web_gui_instance.bridge:
-                cached = web_gui_instance.bridge.get_cached_memory_graph()
-                if cached and cached.get('nodes'):
-                    return jsonify(cached)
-            
             fg = getattr(web_gui_instance.brain, 'fractal_graph_v2', None)
             if fg is None:
                 fg = getattr(web_gui_instance.brain, 'components', {}).get('fractal_graph_v2')
@@ -318,13 +313,6 @@ def register_analytics_routes(app, web_gui_instance):
         }
 
         try:
-            # Сначала пробуем получить из bridge кэша
-            if hasattr(web_gui_instance, 'bridge') and web_gui_instance.bridge:
-                cached = web_gui_instance.bridge.get_cached_learning_stats()
-                if cached and cached.get('total', 0) > 0:
-                    logger.info("api_learning: returning cached data")
-                    return jsonify(cached)
-            
             brain = web_gui_instance.brain
             
             if not brain:

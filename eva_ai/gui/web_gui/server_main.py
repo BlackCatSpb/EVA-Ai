@@ -66,8 +66,8 @@ class WebGUI:
         self.host = host
         self.port = port
         self.running = False
+        self.shutting_down = False
         self.thread = None
-        self.bridge = None
         
         self.auth_manager = AuthManager()
         self.session_manager = SessionManager()
@@ -410,10 +410,28 @@ class WebGUI:
                 response_text = result.get('response', response_text)
                 document_mode = True
         
-        # Используем HybridKnowledgeDialogManager если доступен
+        # Используем приоритетный пайплайн
         if not document_mode and self.brain:
-            # 1. Пробуем HybridKnowledgeDialogManager
-            if (hasattr(self.brain, 'hybrid_dialog_manager') and 
+            # 1. FCPPipelineV15 (основной пайплайн с инъекцией)
+            if (hasattr(self.brain, 'fcp_pipeline') and
+                self.brain.fcp_pipeline and
+                hasattr(self.brain.fcp_pipeline, 'process_query')):
+                try:
+                    logger.info("Using FCPPipelineV15 for response")
+                    fcp_result = self.brain.fcp_pipeline.process_query(query)
+                    if fcp_result:
+                        response_text = fcp_result.get('response', fcp_result.get('text', ''))
+                        result = {
+                            'response': response_text,
+                            'source': 'fcp_pipeline_v15',
+                            'reasoning': fcp_result.get('reasoning'),
+                            'reasoning_steps': fcp_result.get('reasoning_steps')
+                        }
+                except Exception as e:
+                    logger.warning(f"FCPPipelineV15 error: {e}")
+
+            # 2. HybridKnowledgeDialogManager
+            if not result and (hasattr(self.brain, 'hybrid_dialog_manager') and 
                 self.brain.hybrid_dialog_manager and 
                 self.brain.hybrid_dialog_manager.initialized):
                 try:
@@ -429,9 +447,19 @@ class WebGUI:
                         }
                 except Exception as e:
                     logger.warning(f"HybridKnowledgeDialogManager error: {e}")
-            
-            # 2. Fallback на process_query
-            elif hasattr(self.brain, 'process_query'):
+
+            # 3. Two-Model Pipeline (PipelineAdapter)
+            if not result and hasattr(self.brain, 'two_model_pipeline') and self.brain.two_model_pipeline:
+                try:
+                    twopipe_result = self.brain.two_model_pipeline.generate(query)
+                    if twopipe_result:
+                        response_text = twopipe_result.get('text', twopipe_result.get('response', ''))
+                        result = {'response': response_text, 'source': 'two_model_pipeline'}
+                except Exception as e:
+                    logger.warning(f"Two-Model pipeline error: {e}")
+
+            # 4. Fallback на process_query
+            if not result and hasattr(self.brain, 'process_query'):
                 result = self.brain.process_query(query, user_context)
                 if result and isinstance(result, dict):
                     response_text = result.get('response', result.get('text', response_text))
@@ -563,7 +591,7 @@ class WebGUI:
                     except socket.timeout:
                         continue
                     except OSError as e:
-                        if not self.shutting_down and e.winerror != 10004:  # WSAEWOULDBLOCK
+                        if not self.shutting_down and getattr(e, 'winerror', 0) != 10004:
                             logger.error(f"Flask socket error: {e}")
                         break
                     except Exception as e:

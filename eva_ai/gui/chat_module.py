@@ -811,7 +811,8 @@ class ChatModule(ChatMessagesMixin, ChatInputMixin, ChatHistoryMixin, ChatAction
                 tor = ml_unit.training_orchestrator
             
             if tor is None:
-                                pass  # Training disabled
+                self._add_message("ЕВА", "Обучение отключено - TrainingOrchestrator не доступен.", "system")
+                return
             
             result = tor.train_from_document(imported)
             status = (result or {}).get("status")

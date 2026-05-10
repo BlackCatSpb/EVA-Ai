@@ -20,16 +20,31 @@ except ImportError:
 
 logger = logging.getLogger("eva_ai.webgui")
 
-# Tesseract configuration
-TESSERACT_PATH = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-TESSDATA_PREFIX = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'core', 'tessdata')
-try:
-    import pytesseract
-    pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
-    os.environ['TESSDATA_PREFIX'] = TESSDATA_PREFIX
-    logger.info("Tesseract configured at: {} with tessdata: {}".format(TESSERACT_PATH, TESSDATA_PREFIX))
-except Exception as e:
-    logger.warning("Failed to configure Tesseract: {}".format(e))
+
+def setup_tesseract():
+    """Настроить Tesseract OCR с правильными путями."""
+    try:
+        import pytesseract
+    except ImportError:
+        logger.debug("pytesseract not installed, skipping Tesseract setup")
+        return
+
+    try:
+        from eva_ai.core.utils import get_project_root
+        project_root = get_project_root()
+        tessdata_dir = os.path.join(project_root, 'eva_ai', 'core', 'tessdata')
+    except Exception:
+        tessdata_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            'core', 'tessdata'
+        )
+
+    tesseract_path = os.environ.get('TESSERACT_PATH', r'C:\Program Files\Tesseract-OCR\tesseract.exe')
+    pytesseract.pytesseract.tesseract_cmd = tesseract_path
+    os.environ['TESSDATA_PREFIX'] = tessdata_dir
+    logger.debug(f"Tesseract configured: path={tesseract_path}, tessdata={tessdata_dir}")
+
+setup_tesseract()
 
 
 def extract_text_from_file(filepath, ext):
