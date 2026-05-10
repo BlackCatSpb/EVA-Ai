@@ -298,11 +298,20 @@ class PieIntegration:
         # Оцениваем качество (упрощённо)
         quality = self._estimate_quality(response)
         
+        # Estimate entropy from response characteristics
+        words = response.split()
+        if len(words) > 1:
+            unique_words = set(words)
+            repetition_ratio = len(unique_words) / len(words)
+            entropy = 1.0 - repetition_ratio if repetition_ratio < 1.0 else 0.0
+        else:
+            entropy = 0.5
+
         # Создаём метаданные
         metadata = GenerationMetadata(
             domain=params.get('domain', 'general'),
             model_id=params.get('model_id', 'model_a'),
-            entropy=0.5,  # TODO: извлечь из модели
+            entropy=entropy,
             latency_ms=latency_ms,
             quality=quality
         )
