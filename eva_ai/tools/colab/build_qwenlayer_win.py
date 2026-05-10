@@ -1,7 +1,7 @@
 """
 Step 3: Create qwenlayermodel.pt (INT4 quantized, layer-by-layer)
 Optimized for Windows, minimal memory usage (chunk_size=1)
-Path: C:\Users\black\OneDrive\Desktop\EVA-Ai\scripts\build_qwenlayer_win.py
+Path: C:\\Users\\black\\OneDrive\\Desktop\\EVA-Ai\\scripts\\build_qwenlayer_win.py
 """
 import torch
 import time

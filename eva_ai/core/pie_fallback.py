@@ -166,6 +166,19 @@ class PieFallbackPipeline:
             result = self._execute_fallback_chain(query, context, strategy)
             
             # Записываем статистику в L1
+            # Estimate entropy from response repetition
+            response_lower = result.text.lower()
+            words = response_lower.split()
+            if len(words) > 10:
+                unique_words = set(words)
+                repetition_ratio = len(unique_words) / len(words)
+                entropy = 1.0 - repetition_ratio if repetition_ratio < 1.0 else 0.0
+            else:
+                entropy = 1.0 - result.confidence if result.confidence < 1.0 else 0.0
+
+            # Вычисляем качество из confidence
+            quality = result.confidence
+
             if self.profiler and result.success:
                 latency_ms = (time.time() - start_time) * 1000
                 self.profiler.record_generation(
@@ -173,9 +186,9 @@ class PieFallbackPipeline:
                     model_id='fallback',
                     query=query,
                     response=result.text,
-                    entropy=0.5,
+                    entropy=entropy,
                     latency_ms=latency_ms,
-                    quality=result.confidence
+                    quality=quality
                 )
             
             # Обновляем статистику

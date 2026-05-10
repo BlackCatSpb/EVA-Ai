@@ -352,7 +352,7 @@ class HybridPipelineAdapter:
                             role = msg.get("role", "user")
                             content = msg.get("content", "")
                             prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
-                    prompt += f"<|im_start|>user\n{query}<|im_end|}\n<|im_start|>assistant\n"
+                    prompt += f"<|im_start|>user\n{query}<|im_end|>\n<|im_start|>assistant\n"
                     return prompt
                 
                 def generate_streaming(self, prompt, max_tokens=4096, temperature=0.7, chunk_size=5):

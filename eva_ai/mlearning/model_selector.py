@@ -134,10 +134,6 @@ class ModelSelector:
         logger.info("BitNetModelManager disabled - not supported")
         MODEL_CONFIGS[model_name]["status"] = "disabled"
         return False
-            else:
-                MODEL_CONFIGS[model_name]["status"] = "error"
-                return False
-        return False
     
     def unload_model(self):
         """Выгружает текущую модель из памяти"""
