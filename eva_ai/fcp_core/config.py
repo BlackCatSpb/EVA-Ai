@@ -40,8 +40,8 @@ class FCPConfig:
     lora_rank_domain: int = 8
     lora_rank_reasoning: int = 16
 
-    model_path: str = "C:/Users/black/OneDrive/Desktop/Models/BF16.gguf"
-    graph_db_path: str = "C:/Users/black/OneDrive/Desktop/EVA-Ai/eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db"
+    model_path: str = ""
+    graph_db_path: str = ""
 
     device: str = "CPU"
     num_threads: int = 8
