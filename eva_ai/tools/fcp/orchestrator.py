@@ -23,10 +23,11 @@ except ImportError:
 
 class Tool(abc.ABC):
     """Базовый класс инструмента."""
-    
+
     @abc.abstractmethod
     def execute(self, params: Dict) -> str:
-        pass
+        """Выполнить инструмент с параметрами."""
+        raise NotImplementedError("Tool.execute() must be implemented by subclass")
 
 
 class CalculatorTool(Tool):

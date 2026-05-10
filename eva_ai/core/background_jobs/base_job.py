@@ -34,4 +34,5 @@ class BaseJob(abc.ABC):
 
     @abc.abstractmethod
     def run(self, context: dict) -> None:
-        pass
+        """Выполнить задачу. Реализуется в подклассах."""
+        raise NotImplementedError("BaseJob.run() must be implemented by subclass")

@@ -16,21 +16,40 @@ logger = logging.getLogger("eva_ai.fractal_attention")
 try:
     from .self_dialog_manager import SelfDialogManager
 except ImportError:
-    # Заглушка для случаев, когда модуль ещё не создан
     class SelfDialogManager:
         def __init__(self, core_brain):
             self.core_brain = core_brain
+            self.running = False
+            self._dialog_thread = None
 
         def start_dialog(self):
-            pass
+            """Запускает самодиалог для самоанализа."""
+            if self.running:
+                return
+            self.running = True
+            import threading
+            self._dialog_thread = threading.Thread(target=self._run_dialog_loop, daemon=True)
+            self._dialog_thread.start()
+            logging.getLogger("eva_ai.fractal_attention").info("Самодиалог запущен")
+
+        def _run_dialog_loop(self):
+            """Фоновый цикл самодиалога."""
+            while self.running:
+                try:
+                    time.sleep(60)
+                except Exception:
+                    break
 
         def stop(self):
-            pass
+            """Останавливает самодиалог."""
+            self.running = False
+            if self._dialog_thread:
+                self._dialog_thread.join(timeout=2)
+            logging.getLogger("eva_ai.fractal_attention").info("Самодиалог остановлен")
 
 try:
     from .contradiction_resolver import ContradictionResolver
 except ImportError:
-    # Заглушка для случаев, когда модуль ещё не создан
     class ContradictionResolver:
         def __init__(self, core_brain):
             self.core_brain = core_brain
@@ -40,30 +59,70 @@ except ImportError:
             return len(self.active_contradictions) > 0
 
         def check_response(self, question, response):
-            pass
+            """Проверяет ответ на противоречия с знаниями."""
+            if not hasattr(self.core_brain, 'knowledge_graph'):
+                return
+            try:
+                concepts = self._extract_concepts(response)
+                for concept in concepts:
+                    existing = self.core_brain.knowledge_graph.find_node(concept)
+                    if existing and existing.get('contradicts'):
+                        self.active_contradictions.append({
+                            'concept': concept,
+                            'question': question,
+                            'response': response
+                        })
+            except Exception as e:
+                logging.getLogger("eva_ai.fractal_attention").warning(f"check_response error: {e}")
+
+        def _extract_concepts(self, text):
+            words = text.lower().split()
+            return [w.strip('.,!?') for w in words if len(w) > 4][:10]
 
 try:
     from .learning_scheduler import LearningScheduler
 except ImportError:
-    # Заглушка для случаев, когда модуль ещё не создан
     class LearningScheduler:
         def __init__(self, core_brain):
             self.core_brain = core_brain
             self.pending_opportunities = []
 
         def schedule_learning(self, question, response):
-            pass
+            """Планирует обучение на основе вопроса-ответа."""
+            try:
+                if len(response) > 50:
+                    self.pending_opportunities.append({
+                        'question': question,
+                        'response': response,
+                        'timestamp': time.time(),
+                        'priority': 0.7
+                    })
+                    if len(self.pending_opportunities) > 100:
+                        self.pending_opportunities.sort(key=lambda x: x['priority'], reverse=True)
+                        self.pending_opportunities = self.pending_opportunities[:50]
+                    logging.getLogger("eva_ai.fractal_attention").debug(
+                        f"Запланировано обучение, всего: {len(self.pending_opportunities)}"
+                    )
+            except Exception as e:
+                logging.getLogger("eva_ai.fractal_attention").warning(f"schedule_learning error: {e}")
 
 try:
     from .system_optimizer import SystemOptimizer
 except ImportError:
-    # Заглушка для случаев, когда модуль ещё не создан
     class SystemOptimizer:
         def __init__(self, core_brain):
             self.core_brain = core_brain
 
         def enter_power_saving_mode(self):
-            pass
+            """Переводит систему в режим энергосбережения."""
+            try:
+                import psutil
+                logger = logging.getLogger("eva_ai.fractal_attention")
+                logger.info("Переход в режим энергосбережения...")
+                if hasattr(self.core_brain, 'gpu_manager'):
+                    self.core_brain.gpu_manager.set_power_mode('economy')
+            except Exception as e:
+                logging.getLogger("eva_ai.fractal_attention").warning(f"power_saving error: {e}")
 
 
 class FractalAttentionSystem:

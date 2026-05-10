@@ -1,7 +1,9 @@
 """
-FCP Tools - Scenario TCM, Semantic Cache Evictor
-
-Заимствовано из FCP/src/fcp_tools/
+FCP Tools - Semantic Cache Evictor, etc.
 """
-from eva_ai.tools.fcp.scenario_tcm import ScenarioTCM, ScenarioMemory
 from eva_ai.tools.fcp.semantic_cache_evictor import SemanticCacheEvictor, CacheEvictionPolicy
+
+try:
+    from eva_ai.tools.fcp.orchestrator import ToolOrchestrator, Tool, CalculatorTool, WebSearchTool, DateTimeTool, WeatherTool, TranslatorTool, CalculatorAdvancedTool
+except ImportError:
+    pass
