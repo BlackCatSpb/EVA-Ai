@@ -505,7 +505,7 @@ class GNNTrainer(BackgroundTrainer):
                 self._graph_indexer = None
                 return
             self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=self.input_dim)
-            built = self._graph_indexer.build_index(limit=50000)
+            built = self._graph_indexer.build_index(limit=None)
             if built:
                 logger.info(f"[GNNTrainer] Graph index initialized with {len(self._graph_indexer._hnsw_index)} vectors")
             else:
@@ -972,7 +972,7 @@ class LoRATrainer(BackgroundTrainer):
                 self._graph_indexer = None
                 return
             self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=768)
-            built = self._graph_indexer.build_index(limit=50000)
+            built = self._graph_indexer.build_index(limit=None)
             if built:
                 try:
                     count = len(self._graph_indexer)
