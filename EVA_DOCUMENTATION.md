@@ -37,12 +37,15 @@
 | 3 | **EventBus может deadlock** | `event_bus.py` | ✅ Исправлено | Разделён на 3 фазы: lock→process→update stats |
 | 4 | **HNSWIndex без `__len__()`** | `optimizations.py` | ✅ Исправлено | Добавлен `__len__()` возвращающий `len(self._idx_to_id)` |
 | 5 | **Memory leak в reasoning streaming** | `fcp_pipeline.py` | ✅ Исправлено | Убраны несуществующие `self.buffer`, `self.event_queue` из `_generate()` |
+| 16 | **HNSW индекс лимитирован до 50K узлов** | `graph_indexer.py`, `storage.py` | ✅ Исправлено | Убран лимит, добавлен `limit=None`, инкрементальное обновление |
+| 17 | **HNSW не использует add_items() корректно** | `optimizations.py` | ✅ Исправлено | Исправлен `base_idx` для инкрементальных вызовов |
+| 18 | **Hardcoded entropy=0.5, quality=0.8** | `model.py`, `pie_adapter.py` | ✅ Исправлено | Реализована эвристика оценки из response text |
 
-## 🟠 ОСТАВШИЕСЯ ПРОБЛЕМЫ (менее критичные)
+## 🟡 ОСТАВШИЕСЯ ПРОБЛЕМЫ (дизайн/архитектура)
 
-| # | Проблема | Компонент | Последствие |
+| # | Проблема | Компонент | Приоритет |
 |---|----------|-----------|-------------|
-| 6 | **CoreBrain - God Object** | `core_brain.py` | 10+ миксинов, 50+ атрибутов. Нарушение SRP |
+| 6 | **CoreBrain - God Object** | `core_brain.py` | Низкий |
 | 7 ~~ | **Duplicate FCPipeline initialization** | `brain_components.py` | ✅ Исправлено - есть проверка `if brain.fcp_pipeline is not None` |
 | 8 | **ResourceManager проверяет GPU после загрузки батча** | `online_trainer.py` | Проверка GPU в `is_available()` динамическая - допустимо |
 | 9 | **Cache не синхронизируется с историей диалога** | `cache_core.py` | ✅ Исправлено - добавлен `_sync_cache_with_history()` |
