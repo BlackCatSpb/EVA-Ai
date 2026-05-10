@@ -239,8 +239,11 @@ class GNNProcessor:
     """
 
     def __init__(self, graph_encoder_path: str = None):
-        self.graph_encoder_path = graph_encoder_path or \
-            "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/graph_encoder.pt"
+        if graph_encoder_path:
+            self.graph_encoder_path = graph_encoder_path
+        else:
+            from eva_ai.core.utils import get_project_root
+            self.graph_encoder_path = os.path.join(get_project_root(), 'models', 'graph_encoder.pt')
         self.graph_encoder = None
         self._load_encoder()
 

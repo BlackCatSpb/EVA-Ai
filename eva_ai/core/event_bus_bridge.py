@@ -113,7 +113,7 @@ class EventBusBridge:
     
     def _register_bridge(self, event_type: str):
         """Регистрация моста для события"""
-        pass
+        logger.debug(f"Bridge registration requested for event_type={event_type}")
     
     def link(self):
         """Связывает старую и новую шины событий."""

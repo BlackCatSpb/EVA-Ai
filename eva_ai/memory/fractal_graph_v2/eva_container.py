@@ -353,7 +353,7 @@ class EVAContainer:
             try:
                 blob = self.fractal_graph.save_to_blob(compression='zstd')
                 return blob
-            except:
+            except Exception:
                 blob = self.fractal_graph.save_to_blob(compression='none')
                 return gzip.compress(blob)
         

@@ -17,7 +17,11 @@ class SplitModelRunner:
     """
 
     def __init__(self, model_path: str = None, split_layer: int = 6, device: str = "CPU"):
-        self.model_path = model_path or "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml"
+        if model_path:
+            self.model_path = model_path
+        else:
+            from eva_ai.core.utils import get_project_root
+            self.model_path = os.path.join(get_project_root(), 'models', 'ruadapt_qwen3_4b_openvino_ModelB', 'openvino_model.xml')
         self.split_layer = split_layer
         self.device = device
         self.core = ov.Core()
@@ -214,7 +218,7 @@ class SplitModelRunner:
         try:
             logits_output = request.outputs["logits"]
             logits = np.array(logits_output)
-        except:
+        except Exception:
             logits = None
 
         return logits, metadata

@@ -11,9 +11,21 @@ Pie Architecture Model Paths Configuration
 
 from pathlib import Path
 from typing import Dict, Optional
+import os
 
-# Базовая директория моделей
-PIE_MODELS_BASE = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models")
+def _get_pie_models_base() -> Path:
+    """Возвращает базовую директорию моделей."""
+    from eva_ai.core.utils import get_project_root
+    project_root = get_project_root()
+    env_path = os.environ.get('EVA_MODELS_PATH', '')
+    if env_path and os.path.isdir(env_path):
+        return Path(env_path)
+    pie_path = Path(project_root) / 'models'
+    if pie_path.exists():
+        return pie_path
+    return Path(project_root)
+
+PIE_MODELS_BASE = _get_pie_models_base()
 
 # Пути к конкретным моделям
 PIE_MODEL_PATHS = {

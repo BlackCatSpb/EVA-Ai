@@ -19,30 +19,8 @@ SentimentIntensityAnalyzer = None
 
 logger = logging.getLogger("eva_ai.contradiction.reputation")
 
-# Инициализация NLP-ресурсов (offline-safe)
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    try:
-        nltk.download('punkt', quiet=True)
-    except Exception:
-        pass
-
-try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    try:
-        nltk.download('stopwords', quiet=True)
-    except Exception:
-        pass
-
-try:
-    nltk.data.find('sentiment/vader_lexicon.zip')
-except LookupError:
-    try:
-        nltk.download('vader_lexicon', quiet=True)
-    except Exception:
-        pass
+from eva_ai.contradiction import init_nltk_resources
+init_nltk_resources()
 
 class SourceReputationSystem:
     """Система анализа и управления репутацией источников информации."""

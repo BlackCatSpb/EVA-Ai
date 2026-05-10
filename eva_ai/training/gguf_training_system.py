@@ -85,7 +85,8 @@ class GGUFTrainingSystem:
             os.path.join(os.path.dirname(os.path.abspath(__file__)), 'training_output'))
         
         # Пути к моделям (используем ruadapt_qwen3_4b)
-        base_dir = r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models"
+        from eva_ai.core.utils import get_project_root
+        base_dir = os.path.join(get_project_root(), 'models', 'gguf_models')
         self.base_model_path = self.config.get('base_model_path', 
             base_dir + '/ruadapt_qwen3_4b_q4_k_m.gguf')
         self.training_model_path = self.config.get('training_model_path',
@@ -536,7 +537,8 @@ class GGUFTrainingSystem:
             from eva_ai.core.pie_model_paths import get_pie_model_path
             return str(get_pie_model_path('ruadapt_qwen3_4b', 'condensed'))
         except Exception:
-            base = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models")
+            from eva_ai.core.utils import get_project_root
+            base = Path(get_project_root()) / "models" / "gguf_models"
             default_path = base / "ruadapt_qwen3_4b_q4_k_m.gguf"
             return str(default_path) if default_path.exists() else None
     

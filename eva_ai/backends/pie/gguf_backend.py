@@ -251,7 +251,7 @@ class GGUFBackend(BaseBackend):
             
             logging.getLogger("llama_cpp").setLevel(old_level)
             return text
-        except:
+        except Exception:
             # Fallback: просто объединяем
             return " ".join(map(str, tokens))
     

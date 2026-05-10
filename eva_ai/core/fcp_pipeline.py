@@ -1420,7 +1420,10 @@ class FCPipeline:
             kca_hint = f"[Когнитивная обработка: {cycles} циклов, статус: {status}]"
         
         # Получаем текстовый контекст из графа
-        if not subgraph or (subgraph.get("embeddings") is not None and subgraph.get("embeddings").shape[0] == 0):
+        if not subgraph or not isinstance(subgraph, dict):
+            return prompt
+        embeddings = subgraph.get("embeddings")
+        if embeddings is None or (hasattr(embeddings, 'shape') and embeddings.shape[0] == 0):
             return prompt
 
         context_lines = []

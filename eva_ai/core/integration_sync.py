@@ -78,4 +78,4 @@ def _health_monitor_worker(self):
 
 def _setup_sync(self):
     """Setup sync handlers on the integrator class."""
-    pass
+    logger.debug("setup_sync called - sync handlers registered during init")

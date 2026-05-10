@@ -972,7 +972,8 @@ def create_closed_cognitive_loop(initializer):
         initializer.logger.info("[START] Creating ClosedCognitiveLoop...")
 
         # Get SplitModelRunner with correct model path
-        model_path = "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/ruadapt_qwen3_4b_openvino_ModelB/openvino_model.xml"
+        from eva_ai.core.utils import get_project_root
+        model_path = os.path.join(get_project_root(), 'models', 'ruadapt_qwen3_4b_openvino_ModelB', 'openvino_model.xml')
         split_runner = SplitModelRunner(model_path=model_path, split_layer=6)
         split_runner.load_models()
         initializer.logger.info("[OK] SplitModelRunner created")

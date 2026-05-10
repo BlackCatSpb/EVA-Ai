@@ -10,7 +10,6 @@ FCP Core Components - KCA, SRG, ConvergenceController, Types
 - ReasoningChain (накопление цепочки рассуждений)
 """
 import numpy as np
-from scipy.special import softmax
 import logging
 
 logger = logging.getLogger("eva_ai.fcp_core")
@@ -128,7 +127,10 @@ class KnowledgeConsciousAttention:
         X_initial: [T, D] - скрытые состояния модели
         subgraph: dict с ключом 'embeddings' [N, D]
         """
-        H = subgraph["embeddings"]
+        H = subgraph.get("embeddings")
+        if H is None:
+            logger.warning("[KCA] No embeddings in subgraph, returning initial state")
+            return X_initial
         logger.info(f"[KCA] Processing. Tokens: {X_initial.shape[0]}, Nodes: {H.shape[0]}")
         
         # Subgraph Freezing: K и V фиксируются для всего цикла
@@ -144,7 +146,8 @@ class KnowledgeConsciousAttention:
             # 1. Внимание Токен -> Узел
             Q_k = X_prev @ self.W_Qk
             scores = (Q_k @ K_k.T) / np.sqrt(self.config.hidden_dim)
-            A = softmax(scores, axis=-1)  # [T, N]
+            exp_scores = np.exp(scores - np.max(scores, axis=-1, keepdims=True))
+            A = exp_scores / np.sum(exp_scores, axis=-1, keepdims=True)  # [T, N]
             
             # 2. Вычисление вектора коррекции E_corr
             

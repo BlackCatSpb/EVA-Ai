@@ -189,7 +189,8 @@ class MemorySnapshotIntegration:
             query_embedding = snapshot.embeddings.reshape(1, -1)
             subgraph = self.graph.retrieve_subgraph(query_embedding, top_k=5)
 
-            if subgraph.get('embeddings') is None or len(subgraph['embeddings']) == 0:
+            embeddings = subgraph.get('embeddings')
+            if embeddings is None or len(embeddings) == 0:
                 return None
 
             correction_vectors = []

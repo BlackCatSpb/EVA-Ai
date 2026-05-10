@@ -138,7 +138,7 @@ class ModelAccessManager:
     
     def _on_model_status(self, event):
         """Обработка запроса статуса."""
-        pass
+        logger.debug(f"model_status event received")
     
     def start(self):
         """Запуск менеджера."""

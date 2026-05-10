@@ -8,6 +8,24 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 
 
+def get_project_root() -> str:
+    """Возвращает корневую директорию проекта EVA-Ai."""
+    current_file = os.path.abspath(__file__)
+    current_dir = os.path.dirname(current_file)
+    possible_roots = [
+        os.path.dirname(current_dir),                    # core -> project_root
+        os.path.dirname(os.path.dirname(current_dir)),   # core/subdir -> project_root
+    ]
+    if sys.argv and sys.argv[0]:
+        argv_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        possible_roots.extend([argv_dir, os.path.dirname(argv_dir)])
+    possible_roots.append(os.getcwd())
+    for root in possible_roots:
+        if root and os.path.isdir(root) and 'eva_ai' in os.listdir(root):
+            return root
+    return possible_roots[0] if possible_roots else os.getcwd()
+
+
 def setup_logging(log_dir: str = "diagnostic_logs", log_file: str = "eva_app.log", level: int = logging.INFO, max_bytes: int = 10*1024*1024, backup_count: int = 5):
     """Настраивает логирование с явным указанием кодировки utf-8."""
     os.makedirs(log_dir, exist_ok=True)

@@ -1,6 +1,33 @@
 """
 Модуль обнаружения и разрешения противоречий в системе ЕВА
 """
+import logging
+
+logger = logging.getLogger("eva_ai.contradiction")
+
+
+def init_nltk_resources():
+    """Единая точка инициализации NLTK-ресурсов (punkt, stopwords, vader_lexicon)."""
+    try:
+        import nltk
+    except ImportError:
+        logger.debug("NLTK not available, skipping resource init")
+        return
+
+    resources = {
+        'tokenizers/punkt': 'punkt',
+        'corpora/stopwords': 'stopwords',
+        'sentiment/vader_lexicon.zip': 'vader_lexicon',
+    }
+    for path, name in resources.items():
+        try:
+            nltk.data.find(path)
+        except LookupError:
+            try:
+                nltk.download(name, quiet=True)
+                logger.debug(f"NLTK resource downloaded: {name}")
+            except Exception:
+                pass
 
 # Условные импорты для избежания циклических зависимостей
 def __getattr__(name):

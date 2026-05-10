@@ -66,8 +66,8 @@ class HybridLayerPipeline:
         if transformer_model_path:
             self.transformer_model_path = transformer_model_path.replace('qwen_layer_model.pt', 'qwenlayermodel.pt')
         else:
-            # Default to the correct model file
-            self.transformer_model_path = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\qwenlayermodel.pt"
+            from eva_ai.core.utils import get_project_root
+            self.transformer_model_path = os.path.join(get_project_root(), 'models', 'qwenlayermodel.pt')
         
         self.graph_path = graph_path
         self.lora_dir = lora_dir
@@ -121,7 +121,8 @@ class HybridLayerPipeline:
             return
         
         # Try hybrid model first, fallback to regular
-        hybrid_model_dir = r"C:\Users\black\OneDrive\Desktop\EVA-Ai\models\hybrid_openvino"
+        from eva_ai.core.utils import get_project_root
+        hybrid_model_dir = os.path.join(get_project_root(), 'models', 'hybrid_openvino')
         model_to_load = self.openvino_model_path
         
         if os.path.exists(hybrid_model_dir):

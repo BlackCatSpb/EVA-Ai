@@ -716,16 +716,16 @@ class QueryMixin:
             if result:
                 return result
 
-        if True:  # QwenModelManager disabled - skip qwen_only_mode
+        if not self.llama_cpp_ready:
             return {
-                "response": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
-                "text": "Ошибка: Qwen модель недоступна. Проверьте конфигурацию.",
-                "status": "error", "confidence": 0.0, "source": "qwen_error",
-                "error": "Qwen model not initialized in qwen_only_mode",
+                "response": "Ошибка: ни одна генеративная модель не доступна. Проверьте конфигурацию.",
+                "text": "Ошибка: ни одна генеративная модель не доступна. Проверьте конфигурацию.",
+                "status": "error", "confidence": 0.0, "source": "model_error",
+                "error": "No generative model initialized",
                 "processing_time": time.time() - start_time
             }
 
-        query_logger.info("Using LlamaCpp (qwen_only_mode)")
+        query_logger.info("Using LlamaCpp fallback")
         gen_config = self.config.get('generation', {})
         temperature = gen_config.get('temperature', 0.7)
         top_p = gen_config.get('top_p', 0.9)

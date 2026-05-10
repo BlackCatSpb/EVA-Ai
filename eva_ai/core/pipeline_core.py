@@ -526,7 +526,8 @@ class RecursiveModelPipeline:
         
         results['final_response'] = model_b_result['natural_response']
         
-        if not model_b_result.get('natural_response') or model_b_result['quality'].get('is_gibberish'):
+        quality_info = model_b_result.get('quality', {}) if isinstance(model_b_result, dict) else {}
+        if not model_b_result.get('natural_response') or quality_info.get('is_gibberish'):
             logger.warning("Model B failed, falling back to Model A response")
             results['final_response'] = model_a_result.get('natural_response', '')
         

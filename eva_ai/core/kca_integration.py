@@ -384,7 +384,7 @@ class KCAIntegration:
                     if layer_hs is not None:
                         emb = np.mean(layer_hs, axis=1)
                         embeddings_list.append(emb.flatten())
-            except:
+            except Exception:
                 continue
 
         if embeddings_list:
@@ -524,7 +524,11 @@ class GNNInjector:
 
     def __init__(self, graph_encoder_path: str = None):
         self.graph_encoder = None
-        self.graph_encoder_path = graph_encoder_path or "C:/Users/black/OneDrive/Desktop/EVA-Ai/models/graph_encoder.pt"
+        if graph_encoder_path:
+            self.graph_encoder_path = graph_encoder_path
+        else:
+            from eva_ai.core.utils import get_project_root
+            self.graph_encoder_path = os.path.join(get_project_root(), 'models', 'graph_encoder.pt')
 
         # Try to load trained encoder
         try:

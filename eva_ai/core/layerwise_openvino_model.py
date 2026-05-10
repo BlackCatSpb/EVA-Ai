@@ -127,7 +127,7 @@ class LayerwiseOpenVINOModel:
         try:
             result = infer_request.infer(inputs)
             return result[0] if result else None
-        except:
+        except Exception:
             # Fallback - делаем partial infer через основной request
             return None
 
@@ -157,7 +157,7 @@ class LayerwiseOpenVINOModel:
                         model.add_outputs(op.output(0))
                         compiled = self._core.compile_model(model, self.device)
                         break
-                    except:
+                    except Exception:
                         continue
             
             infer_request = compiled.create_infer_request()
