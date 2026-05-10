@@ -84,7 +84,6 @@ class GraphIndexer:
                         indexed.add(row['id'])
             except Exception as e:
                 logger.debug(f"Failed to parse embedding for {row['id']}: {e}")
-                pass
         
         conn.close()
         
@@ -200,7 +199,7 @@ class GraphIndexer:
                     if emb and len(emb) == self.embedding_dim:
                         embeddings.append(np.array(emb, dtype=np.float32))
                         valid_ids.append(row['id'])
-                except:
+                except Exception:
                     pass
         
         conn.close()
@@ -285,10 +284,10 @@ class GraphIndexer:
                                     "similarity": sim,
                                     "embedding": emb
                                 })
-                    except:
+                    except Exception:
                         pass
-            
-            conn.close()
+                    
+                    conn.close()
             results.sort(key=lambda x: x['similarity'], reverse=True)
             results = results[:top_k]
         
@@ -374,7 +373,7 @@ class GraphIndexer:
                     return self._hnsw_index.get_current_count()
                 else:
                     return self._vector_count
-            except:
+            except Exception:
                 return 0
         return 0
  

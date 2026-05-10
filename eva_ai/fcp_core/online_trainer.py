@@ -1506,9 +1506,12 @@ class OnlineTrainerManager:
     # === Legacy методы для совместимости ===
     
     def on_query(self):
-        """Вызывается после запроса (для совместимости)"""
-        # Непрерывное обучение уже работает в фоне
-        pass
+        """Вызывается после запроса (для совместимости).
+        
+        Непрерывное обучение уже работает в фоне,
+        этот метод оставлен для совместимости с внешним API.
+        """
+        logger.debug("[OnlineTrainerManager] Query hook called - training runs continuously in background")
     
     def update_conversation_history(self, history):
         """Обновить историю для LoRA."""

@@ -209,8 +209,8 @@ class CoreBrain(ConfigMixin, ComponentMixin, QueryMixin, MonitoringMixin, Memory
             try:
                 from eva_ai.core.fractal_attention_system import FractalAttentionSystem
                 self.attention_system = FractalAttentionSystem(self)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"FractalAttentionSystem init skipped: {e}")
             if self.component_initializer:
                 init_result = self.component_initializer.initialize_components()
                 if not init_result:
