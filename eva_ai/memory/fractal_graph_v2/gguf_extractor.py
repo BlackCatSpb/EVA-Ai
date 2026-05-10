@@ -149,7 +149,7 @@ class GGUFKnowledgeExtractor:
                         tokens = self.llama.tokenize(word.encode())
                         if tokens:
                             self._vocab_ru[word] = tokens[0]
-                    except:
+                    except Exception:
                         pass
                 
                 logger.info(f"Найдено {len(self._vocab_ru)} русских слов через токенизацию")
@@ -399,7 +399,7 @@ class GGUFKnowledgeExtractor:
                     object_level=hierarchy['level'] + 1,
                     confidence=0.7
                 )
-            except:
+            except Exception:
                 pass
         
         # Сохраняем связи
@@ -413,7 +413,7 @@ class GGUFKnowledgeExtractor:
                     object_level=hierarchy['level'],
                     confidence=0.6
                 )
-            except:
+            except Exception:
                 pass
         
         # Рекурсивно для детей

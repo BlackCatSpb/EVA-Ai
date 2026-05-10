@@ -76,7 +76,7 @@ class LayerwiseStateInjector:
         for state in states:
             try:
                 state_name = state.name if hasattr(state, 'name') else str(state)
-            except:
+            except Exception:
                 state_name = f"state_{id(state)}"
             
             match = pattern.search(state_name)
@@ -132,7 +132,7 @@ class LayerwiseStateInjector:
         for state in self.request.query_state():
             try:
                 state.reset()
-            except:
+            except Exception:
                 pass
 
     def get_value(self, layer_idx: int) -> np.ndarray:

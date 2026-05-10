@@ -25,7 +25,7 @@ def _subscribe_components_to_eventbus(brain):
             try:
                 from eva_ai.core.system_state import SystemState
                 brain.state_manager.set_state(SystemState.RUNNING, "Система готова")
-            except:
+            except Exception:
                 pass
     
     def on_component_initialized(event: Event):
@@ -37,7 +37,7 @@ def _subscribe_components_to_eventbus(brain):
             try:
                 from eva_ai.core.system_state import SystemState
                 brain.state_manager.set_state(SystemState.ERROR, str(event.data))
-            except:
+            except Exception:
                 pass
     
     event_bus.subscribe(EventTypes.SYSTEM_READY, on_system_ready, priority=1)
@@ -1067,7 +1067,7 @@ def _init_hybrid_dialog_manager(brain):
                         model_a_path = getattr(brain.two_model_pipeline._openvino_cpu, '_model_path', '')
                     elif hasattr(brain.two_model_pipeline, 'model_a_path'):
                         model_a_path = brain.two_model_pipeline.model_a_path
-                except:
+                except Exception:
                     pass
             
             # Fallback: проверяем pipeline напрямую

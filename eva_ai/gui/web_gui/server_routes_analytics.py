@@ -617,7 +617,7 @@ def register_analytics_routes(app, web_gui_instance):
                         'edges': stats.get('total_edges', 0),
                         'groups': stats.get('total_groups', 0)
                     }
-                except:
+                except Exception:
                     pass
             
             return jsonify(dashboard)

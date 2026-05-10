@@ -77,7 +77,7 @@ class QATTrainer:
                     sample.requires_grad = False
                     with torch.no_grad():
                         model(sample)
-                except:
+                except Exception:
                     pass
             
             calibration_data.append(sample)

@@ -535,7 +535,7 @@ class GGUFTrainingSystem:
         try:
             from eva_ai.core.pie_model_paths import get_pie_model_path
             return str(get_pie_model_path('ruadapt_qwen3_4b', 'condensed'))
-        except:
+        except Exception:
             base = Path(r"C:\Users\black\OneDrive\Desktop\CogniFlex\eva_pie_architecture\models\gguf_models")
             default_path = base / "ruadapt_qwen3_4b_q4_k_m.gguf"
             return str(default_path) if default_path.exists() else None

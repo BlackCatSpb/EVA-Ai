@@ -203,7 +203,7 @@ class LayerCaptureModel:
                     'Qwen/Qwen3-4B',
                     trust_remote_code=True
                 )
-            except:
+            except Exception:
                 logger.error("[LayerCapture] Failed to create fallback tokenizer")
     
     def _load_from_huggingface(self) -> bool:

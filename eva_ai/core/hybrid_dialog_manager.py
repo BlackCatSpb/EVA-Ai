@@ -370,7 +370,7 @@ class HybridKnowledgeDialogManager:
                 self._pipeline = generator_a._pipeline
                 try:
                     self._tokenizer = self._pipeline.get_tokenizer()
-                except:
+                except Exception:
                     self._tokenizer = None
                 logger.info("HybridKnowledgeDialogManager: Model A pipeline готов")
             else:

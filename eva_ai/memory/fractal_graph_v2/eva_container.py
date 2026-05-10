@@ -419,7 +419,7 @@ class EVAContainer:
             return {}
         try:
             return json.loads(data.decode('utf-8'))
-        except:
+        except Exception:
             return {}
     
     def _calculate_checksum(self, path: str) -> str:

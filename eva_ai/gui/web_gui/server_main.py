@@ -574,7 +574,7 @@ class WebGUI:
                 if self._server:
                     try:
                         self._server.shutdown()
-                    except:
+                    except Exception:
                         pass
                 logger.info("Flask server shut down")
             except Exception as e:
@@ -599,15 +599,15 @@ class WebGUI:
             try:
                 try:
                     self._server.shutdown()
-                except:
+                except Exception:
                     pass
                 # Закрываем сокет
                 if hasattr(self._server, 'socket') and self._server.socket:
                     try:
                         self._server.socket.close()
-                    except:
+                    except Exception:
                         pass
-            except:
+            except Exception:
                 pass
         
         # Прерываем поток если он всё ещё работает

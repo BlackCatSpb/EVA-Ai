@@ -262,7 +262,7 @@ class FractalGraphGenerator:
             try:
                 fg_stats = self.fg.get_stats()
                 stats["fg_stats"] = fg_stats
-            except:
+            except Exception:
                 pass
                 
         return stats

@@ -100,7 +100,7 @@ class SplitModelRunner:
                         hidden_states = np.array(data)
                     elif shape[-1] == 146260:
                         logits = np.array(data)
-            except:
+            except Exception:
                 pass
 
         return hidden_states, logits
@@ -151,7 +151,7 @@ class SplitModelRunner:
                 shape = data.shape
                 if len(shape) == 3 and shape[-1] == 2560:
                     return np.array(data)
-            except:
+            except Exception:
                 pass
 
         return None

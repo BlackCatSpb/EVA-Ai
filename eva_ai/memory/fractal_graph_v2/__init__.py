@@ -377,7 +377,7 @@ class FractalMemoryGraph:
         for sub_id in self._subscription_ids:
             try:
                 self._event_bus.unsubscribe(sub_id)
-            except:
+            except Exception:
                 pass
         self._subscription_ids.clear()
         logger.info("FractalMemoryGraph отписан от EventBus")

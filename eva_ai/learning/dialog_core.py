@@ -999,7 +999,7 @@ class SelfDialogLearning(DialogTopicsMixin, DialogGenerationMixin, DialogLearnin
                         introspection['memory']['concepts'] += 1
                     elif getattr(node, 'is_contradiction', False):
                         introspection['memory']['contradictions'] += 1
-            except:
+            except Exception:
                 pass
         
         # Обучение

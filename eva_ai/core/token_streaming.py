@@ -64,7 +64,7 @@ class TokenStreamingAPI:
         if not self._tokenizer and self._pipeline:
             try:
                 self._tokenizer = self._pipeline.get_tokenizer()
-            except:
+            except Exception:
                 pass
         return self._tokenizer
     

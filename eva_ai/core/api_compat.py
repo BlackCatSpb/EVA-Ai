@@ -28,5 +28,5 @@ def _is_compatible(client: str, server: str) -> bool:
         client_major = int(client.split('.')[0])
         server_major = int(server.split('.')[0])
         return client_major >= server_major
-    except:
+    except Exception:
         return True

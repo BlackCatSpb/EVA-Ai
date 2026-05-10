@@ -494,7 +494,7 @@ class StreamingGenerator:
                         content = r.get('content', '')
                         if content:
                             contexts.append(content)
-            except:
+            except Exception:
                 pass
         
         # HybridCache
@@ -509,7 +509,7 @@ class StreamingGenerator:
                             text = str(r)
                         if text:
                             contexts.append(text)
-            except:
+            except Exception:
                 pass
         
         return '\n\n'.join(contexts)

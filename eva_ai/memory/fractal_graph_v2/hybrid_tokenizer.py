@@ -291,7 +291,7 @@ class HybridTokenizer:
                 if self.base_tokenizer:
                     try:
                         parts.append(self.base_tokenizer.decode([tid]))
-                    except:
+                    except Exception:
                         parts.append(str(tid))
                 else:
                     parts.append(str(tid))

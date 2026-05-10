@@ -1289,7 +1289,7 @@ class FCPipeline:
                 input_ids = inputs["input_ids"]
                 if input_ids.shape[1] > 0:
                     return np.mean(inputs["input_ids"].astype(np.float32), axis=0)
-        except:
+        except Exception:
             pass
 
         # Fallback - детерминированный вектор по хешу текста (вместо random)

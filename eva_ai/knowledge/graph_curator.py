@@ -470,7 +470,7 @@ class GraphCurator:
             try:
                 del storage.nodes[node_id]
                 self.metrics['nodes_removed'] += 1
-            except:
+            except Exception:
                 pass
         
         if nodes_to_remove:
@@ -801,7 +801,7 @@ class GraphCurator:
                                 storage.mark_contradiction(id1, f"Duplicate of {id2} (sim={sim:.2f})")
                                 merged.add(id1)
                             removed += 1
-                    except:
+                    except Exception:
                         pass
         
         self.metrics['duplicates_pruned'] = self.metrics.get('duplicates_pruned', 0) + removed

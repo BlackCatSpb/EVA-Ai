@@ -222,7 +222,7 @@ class BatchSplitter:
         if self.tokenizer:
             try:
                 tokens = len(self.tokenizer.encode(text))
-            except:
+            except Exception:
                 pass
         
         return tokens > self.max_chunk_tokens

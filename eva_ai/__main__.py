@@ -136,7 +136,7 @@ def main():
         try:
             from eva_ai.core.core_brain import get_core_instance
             _core_instance = get_core_instance()
-        except:
+        except Exception:
             pass
         
         return result

@@ -136,7 +136,7 @@ class UniversalExecutionEnvironment:
         try:
             import psutil
             return psutil.virtual_memory().total
-        except:
+        except Exception:
             return 8 * (1024**3)
     
     def get_topology(self):
@@ -205,7 +205,7 @@ class UniversalExecutionEnvironment:
             try:
                 result = self._pgo_autotuner.optimize(objective_fn, n_trials, timeout)
                 return result
-            except:
+            except Exception:
                 pass
         
         if not self.study:
@@ -339,14 +339,14 @@ class UniversalExecutionEnvironment:
             try:
                 disk = psutil.disk_usage('/')
                 usage["disk_percent"] = disk.percent
-            except:
+            except Exception:
                 pass
             
             try:
                 temps = psutil.sensors_temperatures()
                 if temps:
                     usage["cpu_temp"] = temps.get('coretemp', [{}])[0].get('current', 0)
-            except:
+            except Exception:
                 pass
             
         except ImportError:

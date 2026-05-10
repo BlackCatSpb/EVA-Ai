@@ -267,7 +267,7 @@ def generate_with_injection(fcp: 'FCPipeline', prompt: str, max_new_tokens: int 
         traceback.print_exc()
         try:
             return _generate(fcp, prompt, max_new_tokens)
-        except:
+        except Exception:
             return _generate(fcp, prompt, max_new_tokens)
 
 

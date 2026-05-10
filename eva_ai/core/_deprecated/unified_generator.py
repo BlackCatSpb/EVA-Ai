@@ -655,7 +655,7 @@ class UnifiedGenerator:
                         if ctx > 0:
                             logger.info(f"Using context from graph: {ctx}")
                             return min(ctx, 32768)
-            except:
+            except Exception:
                 pass
         
         if model_type == ModelType.CONTEXT:

@@ -148,7 +148,7 @@ class GeneratorQueueManager:
         for _ in self._workers:
             try:
                 self.request_queue.put(None)
-            except:
+            except Exception:
                 pass
         
         for t in self._workers:

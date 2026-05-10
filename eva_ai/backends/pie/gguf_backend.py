@@ -277,7 +277,7 @@ class GGUFBackend(BaseBackend):
             process = psutil.Process()
             ram_mb = process.memory_info().rss / 1024 / 1024
             return {"ram_mb": ram_mb, "vram_mb": 0.0}  # VRAM сложно измерить
-        except:
+        except Exception:
             return {"ram_mb": 0.0, "vram_mb": 0.0}
     
     def _extract_model_info(self) -> None:

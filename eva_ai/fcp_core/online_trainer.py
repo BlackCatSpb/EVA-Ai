@@ -131,7 +131,7 @@ class GPUManager:
             allocated = torch.cuda.memory_allocated() / (1024 * 1024)
             free = total - allocated
             return {"total_mb": total, "free_mb": free, "used_mb": allocated}
-        except:
+        except Exception:
             return {"total_mb": 0, "free_mb": 0, "used_mb": 0}
 
 

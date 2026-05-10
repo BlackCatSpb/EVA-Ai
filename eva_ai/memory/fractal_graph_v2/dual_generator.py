@@ -500,7 +500,7 @@ class ExtendedGenerator:
                 if cached and cached.get('compacted_context'):
                     logger.debug(f"Использован кэшированный компактный контекст для: {query[:50]}...")
                     return cached['compacted_context']
-            except:
+            except Exception:
                 pass
         
         # Параметры контекста

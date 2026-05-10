@@ -387,7 +387,7 @@ class HybridLayerPipeline:
                         hidden_states=hidden_states,
                         layer_confidence=0.0
                     )
-                except:
+                except Exception:
                     pass
 
             captured_layers.append({

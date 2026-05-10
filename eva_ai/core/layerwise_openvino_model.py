@@ -111,7 +111,7 @@ class LayerwiseOpenVINOModel:
         # Это нужно адаптировать под конкретную модель
         try:
             return self._model.get_subtensor('embedding')
-        except:
+        except Exception:
             return None
 
     def _run_submodel(

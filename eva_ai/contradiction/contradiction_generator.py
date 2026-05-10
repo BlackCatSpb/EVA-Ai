@@ -321,7 +321,7 @@ class ContradictionGenerator:
                 for c in cm.contradictions:
                     if isinstance(c, dict) and c.get('concept') == concept_name:
                         return True
-        except:
+        except Exception:
             pass
         
         return False

@@ -569,7 +569,7 @@ class TemporalContextMemory:
                     self._segments.pop(idx)
                     del self._segment_index[seg.segment_id]
                     stats["removed_count"] += 1
-            except:
+            except Exception:
                 pass
         
         stats["decayed_count"] = len(self._segments)
@@ -664,7 +664,7 @@ class TemporalContextMemory:
                 try:
                     self._segments.pop(idx)
                     del self._segment_index[seg.segment_id]
-                except:
+                except Exception:
                     pass
         
         self._save_segments()

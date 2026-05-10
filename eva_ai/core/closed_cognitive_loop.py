@@ -136,7 +136,7 @@ class ConceptMiner:
             if "position_ids" not in tokens:
                 tokens["position_ids"] = np.arange(tokens["input_ids"].shape[1]).reshape(1, -1)
             return tokens
-        except:
+        except Exception:
             return None
 
 
@@ -228,7 +228,7 @@ class ContradictionMiner:
             if "position_ids" not in tokens:
                 tokens["position_ids"] = np.arange(tokens["input_ids"].shape[1]).reshape(1, -1)
             return tokens
-        except:
+        except Exception:
             return None
 
 
@@ -529,7 +529,7 @@ class ClosedCognitiveLoop:
             if "position_ids" not in tokens:
                 tokens["position_ids"] = np.arange(tokens["input_ids"].shape[1]).reshape(1, -1)
             return tokens
-        except:
+        except Exception:
             return None
 
 

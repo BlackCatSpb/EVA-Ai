@@ -125,7 +125,7 @@ class GraphStateInjector:
         if self.gnn_encoder is not None:
             try:
                 encoder_device = next(self.gnn_encoder.parameters()).device
-            except:
+            except Exception:
                 encoder_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         with torch.no_grad():

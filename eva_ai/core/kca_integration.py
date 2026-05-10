@@ -400,7 +400,7 @@ class KCAIntegration:
             if "position_ids" not in tokens:
                 tokens["position_ids"] = np.arange(tokens["input_ids"].shape[1]).reshape(1, -1)
             return tokens
-        except:
+        except Exception:
             return None
 
     def process_layer(self, hidden_states: np.ndarray,
