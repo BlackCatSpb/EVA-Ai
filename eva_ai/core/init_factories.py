@@ -728,79 +728,6 @@ def create_enhanced_reasoning_engine(initializer):
     return None
 
 
-def create_hybrid_layer_pipeline(initializer):
-    """
-    Создаёт HybridLayerPipeline - гибридный пайплайн с двумя моделями:
-    1. OpenVINO LLMPipeline - для быстрой генерации
-    2. LayerCaptureModel - для захвата hidden states на каждом слое
-
-    Использует:
-    - HybridLayerProcessor для обработки слоёв (KCA + GNN + LoRA)
-    - MemorySnapshotIntegration для сохранения состояний в граф
-    - FractalGraphV2 для retrieval и хранения
-    """
-    initializer.logger.info("[HybridLayer] === create_hybrid_layer_pipeline STARTED ===")
-    try:
-        from eva_ai.core.hybrid_layer_pipeline import HybridLayerPipeline
-
-        config = initializer.core_brain.config.get('fcp', {})
-        if not config.get('enabled', True):
-            initializer.logger.info("[HybridLayer] FCP disabled in config")
-            return None
-
-        fcp_config = config.get('fcp_pipeline', {})
-        openvino_path = fcp_config.get('model_path')
-        if not openvino_path:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            openvino_path = os.path.join(project_root, 'fmf_model', 'model.ov')
-
-        transformer_path = fcp_config.get('transformer_model_path')
-        if not transformer_path:
-            # По умолчанию ищем в папке models
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            transformer_path = os.path.join(project_root, 'models', 'qwenlayermodel.pt')
-        
-        # Проверяем существование файла
-        if not os.path.exists(transformer_path):
-            # Пробуем альтернативный путь
-            alt_path = os.path.join(project_root, 'models', 'qwen_layer_model.pt')
-            if os.path.exists(alt_path):
-                transformer_path = alt_path
-                initializer.logger.info(f"[HybridLayer] Using alternative: {transformer_path}")
-
-        graph_path = fcp_config.get('graph_path')
-        lora_dir = config.get('modules', {}).get('lora_dir')
-
-        initializer.logger.info(f"[HybridLayer] openvino_path: {openvino_path}")
-        initializer.logger.info(f"[HybridLayer] transformer_path: {transformer_path}")
-
-        hybrid_config = config.get('hybrid_stack', {})
-
-        pipeline = HybridLayerPipeline(
-            openvino_model_path=openvino_path,
-            transformer_model_path=transformer_path,
-            graph_path=graph_path,
-            lora_dir=lora_dir,
-            num_layers=hybrid_config.get('num_layers', 32),
-            use_gnn=hybrid_config.get('use_gnn', True),
-            use_kca=hybrid_config.get('use_kca', True),
-            use_srg=hybrid_config.get('use_srg', True),
-            injection_scale=0.1
-        )
-
-        initializer.core_brain.hybrid_layer_pipeline = pipeline
-        if hasattr(initializer.core_brain, 'components'):
-            initializer.core_brain.components['hybrid_layer_pipeline'] = pipeline
-
-        initializer.logger.info("[HybridLayer] === create_hybrid_layer_pipeline SUCCESS ===")
-        return pipeline
-
-    except Exception as e:
-        initializer.logger.error(f"[HybridLayer] EXCEPTION: {e}", exc_info=True)
-        initializer.failed_components.add('hybrid_layer_pipeline')
-        return None
-
-
 def create_fcp_pipeline(initializer):
     """Создаёт FCPPipelineV15 - основной FCP пайплайн с GNN инъекцией."""
     initializer.logger.info("[FCP] === create_fcp_pipeline STARTED ===")
@@ -860,58 +787,6 @@ def create_fcp_pipeline(initializer):
         return None
 
 
-def create_fcp_hybrid_stack(initializer):
-    """
-    Создаёт FCP HybridStack - стек гибридных слоёв для LLM + GNN + KCA + SRG.
-
-    Использует:
-    - HybridStack из eva_ai.fcp_core.hybrid_stack
-    - FractalGatedHybridLayer из eva_ai.fcp_core.hybrid_layer
-    - FCPConfig из eva_ai.fcp_core.config
-    - FractalGraphV2 из eva_ai.core или из fractal_graph_v2 компонента
-    """
-    initializer.logger.info("[FCP] === create_fcp_hybrid_stack STARTED ===")
-    try:
-        from eva_ai.fcp_core import HybridStack, StackConfig, FCPConfig, FractalGatedHybridLayer
-
-        config = initializer.core_brain.config.get('fcp', {})
-        if not config.get('enabled', True):
-            initializer.logger.info("[FCP] FCP disabled in config")
-            return None
-
-        hybrid_config = config.get('hybrid_stack', {})
-
-        stack_config = StackConfig(
-            num_layers=hybrid_config.get('num_layers', 32),
-            hidden_dim=hybrid_config.get('hidden_dim', 2560),
-            num_heads=hybrid_config.get('num_heads', 32),
-            max_seq_len=hybrid_config.get('max_seq_len', 262144),
-            graph_retrieval_k=hybrid_config.get('graph_retrieval_k', 32),
-            master_tokens=hybrid_config.get('master_tokens', 8),
-            gnn_iterations=hybrid_config.get('gnn_iterations', 2),
-            stop_threshold=hybrid_config.get('stop_threshold', 0.85),
-            early_exit_threshold=hybrid_config.get('early_exit_threshold', 0.90)
-        )
-
-        initializer.logger.info(f"[FCP] Creating HybridStack: {stack_config.num_layers} layers, dim={stack_config.hidden_dim}")
-
-        hybrid_stack = HybridStack(config=stack_config)
-
-        initializer.logger.info(f"[FCP] HybridStack created: {hybrid_stack.num_layers} layers")
-
-        initializer.core_brain.fcp_hybrid_stack = hybrid_stack
-        if hasattr(initializer.core_brain, 'components'):
-            initializer.core_brain.components['fcp_hybrid_stack'] = hybrid_stack
-
-        initializer.logger.info("[FCP] === create_fcp_hybrid_stack SUCCESS ===")
-        return hybrid_stack
-
-    except Exception as e:
-        initializer.logger.error(f"[FCP] EXCEPTION in create_fcp_hybrid_stack: {e}", exc_info=True)
-        initializer.failed_components.add('fcp_hybrid_stack')
-        return None
-
-
 def create_memory_snapshot_integration(initializer):
     """
     Создаёт MemorySnapshotIntegration - для сохранения состояний LLM слоёв в граф.
@@ -962,38 +837,6 @@ def create_memory_snapshot_integration(initializer):
         return None
 
 
-def create_closed_cognitive_loop(initializer):
-    """Creates the Closed Cognitive Loop - KCA integration with SplitModelRunner."""
-    try:
-        from eva_ai.core.split_model_runner import SplitModelRunner
-        from eva_ai.core.kca_integration import KCAModule, KCAIntegration
-        from eva_ai.core.closed_cognitive_loop import ClosedCognitiveLoop
-
-        initializer.logger.info("[START] Creating ClosedCognitiveLoop...")
-
-        # Get SplitModelRunner with correct model path
-        from eva_ai.core.utils import get_project_root
-        model_path = os.path.join(get_project_root(), 'models', 'ruadapt_qwen3_4b_openvino_ModelB', 'openvino_model.xml')
-        split_runner = SplitModelRunner(model_path=model_path, split_layer=6)
-        split_runner.load_models()
-        initializer.logger.info("[OK] SplitModelRunner created")
-
-        # Create ClosedCognitiveLoop
-        loop = ClosedCognitiveLoop(split_runner)
-        initializer.core_brain.closed_cognitive_loop = loop
-        initializer.core_brain.components['closed_cognitive_loop'] = loop
-
-        # Create KCA integration separately for direct layer access
-        kca_integration = KCAIntegration(split_runner)
-        initializer.core_brain.kca_integration = kca_integration
-        initializer.core_brain.components['kca_integration'] = kca_integration
-        initializer.logger.info("[OK] ClosedCognitiveLoop created with KCA integration")
-
-        return loop
-
-    except Exception as e:
-        initializer.logger.error(f"[FAIL] ClosedCognitiveLoop creation failed: {e}")
-        initializer.failed_components.add('closed_cognitive_loop')
         return None
 
 
@@ -1023,11 +866,8 @@ def register_all_factories(initializer):
         'self_reasoning_engine': lambda: create_self_reasoning_engine(initializer),
         'enhanced_reasoning_engine': lambda: create_enhanced_reasoning_engine(initializer),
         'fcp_pipeline': lambda: create_fcp_pipeline(initializer),
-        'fcp_hybrid_stack': lambda: create_fcp_hybrid_stack(initializer),
-        'hybrid_layer_pipeline': lambda: create_hybrid_layer_pipeline(initializer),
         'memory_snapshot': lambda: create_memory_snapshot_integration(initializer),
-        'wikipedia_kb': lambda: get_wikipedia_kb(),
-        'closed_cognitive_loop': lambda: create_closed_cognitive_loop(initializer)
+        'wikipedia_kb': lambda: get_wikipedia_kb()
     }
     initializer.logger.info(f"[REGISTER] All factories: {list(initializer.component_factories.keys())}")
     initializer.logger.info(f"Зарегистрировано {len(initializer.component_factories)} фабрик компонентов")

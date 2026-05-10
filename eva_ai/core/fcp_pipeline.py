@@ -802,7 +802,7 @@ class FCPipeline:
             yield {"type": "error", "text": "[No pipeline]"}
             return
         
-        chat_prompt = self._build_prompt(prompt, enable_thinking)
+        chat_prompt = self._build_prompt(prompt, enable_thinking, add_to_history)
         
         yield {"type": "start", "timestamp": time.time()}
         
@@ -1127,7 +1127,7 @@ class FCPipeline:
             return response if not return_metadata else (response, metadata)
 
         # 1. Подготовка промпта с историей
-        chat_prompt = self._build_prompt(prompt, enable_thinking)
+        chat_prompt = self._build_prompt(prompt, enable_thinking, add_to_history)
 
         # 2. Гибридная обработка через HybridLayerProcessor (KCA + GNN + SRG) - fallback
         if enable_injection and self.hybrid_processor and self.fractal_graph:
@@ -1476,7 +1476,7 @@ class FCPipeline:
         except Exception as e:
             logger.debug(f"Snapshot save error: {e}")
     
-    def _build_prompt(self, prompt: str, enable_thinking: bool) -> str:
+    def _build_prompt(self, prompt: str, enable_thinking: bool, add_to_history: bool = True) -> str:
         """
         Формирование промпта с историей разговора и семантическим контекстом.
         
@@ -2722,43 +2722,4 @@ class FCPipeline:
 
 def create_fcp_pipeline(model_path: str, graph_path: str = None, **kwargs):
     """Factory function"""
-    return FCPPipelineV15(model_path, graph_path, **kwargs)
-
-    def _sync_cache_with_history(self, user_query: str, assistant_response: str):
-        """
-        Синхронизировать HybridTokenCache с историей диалога.
-        
-        После каждого диалогового turn добавляем контекст в кэш
-        для улучшения последующих ответов.
-        """
-        # Определяем какой кэш использовать
-        cache = None
-        if hasattr(self, 'hybrid_cache') and self.hybrid_cache:
-            cache = self.hybrid_cache
-        elif hasattr(self, 'brain') and self.brain and hasattr(self.brain, 'hybrid_cache'):
-            cache = self.brain.hybrid_cache
-        
-        if cache is None:
-            return
-        
-        try:
-            # Извлекаем сущности из запроса и ответа
-            entities = []
-            
-            # Простой извлекатель сущностей: ищем capitalized words и numbers
-            import re
-            words = re.findall(r'\b[A-ZА-Я][a-zа-я]+|\b\d+(?:\.\d+)*\b', user_query + " " + assistant_response)
-            entities = list(set(words))[:20]  # Ограничиваем 20 сущностями
-            
-            # Добавляем контекст в кэш
-            if hasattr(cache, 'add_context'):
-                cache.add_context(
-                    session_id="fcp_default",
-                    query=user_query,
-                    entities=entities,
-                    raw_text=f"Q: {user_query}\nA: {assistant_response}",
-                    ttl=3600  # 1 час
-                )
-                logger.debug(f"[FCP] Synced {len(entities)} entities to HybridTokenCache")
-        except Exception as e:
-            logger.debug(f"[FCP] Cache sync error: {e}")
+    return FCPipeline(model_path, graph_path, **kwargs)

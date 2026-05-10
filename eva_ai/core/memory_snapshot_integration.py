@@ -22,8 +22,6 @@ logger = logging.getLogger("eva_ai.core.memory_snapshot")
 from eva_ai.fcp_core import (
     FCPConfig,
     FractalGraphV2,
-    LayerState,
-    HaltDecision
 )
 
 

@@ -350,11 +350,10 @@ def _init_fcp_pipeline(brain):
 
 
 def _init_two_model_pipeline(brain):
-    """DEPRECATED - используюется FCPipeline вместо Two-Model Pipeline.
-    
-    Эта функция сохранена для обратной совместимости но НЕ инициализирует старый пайплайн.
-    """
+    """DEPRECATED - используется FCPipeline вместо Two-Model Pipeline."""
     brain.two_model_pipeline = None
+    brain.two_model_pipeline_ready = False
+    query_logger.info("Two-Model Pipeline DEPRECATED - используется FCPipeline")
     brain.two_model_pipeline_ready = False
     query_logger.info("Two-Model Pipeline DEPRECATED - используется FCPipeline")
     
