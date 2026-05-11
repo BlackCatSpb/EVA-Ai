@@ -23,7 +23,6 @@ from nltk.tokenize import word_tokenize
 # Lazy import for SentimentIntensityAnalyzer to avoid download errors
 SentimentIntensityAnalyzer = None
 
-from .core_resolution import ResolutionMixin
 from .core_tracking import TrackingMixin
 
 logger = logging.getLogger("eva_ai.contradiction.core")
@@ -614,7 +613,7 @@ class StorageMixin:
             return report
 
 
-class ContradictionCore(StorageMixin, CoreDetectionMixin, ResolutionMixin, TrackingMixin):
+class ContradictionCore(StorageMixin, CoreDetectionMixin, TrackingMixin):
     """Main class for contradiction management in EVA system."""
     
     def __init__(self, knowledge_graph=None, brain=None, cache_dir: Optional[str] = None, fractal_graph_v2=None):
@@ -642,6 +641,13 @@ class ContradictionCore(StorageMixin, CoreDetectionMixin, ResolutionMixin, Track
             logger.error("Детектор не инициализирован")
             return
         logger.info("ContradictionCore запущен")
+    
+    def resolve_contradiction(self, contradiction_id: str, resolution: dict, resolver: str, confidence: float) -> bool:
+        """Разрешить противоречие (заглушка - функциональность удалена)."""
+        if contradiction_id in self.contradictions:
+            self.contradictions[contradiction_id].status = "resolved"
+            return True
+        return False
     
     def stop(self):
         """Остановка детектора."""
