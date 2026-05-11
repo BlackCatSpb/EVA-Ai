@@ -312,7 +312,7 @@ class FractalMemoryGraph:
     @property
     def node_count(self) -> int:
         """Количество узлов в графе."""
-        return len(self.storage.nodes) if self.storage else 0
+        return self.storage.node_count if self.storage else 0
     
     @property
     def group_count(self) -> int:

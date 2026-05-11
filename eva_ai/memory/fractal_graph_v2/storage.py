@@ -212,36 +212,26 @@ class FractalGraphV2:
         logger.info(f"БД инициализирована: {self.db_path}")
     
     def _load_metadata_indexes(self):
-        """Загрузить только мета-индексы (id, level, type) без контента."""
+        """Загрузить только мета-индексы (id, level, type) без контента.
+        
+        В lazy-режиме НЕ строим полные индексы по всем узлам -
+        только считаем количество узлов и групп через COUNT(*).
+        Полные индексы строятся при первой операции добавления/удаления.
+        """
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         
-        # Только мета-данные - id, level, node_type, parent_group_id
-        cursor = conn.execute("SELECT id, level, node_type, parent_group_id FROM nodes")
-        for row in cursor:
-            node_id = row['id']
-            level = row['level']
-            node_type = row['node_type']
-            parent_group_id = row['parent_group_id']
-            
-            # Индексы
-            self.nodes_by_level[level].append(node_id)
-            self.nodes_by_type[node_type].append(node_id)
-            if parent_group_id:
-                self.nodes_by_group[parent_group_id].append(node_id)
-        
-        # Группы - только мета
-        cursor = conn.execute("SELECT id, level, parent_group_id FROM semantic_groups")
-        for row in cursor:
-            group_id = row['id']
-            level = row['level']
-            self.groups_by_level[level].append(group_id)
-        
-        # Только считаем общее количество - НЕ загружаем все узлы!
+        # Только COUNT - не сканируем все 451k строк!
         cursor = conn.execute("SELECT COUNT(*) as cnt FROM nodes")
         self._total_nodes = cursor.fetchone()['cnt']
         
+        cursor = conn.execute("SELECT COUNT(*) as cnt FROM semantic_groups")
+        self._total_groups = cursor.fetchone()['cnt']
+        
         conn.close()
+        
+        if self._total_nodes > 0:
+            logger.info(f"Lazy metadata loaded: {self._total_nodes} nodes, {self._total_groups} groups")
         
         logger.info(f"Lazy metadata loaded: {self._total_nodes} nodes (indices only)")
     

@@ -643,21 +643,25 @@ class FCPipeline:
             # 2. Fallback: pretrained GNN encoder
             self._try_load_pretrained_gnn(project_root)
 
-        # Добавляем FractalGraphV2 в гибридный менеджер
+        # Добавляем FractalGraphV2 в гибридный менеджер (только при малом количестве узлов)
         if self.fractal_graph and self.fractal_graph.node_count > 0:
-            nodes = []
-            for i in range(self.fractal_graph.node_count):
-                node_emb = self.fractal_graph.get_node(i)
-                if node_emb is not None:
-                    nodes.append({
-                        'id': str(i),
-                        'embedding': node_emb,
-                        'content': f'Node {i}',
-                        'metadata': {}
-                    })
-            if nodes:
-                self.hybrid_layer_manager.set_global_graph(nodes)
-                print(f"[FCP] Hybrid layer graph populated: {len(nodes)} nodes")
+            node_count = self.fractal_graph.node_count
+            if node_count <= 10000:
+                nodes = []
+                for i in range(node_count):
+                    node_emb = self.fractal_graph.get_node(i)
+                    if node_emb is not None:
+                        nodes.append({
+                            'id': str(i),
+                            'embedding': node_emb,
+                            'content': f'Node {i}',
+                            'metadata': {}
+                        })
+                if nodes:
+                    self.hybrid_layer_manager.set_global_graph(nodes)
+                    print(f"[FCP] Hybrid layer graph populated: {len(nodes)} nodes")
+            else:
+                print(f"[FCP] Skipping hybrid layer graph population: {node_count} nodes (too many)")
 
         print("[FCP] Hybrid layers initialized")
 
