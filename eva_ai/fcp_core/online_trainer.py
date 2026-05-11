@@ -497,7 +497,11 @@ class GNNTrainer(BackgroundTrainer):
             self._ready = False
     
     def _init_graph_indexer(self):
-        """Инициализировать индекс графа для интеллектуального выбора данных."""
+        """Инициализировать индекс графа для интеллектуального выбора данных.
+        
+        Индекс НЕ строится при инициализации - только при первом использовании
+        (ленивая инициализация), чтобы не сканировать 1.9GB БД при старте.
+        """
         try:
             from eva_ai.memory.fractal_graph_v2.graph_indexer import GraphIndexer
             if not os.path.exists(self.graph_db_path):
@@ -505,11 +509,7 @@ class GNNTrainer(BackgroundTrainer):
                 self._graph_indexer = None
                 return
             self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=self.input_dim)
-            built = self._graph_indexer.build_index(limit=None)
-            if built:
-                logger.info(f"[GNNTrainer] Graph index initialized with {len(self._graph_indexer._hnsw_index)} vectors")
-            else:
-                logger.warning("[GNNTrainer] Graph index build failed, will use SQL fallback")
+            logger.info(f"[GNNTrainer] GraphIndexer created (lazy init, will build on first use)")
         except Exception as e:
             logger.warning(f"[GNNTrainer] GraphIndexer init failed: {e}")
             self._graph_indexer = None
@@ -964,7 +964,11 @@ class LoRATrainer(BackgroundTrainer):
             self._ready = False
     
     def _init_graph_indexer(self):
-        """Инициализировать индекс графа для интеллектуального выбора данных."""
+        """Инициализировать индекс графа для интеллектуального выбора данных.
+        
+        Индекс НЕ строится при инициализации - только при первом использовании
+        (ленивая инициализация), чтобы не сканировать 1.9GB БД при старте.
+        """
         try:
             from eva_ai.memory.fractal_graph_v2.graph_indexer import GraphIndexer
             if not os.path.exists(self.graph_db_path):
@@ -972,15 +976,7 @@ class LoRATrainer(BackgroundTrainer):
                 self._graph_indexer = None
                 return
             self._graph_indexer = GraphIndexer(self.graph_db_path, embedding_dim=768)
-            built = self._graph_indexer.build_index(limit=None)
-            if built:
-                try:
-                    count = len(self._graph_indexer)
-                    logger.info(f"[LoRATrainer] Graph index initialized with {count} vectors")
-                except Exception:
-                    logger.info("[LoRATrainer] Graph index initialized (count unknown)")
-            else:
-                logger.warning("[LoRATrainer] Graph index build failed, will use SQL fallback")
+            logger.info(f"[LoRATrainer] GraphIndexer created (lazy init, will build on first use)")
         except Exception as e:
             logger.warning(f"[LoRATrainer] GraphIndexer init failed: {e}")
             self._graph_indexer = None
