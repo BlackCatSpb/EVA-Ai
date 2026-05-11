@@ -7,7 +7,6 @@ including the Fractal Transformer architecture and related utilities.
 from . import storage
 from .ml_unit import MLUnit
 from .eva_tokenizer import ЕВАTokenizer
-from .async_text_generator import AsyncTextGenerator
 from .unified_text_processor import UnifiedTextProcessor
 
 # Fractal Transformer components
@@ -30,7 +29,6 @@ except (ImportError, Exception) as e:
 __all__ = [
     "MLUnit",
     "ЕВАTokenizer",
-    "AsyncTextGenerator",
     "UnifiedTextProcessor",
     "FractalTransformer",
     "FractalConfig",
