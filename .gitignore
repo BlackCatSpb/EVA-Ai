@@ -77,6 +77,7 @@ documentation/docs/chat_logs/
 # Temporary files
 *.tmp
 *.temp
+*.npy
 temp/
 tmp/
 
@@ -148,6 +149,7 @@ $RECYCLE.BIN/
 
 # Training data and outputs
 training_output/
+checkpoints/
 fractal_unified_text-generation/
 
 # GUI state / runtime caches
@@ -158,11 +160,11 @@ cogniflex/core/cogniflex_cache/autopilot/
 cogniflex.log
 run.log
 
-# Development fix scripts and tests
-fix_*.py
-test_*.py
-update_*.py
-add_*.py
+# Development fix scripts and tests (root only)
+/fix_*.py
+/test_*.py
+/update_*.py
+/add_*.py
 nul
 fractal_models/
 
