@@ -348,11 +348,39 @@ class GNNTrainer(BackgroundTrainer):
     - Динамически подхватывает новые узлы графа
     """
     
+    # Антонимный словарь (русский) — копия из contradiction_miner.py
+    ANTONYM_MAP = {
+        'быстрый': ['медленный', 'медленнее', 'медленно'],
+        'медленный': ['быстрый', 'быстрее', 'быстро'],
+        'хороший': ['плохой', 'худший'],
+        'плохой': ['хороший', 'лучший'],
+        'высокий': ['низкий', 'ниже', 'низко'],
+        'низкий': ['высокий', 'выше', 'высоко'],
+        'большой': ['маленький', 'меньше', 'мало'],
+        'маленький': ['большой', 'больше', 'много'],
+        'да': ['нет', 'не', 'никогда'],
+        'нет': ['да', 'всегда'],
+        'всегда': ['никогда', 'редко'],
+        'никогда': ['всегда', 'часто'],
+        'правда': ['ложь', 'враньё', 'неправда'],
+        'ложь': ['правда', 'истина'],
+        'истина': ['ложь', 'враньё'],
+        'важно': ['неважно', 'второстепенно'],
+        'неважно': ['важно', 'главное'],
+        'нужно': ['нельзя', 'запрещено'],
+        'можно': ['нельзя', 'запрещено'],
+        'верно': ['неверно', 'ошибочно'],
+        'неверно': ['верно', 'правильно'],
+    }
+
+    DEFAULT_QWEN_DB = "eva_ai/fcp_core/data/qwen_knowledge.db"
+
     def __init__(
         self,
         graph_db_path: str = "eva_ai/memory/fractal_graph_v2/fractal_graph_v2_data/fractal_graph.db",
+        qwen_db_path: str = None,
         input_dim: int = 768,
-        total_steps: int = None,  # None = без ограничений, учится постоянно
+        total_steps: int = None,
         **kwargs
     ):
         super().__init__(
@@ -367,12 +395,29 @@ class GNNTrainer(BackgroundTrainer):
         self._model = None
         self._optimizer = None
         self._loss_fn = None
-        
+
         # Индекс графа для интеллектуального выбора данных
         self._graph_indexer = None
-        self._node_training_counts = {}  # node_id -> количество шагов обучения
-        self._reload_interval = 1000  # Перезагружать индекс каждые N шагов
-        
+        self._node_training_counts = {}
+        self._reload_interval = 1000
+
+        # Rare concept boost (minesweeper inversion)
+        self._node_gap_history = {}
+        self._rare_concept_threshold = 5
+        self._rare_boost_factor = 2.0
+
+        # Cluster centroid pull
+        self._cluster_pull_interval = 500
+        self._cluster_pull_strength = 0.05
+
+        # Qwen knowledge distillation
+        self.qwen_db_path = qwen_db_path or self.DEFAULT_QWEN_DB
+        self._qwen_available = os.path.exists(self.qwen_db_path)
+        if self._qwen_available:
+            logger.info(f"[GNNTrainer] Qwen knowledge DB found: {self.qwen_db_path}")
+        else:
+            logger.info(f"[GNNTrainer] No Qwen knowledge DB at {self.qwen_db_path}, using default graph")
+
         self._init_model()
         self._init_graph_indexer()
     
@@ -521,7 +566,7 @@ class GNNTrainer(BackgroundTrainer):
         logger.warning("[GNNTrainer] Using synthetic fallback data (no graph data)")
     
     def _load_batch(self):
-        """Загрузить батч через индекс графа (интеллектуальный выбор, без повторов)."""
+        """Загрузить батч. Возвращает (tensor, metadata_list) или (None, [])."""
         import torch
         import numpy as np
         import sqlite3
@@ -529,39 +574,39 @@ class GNNTrainer(BackgroundTrainer):
         # 1. Попробовать через GraphIndexer (HNSW)
         if self._graph_indexer and self._graph_indexer._index_built:
             try:
-                # Генерируем запрос: приоритет узлам с низким количеством обучений
-                # Для простоты: случайный запрос, но можно улучшить через учет node_training_counts
                 query_emb = np.random.randn(self.input_dim).astype(np.float32)
                 results = self._graph_indexer.search(query_emb.tolist(), top_k=8, min_similarity=0.0)
                 if results:
                     batch = []
+                    metadata = []
                     for res in results:
                         node_id = res.get("id")
-                        # Получить эмбеддинг узла
                         emb = res.get("embedding")
+                        content = res.get("content", "")
                         if emb and len(emb) >= self.input_dim:
                             arr = np.array(emb[:self.input_dim], dtype=np.float32)
                             batch.append(arr)
-                            # Увеличить счетчик обучения узла
+                            metadata.append({"id": node_id, "content": str(content)})
                             self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
                     if batch:
-                        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+                        tensor = torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+                        return tensor, metadata
             except Exception as e:
                 logger.debug(f"[GNNTrainer] Index search failed: {e}")
         
-        # 2. Fallback: SQL запрос с учетом количества обучений
+        # 2. Fallback: SQL запрос с content
         try:
             if not os.path.exists(self.graph_db_path):
                 if not hasattr(self, '_synthetic_batch'):
                     self._add_synthetic_fallback()
                 batch = self._synthetic_batch[:8]
-                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+                dummy_meta = [{"id": f"synth_{i}", "content": ""} for i in range(len(batch))]
+                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device), dummy_meta
             
             conn = sqlite3.connect(self.graph_db_path)
             cur = conn.cursor()
-            # Выбрать узлы с минимальным количеством обучений
             cur.execute("""
-                SELECT id, embedding FROM nodes 
+                SELECT id, content, embedding FROM nodes 
                 WHERE embedding IS NOT NULL 
                 ORDER BY RANDOM() 
                 LIMIT 8
@@ -570,8 +615,9 @@ class GNNTrainer(BackgroundTrainer):
             conn.close()
             
             batch = []
+            metadata = []
             for row in rows:
-                node_id, emb = row
+                node_id, content, emb = row
                 if not emb:
                     continue
                 try:
@@ -588,11 +634,13 @@ class GNNTrainer(BackgroundTrainer):
                     else:
                         continue
                     batch.append(arr)
+                    metadata.append({"id": node_id, "content": str(content)})
                     self._node_training_counts[node_id] = self._node_training_counts.get(node_id, 0) + 1
                 except Exception as e:
                     logger.debug(f"[GNNTrainer] Parse error: {e}")
             if batch:
-                return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+                tensor = torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+                return tensor, metadata
         except Exception as e:
             logger.debug(f"[GNNTrainer] SQL fallback failed: {e}")
         
@@ -600,8 +648,72 @@ class GNNTrainer(BackgroundTrainer):
         if not hasattr(self, '_synthetic_batch'):
             self._add_synthetic_fallback()
         batch = self._synthetic_batch[:8]
-        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device)
+        dummy_meta = [{"id": f"synth_{i}", "content": ""} for i in range(len(batch))]
+        return torch.tensor(np.array(batch), dtype=torch.float32).to(self.device), dummy_meta
     
+    def _load_qwen_batch(self, batch_size: int = 8):
+        """Загрузить батч пар (src_emb, tgt_emb, weight) из Qwen knowledge DB.
+
+        Returns:
+            (src_tensor, tgt_tensor, weight_tensor) или (None, None, None)
+        """
+        import sqlite3
+        import numpy as np
+        try:
+            conn = sqlite3.connect(self.qwen_db_path)
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT n1.embedding, n2.embedding, e.weight
+                FROM edges e
+                JOIN nodes n1 ON e.source_id = n1.id
+                JOIN nodes n2 ON e.target_id = n2.id
+                WHERE n1.embedding IS NOT NULL
+                  AND n2.embedding IS NOT NULL
+                  AND ABS(e.weight - 0.5) < 0.45
+                ORDER BY RANDOM()
+                LIMIT ?
+            """, (batch_size,))
+            rows = cur.fetchall()
+            conn.close()
+
+            if len(rows) < 2:
+                return None, None, None
+
+            src_list, tgt_list, w_list = [], [], []
+            for row in rows:
+                src_emb = np.frombuffer(bytes(row[0]), dtype=np.float32).copy()
+                tgt_emb = np.frombuffer(bytes(row[1]), dtype=np.float32).copy()
+                if len(src_emb) >= self.input_dim:
+                    src_emb = src_emb[:self.input_dim]
+                    tgt_emb = tgt_emb[:self.input_dim]
+                else:
+                    continue
+                src_list.append(src_emb)
+                tgt_list.append(tgt_emb)
+                w_list.append(float(row[2]))
+
+            if not src_list:
+                return None, None, None
+
+            src_t = torch.tensor(np.array(src_list), dtype=torch.float32).to(self.device)
+            tgt_t = torch.tensor(np.array(tgt_list), dtype=torch.float32).to(self.device)
+            w_t = torch.tensor(w_list, dtype=torch.float32).to(self.device)
+            return src_t, tgt_t, w_t
+
+        except Exception as e:
+            logger.debug(f"[GNNTrainer] Qwen batch error: {e}")
+            return None, None, None
+
+    def _check_antonym_pair(self, content1: str, content2: str) -> bool:
+        """Проверить, являются ли два текста антонимами по словарю."""
+        words1 = set(content1.lower().split())
+        words2 = set(content2.lower().split())
+        for word in words1:
+            if word in self.ANTONYM_MAP:
+                if any(ant in words2 for ant in self.ANTONYM_MAP[word]):
+                    return True
+        return False
+
     def _do_training_step(self) -> bool:
         """Один шаг обучения GNN."""
         if not self._ready or self._model is None:
@@ -614,28 +726,20 @@ class GNNTrainer(BackgroundTrainer):
             # Проверить GPU доступность
             if self.device.type == "cuda" and self.gpu_manager:
                 if not self.gpu_manager.is_available():
-                    # GPU занят - пропустить шаг
                     return False
             
-            # Загрузить батч
-            x = self._load_batch()
+            # Загрузить батч + метаданные
+            x, metadata = self._load_batch()
             if x is None:
                 return False
-            
-            # Переместить на устройство
-            x = x.to(self.device)
-            
-            # GNN Training: Full KCA Integration (Contradiction Detection + Gap Detection)
-            # Task: Learn to produce graph embeddings that help KCA detect:
-            # 1. Contradictions between graph facts
-            # 2. Knowledge gaps (conceptual lacunas)
-            # Per EVA.txt: GNN processes subgraph → produces graph vector + gate weights
+            if isinstance(x, torch.Tensor):
+                x = x.to(self.device)
+            else:
+                return False
             
             self._model.train()
             
             # MiniGNN.encode(): subgraph embeddings -> (graph_vector, gate_weights)
-            # Это соответствует EVA.txt: "GNN‑энкодер преобразует подграф в 
-            # графовый вектор и гейт‑веса"
             graph_vector, gate_weights = self._model.encode(x)
             
             # Forward через decoder для self-supervised learning
@@ -645,17 +749,24 @@ class GNNTrainer(BackgroundTrainer):
             reconstructed = F.relu(self._model.decoder2(h))
             graph_emb = self._model.proj(reconstructed)  # [batch, 768]
             
-            # TASK 1: Contradiction Detection
-            # Detect pairs of nodes with opposite vectors (cosine similarity < 0)
-            # Learn to output high activation for contradictory pairs
+            # TASK 1: Contradiction Detection + Antonym Repel
             batch_size = graph_emb.size(0)
             contradiction_scores = []
             for i in range(batch_size - 1):
                 emb_i = graph_emb[i]
                 emb_j = graph_emb[i + 1]
                 cos_sim = F.cosine_similarity(emb_i.unsqueeze(0), emb_j.unsqueeze(0))
-                # Negative similarity = potential contradiction
-                contradiction_scores.append((-cos_sim).clamp(min=0))
+                
+                # Антонимный repel: если пара — антонимы, усиливаем отталкивание
+                antonym_boost = 1.0
+                if i < len(metadata) and (i + 1) < len(metadata):
+                    c1 = metadata[i].get("content", "")
+                    c2 = metadata[i + 1].get("content", "")
+                    if c1 and c2 and self._check_antonym_pair(c1, c2):
+                        antonym_boost = 2.0  # удвоенный сигнал противоречия
+                
+                score = (-cos_sim).clamp(min=0) * antonym_boost
+                contradiction_scores.append(score)
             
             if contradiction_scores:
                 contradiction_tensor = torch.stack(contradiction_scores)
@@ -674,19 +785,42 @@ class GNNTrainer(BackgroundTrainer):
             else:
                 loss_contradiction = torch.tensor(0.0, device=self.device)
             
-            # TASK 2: Knowledge Gap Detection (Lacuna Detection)
-            # Predict which embeddings have low relevance to query context
-            # KCA: "If attention to most relevant node is low → knowledge gap"
+            # TASK 2: Knowledge Gap Detection + Rare Concept Boost (minesweeper inversion)
             emb_variance = graph_emb.var(dim=1)
             emb_sparsity = (graph_emb.abs() < 0.1).float().mean(dim=1)
             
-            # Target: high gap score for low-variance, high-sparsity embeddings
             gap_score = (1 - emb_variance / (emb_variance.max() + 1e-8)) * emb_sparsity
-            gap_target = (gap_score > 0.5).float()
+            
+            # Minesweeper inversion: редкие концепты с высокой ошибкой получают буст
+            gap_targets = []
+            for i in range(batch_size):
+                base_gap = gap_score[i].item()
+                multiplier = 1.0
+                
+                # Сохраняем gap_score в историю узла
+                if i < len(metadata):
+                    nid = metadata[i].get("id", "")
+                    if nid:
+                        if nid not in self._node_gap_history:
+                            self._node_gap_history[nid] = []
+                        self._node_gap_history[nid].append(base_gap)
+                        if len(self._node_gap_history[nid]) > 20:
+                            self._node_gap_history[nid] = self._node_gap_history[nid][-20:]
+                        
+                        # Если узел редкий (мало шагов обучения) и ошибка высокая — бустим
+                        train_count = self._node_training_counts.get(nid, 0)
+                        if train_count < self._rare_concept_threshold and base_gap > 0.3:
+                            multiplier = self._rare_boost_factor
+                
+                adjusted_gap = min(1.0, base_gap * multiplier)
+                gap_targets.append(adjusted_gap)
+            
+            gap_target_tensor = torch.tensor(gap_targets, device=graph_emb.device)
+            gap_target_binary = (gap_target_tensor > 0.5).float()
             
             pred_gap = self._model.proj(graph_emb)
             pred_gap_mean = pred_gap.mean(dim=1, keepdim=True)
-            target_gap = gap_target.view(-1, 1) if gap_target.dim() == 1 else gap_target
+            target_gap = gap_target_binary.view(-1, 1) if gap_target_binary.dim() == 1 else gap_target_binary
             loss_gap = F.binary_cross_entropy_with_logits(
                 pred_gap_mean,
                 target_gap
@@ -703,6 +837,13 @@ class GNNTrainer(BackgroundTrainer):
             
             self._model.eval()
             
+            # Периодический cluster centroid pull
+            if self._step_count > 0 and self._step_count % self._cluster_pull_interval == 0:
+                try:
+                    self._cluster_centroid_pull()
+                except Exception as pull_e:
+                    logger.debug(f"[GNNTrainer] Cluster pull error: {pull_e}")
+            
             # Очистить GPU кэш
             if self.device.type == "cuda":
                 torch.cuda.empty_cache()
@@ -716,7 +857,59 @@ class GNNTrainer(BackgroundTrainer):
         except Exception as e:
             logger.debug(f"[GNNTrainer] Step error: {e}")
             return False
-    
+
+    def _cluster_centroid_pull(self):
+        """Cluster centroid pull: дотягивание эмбеддингов к центроиду кластера.
+
+        Предотвращает разреженность в пределах одной семантической группы.
+        """
+        import sqlite3
+        import numpy as np
+        try:
+            conn = sqlite3.connect(self.graph_db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+
+            # Группируем узлы по parent_group_id
+            cur.execute("""
+                SELECT id, parent_group_id, embedding FROM nodes
+                WHERE embedding IS NOT NULL AND parent_group_id IS NOT NULL
+            """)
+            rows = cur.fetchall()
+
+            groups = {}
+            for row in rows:
+                gid = row["parent_group_id"]
+                emb_bytes = row["embedding"]
+                if not gid or not emb_bytes:
+                    continue
+                emb = np.frombuffer(bytes(emb_bytes), dtype=np.float32)
+                if len(emb) < 8:
+                    continue
+                groups.setdefault(gid, []).append((row["id"], emb))
+
+            updates = []
+            for gid, members in groups.items():
+                if len(members) < 2:
+                    continue
+                centroid = np.mean([m[1] for m in members], axis=0)
+                centroid = centroid / (np.linalg.norm(centroid) + 1e-8)
+                for node_id, emb in members:
+                    pulled = emb + self._cluster_pull_strength * (centroid - emb)
+                    pulled = pulled / (np.linalg.norm(pulled) + 1e-8)
+                    updates.append((pulled.tobytes(), node_id))
+
+            if updates:
+                cur.executemany(
+                    "UPDATE nodes SET embedding = ? WHERE id = ?",
+                    updates
+                )
+                conn.commit()
+                logger.debug(f"[GNNTrainer] Cluster pull: {len(updates)} nodes in {len(groups)} groups")
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[GNNTrainer] Cluster pull error: {e}")
+
     def save_checkpoint(self, suffix: str = ""):
         """Сохранить веса GNN."""
         if self._model is None:

@@ -2,7 +2,13 @@
 
 ## Overview
 
-λ_d (lambda-d) — content-dependent linear RNN where the transition matrix A(h) is a function of the current hidden state. Unlike fixed-spectrum SSMs (Mamba, RWKV), λ_d computes a **per-token, per-layer spectrum** via gating over Fibonacci roots.
+λ_d (lambda-d) — content-dependent **residual feed-forward block** (not an RNN) where the effective linear transform A(h) is a function of the current hidden state. Unlike fixed-spectrum SSMs (Mamba, RWKV), λ_d computes a **per-token, per-layer spectrum** via gating over Fibonacci roots.
+
+**Important stability note:** LDBlock is NOT iterated over time. Each layer applies one step in parallel across positions. The residual connection + RMS norm make the operation:
+```
+h_{l+1} = h_l + V·Λ̂·V⁻¹·rms_norm(h_l)
+```
+Since `rms_norm(h_l)` has RMS=1 (L2 norm = √D, independent of ||h_l||), each delta is bounded by √D, and the hidden state grows **linearly** with stack depth (not exponentially). This is the same stability mechanism as transformer pre-norm residual.
 
 ## Core Components
 
@@ -35,15 +41,20 @@ The core λ_d recurrence: one content-dependent linear layer.
 6. `h_out = h + Δ` — residual connection (optional: `residual=False` returns just Δ for external residual)
 
 **Trainable params per layer:** 
-- W_gate: D × K (e.g., 256×4 = 1K)
+- W_gate: D × K (e.g., 896×4 = 3.6K)
 - b_gate: K (e.g., 4)
 - Total: ~D·K parameters per layer (microscopic vs attention's 4·D²)
 
 **Frozen per layer:**
-- V: D × D orthogonal matrix (~0.5M params at D=1024)
+- V: D × D orthogonal matrix (~0.8M at D=896, ~1M at D=1024)
 - input_ln_w, post_ln_w: D each
 
-**Goal**: Replace the QKV-attention sublayer with a parameter-efficient linear RNN that models long-range dependencies via Fibonacci-gated recurrence.
+**Parameter comparison (D=256, Phase 1):**
+- Attention (QKV+O): 4·D² = 262K
+- LDBlock all params (W_gate + V): D·K + D² = 1K + 66K = 67K (ratio ~3.9×)
+- LDBlock trainable only (W_gate + b_gate): D·K + K = 1K (ratio ~255×)
+
+**Goal**: Replace the QKV-attention sublayer with a parameter-efficient content-dependent block that captures per-token spectral dynamics via Fibonacci-gated recurrence.
 
 ### `LDMLP` — `ld_model/core.py:187`
 
@@ -94,14 +105,14 @@ Tree-structured readout with learnable centroids.
 
 - K levels, 2 states per level (prev=0 or prev=1), 2 digits (0 or 1)
 - 3 centroids per level (c[k,0,0], c[k,0,1], c[k,1,0]; c[k,1,1] = 0 — invalid)
-- φ^(h·c) scoring with Zeckendorf constraint
+- h·c scoring (linear logits) with Zeckendorf constraint
 - **Goal**: Reduce readout from D×V (hundreds of millions) to K×4×D (~hundreds of thousands)
 
 ### `predict(h, greedy, temperature)` — `ld_model/readout.py:153`
 
 Generate next token by traversing the Zeckendorf tree.
 
-- At each level k, choose digit 0 or 1 based on φ^(h·c[k,state,digit])
+- At each level k, choose digit 0 or 1 based on h·c[k,state,digit] softmax
 - If state=1 (previous digit was 1), forced to 0 (Zeckendorf constraint)
 - **Goal**: Decode hidden state to token ID via structured tree walk
 
@@ -136,7 +147,8 @@ Single transformer attention layer (RoPE + SwiGLU MLP) — apples-to-apples comp
 
 - **Goal**: Baseline PPL for fair comparison with LDBlock
 - **Result**: train PPL 125 → eval PPL 354 (vs LDBlock: train 206 → eval 581 on same 5K data)
-- LDBlock is 1.6× worse on 5K data but has 150× fewer core parameters
+- LDBlock is 1.6× worse on 5K data but has ~255× fewer trainable parameters (1K vs 262K)
+- **Note**: 50K LDBlock (218) vs 5K transformer (354) is not a fair comparison — baseline must be re-run on 50K data to claim architectural advantage
 
 ### `train_fast.py`
 
@@ -200,6 +212,14 @@ Increased data regime (50K chunks vs 5K).
 | Transformer 5K data | 125 | 354 | 2.8× |
 | K grid (all configs) | ~2100 (ep1) | ~750 (ep1) | — |
 
-- **50K LDBlock beats transformer baseline (218 vs 354)** despite 150× fewer core parameters
+- **50K LDBlock (218) vs 5K transformer (354)** — not a fair comparison (apples-to-oranges, different data quantity). Re-run transformer on 50K needed for claim.
 - Content-dependent gating confirmed (cos ≠ 1, H(α) < max)
 - Model scales with data — no evidence of capacity ceiling yet
+
+### Key Parameter Efficiency (D=256)
+
+| Architecture | Trainable Params | Eval PPL (5K data) | Ratio |
+|---|---|---|---|
+| Transformer attention | 262K | 354 | baseline |
+| LDBlock | 1K | 581 | 1.6× worse, 255× fewer params |
+| LDBlock (50K data) | 1K | 218 | beats 5K baseline with 255× fewer params |

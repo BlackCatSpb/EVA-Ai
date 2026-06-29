@@ -1,6 +1,5 @@
 """λ_d: Content-dependent linear RNN with Fibonacci spectrum."""
 
-import math
 import torch
 import torch.nn.functional as F
 
@@ -14,9 +13,6 @@ class LDConfig:
     intermediate: int = 9728  # SwiGLU intermediate
     lora_rank: int = 256    # LoRA rank for MLP adaptation
     use_lora: bool = True
-
-phi = (1 + 5 ** 0.5) / 2
-LOG_PHI = math.log(phi)
 
 
 # ─── Fibonacci roots (λ_k for k=2..K+1) ─────────────────────────────────
@@ -73,7 +69,8 @@ def random_orthogonal(D: int, n_reflections: int | None = None) -> torch.Tensor:
 
 def rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     rms = x.norm(dim=-1, keepdim=True) / (x.shape[-1] ** 0.5)
-    return x / (rms + eps).half() * weight.half()
+    rms = rms.clamp(min=eps)
+    return x / rms * weight
 
 
 # ─── LDBlock: A(h) = V · diag(α·λ) · V⁻¹ ───────────────────────────────
@@ -109,8 +106,8 @@ class LDBlock(torch.nn.Module):
         self.register_buffer('V_inv', self.V.T.contiguous())
         
         # RMS norm weights (frozen from Qwen or init)
-        self.register_buffer('input_ln_w', torch.ones(cfg.D, dtype=torch.float16))
-        self.register_buffer('post_ln_w', torch.ones(cfg.D, dtype=torch.float16))
+        self.register_buffer('input_ln_w', torch.ones(cfg.D))
+        self.register_buffer('post_ln_w', torch.ones(cfg.D))
     
     def forward(self, h: torch.Tensor, return_gates: bool = False, 
                 residual: bool = True) -> torch.Tensor:
@@ -127,22 +124,22 @@ class LDBlock(torch.nn.Module):
         device = h.device
         
         # 1. Pre-norm
-        h_norm = rms_norm(h, self.input_ln_w.to(device, torch.float16))
+        h_norm = rms_norm(h, self.input_ln_w.to(device))
         
         # 2. Gate: α = softmax(gate_scale · (W_gate · h_norm + b))
-        gate_logits = (h_norm.float() @ self.W_gate.float()) + self.b_gate.float()
+        gate_logits = (h_norm @ self.W_gate) + self.b_gate
         gate_logits = gate_logits * 4.0  # sharpen softmax for better differentiation
         alpha = F.softmax(gate_logits, dim=-1)  # (B, L, K)
         
         # 3. Effective spectrum
-        lambda_k = self.lambda_k.to(device, torch.float32)  # (K,)
+        lambda_k = self.lambda_k.to(device)  # (K,)
         lambda_eff = (alpha @ lambda_k)  # (B, L,) — scalar per token
         
         # 4. Apply through basis
-        V = self.V.to(device, torch.float32)
-        V_inv = self.V_inv.to(device, torch.float32)
+        V = self.V.to(device)
+        V_inv = self.V_inv.to(device)
         
-        h_proj = h_norm.float() @ V_inv.T  # (B, L, D)
+        h_proj = h_norm @ V_inv.T  # (B, L, D)
         h_scaled = h_proj * lambda_eff.unsqueeze(-1)  # (B, L, D)
         delta = h_scaled @ V.T  # (B, L, D)
         
@@ -152,9 +149,9 @@ class LDBlock(torch.nn.Module):
         
         # 6. Optional residual
         if residual:
-            h_out = h.half() + delta.half()
+            h_out = h + delta
         else:
-            h_out = delta.half()
+            h_out = delta
         
         if return_gates:
             return h_out, alpha
@@ -172,14 +169,14 @@ class LoRALinear(torch.nn.Module):
     def __init__(self, in_dim: int, out_dim: int, rank: int = 256):
         super().__init__()
         # Frozen base
-        self.register_buffer('W', torch.randn(out_dim, in_dim, dtype=torch.float16) * 0.01)
+        self.register_buffer('W', torch.randn(out_dim, in_dim) * 0.01)
         # LoRA adapters (trainable)
-        self.A = torch.nn.Parameter(torch.randn(out_dim, rank, dtype=torch.float16) * 0.01)
-        self.B = torch.nn.Parameter(torch.randn(rank, in_dim, dtype=torch.float16) * 0.01)
+        self.A = torch.nn.Parameter(torch.randn(out_dim, rank) * 0.01)
+        self.B = torch.nn.Parameter(torch.randn(rank, in_dim) * 0.01)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         W_eff = self.W + self.A @ self.B
-        return (x.half() @ W_eff.T).half()
+        return x @ W_eff.T
 
 
 class LDMLP(torch.nn.Module):
@@ -195,17 +192,16 @@ class LDMLP(torch.nn.Module):
             self.up = LoRALinear(D, I, rank)
             self.down = LoRALinear(I, D, rank)
         else:
-            self.register_buffer('gate_W', torch.randn(I, D, dtype=torch.float16) * 0.01)
-            self.register_buffer('up_W', torch.randn(I, D, dtype=torch.float16) * 0.01)
-            self.register_buffer('down_W', torch.randn(D, I, dtype=torch.float16) * 0.01)
+            self.register_buffer('gate_W', torch.randn(I, D) * 0.01)
+            self.register_buffer('up_W', torch.randn(I, D) * 0.01)
+            self.register_buffer('down_W', torch.randn(D, I) * 0.01)
             self.lora = None
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        xf = x.float()
-        gate = F.silu(self.gate(xf))
-        up = self.up(xf)
+        gate = F.silu(self.gate(x))
+        up = self.up(x)
         down = self.down(gate * up)
-        return down.half()
+        return down
 
 
 # ─── λ_d Stack ───────────────────────────────────────────────────────────
@@ -233,7 +229,7 @@ class LDStack(torch.nn.Module):
         ])
         
         # Final norm
-        self.register_buffer('final_norm_w', torch.ones(cfg.D, dtype=torch.float16))
+        self.register_buffer('final_norm_w', torch.ones(cfg.D))
     
     def forward(self, h: torch.Tensor, return_gates: bool = False) -> torch.Tensor:
         """Forward through all λ_d layers.
@@ -262,7 +258,7 @@ class LDStack(torch.nn.Module):
             h = h + mlp_out
         
         # Final norm
-        h_out = rms_norm(h, self.final_norm_w.to(h.device, torch.float16))
+        h_out = rms_norm(h, self.final_norm_w.to(h.device))
         
         if return_gates:
             # Stack gates: (n_layers, B, L, K)

@@ -75,9 +75,9 @@ class Qwen2LDBlock(nn.Module):
 
     def forward(self, x):
         delta = self.ld(x, residual=False)  # just delta from LDBlock
-        h = x.float() + delta.float()       # external residual
+        h = x + delta                       # external residual
         r = self.post_norm(h)
-        h = h + self.mlp(r).float()
+        h = h + self.mlp(r)
         return h
 
 class Phase2Model(nn.Module):
@@ -115,59 +115,92 @@ class Phase2Model(nn.Module):
         h = self.embed(input_ids)
         for layer in self.layers:
             h = layer(h)
-        h = self.final_norm(h.float())
+        h = self.final_norm(h)
         logits = self.lm_head(h)
         return logits
 
 model = Phase2Model().to(DEVICE)
 
-# ─── Training ────────────────────────────────────────────────────────────
-optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=0.01)
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader) * EPOCHS)
-
-step = 0
-best_ppl = float('inf')
-t_start = time.perf_counter()
-
-print(f'\nTraining: {len(train_loader)} batches/epoch, {EPOCHS} epochs')
-for epoch in range(EPOCHS):
-    model.train()
-    epoch_loss = 0.0
-    n_batches = 0
-
-    for bx, by in train_loader:
-        optimizer.zero_grad()
-        logits = model(bx)
-        loss = F.cross_entropy(logits.reshape(-1, VOCAB), by.reshape(-1))
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, model.parameters()), GRAD_CLIP)
-        optimizer.step()
-        scheduler.step()
-
-        epoch_loss += loss.item()
-        n_batches += 1
-        step += 1
-
-        if step % LOG_EVERY == 0:
-            ppl = math.exp(loss.item())
-            lr_now = scheduler.get_last_lr()[0]
-            print(f'  Step {step:5d} | loss={loss.item():.4f} | ppl={ppl:.1f} | lr={lr_now:.2e}')
-
-    train_ppl = math.exp(epoch_loss / n_batches)
-
+if __name__ == '__main__':
+    # Quick sanity check: trace per-layer before training
     model.eval()
-    eval_loss = 0.0
     with torch.no_grad():
-        for bx, by in eval_loader:
+        bx_test = next(iter(train_loader))[0][:1]
+        h = model.embed(bx_test)
+        print(f'  sanity: embed range=[{h.min():.4f},{h.max():.4f}]', flush=True)
+        for i, layer in enumerate(model.layers):
+            h = layer(h)
+            n, inf = torch.isnan(h).any().item(), torch.isinf(h).any().item()
+            print(f'  sanity: layer {i} range=[{h.min():.4f},{h.max():.4f}] nan={n} inf={inf}', flush=True)
+            if n or inf: break
+        h = model.final_norm(h.float())
+        logits = model.lm_head(h)
+        print(f'  sanity: logits range=[{logits.min():.4f},{logits.max():.4f}] nan={torch.isnan(logits).any().item()}', flush=True)
+    
+    # ─── Training ────────────────────────────────────────────────────────────
+    optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=LR, weight_decay=0.01)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader) * EPOCHS)
+    
+    step = 0
+    best_ppl = float('inf')
+    t_start = time.perf_counter()
+    
+    print(f'\nTraining: {len(train_loader)} batches/epoch, {EPOCHS} epochs')
+    for epoch in range(EPOCHS):
+        model.train()
+        epoch_loss = 0.0
+        n_batches = 0
+    
+        for bx, by in train_loader:
+            optimizer.zero_grad()
             logits = model(bx)
+            
+            # NaN detection
+            if torch.isnan(logits).any():
+                nan_frac = torch.isnan(logits).float().mean().item()
+                print(f'  [NAN] logits contain {nan_frac*100:.1f}% NaN at step {step}')
+                print(f'  [NAN] Skipping batch')
+                continue
+            
             loss = F.cross_entropy(logits.reshape(-1, VOCAB), by.reshape(-1))
-            eval_loss += loss.item()
-    eval_ppl = math.exp(eval_loss / len(eval_loader))
-
-    print(f'>> Epoch {epoch+1}: train_ppl={train_ppl:.1f}, eval_ppl={eval_ppl:.1f}')
-    if eval_ppl < best_ppl:
-        best_ppl = eval_ppl
-
-print(f'\nTime: {time.perf_counter()-t_start:.0f}s')
-print(f'Best eval PPL: {best_ppl:.1f}')
-print('Phase 2 complete.')
+            
+            if torch.isnan(loss):
+                print(f'  [NAN] loss is NaN at step {step}, skipping')
+                continue
+            
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(filter(lambda p: p.requires_grad, model.parameters()), GRAD_CLIP)
+            optimizer.step()
+            scheduler.step()
+    
+            epoch_loss += loss.item()
+            n_batches += 1
+            step += 1
+    
+            if step % LOG_EVERY == 0:
+                ppl = math.exp(loss.item())
+                lr_now = scheduler.get_last_lr()[0]
+                print(f'  Step {step:5d} | loss={loss.item():.4f} | ppl={ppl:.1f} | lr={lr_now:.2e}')
+    
+        if n_batches > 0:
+            train_ppl = math.exp(epoch_loss / n_batches)
+        else:
+            train_ppl = float('inf')
+            print(f'  [WARN] No valid batches in epoch {epoch+1}')
+    
+        model.eval()
+        eval_loss = 0.0
+        with torch.no_grad():
+            for bx, by in eval_loader:
+                logits = model(bx)
+                loss = F.cross_entropy(logits.reshape(-1, VOCAB), by.reshape(-1))
+                eval_loss += loss.item()
+        eval_ppl = math.exp(eval_loss / len(eval_loader))
+    
+        print(f'>> Epoch {epoch+1}: train_ppl={train_ppl:.1f}, eval_ppl={eval_ppl:.1f}')
+        if eval_ppl < best_ppl:
+            best_ppl = eval_ppl
+    
+    print(f'\nTime: {time.perf_counter()-t_start:.0f}s')
+    print(f'Best eval PPL: {best_ppl:.1f}')
+    print('Phase 2 complete.')

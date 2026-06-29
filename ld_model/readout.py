@@ -2,10 +2,6 @@
 
 import torch
 import torch.nn.functional as F
-import math
-
-phi = (1 + 5 ** 0.5) / 2
-LOG_PHI = math.log(phi)
 
 
 # ─── Fibonacci numbers ──────────────────────────────────────────────────
@@ -108,20 +104,14 @@ class ZeckendorfReadout(torch.nn.Module):
         # Centroids to device
         c = self.centroids.to(device, torch.float32)  # (K, 2, 2, D)
         
-        # Compute φ^{h·c} for all (k, state, digit)
-        # h @ c^T: (B, D) @ (K, 2, 2, D)^T
-        # Actually, expand and compute
+        # Compute h·c logits for all (k, state, digit)
         # h: (B, 1, 1, 1, D) @ c: (1, K, 2, 2, D) -> (B, K, 2, 2)
         h_exp = h.view(B, 1, 1, 1, D)
         c_exp = c.view(1, K, 2, 2, D)
         logit = (h_exp * c_exp).sum(dim=-1)  # (B, K, 2, 2) — h·c
         
-        # phi^logit (in log space: logit * log_phi)
-        log_phi_logit = logit * LOG_PHI  # (B, K, 2, 2)
-        
-        # Normalize within each (k, state): P(digit|k,state) = φ^d / (φ^0 + φ^1)
-        # Actually softmax over digit dimension
-        log_probs_k_s = F.log_softmax(log_phi_logit, dim=-1)  # (B, K, 2, 2)
+        # Normalize within each (k, state): P(digit|k,state)
+        log_probs_k_s = F.log_softmax(logit, dim=-1)  # (B, K, 2, 2)
         
         # For each token, sum log-probabilities along its path
         codes = self.codes.to(device)  # (V', K)
@@ -166,11 +156,12 @@ class ZeckendorfReadout(torch.nn.Module):
         K = self.K
         c = self.centroids.to(device, torch.float32)
         
-        # Precompute φ^{h·c/ temp}
+        # Precompute h·c / temp
         h_exp = h.view(B, 1, 1, 1, D)
         c_exp = c.view(1, K, 2, 2, D)
         logit = (h_exp * c_exp).sum(dim=-1) / temperature  # (B, K, 2, 2)
-        phi_logit = torch.exp(logit * LOG_PHI)  # φ^(h·c/temp)
+        # Softmax over digits
+        probs = F.softmax(logit, dim=-1)  # (B, K, 2, 2)
         
         tokens = torch.zeros(B, dtype=torch.long, device=device)
         fibs = self.fibs.to(device)
@@ -181,9 +172,7 @@ class ZeckendorfReadout(torch.nn.Module):
             
             for k in range(K):
                 # Prob of digit=1 at this (k, state)
-                p1 = phi_logit[b, k, state, 1] / (
-                    phi_logit[b, k, state, 0] + phi_logit[b, k, state, 1] + 1e-30
-                )
+                p1 = probs[b, k, state, 1]
                 
                 if state == 1:
                     # Forced 0 (Zeckendorf constraint)

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ld_model.core import LDConfig, LDStack, fibonacci_roots, rms_norm, phi
+from ld_model.core import LDConfig, LDStack, fibonacci_roots, rms_norm
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Device: {DEVICE}')
@@ -31,7 +31,7 @@ print(f'Config: D={cfg.D}, layers={cfg.n_layers}, modes={cfg.n_modes}')
 # Precompute Fibonacci roots
 lambdas = fibonacci_roots(cfg.n_modes + 1)
 print(f'  λ_k: {[f"{l:.4f}" for l in lambdas.tolist()]}')
-print(f'  φ = {phi:.6f}')
+print(f'  φ = {(1 + 5**0.5)/2:.6f}')
 
 # ─── Test 1: Stability ──────────────────────────────────────────────────
 
