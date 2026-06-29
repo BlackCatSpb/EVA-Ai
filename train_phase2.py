@@ -3,7 +3,7 @@ Phase 2: 12-layer LDStack at D=896 (Qwen2.5-0.5B scale).
 Frozen embedding + MLP + norms. Train only LDBlock gates + LoRA.
 """
 
-import os, sys, math, time, json
+import os, sys, math, time, json, glob
 import numpy as np
 import torch
 import torch.nn as nn
@@ -30,6 +30,7 @@ GRAD_CLIP = 1.0
 LOG_EVERY = 100
 N_CHUNKS_TRAIN = 50000
 N_CHUNKS_EVAL = 500
+CKPT_DIR = 'checkpoints'
 
 # ─── Load data ───────────────────────────────────────────────────────────
 print('Loading pre-cached chunks...')
@@ -121,6 +122,39 @@ class Phase2Model(nn.Module):
 
 model = Phase2Model().to(DEVICE)
 
+def save_checkpoint(path, model, optimizer, scheduler, step, epoch, best_ppl, stats):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict(),
+        'step': step,
+        'epoch': epoch,
+        'best_ppl': best_ppl,
+        'stats': stats,
+        'config': {
+            'D': D, 'VOCAB': VOCAB, 'N_MODES': N_MODES,
+            'N_LAYERS': N_LAYERS, 'INTERMEDIATE': INTERMEDIATE,
+            'BATCH_SIZE': BATCH_SIZE, 'SEQ_LEN': SEQ_LEN,
+            'LR': LR, 'EPOCHS': EPOCHS,
+        }
+    }, path)
+    print(f'  [CKPT] Saved {path}')
+
+def find_latest_ckpt():
+    pattern = os.path.join(CKPT_DIR, 'phase2_epoch*.pt')
+    files = sorted(glob.glob(pattern))
+    return files[-1] if files else None
+
+def load_checkpoint(path, model, optimizer=None, scheduler=None):
+    ckpt = torch.load(path, map_location=DEVICE, weights_only=True)
+    model.load_state_dict(ckpt['model_state_dict'])
+    if optimizer and 'optimizer_state_dict' in ckpt:
+        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+    if scheduler and 'scheduler_state_dict' in ckpt:
+        scheduler.load_state_dict(ckpt['scheduler_state_dict'])
+    return ckpt
+
 if __name__ == '__main__':
     # Quick sanity check: trace per-layer before training
     model.eval()
@@ -133,7 +167,7 @@ if __name__ == '__main__':
             n, inf = torch.isnan(h).any().item(), torch.isinf(h).any().item()
             print(f'  sanity: layer {i} range=[{h.min():.4f},{h.max():.4f}] nan={n} inf={inf}', flush=True)
             if n or inf: break
-        h = model.final_norm(h.float())
+        h = model.final_norm(h)
         logits = model.lm_head(h)
         print(f'  sanity: logits range=[{logits.min():.4f},{logits.max():.4f}] nan={torch.isnan(logits).any().item()}', flush=True)
     
@@ -142,11 +176,22 @@ if __name__ == '__main__':
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=len(train_loader) * EPOCHS)
     
     step = 0
+    start_epoch = 0
     best_ppl = float('inf')
     t_start = time.perf_counter()
     
+    # Try resume from checkpoint
+    ckpt_path = find_latest_ckpt()
+    if ckpt_path:
+        print(f'Resuming from {ckpt_path}...')
+        ckpt = load_checkpoint(ckpt_path, model, optimizer, scheduler)
+        step = ckpt['step']
+        start_epoch = ckpt['epoch']
+        best_ppl = ckpt['best_ppl']
+        print(f'  Resumed at step {step}, epoch {start_epoch}, best_ppl={best_ppl:.1f}')
+    
     print(f'\nTraining: {len(train_loader)} batches/epoch, {EPOCHS} epochs')
-    for epoch in range(EPOCHS):
+    for epoch in range(start_epoch, EPOCHS):
         model.train()
         epoch_loss = 0.0
         n_batches = 0
@@ -198,8 +243,19 @@ if __name__ == '__main__':
         eval_ppl = math.exp(eval_loss / len(eval_loader))
     
         print(f'>> Epoch {epoch+1}: train_ppl={train_ppl:.1f}, eval_ppl={eval_ppl:.1f}')
-        if eval_ppl < best_ppl:
+        is_best = eval_ppl < best_ppl
+        if is_best:
             best_ppl = eval_ppl
+            save_checkpoint(
+                os.path.join(CKPT_DIR, 'phase2_best.pt'),
+                model, optimizer, scheduler, step, epoch+1, best_ppl,
+                {'train_ppl': train_ppl, 'eval_ppl': eval_ppl}
+            )
+        save_checkpoint(
+            os.path.join(CKPT_DIR, f'phase2_epoch{epoch+1}.pt'),
+            model, optimizer, scheduler, step, epoch+1, best_ppl,
+            {'train_ppl': train_ppl, 'eval_ppl': eval_ppl, 'is_best': is_best}
+        )
     
     print(f'\nTime: {time.perf_counter()-t_start:.0f}s')
     print(f'Best eval PPL: {best_ppl:.1f}')
