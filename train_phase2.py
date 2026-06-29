@@ -94,14 +94,14 @@ class Phase2Model(nn.Module):
         self._freeze_non_gate_params()
 
     def _freeze_non_gate_params(self):
-        """Freeze everything except LDBlock gates and LoRA adapters."""
         n_frozen = 0
         n_trainable = 0
         for name, p in self.named_parameters():
             is_gate = 'W_gate' in name or 'b_gate' in name
-            is_lora = 'A' in name or 'B' in name  # LoRA adapters
+            is_lora = 'A' in name or 'B' in name
             is_head = 'lm_head' in name
-            if is_gate or is_lora or is_head:
+            is_norm = 'final_norm' in name or 'post_norm' in name
+            if is_gate or is_lora or is_head or is_norm:
                 p.requires_grad = True
                 n_trainable += p.numel()
             else:

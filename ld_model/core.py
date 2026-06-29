@@ -73,10 +73,20 @@ def rms_norm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6) -> torch.
     return x / rms * weight
 
 
-# ─── LDBlock: A(h) = V · diag(α·λ) · V⁻¹ ───────────────────────────────
+# ─── LDBlock: A(h) = V · diag(α★λ) · V⁻¹ ────────────────────────────────
+# ★ = block-wise Kronecker: each of K eigen-groups (D//K dims)
+#     gets λ_k · α_k as scaling.
 
 class LDBlock(torch.nn.Module):
-    """One λ_d layer with content-dependent A(h)."""
+    """One λ_d layer with block-wise content-dependent spectrum.
+    
+    Forward:
+        h_norm = rms_norm(h)
+        α = softmax(4.0 · W_gate · h_norm)
+        Λ̂ = diag(repeat_interleave(α⊙λ, D//K))   # block-wise per-dim
+        Δ = V · Λ̂ · Vᵀ · h_norm
+        h_out = h + Δ
+    """
     
     def __init__(self, cfg: LDConfig, layer_idx: int, 
                  lambda_roots: torch.Tensor):
@@ -85,12 +95,14 @@ class LDBlock(torch.nn.Module):
         self.K = cfg.n_modes
         self.n_modes = cfg.n_modes
         self.layer_idx = layer_idx
+        self.block_size = cfg.D // cfg.n_modes
         
-        # Eigenbasis V_l (learned orthogonal)
+        # Eigenbasis V_l (frozen orthogonal)
         V_init = random_orthogonal(cfg.D, n_reflections=32)
-        self.register_buffer('V', V_init)  # frozen after init
+        self.register_buffer('V', V_init)
+        self.register_buffer('V_T', V_init.T.contiguous())
         
-        # Gate: W_gate @ h + b_l
+        # Gate: W_gate @ h + b
         self.W_gate = torch.nn.Parameter(
             torch.randn(cfg.D, cfg.n_modes) * 0.01
         )
@@ -101,53 +113,35 @@ class LDBlock(torch.nn.Module):
         # λ roots (frozen)
         self.register_buffer('lambda_k', lambda_roots[:cfg.n_modes])
         
-        # Pre-compute V⁻¹ = V^T (since orthogonal)
-        # For non-orthogonal case, would need explicit inverse
-        self.register_buffer('V_inv', self.V.T.contiguous())
-        
-        # RMS norm weights (frozen from Qwen or init)
+        # RMS norm weight
         self.register_buffer('input_ln_w', torch.ones(cfg.D))
-        self.register_buffer('post_ln_w', torch.ones(cfg.D))
     
     def forward(self, h: torch.Tensor, return_gates: bool = False, 
                 residual: bool = True) -> torch.Tensor:
-        """Forward pass through λ_d layer.
-        
-        Args:
-            h: (B, L, D) hidden state
-            residual: if True, return h + delta (default); else return delta only
-        
-        Returns:
-            h_next: (B, L, D) updated state (with or without residual)
-        """
         B, L, D = h.shape
-        device = h.device
         
         # 1. Pre-norm
-        h_norm = rms_norm(h, self.input_ln_w.to(device))
+        h_norm = rms_norm(h, self.input_ln_w)
         
-        # 2. Gate: α = softmax(gate_scale · (W_gate · h_norm + b))
+        # 2. Gate: α = softmax(4.0 · (W_gate · h_norm + b))
         gate_logits = (h_norm @ self.W_gate) + self.b_gate
-        gate_logits = gate_logits * 4.0  # sharpen softmax for better differentiation
+        gate_logits = gate_logits * 4.0
         alpha = F.softmax(gate_logits, dim=-1)  # (B, L, K)
         
-        # 3. Effective spectrum
-        lambda_k = self.lambda_k.to(device)  # (K,)
-        lambda_eff = (alpha @ lambda_k)  # (B, L,) — scalar per token
+        # 3. Block-wise λ_eff: each eigen-group gets λ_k · α_k
+        # λ_k: (K,),  α: (B, L, K) →  λ_alpha: (B, L, K)
+        lambda_alpha = self.lambda_k * alpha
+        # Repeat each group's scaling across D//K dimensions
+        lambda_eff = lambda_alpha.repeat_interleave(self.block_size, dim=-1)  # (B, L, D)
         
-        # 4. Apply through basis
-        V = self.V.to(device)
-        V_inv = self.V_inv.to(device)
+        # 4. Apply through orthogonal basis
+        h_proj = h_norm @ self.V_T  # (B, L, D) — h in eigenbasis
+        h_scaled = h_proj * lambda_eff  # each eigen-direction scaled independently
+        delta = h_scaled @ self.V_T.T  # back to original basis
         
-        h_proj = h_norm @ V_inv.T  # (B, L, D)
-        h_scaled = h_proj * lambda_eff.unsqueeze(-1)  # (B, L, D)
-        delta = h_scaled @ V.T  # (B, L, D)
+        # 5. No clamping needed: ||delta|| ≤ max(λ)·√D, bounded by construction
+        #    Residual pre-norm keeps inputs bounded; linear depth growth = stable.
         
-        # 5. Clamp: if effective sr > 1, scale delta down
-        sr = lambda_eff.abs().max().clamp(min=1.0)
-        delta = delta / sr  # scale so max effective λ = 1
-        
-        # 6. Optional residual
         if residual:
             h_out = h + delta
         else:
@@ -163,14 +157,13 @@ class LDBlock(torch.nn.Module):
 class LoRALinear(torch.nn.Module):
     """Linear layer with LoRA adaptation.
     
-    W' = W + A @ B  (frozen W, trainable A, B)
+    W' = 0 + A @ B  (frozen W=0, so W_eff = A·B pure low-rank)
+    Frozen base is zeroed so LoRA adapters have full control.
     """
     
     def __init__(self, in_dim: int, out_dim: int, rank: int = 256):
         super().__init__()
-        # Frozen base
-        self.register_buffer('W', torch.randn(out_dim, in_dim) * 0.01)
-        # LoRA adapters (trainable)
+        self.register_buffer('W', torch.zeros(out_dim, in_dim))
         self.A = torch.nn.Parameter(torch.randn(out_dim, rank) * 0.01)
         self.B = torch.nn.Parameter(torch.randn(rank, in_dim) * 0.01)
     
@@ -243,22 +236,16 @@ class LDStack(torch.nn.Module):
         gates = [] if return_gates else None
         
         for lidx in range(self.n_layers):
-            # λ_d block
             if return_gates:
                 h, alpha = self.layers[lidx](h, return_gates=True)
                 gates.append(alpha)
             else:
                 h = self.layers[lidx](h)
             
-            # Post-norm
-            h_norm = rms_norm(h, self.mlps[lidx].gate.W.new_zeros(self.D).fill_(1.0))
-            
-            # MLP
-            mlp_out = self.mlps[lidx](h_norm)
-            h = h + mlp_out
+            h_norm = rms_norm(h, self.final_norm_w)
+            h = h + self.mlps[lidx](h_norm)
         
-        # Final norm
-        h_out = rms_norm(h, self.final_norm_w.to(h.device))
+        h_out = rms_norm(h, self.final_norm_w)
         
         if return_gates:
             # Stack gates: (n_layers, B, L, K)
