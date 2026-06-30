@@ -69,8 +69,11 @@ class Phase2Model(nn.Module):
         self.stack = LDStack(cfg)
         self.lm_head = nn.Linear(D, VOCAB, bias=False)
 
-    def forward(self, input_ids):
+    def forward(self, input_ids, return_gates=False):
         h = self.embed(input_ids)
+        if return_gates:
+            h, gates = self.stack(h, return_gates=True)
+            return self.lm_head(h), gates
         h = self.stack(h)
         return self.lm_head(h)
 
@@ -209,12 +212,20 @@ for epoch in range(start_epoch, EPOCHS):
 
     model.eval()
     eval_loss = 0.0
+    all_entropies = []
     with torch.no_grad():
         for bx, by in eval_loader:
-            logits = model(bx)
+            logits, gates = model(bx, return_gates=True)
             loss = F.cross_entropy(logits.reshape(-1, VOCAB), by.reshape(-1))
             eval_loss += loss.item()
+            # gates: (n_layers, B, L, K) → entropy per layer
+            H = -(gates * (gates + 1e-10).log()).sum(dim=-1).mean(dim=(1, 2))
+            all_entropies.append(H)
     eval_ppl = math.exp(eval_loss / len(eval_loader))
+    avg_entropy = torch.stack(all_entropies).mean(dim=0).cpu().tolist()
+    max_entropy = math.log(N_MODES)
+    print(f'  Gate entropy per layer: {[f"{e:.3f}" for e in avg_entropy]}')
+    print(f'  Max possible H={max_entropy:.3f}, mean H={sum(avg_entropy)/len(avg_entropy):.3f}')
 
     print(f'>> Epoch {epoch+1}: train_ppl={train_ppl:.1f}, eval_ppl={eval_ppl:.1f}')
     is_best = eval_ppl < best_ppl
