@@ -29,15 +29,38 @@ WARMUP_FRAC = 0.05
 EPOCHS = 3
 GRAD_CLIP = 1.0
 LOG_EVERY = 100
-N_CHUNKS_TRAIN = 50000
-N_CHUNKS_EVAL = 500
 CKPT_DIR = 'checkpoints'
 
+# ─── Argparse ────────────────────────────────────────────────────────────
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument('--data', default='wikitext',
+                    choices=['wikitext', 'russian', 'auto'],
+                    help='Dataset to use (wikitext, russian, or auto-detect)')
+parser.add_argument('--train_chunks', type=int, default=None,
+                    help='Number of training chunks (default: all available)')
+parser.add_argument('--eval_chunks', type=int, default=500)
+parser.add_argument('--epochs', type=int, default=EPOCHS)
+args = parser.parse_args()
+if args.epochs != EPOCHS:
+    EPOCHS = args.epochs
+
 # ─── Load data ───────────────────────────────────────────────────────────
-print('Loading pre-cached chunks...')
+def choose_data(data_choice):
+    if data_choice == 'auto':
+        if os.path.exists('russian_chunks.npy'):
+            return 'russian_chunks.npy'
+        return 'wikitext_chunks.npy'
+    return {'wikitext': 'wikitext_chunks.npy', 'russian': 'russian_chunks.npy'}[data_choice]
+
+data_file = choose_data(args.data)
+print(f'Data file: {data_file}')
 t0 = time.perf_counter()
-arr = np.load('wikitext_chunks.npy')
+arr = np.load(data_file)
 print(f'  Loaded {arr.shape[0]} chunks in {time.perf_counter()-t0:.1f}s')
+
+N_CHUNKS_TRAIN = args.train_chunks if args.train_chunks else arr.shape[0] - args.eval_chunks
+N_CHUNKS_EVAL = min(args.eval_chunks, arr.shape[0] - 10000) if args.train_chunks is None else args.eval_chunks
 
 n_total = min(arr.shape[0], N_CHUNKS_TRAIN + N_CHUNKS_EVAL)
 n_train = min(N_CHUNKS_TRAIN, n_total - N_CHUNKS_EVAL)
@@ -45,7 +68,8 @@ n_eval = min(N_CHUNKS_EVAL, n_total - n_train)
 
 train_ids = torch.tensor(arr[:n_train], dtype=torch.long)
 eval_ids = torch.tensor(arr[n_train:n_train + n_eval], dtype=torch.long)
-print(f'Train: {n_train} chunks, Eval: {n_eval} chunks')
+print(f'Train: {n_train} chunks ({n_train * SEQ_LEN / 1e6:.1f}M tok), '
+      f'Eval: {n_eval} chunks ({n_eval * SEQ_LEN / 1e6:.1f}M tok)')
 
 train_x = train_ids[:, :-1].to(DEVICE)
 train_y = train_ids[:, 1:].to(DEVICE)
