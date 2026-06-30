@@ -11,7 +11,15 @@ except ImportError:
 NV_SMI = shutil.which('nvidia-smi') or r'C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe'
 
 try:
-    proc = psutil.Process()
+    # Find training process (python.exe running train_phase2.py or colab_train.py)
+    train_proc = None
+    for p in psutil.process_iter(['pid', 'name', 'cmdline']):
+        if p.info['name'] and 'python' in p.info['name'].lower():
+            cmd = ' '.join(p.info['cmdline'] or [])
+            if 'train_phase2' in cmd or 'colab_train' in cmd:
+                train_proc = p
+                break
+    
     old_io = psutil.disk_io_counters()
     
     while True:
@@ -52,12 +60,19 @@ try:
             read_spd = write_spd = 0
         print(f' Disk: R:{read_spd:.1f} W:{write_spd:.1f} MB/s')
         
-        # Python process
+        # Training process
         try:
-            p = proc.memory_info()
-            print(f'\n Python: {proc.memory_percent():.1f}% RAM | {p.rss/1024**2:.0f} MB | {proc.num_threads()} threads')
+            if train_proc and train_proc.is_running():
+                p = train_proc.memory_info()
+                cpu_pct = train_proc.cpu_percent(interval=0)
+                uptime = time.time() - train_proc.create_time()
+                h, r = divmod(int(uptime), 3600)
+                m, s = divmod(r, 60)
+                print(f'\n Training: {p.rss/1024**2:.0f} MB RAM | CPU {cpu_pct:.0f}% | {h}h{m:02d}m')
+            else:
+                print('\n Training: not found')
         except:
-            pass
+            print('\n Training: N/A')
         
         time.sleep(1)
 
