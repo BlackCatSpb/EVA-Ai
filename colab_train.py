@@ -170,6 +170,22 @@ def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
         step, start_epoch, best_ppl = data['step'], data['epoch'], data['best_ppl']
         print(f'  step={step}, epoch={start_epoch}, best_ppl={best_ppl:.1f}')
 
+    # Graceful interrupt: save on Ctrl+C / Colab stop
+    import signal
+    _ckpt_saved = [False]
+    def _save_and_exit(signum, frame):
+        if _ckpt_saved[0]:
+            return
+        _ckpt_saved[0] = True
+        print('\n  [SIGINT] Saving checkpoint...')
+        save_checkpoint(
+            os.path.join(ckpt_dir, f'phase2_interrupt_step{step}.pt'),
+            model, optimizer, scheduler, step, epoch+1, best_ppl,
+            {'note': 'interrupted'})
+        print('  [SIGINT] Saved. Resume by re-running cell 5.')
+        sys.exit(0)
+    signal.signal(signal.SIGINT, _save_and_exit)
+
     # Training loop
     for epoch in range(start_epoch, EPOCHS):
         model.train()
@@ -186,6 +202,14 @@ def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
             epoch_loss += loss.item()
             n_batches += 1
             step += 1
+
+            # Periodic save every 1000 steps
+            if step > 0 and step % 1000 == 0:
+                save_checkpoint(
+                    os.path.join(ckpt_dir, f'phase2_autosave_step{step}.pt'),
+                    model, optimizer, scheduler, step, epoch+1, best_ppl,
+                    {'train_ppl': math.exp(epoch_loss / max(n_batches, 1))})
+
             if step % LOG_EVERY == 0:
                 ppl = math.exp(loss.item())
                 lr_now = scheduler.get_last_lr()[0]
