@@ -32,13 +32,14 @@ try:
             print('  GPU: N/A')
         
         # CPU
-        cpu = psutil.cpu_percent(interval=0.5)
+        cpu = int(psutil.cpu_percent(interval=0.5))
         bar = '█'*(cpu//5) + '░'*(20-cpu//5)
         print(f'  CPU: {cpu:3d}% | {bar}')
         
         # RAM
         ram = psutil.virtual_memory()
-        bar = '█'*int(ram.percent//5) + '░'*(20-int(ram.percent//5))
+        ram_pct = int(ram.percent)
+        bar = '█'*(ram_pct//5) + '░'*(20-ram_pct//5)
         print(f'  RAM: {ram.percent:3d}% | {ram.used/1024**3:.1f}/{ram.total/1024**3:.1f} GB | {bar}')
         
         # Disk I/O
