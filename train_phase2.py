@@ -82,10 +82,9 @@ print(f'Model: {n_all/1e6:.1f}M params ({n_t/1e6:.1f}M trainable)')
 # ─── Checkpoint helpers ──────────────────────────────────────────────────
 def save_checkpoint(path, model, optimizer, scheduler, step, epoch, best_ppl, stats):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    torch.save({
+    ckpt = {
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
-        'scheduler_state_dict': scheduler.state_dict(),
         'step': step, 'epoch': epoch, 'best_ppl': best_ppl, 'stats': stats,
         'config': {
             'D': D, 'VOCAB': VOCAB, 'N_MODES': N_MODES,
@@ -93,11 +92,14 @@ def save_checkpoint(path, model, optimizer, scheduler, step, epoch, best_ppl, st
             'ACCUM_STEPS': ACCUM_STEPS, 'SEQ_LEN': SEQ_LEN, 'LR': LR,
             'EPOCHS': EPOCHS,
         }
-    }, path)
+    }
+    if scheduler is not None:
+        ckpt['scheduler_state_dict'] = scheduler.state_dict()
+    torch.save(ckpt, path)
     print(f'  [CKPT] Saved {path}')
 
 def find_latest_ckpt():
-    files = sorted(glob.glob(os.path.join(CKPT_DIR, 'phase2_epoch*.pt')))
+    files = sorted(glob.glob(os.path.join(CKPT_DIR, 'phase2_*.pt')))
     return files[-1] if files else None
 
 def load_checkpoint(path, model, optimizer=None, scheduler=None):
