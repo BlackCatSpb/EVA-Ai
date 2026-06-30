@@ -40,7 +40,7 @@ try:
         ram = psutil.virtual_memory()
         ram_pct = int(ram.percent)
         bar = '█'*(ram_pct//5) + '░'*(20-ram_pct//5)
-        print(f'  RAM: {ram.percent:3d}% | {ram.used/1024**3:.1f}/{ram.total/1024**3:.1f} GB | {bar}')
+        print(f'  RAM: {ram_pct:3d}% | {ram.used/1024**3:.1f}/{ram.total/1024**3:.1f} GB | {bar}')
         
         # Disk I/O
         try:
