@@ -64,6 +64,38 @@ V-energy anisotropy: ratio 1.3e9 в Layer 11 — сигнал сконцентр
 
 ## Эксперименты
 
+### 6. Token importance → adaptive depth
+Gate spread (σ(α) = std of mode weights) — zero-cost salience signal.
+
+| Уровень | Spread | Режим | Доминантная мода |
+|:-------:|:------:|-------|:----------------:|
+| L0 (синтаксис) | < 0.08 | Равномерное распределение | m1/m4 (~40% каждая) |
+| L1 (модификаторы) | 0.08-0.15 | Слабый выбор | m4 ~33% |
+| L2 (конкретные) | 0.15-0.25 | Уверенный выбор | m4 ~41% |
+| L3 (абстрактные) | > 0.25 | Решительный выбор | m4 ~60% (93% доминанта) |
+
+Adaptive depth routing: `h = σ(α)·h_mlp + (1-σ(α))·h` (soft, trainable) / `h = h_mlp if σ(α) > τ` (hard, inference). Обучаемые пороги τₗ, инициализированы 0.25→0.45. На чекпоинте: 98% токенов проходят L0, 59% L7, 30% L10.
+
+### 7. Learnable V (low-rank delta)
+V_eff = V_frozen + U·Vᵀ (r=8), norm clip 0.3.
+
+Косинусная симметрия V_delta между слоями (200 шагов тренировки, D=256):
+```
+    L0    L1    L2    L3    L4    L5
+L0 1.00  0.20  0.35  0.38  0.49  0.62  ← поздние конвергируют
+L1 0.20  1.00  0.35  0.47  0.47  0.58
+L5 0.62  0.58  0.60  0.65  0.56  1.00  ← ранние дивергируют
+```
+
+Эффективный ранг: L0=4.4, L5=1.5 (при r=16). Снижен до r=8. 
+Все слои упёрлись в норму 0.1 — поднято до 0.3.
+
+### 8. Pipeline integration
+- adaptive_depth=True, learnable_V=True по умолчанию
+- clip_v_delta() после optimizer.step()
+- |Vd| логирование в шагах
+- Обратная совместимость: load_state_dict(strict=False)
+
 ### 1. Spectral gates vs Learned gates
 - Spectral energy gates (`alpha_k = ||V_k^T h||^2 / sum`): PPL 125.5 → 413.0 (3.3x хуже)
 - L∞ variant (tau=5): PPL 3967.7 (полный коллапс)
@@ -120,7 +152,9 @@ V-energy anisotropy: ratio 1.3e9 в Layer 11 — сигнал сконцентр
 
 - **CausalConv1d**: depthwise, kernel=4, frozen — локальные n-граммы
 - **LDBlock**: rms_norm → V·diag(λ_eff)·V^T, content-dependent gating
+  - V = V_frozen + U·Vᵀ (learnable low-rank delta, r=8, norm clip 0.3)
 - **BottleneckMLP**: D→256→D, SiLU, trainable
+- **Adaptive depth**: gate spread → per-token routing (soft/hard)
 - **Выход**: lm_head (96M на обучение, ~50M на инференс с ZeckendorfReadout)
 
 ## Файлы
