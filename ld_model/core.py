@@ -10,6 +10,9 @@ class LDConfig:
     n_modes: int = 6
     vocab: int = 146260
     bottleneck: int = 256       # MLP bottleneck dim (was intermediate=9728)
+    adaptive_depth: bool = False  # route tokens by gate decisiveness
+    depth_threshold_low: float = 0.25  # min spread to enter next layer
+    depth_threshold_high: float = 0.45  # max spread threshold
 
 
 # ─── Fibonacci roots ────────────────────────────────────────────────────
@@ -178,18 +181,60 @@ class LDStack(torch.nn.Module):
         ])
         self.register_buffer('final_norm_w', torch.ones(cfg.D))
 
-    def forward(self, h: torch.Tensor, return_gates: bool = False) -> torch.Tensor:
+        # Adaptive depth routing
+        self.adaptive = cfg.adaptive_depth
+        if self.adaptive:
+            # Learnable logits for per-layer thresholds
+            # Linearly spaced init: early layers let most tokens pass,
+            # later layers only pass decisive tokens
+            n_gates = cfg.n_layers - 1
+            init_vals = torch.linspace(
+                cfg.depth_threshold_low, cfg.depth_threshold_high, n_gates)
+            # Inverse sigmoid: log(t/(1-t))
+            init_logits = torch.logit(init_vals.clamp(1e-6, 1-1e-6))
+            self.depth_logits = torch.nn.Parameter(init_logits)
+        else:
+            self.depth_logits = None
+
+    def forward(self, h: torch.Tensor, return_gates: bool = False,
+                force_depth: torch.Tensor | None = None) -> torch.Tensor:
         gates = [] if return_gates else None
+        needs_gates = return_gates or self.adaptive or force_depth is not None
 
         for lidx in range(self.n_layers):
-            if return_gates:
-                h, alpha = self.layers[lidx](h, return_gates=True)
-                gates.append(alpha)
-            else:
-                h = self.layers[lidx](h)
+            # Forward through layer (always get gates for depth routing)
+            h_layer, alpha = self.layers[lidx](h, return_gates=True)
 
-            h_norm = rms_norm(h, self.final_norm_w)
-            h = h + self.mlps[lidx](h_norm)
+            # MLP
+            h_norm = rms_norm(h_layer, self.final_norm_w)
+            h_mlp = h_layer + self.mlps[lidx](h_norm)
+
+            # Adaptive depth: stop tokens with low gate decisiveness
+            if needs_gates and lidx < self.n_layers - 1:
+                spread = alpha.std(dim=-1)  # (B, L)
+                threshold = torch.sigmoid(self.depth_logits[lidx]) if self.adaptive else 0.0
+
+                if force_depth is not None:
+                    continue_mask = (force_depth > lidx).float()
+                elif self.adaptive:
+                    if self.training:
+                        # Soft routing: interpolate between full update (w=1)
+                        # and no update (h stays as-is, w=0)
+                        beta = 5.0
+                        continue_weight = torch.sigmoid(beta * (spread - threshold))
+                        w = continue_weight.unsqueeze(-1)
+                        h = w * h_mlp + (1 - w) * h
+                    else:
+                        # Hard routing for inference
+                        continue_mask = (spread > threshold).float().unsqueeze(-1)
+                        h = continue_mask * h_mlp + (1 - continue_mask) * h
+                else:
+                    h = h_mlp
+            else:
+                h = h_mlp
+
+            if return_gates:
+                gates.append(alpha)
 
         h_out = rms_norm(h, self.final_norm_w)
 
