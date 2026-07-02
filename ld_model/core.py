@@ -10,7 +10,7 @@ class LDConfig:
     n_modes: int = 6
     vocab: int = 146260
     bottleneck: int = 256       # MLP bottleneck dim (was intermediate=9728)
-    adaptive_depth: bool = False  # route tokens by gate decisiveness
+    adaptive_depth: bool = True  # route tokens by gate decisiveness
     depth_threshold_low: float = 0.25  # min spread to enter next layer
     depth_threshold_high: float = 0.45  # max spread threshold
 
