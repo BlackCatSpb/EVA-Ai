@@ -1,127 +1,226 @@
 """
 Prepare clean Russian text dataset for λ_d training.
-
-Combines:
-  - Russian Wikipedia (HuggingFace datasets, wikipedia=20220301.ru)
-  - PleIAs/Russian-PD (public domain books before 1884)
-
-Output: russian_chunks.npy (chunked, tokenized, ready for training)
+Trains a BPE tokenizer (vocab=50000) on Russian data, then tokenises + chunks.
+Saves intermediate checkpoints for crash recovery.
+Output: russian_chunks.npy + russian_tokenizer/
 """
 
-import os, sys, math, time, argparse
+import os, sys, math, time, json, argparse, itertools
 import numpy as np
-import torch
+from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders, processors
 
 SEQ_LEN = 128
+VOCAB = 50000
+SAVE_EVERY = 100000  # save partial every N chunks
+PARTIAL_DIR = 'russian_chunks_temp'
+STATE_FILE = 'russian_chunks_temp/state.json'
 
-def main(sample_size=None):
-    print('Loading tokenizer (Qwen2.5-0.5B)...')
-    from transformers import AutoTokenizer
-    tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B')
-    print(f'  Vocab size: {tokenizer.vocab_size}')
+# ─── streaming helpers ─────────────────────────────────────────────────
 
-    all_texts = []
-
-    # ─── 1. Russian Wikipedia ──────────────────────────────────────────
-    print('\n[1/3] Loading Russian Wikipedia...')
-    t0 = time.time()
+def stream_wikipedia(skip=0, max_chars=None):
     from datasets import load_dataset
-    wiki = load_dataset('wikipedia', '20220301.ru', split='train', streaming=True)
-    n_articles = 0
-    n_chars = 0
-    for i, article in enumerate(wiki):
+    wiki = load_dataset('wikimedia/wikipedia', '20231101.ru', split='train', streaming=True)
+    if skip > 0:
+        wiki = wiki.skip(skip)
+    chars = 0
+    for article in wiki:
         text = article['text'].strip()
         if len(text) < 200:
             continue
-        all_texts.append(text)
-        n_chars += len(text)
-        n_articles += 1
-        if sample_size and n_chars >= sample_size * 0.6:
+        yield text
+        chars += len(text)
+        if max_chars and chars >= max_chars:
             break
-        if i % 10000 == 0:
-            print(f'  {i} articles, {n_chars/1e6:.1f}M chars', end='\r')
-    print(f'  Done: {n_articles} articles, {n_chars/1e6:.1f}M chars in {time.time()-t0:.1f}s')
 
-    # ─── 2. Russian-PD books ───────────────────────────────────────────
-    print('\n[2/3] Loading Russian-PD books (public domain)...')
-    t0 = time.time()
+def stream_books(skip=0, max_chars=None):
+    from datasets import load_dataset
     try:
         rpd = load_dataset('PleIAs/Russian-PD', split='train', streaming=True)
-        n_books = 0
-        n_chars_pd = 0
+        if skip > 0:
+            rpd = rpd.skip(skip)
+        chars = 0
         for book in rpd:
             text = book['text'].strip()
             if len(text) < 500:
                 continue
-            all_texts.append(text)
-            n_chars_pd += len(text)
-            n_books += 1
-            if sample_size and n_chars + n_chars_pd >= sample_size:
+            yield text
+            chars += len(text)
+            if max_chars and chars >= max_chars:
                 break
-            if n_books % 500 == 0:
-                print(f'  {n_books} books, {n_chars_pd/1e6:.1f}M chars', end='\r')
-        print(f'  Done: {n_books} books, {n_chars_pd/1e6:.1f}M chars in {time.time()-t0:.1f}s')
     except Exception as e:
-        print(f'  [WARN] Russian-PD not available: {e}')
-        print(f'  [WARN] Continuing with Wikipedia only')
+        print('  [WARN] Russian-PD not available: %s' % e)
 
-    total_chars = sum(len(t) for t in all_texts)
-    print(f'\nTotal raw text: {total_chars/1e6:.1f}M chars')
+# ─── save/load partial ────────────────────────────────────────────────
 
-    # ─── 3. Tokenize and chunk ─────────────────────────────────────────
-    print('\n[3/3] Tokenizing and chunking...')
-    t0 = time.time()
+def save_partial(chunks_list, state):
+    os.makedirs(PARTIAL_DIR, exist_ok=True)
+    # save chunks
+    arr = np.array(chunks_list, dtype=np.int32)
+    np.save(os.path.join(PARTIAL_DIR, 'chunks.npy'), arr)
+    # save state
+    with open(STATE_FILE, 'w') as f:
+        json.dump(state, f)
 
-    def tokenize_stream(texts, tokenizer, seq_len=SEQ_LEN):
-        """Tokenize texts and yield fixed-length chunks. No overlap."""
-        all_tokens = []
-        for text in texts:
-            tokens = tokenizer(text, truncation=False)['input_ids']
-            all_tokens.extend(tokens)
-            # Yield when we have enough for at least one chunk
-            while len(all_tokens) >= seq_len + 1:
-                chunk = all_tokens[:seq_len + 1]
-                all_tokens = all_tokens[seq_len:]
-                yield chunk  # (seq_len + 1,) = x + target
+def load_partial():
+    if not os.path.exists(STATE_FILE):
+        return [], None
+    with open(STATE_FILE) as f:
+        state = json.load(f)
+    arr = np.load(os.path.join(PARTIAL_DIR, 'chunks.npy'))
+    chunks = [list(row) for row in arr]
+    print('  Resumed: %d chunks from partial save' % len(chunks))
+    return chunks, state
 
-    chunks = []
-    n_tokens_total = 0
-    for chunk in tokenize_stream(all_texts, tokenizer):
-        chunks.append(chunk)
-        n_tokens_total += len(chunk)
-        if len(chunks) % 50000 == 0:
-            print(f'  {len(chunks)} chunks ({len(chunks)*SEQ_LEN/1e6:.1f}M tok)', end='\r')
+# ─── main ──────────────────────────────────────────────────────────────
 
-    print(f'  Total: {len(chunks)} chunks, {n_tokens_total/1e6:.1f}M tokens')
-    print(f'  Tokenization: {time.time()-t0:.1f}s')
+def main(sample_size=None):
+    # ─── Tokenizer ────────────────────────────────────────────────────
+    tokenizer_path = 'russian_tokenizer/tokenizer.json'
+    if os.path.exists(tokenizer_path):
+        print('[1/4] Loading existing tokenizer from %s' % tokenizer_path)
+        tokenizer = Tokenizer.from_file(tokenizer_path)
+    else:
+        print('[1/4] Training BPE tokenizer (vocab=%d)...' % VOCAB)
+        t0 = time.time()
+        tokenizer = Tokenizer(models.BPE())
+        tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
+        tokenizer.decoder = decoders.ByteLevel()
+        tokenizer.post_processor = processors.ByteLevel(trim_offsets=False)
+        trainer = trainers.BpeTrainer(
+            vocab_size=VOCAB,
+            special_tokens=['<|pad|>', '<|bos|>', '<|eos|>', '<|unk|>'],
+            min_frequency=2,
+            show_progress=True,
+        )
+        sample_limit = min(sample_size, 200_000_000) if sample_size else 200_000_000
+        def text_stream():
+            n_chars = 0
+            for text in stream_wikipedia(max_chars=sample_limit):
+                yield text
+                n_chars += len(text)
+            for text in stream_books(max_chars=sample_limit - n_chars):
+                yield text
+                n_chars += len(text)
+            print('  Sampled %.1fM chars for tokenizer training' % (n_chars / 1e6))
+        tokenizer.train_from_iterator(text_stream(), trainer=trainer)
+        print('  Trained in %.1fs, vocab=%d' % (time.time() - t0, tokenizer.get_vocab_size()))
+        os.makedirs('russian_tokenizer', exist_ok=True)
+        tokenizer.save(tokenizer_path)
 
-    if len(chunks) == 0:
+    # ─── Tokenize & chunk ─────────────────────────────────────────────
+    print('\n[2/4] Streaming and tokenizing...')
+
+    # Resume?
+    chunks, state = load_partial()
+    if state:
+        wiki_skip = state.get('wiki_articles', 0)
+        book_skip = state.get('book_articles', 0)
+        source = state.get('source', 'wikipedia')
+        print('  Resuming from %s (wiki_skip=%d, book_skip=%d, chunks=%d)' % (
+            source, wiki_skip, book_skip, len(chunks)))
+        all_chunks = chunks
+        partial_chunks = []
+    else:
+        wiki_skip = 0
+        book_skip = 0
+        source = 'wikipedia'
+        all_chunks = []
+        partial_chunks = []
+
+    # ── Wikipedia ──
+    if source == 'wikipedia':
+        print('  Wikipedia (skip=%d)...' % wiki_skip)
+        t0 = time.time()
+        n_articles = 0
+        for text in stream_wikipedia(skip=wiki_skip):
+            encoded = tokenizer.encode(text)
+            ids = encoded.ids
+            while len(ids) >= SEQ_LEN + 1:
+                chunk = ids[:SEQ_LEN + 1]
+                all_chunks.append(chunk)
+                partial_chunks.append(chunk)
+                ids = ids[SEQ_LEN:]
+                if len(partial_chunks) >= SAVE_EVERY:
+                    save_partial(all_chunks, {
+                        'source': 'wikipedia',
+                        'wiki_articles': n_articles + wiki_skip,
+                        'book_articles': book_skip,
+                    })
+                    print('    [CKPT] %d chunks (%dM tok) in %.0fs' % (
+                        len(all_chunks), len(all_chunks) * SEQ_LEN // 1000000, time.time() - t0))
+                    partial_chunks = []
+            n_articles += 1
+            if sample_size and len(all_chunks) * SEQ_LEN * 4 >= sample_size:
+                break
+
+        # Wikipedia done → save checkpoint
+        save_partial(all_chunks, {
+            'source': 'books',
+            'wiki_articles': n_articles + wiki_skip,
+            'book_articles': 0,
+        })
+        print('    [CKPT] Wikipedia done: %d chunks in %.0fs' % (len(all_chunks), time.time() - t0))
+        book_skip = 0  # already in state
+        source = 'books'
+
+    # ── Books ──
+    if source == 'books':
+        print('  Books (skip=%d)...' % book_skip)
+        t0 = time.time()
+        n_books = 0
+        for text in stream_books(skip=book_skip):
+            encoded = tokenizer.encode(text)
+            ids = encoded.ids
+            while len(ids) >= SEQ_LEN + 1:
+                chunk = ids[:SEQ_LEN + 1]
+                all_chunks.append(chunk)
+                partial_chunks.append(chunk)
+                ids = ids[SEQ_LEN:]
+                if len(partial_chunks) >= SAVE_EVERY:
+                    save_partial(all_chunks, {
+                        'source': 'books',
+                        'wiki_articles': 0,  # not tracked after wiki done
+                        'book_articles': n_books + book_skip,
+                    })
+                    print('    [CKPT] %d chunks (%dM tok) in %.0fs' % (
+                        len(all_chunks), len(all_chunks) * SEQ_LEN // 1000000, time.time() - t0))
+                    partial_chunks = []
+            n_books += 1
+            if sample_size and len(all_chunks) * SEQ_LEN * 4 >= sample_size:
+                break
+
+    print('  Total: %d chunks, ~%dM tokens' % (len(all_chunks), len(all_chunks) * SEQ_LEN // 1000000))
+
+    if len(all_chunks) == 0:
         print('[ERROR] No chunks generated!')
         return
 
-    # ─── 4. Save ─────────────────────────────────────────────────────────
-    arr = np.array(chunks[:len(chunks)], dtype=np.int32)
-    out_path = 'russian_chunks.npy'
-    np.save(out_path, arr)
-    size_mb = os.path.getsize(out_path) / 1e6
-    print(f'\nSaved: {out_path}')
-    print(f'  Shape: {arr.shape}')
-    print(f'  Size: {size_mb:.0f} MB')
-    print(f'  Vocab tokens: {tokenizer.vocab_size}')
-    print(f'  Data: Russian Wikipedia + public domain books')
+    # ─── Save final ──────────────────────────────────────────────────
+    print('\n[3/4] Saving to russian_chunks.npy...')
+    arr = np.array(all_chunks, dtype=np.int32)
+    np.save('russian_chunks.npy', arr)
+    size_mb = os.path.getsize('russian_chunks.npy') / 1e6
+    print('  Shape: %s' % str(arr.shape))
+    print('  Size: %.0f MB' % size_mb)
 
-    # ─── Stats ──────────────────────────────────────────────────────────
-    n_train = int(len(chunks) * 0.99)
-    n_eval = len(chunks) - n_train
-    print(f'\n---')
-    print(f'Train chunks: {n_train} ({n_train * SEQ_LEN / 1e6:.1f}M tok)')
-    print(f'Eval chunks:  {n_eval} ({n_eval * SEQ_LEN / 1e6:.1f}M tok)')
-    print(f'Total:        {len(chunks)} ({len(chunks) * SEQ_LEN / 1e6:.1f}M tok)')
+    # Clean temp
+    if os.path.exists(STATE_FILE):
+        os.remove(STATE_FILE)
+        os.remove(os.path.join(PARTIAL_DIR, 'chunks.npy'))
+        try: os.rmdir(PARTIAL_DIR)
+        except: pass
 
+    # ─── Stats ────────────────────────────────────────────────────────
+    print('\n[4/4] Stats:')
+    n_train = int(len(all_chunks) * 0.99)
+    n_eval = len(all_chunks) - n_train
+    print('  Train chunks: %d (~%dM tok)' % (n_train, n_train * SEQ_LEN // 1000000))
+    print('  Eval chunks:  %d (~%dM tok)' % (n_eval, n_eval * SEQ_LEN // 1000000))
+    print('  Total:        %d (~%dM tok)' % (len(all_chunks), len(all_chunks) * SEQ_LEN // 1000000))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--sample', type=int, default=None,
-                        help='Sample size in chars for testing (e.g. 10_000_000)')
+                        help='Sample size in chars for testing')
     args = parser.parse_args()
     main(sample_size=args.sample)

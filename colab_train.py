@@ -1,9 +1,12 @@
 """
-Colab training for Phase 2 with causal conv + dense bottleneck MLP + grad accum + warmup.
-Usage: python colab_train.py --ckpt_dir /path/to/checkpoints --batch_size 8
+Colab training for Phase 2.
+Optimised for free tier: Drive checkpointing, fp16 ckpts, auto-resume, streaming data.
+
+Usage:
+  python colab_train.py --drive /content/drive/MyDrive/lambda --data russian_chunks.npy
 """
 
-import os, sys, math, time, glob, argparse
+import os, sys, math, time, glob, argparse, re
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,7 +16,9 @@ from torch.utils.data import DataLoader, TensorDataset
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ld_model.core import LDConfig, LDStack
 
-# ─── Config ──────────────────────────────────────────────────────────────
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+print(f'Device: {DEVICE}')
+
 D = 896
 VOCAB = 50000
 N_MODES = 4
@@ -24,8 +29,7 @@ WARMUP_FRAC = 0.05
 EPOCHS = 3
 GRAD_CLIP = 1.0
 LOG_EVERY = 100
-N_CHUNKS_TRAIN = 50000
-N_CHUNKS_EVAL = 500
+KEEP_CKPTS = 3           # keep only N most recent checkpoints
 
 # ─── Model ───────────────────────────────────────────────────────────────
 class Phase2Model(nn.Module):
@@ -33,92 +37,119 @@ class Phase2Model(nn.Module):
         super().__init__()
         self.embed = nn.Embedding(VOCAB, D)
         cfg = LDConfig()
-        cfg.D = D
-        cfg.n_layers = N_LAYERS
-        cfg.n_modes = N_MODES
-        cfg.vocab = VOCAB
-        cfg.bottleneck = 256
+        cfg.D = D; cfg.n_layers = N_LAYERS; cfg.n_modes = N_MODES
+        cfg.vocab = VOCAB; cfg.bottleneck = 256
         self.stack = LDStack(cfg)
         self.lm_head = nn.Linear(D, VOCAB, bias=False)
 
     def forward(self, input_ids):
-        h = self.embed(input_ids)
-        h = self.stack(h)
-        return self.lm_head(h)
+        return self.lm_head(self.stack(self.embed(input_ids)))
 
 # ─── Checkpoint utils ────────────────────────────────────────────────────
-def save_checkpoint(path, model, optimizer, step, epoch, best_ppl, stats):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+def save_light(path, model, optimizer, step, epoch, best_ppl):
+    """fp16 weights only — ~190 MB."""
+    sd = {k: v.half() if v.dtype == torch.float32 else v
+          for k, v in model.state_dict().items()}
     torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'step': step, 'epoch': epoch, 'best_ppl': best_ppl, 'stats': stats,
+        'model_fp16': sd,
+        'step': step, 'epoch': epoch, 'best_ppl': best_ppl,
     }, path)
-    print(f'  [CKPT] {path}')
 
-def load_checkpoint(path, model, optimizer=None):
-    ckpt = torch.load(path, map_location='cuda', weights_only=True)
-    model.load_state_dict(ckpt['model_state_dict'])
-    if optimizer and 'optimizer_state_dict' in ckpt:
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
-    return ckpt
+def save_full(path, model, optimizer, step, epoch, best_ppl):
+    """fp32 + optimizer — ~1.1 GB."""
+    torch.save({
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'step': step, 'epoch': epoch, 'best_ppl': best_ppl,
+    }, path)
 
-def find_latest(pattern):
-    files = sorted(glob.glob(pattern))
-    return files[-1] if files else None
+def load_light(path, model):
+    ckpt = torch.load(path, map_location=DEVICE, weights_only=True)
+    if 'model_fp16' in ckpt:
+        sd = {k: v.float() if v.dtype == torch.float16 else v
+              for k, v in ckpt['model_fp16'].items()}
+    elif 'model_state_dict' in ckpt:
+        sd = ckpt['model_state_dict']
+    else:
+        sd = ckpt
+    model.load_state_dict(sd, strict=False)
+    return ckpt.get('step', 0), ckpt.get('epoch', 0), ckpt.get('best_ppl', float('inf'))
+
+def find_latest_ckpt(ckpt_dir):
+    pattern = re.compile(r'model(?:_interrupt)?_step(\d+)\.pt')
+    best = None
+    best_num = -1
+    if not os.path.exists(ckpt_dir):
+        return None
+    for f in os.listdir(ckpt_dir):
+        m = pattern.match(f)
+        if not m and f == 'model_best.pt' and best is None:
+            best = os.path.join(ckpt_dir, f)
+        if m:
+            n = int(m.group(1))
+            if n > best_num:
+                best_num = n
+                best = os.path.join(ckpt_dir, f)
+    return best
+
+def clean_old_ckpts(ckpt_dir, keep=KEEP_CKPTS):
+    """Delete all but the `keep` most recent checkpoints."""
+    pattern = re.compile(r'model(?:_interrupt)?_step(\d+)\.pt')
+    files = []
+    if not os.path.exists(ckpt_dir):
+        return
+    for f in os.listdir(ckpt_dir):
+        m = pattern.match(f)
+        if m:
+            files.append((int(m.group(1)), os.path.join(ckpt_dir, f)))
+    files.sort(reverse=True)
+    for _, path in files[keep:]:
+        os.remove(path)
 
 # ─── Main ────────────────────────────────────────────────────────────────
-def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f'Device: {DEVICE}')
-    ACCUM_STEPS = max(1, 32 // batch_size)  # eff batch ≈ 32
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ckpt_dir', default='checkpoints')
+    parser.add_argument('--drive', default=None,
+                        help='Google Drive mount path for persistent checkpoints')
+    parser.add_argument('--data', default='russian_chunks.npy')
+    parser.add_argument('--epochs', type=int, default=EPOCHS)
+    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--max_chunks', type=int, default=None,
+                        help='Limit chunks for testing (e.g. 50000)')
+    args = parser.parse_args()
 
-    # Load data
-    print('Loading chunks...')
-    if not os.path.exists('wikitext_chunks.npy'):
-        print('Generating chunks from HuggingFace...')
-        from datasets import load_dataset
-        from transformers import AutoTokenizer
-        ds = load_dataset('Salesforce/wikitext', 'wikitext-103-raw-v1', split='train')
-        tokenizer = AutoTokenizer.from_pretrained('Qwen/Qwen2.5-0.5B')
-        text = '\n\n'.join(ds['text'])
-        tokens = tokenizer(text)['input_ids']
-        n = len(tokens) // SEQ_LEN
-        arr = np.array(tokens[:n * SEQ_LEN], dtype=np.int32).reshape(n, SEQ_LEN)
-        np.save('wikitext_chunks.npy', arr)
-        print(f'  Created {arr.shape[0]} chunks')
-    else:
-        arr = np.load('wikitext_chunks.npy')
-    print(f'  Total chunks: {arr.shape[0]}')
+    CKPT_DIR = args.ckpt_dir
+    os.makedirs(CKPT_DIR, exist_ok=True)
+    DRIVE_DIR = args.drive
+    if DRIVE_DIR:
+        os.makedirs(DRIVE_DIR, exist_ok=True)
 
-    n_total = min(arr.shape[0], n_train + N_CHUNKS_EVAL)
-    n_tr = min(n_train, n_total - N_CHUNKS_EVAL)
-    n_ev = min(N_CHUNKS_EVAL, n_total - n_tr)
+    # ─── Data ─────────────────────────────────────────────────────────
+    print(f'Loading data: {args.data}')
+    t0 = time.time()
+    arr = np.load(args.data)
+    print(f'  {arr.shape[0]} chunks, {time.time()-t0:.1f}s')
 
-    train_ids = torch.tensor(arr[:n_tr], dtype=torch.long)
-    eval_ids = torch.tensor(arr[n_tr:n_tr + n_ev], dtype=torch.long)
-    train_loader = DataLoader(TensorDataset(train_ids[:, :-1].to(DEVICE),
-                                            train_ids[:, 1:].to(DEVICE)),
-                              batch_size=batch_size, shuffle=True)
-    eval_loader = DataLoader(TensorDataset(eval_ids[:, :-1].to(DEVICE),
-                                           eval_ids[:, 1:].to(DEVICE)),
-                             batch_size=batch_size)
+    n_total = arr.shape[0]
+    if args.max_chunks:
+        n_total = min(n_total, args.max_chunks)
+    n_eval = min(500, n_total // 20)
+    n_train = n_total - n_eval
 
-    # Model
+    train_ids = torch.tensor(arr[:n_train], dtype=torch.long)
+    eval_ids = torch.tensor(arr[n_train:n_train + n_eval], dtype=torch.long)
+
+    train_loader = DataLoader(
+        TensorDataset(train_ids[:, :-1].to(DEVICE), train_ids[:, 1:].to(DEVICE)),
+        batch_size=args.batch_size, shuffle=True)
+    eval_loader = DataLoader(
+        TensorDataset(eval_ids[:, :-1].to(DEVICE), eval_ids[:, 1:].to(DEVICE)),
+        batch_size=args.batch_size)
+
+    # ─── Model ────────────────────────────────────────────────────────
     model = Phase2Model().to(DEVICE)
-
-    # Sanity
-    model.eval()
-    with torch.no_grad():
-        bx = next(iter(train_loader))[0][:1]
-        h = model.embed(bx)
-        print(f'  embed: [{h.min():.2f}, {h.max():.2f}]')
-        h = model.stack(h)
-        print(f'  stack: [{h.min():.2f}, {h.max():.2f}] nan={torch.isnan(h).any().item()}')
-        print(f'  logits: [{model.lm_head(h).min():.2f}, {model.lm_head(h).max():.2f}]')
-
-    # Optimizer + LR schedule
-    total_steps = (n_tr // batch_size) * EPOCHS
+    total_steps = (n_train // args.batch_size) * args.epochs
     warmup_steps = int(total_steps * WARMUP_FRAC)
     optimizer = torch.optim.AdamW(model.parameters(), lr=LR, weight_decay=0.01)
 
@@ -128,63 +159,70 @@ def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
         progress = (step - warmup_steps) / max(total_steps - warmup_steps, 1)
         return LR * 0.5 * (1.0 + math.cos(math.pi * progress))
 
-    # Resume
-    step, start_epoch, best_ppl = 0, 0, float('inf')
-    ckpt = find_latest(os.path.join(ckpt_dir, 'phase2_epoch*.pt'))
-    if ckpt:
-        print(f'Resuming {ckpt}...')
-        data = load_checkpoint(ckpt, model, optimizer)
-        step, start_epoch, best_ppl = data['step'], data['epoch'], data['best_ppl']
-        print(f'  step={step}, epoch={start_epoch}, best_ppl={best_ppl:.1f}')
+    # ─── Resume ───────────────────────────────────────────────────────
+    step, epoch, best_ppl = 0, 0, float('inf')
+    ckpt_path = None
+    if DRIVE_DIR:
+        ckpt_path = find_latest_ckpt(DRIVE_DIR)
+        if ckpt_path is None:
+            ckpt_path = find_latest_ckpt(CKPT_DIR)
+    if ckpt_path is None:
+        ckpt_path = find_latest_ckpt(CKPT_DIR)
 
-    # Graceful interrupt
+    if ckpt_path:
+        print(f'Resuming from {ckpt_path}...')
+        step, epoch, best_ppl = load_light(ckpt_path, model)
+        # Resume step one batch behind (will inc at first batch)
+        print(f'  step={step}, epoch={epoch}, best_ppl={best_ppl:.1f}')
+        # Copy to local for speed
+        import shutil
+        shutil.copy2(ckpt_path, os.path.join(CKPT_DIR, os.path.basename(ckpt_path)))
+
+    # ─── Sanity ───────────────────────────────────────────────────────
+    model.eval()
+    with torch.no_grad():
+        bx = next(iter(train_loader))[0][:1]
+        h = model.embed(bx)
+        h = model.stack(h)
+        n, inf = torch.isnan(h).any().item(), torch.isinf(h).any().item()
+        print(f'  sanity: stack [{h.min():.2f},{h.max():.2f}] nan={n} inf={inf}')
+
+    # ─── Graceful interrupt ───────────────────────────────────────────
     import signal
-    _ckpt_saved = [False]
-    def _save_and_exit(signum, frame):
-        if _ckpt_saved[0]: return
-        _ckpt_saved[0] = True
-        print('\n  [SIGINT] Saving checkpoint...')
-        save_checkpoint(os.path.join(ckpt_dir, f'phase2_interrupt_step{step}.pt'),
-                        model, optimizer, step, epoch+1, best_ppl,
-                        {'note': 'interrupted'})
+    _saved = [False]
+    def _on_sigint(sig, frame):
+        if _saved[0]: return
+        _saved[0] = True
+        print('\n  [SIGINT] Saving...')
+        fname = f'model_interrupt_step{step}.pt'
+        save_light(os.path.join(CKPT_DIR, fname), model, optimizer, step, epoch, best_ppl)
+        if DRIVE_DIR:
+            import shutil
+            shutil.copy2(os.path.join(CKPT_DIR, fname), os.path.join(DRIVE_DIR, fname))
         sys.exit(0)
-    signal.signal(signal.SIGINT, _save_and_exit)
+    signal.signal(signal.SIGINT, _on_sigint)
 
-    # Training loop
-    for epoch in range(start_epoch, EPOCHS):
+    # ─── Train loop ───────────────────────────────────────────────────
+    print(f'\nTrain: {n_train} chunks, Eval: {n_eval} chunks')
+    print(f'Total steps: {total_steps}, warmup: {warmup_steps}')
+    t_start = time.time()
+
+    for epoch in range(epoch, args.epochs):
         model.train()
-        epoch_loss, n_batches = 0.0, 0
-        optimizer.zero_grad()
+        epoch_loss = 0.0
+        n_batches = 0
 
         for bx, by in train_loader:
             logits = model(bx)
             loss = F.cross_entropy(logits.reshape(-1, VOCAB), by.reshape(-1))
-            loss = loss / ACCUM_STEPS
+
+            if torch.isnan(loss).item():
+                print(f'  [NAN] step {step}, skipping')
+                continue
+
             loss.backward()
 
-            epoch_loss += loss.item() * ACCUM_STEPS
-            n_batches += 1
-            step += 1
-
-            if step % ACCUM_STEPS == 0:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
-                lr = get_lr(step)
-                for g in optimizer.param_groups:
-                    g['lr'] = lr
-                optimizer.step()
-                optimizer.zero_grad()
-
-            if step > 0 and step % 1000 == 0:
-                save_checkpoint(os.path.join(ckpt_dir, f'phase2_autosave_step{step}.pt'),
-                                model, optimizer, step, epoch+1, best_ppl,
-                                {'train_ppl': math.exp(epoch_loss / max(n_batches, 1))})
-
-            if step % LOG_EVERY == 0:
-                ppl = math.exp(epoch_loss / max(n_batches, 1))
-                lr_now = optimizer.param_groups[0]['lr']
-                print(f'  Step {step:5d} | loss={epoch_loss/max(n_batches,1):.4f} | ppl={ppl:.1f} | lr={lr_now:.2e}')
-
-        if step % ACCUM_STEPS != 0:
+            # Simple training loop (no grad accum — T4 has 16 GB, batch=8 is fine)
             torch.nn.utils.clip_grad_norm_(model.parameters(), GRAD_CLIP)
             lr = get_lr(step)
             for g in optimizer.param_groups:
@@ -192,6 +230,26 @@ def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
             optimizer.step()
             optimizer.zero_grad()
 
+            epoch_loss += loss.item()
+            step += 1
+            n_batches += 1
+
+            if step % LOG_EVERY == 0:
+                ppl = math.exp(epoch_loss / n_batches)
+                print(f'  Step {step:5d} | loss={epoch_loss/n_batches:.4f} | ppl={ppl:.1f} | lr={lr:.2e}')
+
+            # ── Checkpoint ──
+            if step % 5000 == 0:
+                fname = f'model_step{step}.pt'
+                save_light(os.path.join(CKPT_DIR, fname), model, optimizer, step, epoch, best_ppl)
+                if DRIVE_DIR:
+                    import shutil
+                    shutil.copy2(os.path.join(CKPT_DIR, fname), os.path.join(DRIVE_DIR, fname))
+                clean_old_ckpts(CKPT_DIR)
+                if DRIVE_DIR:
+                    clean_old_ckpts(DRIVE_DIR)
+
+        # ── Epoch end ──
         train_ppl = math.exp(epoch_loss / n_batches) if n_batches else float('inf')
 
         model.eval()
@@ -203,23 +261,26 @@ def main(ckpt_dir='checkpoints', batch_size=8, n_train=50000):
         eval_ppl = math.exp(eval_loss / len(eval_loader))
 
         print(f'>> Epoch {epoch+1}: train_ppl={train_ppl:.1f}, eval_ppl={eval_ppl:.1f}')
+
+        # Save best
         is_best = eval_ppl < best_ppl
         if is_best:
             best_ppl = eval_ppl
-            save_checkpoint(os.path.join(ckpt_dir, 'phase2_best.pt'),
-                            model, optimizer, step, epoch+1, best_ppl,
-                            {'train_ppl': train_ppl, 'eval_ppl': eval_ppl})
-        save_checkpoint(os.path.join(ckpt_dir, f'phase2_epoch{epoch+1}.pt'),
-                        model, optimizer, step, epoch+1, best_ppl,
-                        {'train_ppl': train_ppl, 'eval_ppl': eval_ppl})
+            save_light(os.path.join(CKPT_DIR, 'model_best.pt'), model, optimizer, step, epoch+1, best_ppl)
+            if DRIVE_DIR:
+                import shutil
+                shutil.copy2(os.path.join(CKPT_DIR, 'model_best.pt'), os.path.join(DRIVE_DIR, 'model_best.pt'))
 
+        # Save epoch
+        fname = f'model_epoch{epoch+1}.pt'
+        save_light(os.path.join(CKPT_DIR, fname), model, optimizer, step, epoch+1, best_ppl)
+        if DRIVE_DIR:
+            import shutil
+            shutil.copy2(os.path.join(CKPT_DIR, fname), os.path.join(DRIVE_DIR, fname))
+
+    print(f'\nTime: {time.time()-t_start:.0f}s')
     print(f'Best eval PPL: {best_ppl:.1f}')
     return best_ppl
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt_dir', default='checkpoints')
-    parser.add_argument('--batch_size', type=int, default=8)
-    parser.add_argument('--n_train', type=int, default=50000)
-    args = parser.parse_args()
-    main(args.ckpt_dir, args.batch_size, args.n_train)
+    main()

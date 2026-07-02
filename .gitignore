@@ -160,13 +160,19 @@ cogniflex/core/cogniflex_cache/autopilot/
 cogniflex.log
 run.log
 
-# Development fix scripts and tests (root only)
+# Development fix scripts (root only)
 /fix_*.py
-/test_*.py
 /update_*.py
 /add_*.py
 nul
 fractal_models/
+
+# Archives of moved/old files
+_archive/
+
+# Colab artifacts
+lambda_colab.zip
+generation_sample.txt
 
 # GGUF models (large binary files)
 *.gguf
