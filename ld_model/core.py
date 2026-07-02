@@ -13,9 +13,9 @@ class LDConfig:
     adaptive_depth: bool = True  # route tokens by gate decisiveness
     depth_threshold_low: float = 0.25  # min spread to enter next layer
     depth_threshold_high: float = 0.45  # max spread threshold
-    learnable_V: bool = False   # low-rank learnable delta on V
-    V_rank: int = 16            # rank of learnable V delta
-    V_delta_max_norm: float = 0.1  # max Frobenius norm of V_delta
+    learnable_V: bool = True    # low-rank learnable delta on V
+    V_rank: int = 8             # rank of learnable V delta (eff_rank observed: 1.5-4.4)
+    V_delta_max_norm: float = 0.3  # max Frobenius norm of V_delta
     V_orth_reg: float = 0.0    # orthogonality regularization weight (0=off)
 
 
@@ -195,6 +195,20 @@ class BottleneckMLP(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.down(F.silu(self.up(x)))
+
+
+# ─── V_delta norm clip helper ──────────────────────────────────────────
+
+def clip_v_delta(module: torch.nn.Module, max_norm: float = 0.3):
+    """Post-step norm clipping for all V_delta params in stack layers."""
+    for child in module.modules():
+        if hasattr(child, 'V_delta_U') and child.V_delta_U is not None:
+            U, V = child.V_delta_U.data, child.V_delta_V.data
+            n = (U @ V.T).norm().item()
+            if n > max_norm:
+                s = (max_norm / (n + 1e-10)) ** 0.5
+                child.V_delta_U.data *= s
+                child.V_delta_V.data *= s
 
 
 # ─── λ_d Stack ───────────────────────────────────────────────────────────

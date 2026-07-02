@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ld_model.core import LDConfig, LDStack
+from ld_model.core import LDConfig, LDStack, clip_v_delta
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Device: {DEVICE}')
@@ -104,7 +104,8 @@ class Phase2Model(nn.Module):
 model = Phase2Model().to(DEVICE)
 n_all = sum(p.numel() for p in model.parameters())
 n_t = sum(p.numel() for p in model.parameters() if p.requires_grad)
-print(f'Model: {n_all/1e6:.1f}M params ({n_t/1e6:.1f}M trainable)')
+n_v = sum(p.numel() for n, p in model.named_parameters() if 'V_delta' in n)
+print(f'Model: {n_all/1e6:.1f}M params ({n_t/1e6:.1f}M trainable, {n_v:,} V_delta)')
 
 # ─── Checkpoint helpers ──────────────────────────────────────────────────
 def save_checkpoint(path, model, optimizer, scheduler, step, epoch, best_ppl, stats):
@@ -213,11 +214,17 @@ for epoch in range(start_epoch, EPOCHS):
                 g['lr'] = lr
             optimizer.step()
             optimizer.zero_grad()
+            clip_v_delta(model.stack)
 
         if step % LOG_EVERY == 0:
             ppl = math.exp(epoch_loss / max(n_batches, 1))
             lr_now = optimizer.param_groups[0]['lr']
-            print(f'  Step {step:5d} | loss={epoch_loss/max(n_batches,1):.4f} | ppl={ppl:.1f} | lr={lr_now:.2e}')
+            v_info = ''
+            if model.stack.cfg.learnable_V:
+                norms = [(l.V_delta_U @ l.V_delta_V.T).norm().item()
+                         for l in model.stack.layers if l.V_delta_U is not None]
+                v_info = f' |Vd|=[{", ".join(f"{n:.2f}" for n in norms)}]'
+            print(f'  Step {step:5d} | loss={epoch_loss/max(n_batches,1):.4f} | ppl={ppl:.1f} | lr={lr_now:.2e}{v_info}')
 
     # Flush accumulated gradients at epoch end
     if step % ACCUM_STEPS != 0:
@@ -227,6 +234,7 @@ for epoch in range(start_epoch, EPOCHS):
             g['lr'] = lr
         optimizer.step()
         optimizer.zero_grad()
+        clip_v_delta(model.stack)
 
     if n_batches > 0:
         train_ppl = math.exp(epoch_loss / n_batches)
