@@ -1154,6 +1154,20 @@ def test_extrapolation(model: FCFHierarchy4, data_path: str,
 | **Средний** | 25-35 | 1K-4K | Оптимизация compression |
 | **Худший** | > 35 | < 1K | Пересмотр архитектуры |
 
+### 4.8. Post-Phase 3.5: дистилляция + warm-start (заметка)
+
+> **Варианты ускорения λ_d через ruadapt / Qwen:**
+
+1. **Logit-level distillation**: teacher (ruadapt/Qwen) → logits → KL(NLL + β·KL) для λ_d. Двухфазно: Phase A — экспорт logits (Colab, один раз), Phase B — тренировка λ_d на них.
+2. **Embed + MLP transfer**: SVD-перенос весов Qwen embed (V×4096 → V×2048) и MLP (FFN → bottleneck 256) в λ_d. Остальное (95%) — случайная инициализация. Даёт ~10-15% ускорение сходимости.
+3. **Sequence-level distillation**: генерация текста teacher'ом → дообучение λ_d на нём.
+
+**Формат teacher'а не важен** — OpenVINO/HF одинаковы для экспорта logits (frozen, только forward).
+INT8 шум умеренный — может даже регуляризовать.
+
+**Оптимально:** Qwen 2.5-1.5B как teacher (влезает на T4 16GB вместе с λ_d 95M).
+Варианты 1+2 не конфликтуют и могут использоваться одновременно.
+
 ---
 
 ## 5. Phase 4: Production λ_d
