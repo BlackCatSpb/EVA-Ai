@@ -13,6 +13,10 @@ class LDConfig:
     adaptive_depth: bool = True  # route tokens by gate decisiveness
     depth_threshold_low: float = 0.25  # min spread to enter next layer
     depth_threshold_high: float = 0.45  # max spread threshold
+    learnable_V: bool = False   # low-rank learnable delta on V
+    V_rank: int = 16            # rank of learnable V delta
+    V_delta_max_norm: float = 0.1  # max Frobenius norm of V_delta
+    V_orth_reg: float = 0.0    # orthogonality regularization weight (0=off)
 
 
 # ─── Fibonacci roots ────────────────────────────────────────────────────
@@ -67,13 +71,12 @@ class CausalConv1d(torch.nn.Module):
         self.register_buffer('bias', torch.zeros(D))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (B, L, D) → (B, D, L) for conv1d
-        x_perm = x.transpose(1, 2)  # (B, D, L)
+        x_perm = x.transpose(1, 2)
         pad = self.kernel_size - 1
-        x_pad = F.pad(x_perm, (pad, 0))  # left-only padding
+        x_pad = F.pad(x_perm, (pad, 0))
         out = F.conv1d(x_pad, self.weight, bias=self.bias,
                        groups=self.weight.shape[0])
-        return out.transpose(1, 2)  # (B, L, D)
+        return out.transpose(1, 2)
 
 
 # ─── LDBlock: conv → rms_norm → V·Λ·Vᵀ ─────────────────────────────────
@@ -82,26 +85,40 @@ class LDBlock(torch.nn.Module):
     """λ_d layer: causal conv → norm → content-dependent spectral transform.
 
     Forward:
-        h_conv = causal_conv1d(h)          # local n-gram mixing
-        h_norm = rms_norm(h + h_conv)      # residual + norm (not h_conv alone)
+        h_conv = causal_conv1d(h)
+        h_norm = rms_norm(h + h_conv)
         α = softmax(4.0 · W_gate · h_norm)
         Λ̂ = diag(repeat_interleave(α⊙λ, D//K))
-        Δ = V · Λ̂ · Vᵀ · h_norm
+        Δ = V_eff · Λ̂ · V_effᵀ · h_norm
         h_out = h + Δ
+
+    When learnable_V is enabled, V_eff = V_frozen + U·Vᵀ (low-rank).
     """
     def __init__(self, cfg: LDConfig, layer_idx: int, lambda_roots: torch.Tensor):
         super().__init__()
         self.D = cfg.D
         self.K = cfg.n_modes
         self.block_size = cfg.D // cfg.n_modes
+        self.r = cfg.V_rank
 
         # Causal conv (cross-token mixing)
         self.conv = CausalConv1d(cfg.D, kernel_size=4)
 
-        # Eigenbasis (frozen)
+        # Eigenbasis (frozen base)
         V_init = random_orthogonal(cfg.D, n_reflections=32)
         self.register_buffer('V', V_init)
         self.register_buffer('V_T', V_init.T.contiguous())
+
+        # Low-rank learnable delta on V
+        self.learnable_V = cfg.learnable_V
+        if self.learnable_V:
+            # Small random init (product ~1e-6) so gradients flow at step 0
+            self.V_delta_U = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * 0.001)
+            self.V_delta_V = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * 0.001)
+            self.V_delta_max_norm = cfg.V_delta_max_norm
+        else:
+            self.V_delta_U = None
+            self.V_delta_V = None
 
         # Gate
         self.W_gate = torch.nn.Parameter(torch.randn(cfg.D, cfg.n_modes) * 0.01)
@@ -120,7 +137,7 @@ class LDBlock(torch.nn.Module):
         # 1. Causal conv → local mixing
         h_conv = self.conv(h)
 
-        # 2. Pre-norm (residual from conv, not from raw h)
+        # 2. Pre-norm
         h_norm = rms_norm(h + h_conv, self.input_ln_w)
 
         # 3. Gate
@@ -132,10 +149,18 @@ class LDBlock(torch.nn.Module):
         lambda_alpha = self.lambda_k * alpha
         lambda_eff = lambda_alpha.repeat_interleave(self.block_size, dim=-1)
 
-        # 5. Spectral transform
+        # 5. Spectral transform: V_eff @ Λ̂ @ V_eff^T
+        # Forward projection: h_norm @ V_eff^T = h_norm @ (V + U·Vᵀ)ᵀ
         h_proj = h_norm @ self.V_T
+        if self.learnable_V:
+            h_proj = h_proj + (h_norm @ self.V_delta_V) @ self.V_delta_U.T
+
         h_scaled = h_proj * lambda_eff
-        delta = h_scaled @ self.V_T.T
+
+        # Inverse projection: h_scaled @ V_eff = h_scaled @ (V + U·Vᵀ)
+        delta = h_scaled @ self.V
+        if self.learnable_V:
+            delta = delta + (h_scaled @ self.V_delta_U) @ self.V_delta_V.T
 
         if residual:
             h_out = h + delta
@@ -146,13 +171,23 @@ class LDBlock(torch.nn.Module):
             return h_out, alpha
         return h_out
 
+    def orth_loss(self) -> torch.Tensor:
+        """Differentiable orthogonality regularization.
+        E[(||V_eff·v||/||v|| - 1)²] for one random vector v.
+        """
+        if not self.learnable_V:
+            return torch.tensor(0.0, device=self.V.device)
+        v = torch.randn(1, self.D, device=self.V.device)
+        v_norm = v.norm()
+        delta_v = (v @ self.V_delta_U) @ self.V_delta_V.T
+        v_eff = v @ self.V + delta_v
+        return ((v_eff.norm() / v_norm - 1.0) ** 2)
+
 
 # ─── Dense Bottleneck MLP ───────────────────────────────────────────────
 
 class BottleneckMLP(torch.nn.Module):
-    """Dense bottleneck MLP: D → bottleneck → D. Fully trainable.
-    Replaces prior LoRA-based SwiGLU which was rank-limited.
-    """
+    """Dense bottleneck MLP: D → bottleneck → D. Fully trainable."""
     def __init__(self, D: int, bottleneck: int = 256):
         super().__init__()
         self.up = torch.nn.Linear(D, bottleneck, bias=False)
@@ -184,13 +219,9 @@ class LDStack(torch.nn.Module):
         # Adaptive depth routing
         self.adaptive = cfg.adaptive_depth
         if self.adaptive:
-            # Learnable logits for per-layer thresholds
-            # Linearly spaced init: early layers let most tokens pass,
-            # later layers only pass decisive tokens
             n_gates = cfg.n_layers - 1
             init_vals = torch.linspace(
                 cfg.depth_threshold_low, cfg.depth_threshold_high, n_gates)
-            # Inverse sigmoid: log(t/(1-t))
             init_logits = torch.logit(init_vals.clamp(1e-6, 1-1e-6))
             self.depth_logits = torch.nn.Parameter(init_logits)
         else:
@@ -202,7 +233,6 @@ class LDStack(torch.nn.Module):
         needs_gates = return_gates or self.adaptive or force_depth is not None
 
         for lidx in range(self.n_layers):
-            # Forward through layer (always get gates for depth routing)
             h_layer, alpha = self.layers[lidx](h, return_gates=True)
 
             # MLP
@@ -211,21 +241,18 @@ class LDStack(torch.nn.Module):
 
             # Adaptive depth: stop tokens with low gate decisiveness
             if needs_gates and lidx < self.n_layers - 1:
-                spread = alpha.std(dim=-1)  # (B, L)
+                spread = alpha.std(dim=-1)
                 threshold = torch.sigmoid(self.depth_logits[lidx]) if self.adaptive else 0.0
 
                 if force_depth is not None:
                     continue_mask = (force_depth > lidx).float()
                 elif self.adaptive:
                     if self.training:
-                        # Soft routing: interpolate between full update (w=1)
-                        # and no update (h stays as-is, w=0)
                         beta = 5.0
                         continue_weight = torch.sigmoid(beta * (spread - threshold))
                         w = continue_weight.unsqueeze(-1)
                         h = w * h_mlp + (1 - w) * h
                     else:
-                        # Hard routing for inference
                         continue_mask = (spread > threshold).float().unsqueeze(-1)
                         h = continue_mask * h_mlp + (1 - continue_mask) * h
                 else:
@@ -241,3 +268,13 @@ class LDStack(torch.nn.Module):
         if return_gates:
             return h_out, torch.stack(gates, dim=0)
         return h_out
+
+    def orth_loss(self) -> torch.Tensor:
+        """Aggregate orthogonality loss across all layers with learnable V."""
+        if not any(l.learnable_V for l in self.layers):
+            return torch.tensor(0.0, device=next(self.parameters()).device)
+        loss = 0.0
+        for l in self.layers:
+            if l.learnable_V:
+                loss = loss + l.orth_loss()
+        return loss / len(self.layers)
