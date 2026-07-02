@@ -21,6 +21,87 @@ Self-contained language model with O(1) memory context, based on content-depende
 - Ни одного NaN за всю эпоху (fp32, MX550)
 - Архитектура подтверждена: λ_d — работающая языковая модель
 
+## Phase 2 Russian — In Progress
+
+**12-layer LDStack, D=896, K=4, 95.1M, Russian Wikipedia + books (844M tok, 6.6M chunks).**
+
+| Step | Loss | PPL | lr |
+|------|------|-----|----|
+| 20200 | 5.01 | 150.1 | 1e-3 |
+| 25000 | 4.93 | 137.9 | 9.97e-4 |
+| 29000 | 4.88 | 132.1 | 9.95e-4 |
+
+**Генерация (step 25000, temp=0.8, top_k=40):**
+```
+Привет, как дела?..
+В городе действует ещё 7,5 млн м³.
+В результате этого было сказано, что в конечном счете, как это был ещё в 1999 г. в США,
+в возрасте 15 лет. После этого она начала выступать в чемпионате мира в рамках Кубка мира.
+В том сезоне 2012/13 стал победителем Лиги чемпионов УЕФА.
+В августе 2010-х годов в Москве.
+Прибыв на могиле установлен памятник.
+Действие происходит в Москве.
+```
+
+**Gate analysis (step 25000):** Энтропия гейтов 0.151 (max=1.386), слои сильно специализированы:
+- Layer 5: Mode 3 at 99.6% (полностью захвачен одной модой)
+- Layer 6: Mode 3 at 95.7%
+- Layer 9: Mode 0 at 92.4%
+- Layer 7: Mode 0 at 42.0% (самый равномерный)
+
+V-energy anisotropy: ratio 1.3e9 в Layer 11 — сигнал сконцентрирован в нескольких направлениях.
+
+**Extrapolation test (step 25000):**
+
+| Length | PPL | Degradation |
+|--------|-----|-------------|
+| 128 | 43.3 | baseline |
+| 256 | 63.4 | +46% |
+| 512 | 99.1 | +129% |
+| 1024 | 116.7 | +169% |
+
+Модель generalizes beyond training length (128), но PPL растёт — мотивация для HierarchyLD.
+
+## Эксперименты
+
+### 1. Spectral gates vs Learned gates
+- Spectral energy gates (`alpha_k = ||V_k^T h||^2 / sum`): PPL 125.5 → 413.0 (3.3x хуже)
+- L∞ variant (tau=5): PPL 3967.7 (полный коллапс)
+- Причина: frozen V изотропен на входе, gates не могут построить анизотропию
+- Вывод: learned gates необходимы, они = attention head routing
+
+### 2. Dimensionality sweep
+| D | Params | PPL@200 steps | Статус |
+|---|--------|---------------|--------|
+| 512 | 54M | 140.1 | OK |
+| 768 | 82M | 74.7 | OK |
+| 896 | 95M | 56.7 | OK (with ckpt) |
+| 1024 | 109M | 52.1 | OK |
+| 1536 | 163M | 48.8 | OK |
+| 2048 | 217M | ~3883@50 | OK (OOM на 200) |
+
+Все размерности стабильны, 0 NaN.
+
+### 3. 36-layer forward test
+- 106.2M params (всего +11.7M за +24 слоя — V frozen)
+- VRAM: 875MB (batch=1)
+- Forward: 52.4ms/tok (vs 19ms для 12-layer)
+- NaN/Inf: 0, Grad norm: 3.74
+- **Вывод**: 36 слоёв стабильны, влезут на T4
+
+### 4. HierarchyLD forward test
+- 3 уровня (8+6+4 слоя, D=2048)
+- 244.8M params
+- Forward L=4096 на CPU: 6 сек
+- Train: loss=10.97, grad_norm=2.13
+- NaN: 0
+- **Вывод**: HierarchyLD работает, можно обучать
+
+### 5. V-energy anisotropy
+- Embedding: ratio 1.33 (почти изотропно)
+- Layer 11: ratio 1.3e9 (экстремально анизотропно)
+- Вывод: gates строят структуру в V-базисе через bootstrapping
+
 ## Решённые проблемы
 
 | Проблема | Решение |
@@ -32,6 +113,8 @@ Self-contained language model with O(1) memory context, based on content-depende
 | Разрушение начальных весов | Linear warmup 5% от total steps |
 | TDR (GPU timeout) | Registry: TdrDelay = 10s |
 | Crash при save_checkpoint | Убран scheduler.state_dict() из сохранения |
+| FCF (VSA bind/unbind) не работает | Заменён на HierarchyLD (стек LDBlock + Linear compression) |
+| mean_pool теряет информацию | Опционально: Cross-Attention / λ_d-based pooling |
 
 ## Архитектура (кратко)
 
@@ -49,9 +132,15 @@ Self-contained language model with O(1) memory context, based on content-depende
 | `train_phase2.py` | Тренировка (12×896, grad accum, warmup, entropy logging) |
 | `colab_train.py` | Colab/T4 скрипт |
 | `distill_zeckendorf.py` | Дистилляция ZeckendorfReadout поверх обученного ствола |
-| `monitor.py` | GPU/CPU/RAM монитор |
-| `colab_phase2.ipynb` | Colab notebook |
+| `colab_phase2_ru.ipynb` | Colab notebook (Russian, mmap, auto-resume, fp16 ckpt) |
+| `experiment_spectral_gates.py` | Сравнение spectral vs learned gates |
+| `experiment_gate_analysis.py` | Gate entropy + V-energy anisotropy анализ |
+| `experiment_extrapolation.py` | Context extrapolation тест |
+| `test_dimensionality.py` | D-свап тест (D=512..2048) |
+| `test_generate.py` | Генерация текста из чекпоинта |
 | `LAMBDA_ARCHITECTURE.md` | Полная документация (рус.) |
+| `ROADMAP.md` | 4-фазный roadmap (скорректированный после аудита) |
+| `WHITEPAPER.md` | 11-секционный whitepaper |
 
 ## Сравнение
 
@@ -64,4 +153,9 @@ Self-contained language model with O(1) memory context, based on content-depende
 | Инференс (1.3B) | 100M+ lm_head | 100M+ | **~50M c Zeckendorf** |
 | Edge-ready | Нет (KV-cache) | Частично | **Да** |
 
-## Next: Phase 3 (36×2560, 1.3B, 50B tok)
+## Next: Phase 2.5 → Phase 3
+
+1. **Phase 2.5**: Scaling law sweep (D=512/768/896/1024) + Transformer baseline → нужно RTX 3090
+2. **Phase 3.0**: HierarchyLD 3-level (8+6+4, D=2048) — код готов, forward tested
+3. **Phase 3.5**: HierarchyLD 1.2B, ∞ context — 4×A100, ~$5K
+4. **Phase 4**: 2.5B — 8×A100, ~$15K (скорректировано после аудита FLOPs)
