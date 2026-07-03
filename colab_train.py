@@ -14,7 +14,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from ld_model.core import LDConfig, LDStack, clip_v_delta
+from ld_model.core import LDConfig, LDStack
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f'Device: {DEVICE}')
@@ -229,7 +229,6 @@ def main():
                 g['lr'] = lr
             optimizer.step()
             optimizer.zero_grad()
-            clip_v_delta(model.stack)
 
             epoch_loss += loss.item()
             step += 1
@@ -239,9 +238,9 @@ def main():
                 ppl = math.exp(epoch_loss / n_batches)
                 v_info = ''
                 if model.stack.cfg.learnable_V:
-                    norms = [(l.V_delta_U @ l.V_delta_V.T).norm().item()
-                             for l in model.stack.layers if l.V_delta_U is not None]
-                    v_info = f' |Vd|=[{" ".join(f"{n:.2f}" for n in norms)}]'
+                    norms = [l.V_cay_A.norm().item() + l.V_cay_B.norm().item()
+                             for l in model.stack.layers if l.V_cay_A is not None]
+                    v_info = f' |A+B|≈[{" ".join(f"{n:.2f}" for n in norms)}]'
                 print(f'  Step {step:5d} | loss={epoch_loss/n_batches:.4f} | ppl={ppl:.1f} | lr={lr:.2e}{v_info}')
 
             # ── Checkpoint ──

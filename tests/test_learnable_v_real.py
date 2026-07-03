@@ -1,4 +1,4 @@
-"""End-to-end test: learnable V on real data with cross-entropy."""
+"""End-to-end test: learnable V Cayley on real data with cross-entropy."""
 import torch, sys, numpy as np
 sys.path.insert(0, '.')
 from ld_model.core import LDConfig, LDStack
@@ -6,13 +6,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-D, VOCAB, N_MODES, N_LAYERS = 896, 50000, 4, 6  # 6-layer for speed
+D, VOCAB, N_MODES, N_LAYERS = 896, 50000, 4, 6
 
 cfg = LDConfig()
 cfg.D = D; cfg.n_layers = N_LAYERS; cfg.n_modes = N_MODES
 cfg.vocab = VOCAB; cfg.bottleneck = 256
 cfg.adaptive_depth = False
-cfg.learnable_V = True; cfg.V_rank = 16; cfg.V_delta_max_norm = 0.1
+cfg.learnable_V = True; cfg.V_rank = 16
 
 class Phase2Model(nn.Module):
     def __init__(self):
@@ -39,15 +39,13 @@ model.load_state_dict(compat_sd, strict=False)
 del ckpt, sd
 
 print(f'Params: {sum(p.numel() for p in model.parameters()):,}')
-v_params = sum(p.numel() for n, p in model.named_parameters() if 'V_delta' in n)
-print(f'V_delta params: {v_params:,}')
+v_params = sum(p.numel() for n, p in model.named_parameters() if 'V_cay' in n)
+print(f'Cayley params: {v_params:,}')
 
-# Data
 arr = np.load('russian_chunks.npy')
 x = torch.from_numpy(arr[:200, :128].copy()).long().to(DEVICE)
 opt = torch.optim.Adam(model.parameters(), lr=1e-4)
 
-# Step 0: eval before training
 model.eval()
 with torch.no_grad():
     logits = model(x[:16])
@@ -56,34 +54,20 @@ with torch.no_grad():
 print(f'Before training: loss={loss0.item():.4f} ppl={ppl0:.1f}')
 model.train()
 
-# Train 20 steps
 for step in range(20):
     opt.zero_grad()
     logits = model(x[:16])
     loss = F.cross_entropy(logits.view(-1, VOCAB), x[:16].view(-1))
     loss.backward()
-    
-    # Norm clip
     gn = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     opt.step()
-    
-    # Post-step norm clip on V_delta
-    for l in model.stack.layers:
-        if l.V_delta_U is not None:
-            U, V = l.V_delta_U.data, l.V_delta_V.data
-            prod_norm = (U @ V.T).norm().item()
-            if prod_norm > cfg.V_delta_max_norm:
-                s = (cfg.V_delta_max_norm / (prod_norm + 1e-10)) ** 0.5
-                l.V_delta_U.data *= s
-                l.V_delta_V.data *= s
 
     if step % 5 == 0:
+        cayley_norms = [f'{(l.V_cay_A.norm().item() + l.V_cay_B.norm().item()):.4f}'
+                       for l in model.stack.layers if l.V_cay_A is not None]
         ppl = torch.exp(loss).item()
-        v_usage = [f'{(l.V_delta_U @ l.V_delta_V.T).norm().item():.4f}'
-                   for l in model.stack.layers if l.V_delta_U is not None]
-        print(f'step {step:2d}: loss={loss.item():.4f} ppl={ppl:.1f} gn={gn:.4f} |UV|={v_usage}')
+        print(f'step {step:2d}: loss={loss.item():.4f} ppl={ppl:.1f} gn={gn:.4f} |A+B|={cayley_norms}')
 
-# NaN check
 for name, p in model.named_parameters():
     if torch.isnan(p).any():
         print(f'NaN: {name}')
@@ -91,8 +75,12 @@ for name, p in model.named_parameters():
 else:
     print(f'\nNo NaN. PPL delta: {ppl0:.1f} -> {torch.exp(loss).item():.1f}')
 
-# Verify V_delta changed
-deltas = [(l.V_delta_U @ l.V_delta_V.T).norm().item()
-          for l in model.stack.layers if l.V_delta_U is not None]
-print(f'V_delta norms after training: {[f"{d:.4f}" for d in deltas]}')
-print(f'V_delta max norm: {max(deltas):.4f} (limit: {cfg.V_delta_max_norm})')
+# Verify orthogonality of Cayley rotation
+l0 = model.stack.layers[0]
+v = torch.randn(1, D, device=DEVICE)
+with torch.no_grad():
+    R = l0.compute_R()
+    V_eff_T = R.T @ l0.V_T
+    v_eff = v @ V_eff_T @ l0.V @ R  # v @ V_eff^T @ V_eff = v
+    ratio = (v_eff / v.norm()).norm().item()
+print(f'Cayley orthogonality check: ||V_eff·V_eff^T·v||/||v|| = {ratio:.6f} (target=1.0)')

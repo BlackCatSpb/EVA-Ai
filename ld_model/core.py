@@ -13,10 +13,8 @@ class LDConfig:
     adaptive_depth: bool = True  # route tokens by gate decisiveness
     depth_threshold_low: float = 0.25  # min spread to enter next layer
     depth_threshold_high: float = 0.45  # max spread threshold
-    learnable_V: bool = True    # low-rank learnable delta on V
-    V_rank: int = 8             # rank of learnable V delta (eff_rank observed: 1.5-4.4)
-    V_delta_max_norm: float = 0.3  # max Frobenius norm of V_delta
-    V_orth_reg: float = 0.0    # orthogonality regularization weight (0=off)
+    learnable_V: bool = True    # eigenbasis rotation via Cayley (A·B^T - B·A^T)
+    V_rank: int = 8             # rank of skew-symmetric Cayley generator (eff_rank observed: 1.5-4.4)
 
 
 # ─── Fibonacci roots ────────────────────────────────────────────────────
@@ -92,7 +90,7 @@ class LDBlock(torch.nn.Module):
         Δ = V_eff · Λ̂ · V_effᵀ · h_norm
         h_out = h + Δ
 
-    When learnable_V is enabled, V_eff = V_frozen + U·Vᵀ (low-rank).
+    When learnable_V is enabled, V_eff = V_frozen @ R (Cayley rotation, R ∈ O(D)).
     """
     def __init__(self, cfg: LDConfig, layer_idx: int, lambda_roots: torch.Tensor):
         super().__init__()
@@ -109,16 +107,17 @@ class LDBlock(torch.nn.Module):
         self.register_buffer('V', V_init)
         self.register_buffer('V_T', V_init.T.contiguous())
 
-        # Low-rank learnable delta on V
+        # Learnable V via explicit Cayley rotation on skew-symmetric generator
+        # V_eff = V_frozen @ R, R = (I-S)^{-1}(I+S) ∈ O(D), S = A·B^T - B·A^T
+        # R computed explicitly once per forward (solve D×D, O(D³)).
         self.learnable_V = cfg.learnable_V
         if self.learnable_V:
-            # Small random init (product ~1e-6) so gradients flow at step 0
-            self.V_delta_U = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * 0.001)
-            self.V_delta_V = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * 0.001)
-            self.V_delta_max_norm = cfg.V_delta_max_norm
+            init_scale = 0.001
+            self.V_cay_A = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * init_scale)
+            self.V_cay_B = torch.nn.Parameter(torch.randn(cfg.D, cfg.V_rank) * init_scale)
         else:
-            self.V_delta_U = None
-            self.V_delta_V = None
+            self.V_cay_A = None
+            self.V_cay_B = None
 
         # Gate
         self.W_gate = torch.nn.Parameter(torch.randn(cfg.D, cfg.n_modes) * 0.01)
@@ -129,6 +128,16 @@ class LDBlock(torch.nn.Module):
 
         # RMS norm weight
         self.register_buffer('input_ln_w', torch.ones(cfg.D))
+
+    def compute_R(self) -> torch.Tensor:
+        """Explicit Cayley rotation matrix R = (I-S)^{-1}(I+S) ∈ O(D).
+        
+        S = A·B^T - B·A^T (skew-symmetric, rank 2r). O(D³) — один solve на forward.
+        """
+        A, B = self.V_cay_A, self.V_cay_B
+        S = A @ B.T - B @ A.T
+        I = torch.eye(self.D, device=S.device, dtype=S.dtype)
+        return torch.linalg.solve(I - S, I + S)
 
     def forward(self, h: torch.Tensor, return_gates: bool = False,
                 residual: bool = True) -> torch.Tensor:
@@ -150,17 +159,17 @@ class LDBlock(torch.nn.Module):
         lambda_eff = lambda_alpha.repeat_interleave(self.block_size, dim=-1)
 
         # 5. Spectral transform: V_eff @ Λ̂ @ V_eff^T
-        # Forward projection: h_norm @ V_eff^T = h_norm @ (V + U·Vᵀ)ᵀ
-        h_proj = h_norm @ self.V_T
         if self.learnable_V:
-            h_proj = h_proj + (h_norm @ self.V_delta_V) @ self.V_delta_U.T
+            R = self.compute_R()
+            V_eff_T = R.T @ self.V_T   # (D,D) — V_eff^T = R^T @ V^T
+            V_eff = self.V @ R          # (D,D) — V_eff = V @ R
+        else:
+            V_eff_T = self.V_T
+            V_eff = self.V
 
+        h_proj = h_norm @ V_eff_T
         h_scaled = h_proj * lambda_eff
-
-        # Inverse projection: h_scaled @ V_eff = h_scaled @ (V + U·Vᵀ)
-        delta = h_scaled @ self.V
-        if self.learnable_V:
-            delta = delta + (h_scaled @ self.V_delta_U) @ self.V_delta_V.T
+        delta = h_scaled @ V_eff
 
         if residual:
             h_out = h + delta
@@ -170,18 +179,6 @@ class LDBlock(torch.nn.Module):
         if return_gates:
             return h_out, alpha
         return h_out
-
-    def orth_loss(self) -> torch.Tensor:
-        """Differentiable orthogonality regularization.
-        E[(||V_eff·v||/||v|| - 1)²] for one random vector v.
-        """
-        if not self.learnable_V:
-            return torch.tensor(0.0, device=self.V.device)
-        v = torch.randn(1, self.D, device=self.V.device)
-        v_norm = v.norm()
-        delta_v = (v @ self.V_delta_U) @ self.V_delta_V.T
-        v_eff = v @ self.V + delta_v
-        return ((v_eff.norm() / v_norm - 1.0) ** 2)
 
 
 # ─── Dense Bottleneck MLP ───────────────────────────────────────────────
@@ -195,20 +192,6 @@ class BottleneckMLP(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.down(F.silu(self.up(x)))
-
-
-# ─── V_delta norm clip helper ──────────────────────────────────────────
-
-def clip_v_delta(module: torch.nn.Module, max_norm: float = 0.3):
-    """Post-step norm clipping for all V_delta params in stack layers."""
-    for child in module.modules():
-        if hasattr(child, 'V_delta_U') and child.V_delta_U is not None:
-            U, V = child.V_delta_U.data, child.V_delta_V.data
-            n = (U @ V.T).norm().item()
-            if n > max_norm:
-                s = (max_norm / (n + 1e-10)) ** 0.5
-                child.V_delta_U.data *= s
-                child.V_delta_V.data *= s
 
 
 # ─── λ_d Stack ───────────────────────────────────────────────────────────
@@ -282,13 +265,3 @@ class LDStack(torch.nn.Module):
         if return_gates:
             return h_out, torch.stack(gates, dim=0)
         return h_out
-
-    def orth_loss(self) -> torch.Tensor:
-        """Aggregate orthogonality loss across all layers with learnable V."""
-        if not any(l.learnable_V for l in self.layers):
-            return torch.tensor(0.0, device=next(self.parameters()).device)
-        loss = 0.0
-        for l in self.layers:
-            if l.learnable_V:
-                loss = loss + l.orth_loss()
-        return loss / len(self.layers)
