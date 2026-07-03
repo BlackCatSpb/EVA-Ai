@@ -76,7 +76,10 @@ class Phase2Model(torch.nn.Module):
         return self.lm_head(h)
 
 model = Phase2Model().to(DEVICE)
-model.load_state_dict(ckpt['model_state_dict'], strict=False)
+sd = ckpt.get('model_state_dict') or ckpt.get('model') or ckpt.get('model_fp16')
+if sd is None:
+    raise KeyError(f'No model state dict found in checkpoint keys: {list(ckpt.keys())[:10]}')
+model.load_state_dict(sd, strict=False)
 model.eval()
 print(f'  Step {ckpt.get("step", "?")}, epoch {ckpt.get("epoch", "?")}')
 

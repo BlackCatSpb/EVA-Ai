@@ -180,7 +180,7 @@ V_eff = V_frozen @ R, R = solve(I − S, I + S) ∈ O(D), S = A·B^T − B·A^T,
 | `test_generate.py` | Генерация текста из чекпоинта |
 | `LAMBDA_ARCHITECTURE.md` | Полная документация (рус.) |
 | `ROADMAP.md` | 4-фазный roadmap (скорректированный после аудита) |
-| `WHITEPAPER.md` | 11-секционный whitepaper |
+| `README.md` | Единое описание архитектуры, результатов, запуска |
 
 ## Сравнение
 

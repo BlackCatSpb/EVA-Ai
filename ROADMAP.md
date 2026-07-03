@@ -39,8 +39,11 @@
 | Датасет (русский) | ✅ **6.6M chunks, 844M токенов** | russian_chunks.npy, 3.4 GB |
 | Colab pipeline | ✅ **Работает** | mmap, fp16 ckpt, batch rescale, auto-resume |
 | Гейты (learned) | ✅ **Работают, entropy 0.15** | Доказано: bootstrapping V-анизотропии |
-| ZeckendorfReadout | ✅ **Реализован** | Древовидный декодер, 71K vs 44.8M lm_head |
-| Документация | ✅ **WHITEPAPER.md (11 секций)** | Архитектура, математика, результаты, фазы |
+| Learnable V (Cayley) | ✅ **Реализован** | Явный solve R = (I-S)^{-1}(I+S), machine epsilon |
+| Adaptive depth | ✅ **Реализован** | Per-token routing по spread гейтов, soft/hard |
+| ZeckendorfReadout | ❌ **Закрыт** | Co-training failed, lm_head оставлен (0.04% модели) |
+| Анализатор модели | ✅ **analyze_model.py** | HTML-отчёт: гейты, Cayley, нормы, adaptive depth |
+| Документация | ✅ **README.md (единая)** | Архитектура, математика, результаты, весь проект |
 
 ### 1.2. Ключевые метрики Phase 2
 
@@ -80,7 +83,7 @@
 | 2.1.1 | Дождаться 3 эпох русского на Colab | **High** | Текущая Colab сессия |
 | 2.1.2 | Замерить eval PPL на каждой эпохе | **High** | 2.1.1 |
 | 2.1.3 | Сравнить с wikitext baseline | Medium | 2.1.2 |
-| 2.1.4 | Обновить WHITEPAPER.md с русскими метриками | Medium | 2.1.2 |
+| 2.1.4 | Обновить README.md с русскими метриками | Medium | 2.1.2 |
 
 **Milestone M2.1:** Phase 2 Russian completed, known eval PPL. ✅/❌
 
@@ -111,15 +114,11 @@
 
 **Milestone M2.3:** Direct comparison λ_d vs transformer on same data. ✅/❌
 
-### 2.4. ZeckendorfReadout distillation
+### 2.4. ZeckendorfReadout distillation (❌ ЗАКРЫТ)
 
-| Задача | Описание | Приоритет |
-|--------|----------|-----------|
-| 2.4.1 | Запустить distill_zeckendorf.py на лучшем чекпоинте | Medium |
-| 2.4.2 | Сравнить PPL Zeckendorf vs lm_head | Medium |
-| 2.4.3 | Измерить скорость инференса (Zeckendorf дерево) | Low |
-
-**Milestone M2.4:** ZeckendorfReadout quality known, edge-deployment feasible. ✅/❌
+Zeckendorf (86K) побеждал lm_head (44.8M) на замороженном stack (PPL 1,435 vs 32,652),
+но разваливался при co-training (PPL 6e18). lm_head — 0.04% модели — оставлен.
+Код и чекпоинты удалены. Подробности: SUMMARY.md → ZeckendorfReadout experiment.
 
 ### 2.5. Инфраструктура для Phase 3
 
@@ -142,7 +141,15 @@
 | RTX 3090 24GB | 2.5 — инфраструктура | ~1 неделя |
 | **Итого** | | **~5 недель** |
 
-### 2.7. 36-Layer Scale-up & Tokenizer
+### 2.7. Новые фичи (реализовано)
+
+| Фича | Статус | Описание |
+|------|--------|----------|
+| **Learnable V (Cayley)** | ✅ | V_eff = V_frozen @ R, R = solve(I-S, I+S), S = A·B^T - B·A^T. Orth_err < 1e-9. |
+| **Adaptive depth** | ✅ | Gate spread → per-token routing. Soft на обучении, hard на инференсе. 0 доп. параметров. |
+| **Анализатор модели** | ✅ | `analyze_model.py` — ASCII + `--html` с цветными таблицами и визуализацией гейтов. |
+
+### 2.8. 36-Layer Scale-up & Tokenizer
 
 **Цель:** масштабировать модель до 36 слоёв, доработать токенизатор, подготовить инфраструктуру для multi-agent reasoning.
 
