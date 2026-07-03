@@ -21,15 +21,16 @@ Self-contained language model with O(1) memory context, based on content-depende
 - Ни одного NaN за всю эпоху (fp32, MX550)
 - Архитектура подтверждена: λ_d — работающая языковая модель
 
-## Phase 2 Russian — In Progress
+## Phase 2 Russian — Resumed (lm_head)
 
 **12-layer LDStack, D=896, K=4, 95.1M, Russian Wikipedia + books (844M tok, 6.6M chunks).**
+**Выход:** lm_head (44.8M). ZeckendorfReadout — закрыт (см. эксперименты).
 
 | Step | Loss | PPL | lr |
 |------|------|-----|----|
 | 20200 | 5.01 | 150.1 | 1e-3 |
 | 25000 | 4.93 | 137.9 | 9.97e-4 |
-| 29000 | 4.88 | 132.1 | 9.95e-4 |
+| 29200 | 4.88 | 132.1 | ~1e-3 (quota expired) |
 
 **Генерация (step 25000, temp=0.8, top_k=40):**
 ```
@@ -61,6 +62,20 @@ V-energy anisotropy: ratio 1.3e9 в Layer 11 — сигнал сконцентр
 | 1024 | 116.7 | +169% |
 
 Модель generalizes beyond training length (128), но PPL растёт — мотивация для HierarchyLD.
+
+## ZeckendorfReadout — эксперимент и закрытие
+
+**Суть:** Заменить lm_head (44.8M, 94% параметров инференса) на древовидный декодер на базе кодов Фибоначчи (86K = 521× меньше).
+
+**Результаты:**
+| Тест | lm_head PPL | Zeckendorf PPL | Условия |
+|------|-------------|----------------|---------|
+| Frozen stack, 200 steps | 32,652 | **1,435** | Только ZK тренируется |
+| Co-training 1 epoch | **32,651** | 6.25e18 | Stack + ZK совместно |
+
+**Вывод:** ZK побеждает lm_head на замороженном stack, но при co-training stack «уезжает» из-за шумных градиентов через ZK → ZK не догоняет. lm_head составляет 0.04% модели — overhead ничтожен.
+
+**Решение:** ZeckendorfReadout удалён. Боевой выход — lm_head. Код и чекпоинты ZK удалены из репозитория.
 
 ## Эксперименты
 
@@ -149,17 +164,14 @@ V_eff = V_frozen @ R, R = solve(I − S, I + S) ∈ O(D), S = A·B^T − B·A^T,
   - V_eff = V_frozen @ R, R = Cayley(A·B^T - B·A^T) ∈ O(D), r=8 (аналитически ортогональна)
 - **BottleneckMLP**: D→256→D, SiLU, trainable
 - **Adaptive depth**: gate spread → per-token routing (soft/hard)
-- **Выход**: lm_head (96M на обучение, ~50M на инференс с ZeckendorfReadout)
+- **Выход**: lm_head (44.8M, <0.5% модели)
 
 ## Файлы
 
 | Файл | Назначение |
 |------|-----------|
 | `ld_model/core.py` | CausalConv1d, LDBlock, BottleneckMLP, LDStack |
-| `ld_model/readout.py` | ZeckendorfReadout (древовидный декодер) |
-| `train_phase2.py` | Тренировка (12×896, grad accum, warmup, entropy logging) |
-| `colab_train.py` | Colab/T4 скрипт |
-| `distill_zeckendorf.py` | Дистилляция ZeckendorfReadout поверх обученного ствола |
+| `train_phase2.py` | Тренировка (12×896, grad accum, warmup, Cayley, adaptive_depth) |
 | `colab_phase2_ru.ipynb` | Colab notebook (Russian, mmap, auto-resume, fp16 ckpt) |
 | `experiment_spectral_gates.py` | Сравнение spectral vs learned gates |
 | `experiment_gate_analysis.py` | Gate entropy + V-energy anisotropy анализ |
@@ -178,7 +190,7 @@ V_eff = V_frozen @ R, R = solve(I − S, I + S) ∈ O(D), S = A·B^T − B·A^T,
 | Длина контекста | 8K-128K | 128K+ | **∞ (RNN)** |
 | Параметры внимания | 4·D² | D·Δ | **D·K (K=4..6)** |
 | Спектр | Фиксирован | HIPPO | **α(h)-зависимый, блоковый** |
-| Инференс (1.3B) | 100M+ lm_head | 100M+ | **~50M c Zeckendorf** |
+| Инференс (1.3B) | 100M+ lm_head | 100M+ | **lm_head 44.8M** |
 | Edge-ready | Нет (KV-cache) | Частично | **Да** |
 
 ## Next: Phase 2.5 → Phase 3

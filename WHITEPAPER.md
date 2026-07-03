@@ -344,6 +344,16 @@ log P(token | h) = Σ_k log P(bit_k | h, state_k)
 - Требует дообучения (дистилляция с lm_head)
 - Последовательное декодирование (K шагов вместо одного)
 
+**Результаты эксперимента (Phase 2):**
+| Тест | lm_head PPL | Zeckendorf PPL | Условия |
+|------|-------------|----------------|---------|
+| Frozen stack, 200 steps | 32,652 | **1,435** | Только ZK |
+| Co-training 1 epoch | **32,651** | 6.25×10¹⁸ | Stack + ZK |
+
+ZK побеждает lm_head на замороженном stack (находит более эффективную проекцию), но при co-training градиенты через ZK шумны → stack уходит → ZK не догоняет. lm_head — 0.04% модели (44.8M из 106M), overhead незначителен.
+
+**Решение (2026-07):** ZeckendorfReadout закрыт, код удалён. Боевой выход — lm_head.
+
 ### 2.8. LDStack (полная модель)
 
 ```
@@ -841,7 +851,7 @@ RMSNorm → lm_head → logits        RMSNorm → lm_head → logits
 |---------|--------------------------|-------------------|
 | RAM при L=128K | 3.4 GB (KV-cache) | **3.5 KB** |
 | RAM при L=1M | 27 GB | **3.5 KB** |
-| Вес модели (инференс) | ~100 MB (с lm_head) | **~5 MB** (с Zeckendorf) |
+| Вес модели (инференс) | ~100 MB (с lm_head) | **~54 MB** (lm_head 44.8M + stack) |
 | MAC/токен | ~3.7B (attn + MLP) | **~1.2B** (λ_d + bottleneck) |
 | Quantization | INT8 — стандарт | **INT4** (V ортогональна) |
 
@@ -1076,14 +1086,19 @@ Total params: ~1-8B в зависимости от K, D, глубины
 ### 10.1. Текущий статус
 
 **Доказано:**
-- λ_d — работающая архитектура (105M, PPL 131 на wikitext)
+- λ_d — работающая архитектура (106M, PPL 131 на wikitext)
 - Content-dependent routing работает (learned gates)
 - Линейная сложность O(L·D), память O(D)
 - 0 NaN, стабильное обучение, авто-resume
 - Bootstrapping V-анизотропии — прямой аналог attention head specialization
+- Экстраполяция: PPL 43.3→116.7 при 8× длины обучения (+169%)
+- Adaptive depth: gate spread → per-token routing, 98%→30% токенов по слоям
+- Learnable V (Cayley) — аналитическая ортогональность, machine epsilon
+- Русский датасет: 6.6M chunks (844M токенов), step 29200, loss 4.88, PPL 132
+- ZeckendorfReadout (86K): проиграл lm_head (44.8M) при co-training — закрыт
 
 **Требует масштабирования:**
-- Phase 2 масштабирование (500M–1B params) на RTX 3090/4090
+- Phase 2.5 scaling law sweep (500M–1B params) на RTX 3090/4090
 - Phase 3 иерархический FCF-style на A100
 - Обучение на 100B+ токенах
 
