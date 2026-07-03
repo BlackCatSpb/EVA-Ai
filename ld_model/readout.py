@@ -82,134 +82,142 @@ class ZeckendorfReadout(torch.nn.Module):
         # state=1 (prev=1): forced 0
         # We store c[level, 0, 0], c[level, 0, 1], c[level, 1, 0]
         self.centroids = torch.nn.Parameter(
-            torch.randn(self.K, 2, 2, self.D, dtype=torch.float16) * 0.01
+            torch.randn(self.K, 2, 2, self.D) * 0.1
         )
         # c[level, 1, 1] is invalid (no consecutive 1s), set to zero
         with torch.no_grad():
             self.centroids[:, 1, 1, :] = 0.0
     
-    def forward_log_probs(self, h: torch.Tensor) -> torch.Tensor:
-        """Compute log P(i|h) for all valid Zeckendorf tokens.
-        
+    def log_probs_for_target(self, h: torch.Tensor,
+                               target: torch.Tensor) -> torch.Tensor:
+        """Efficient log P(target[i] | h[i]) — no full-V' computation.
+
+        O(B · K) instead of O(B · V' · K).
+
         Args:
             h: (B, D) hidden state
-        
+            target: (B,) target token IDs
+
+        Returns:
+            log_probs: (B,) log-probabilities of each target token
+        """
+        B, D = h.shape
+        K = self.K
+
+        c = self.centroids.float()
+        h_exp = h.view(B, 1, 1, 1, D)
+        c_exp = c.view(1, K, 2, 2, D)
+        logit = (h_exp * c_exp).sum(dim=-1)
+        log_probs_k_s = F.log_softmax(logit, dim=-1)
+        log_p_flat = log_probs_k_s.reshape(B, K, 4)
+
+        codes = self.codes.to(h.device)
+        prev_bits = torch.zeros_like(codes)
+        if K > 1:
+            prev_bits[:, 1:] = codes[:, :-1]
+        combined_idx = prev_bits * 2 + codes
+
+        Vp = codes.shape[0]
+        target_clamped = target.clamp(0, Vp - 1)
+        idx = combined_idx[target_clamped]  # (B, K)
+        log_p = log_p_flat[torch.arange(B, device=h.device)[:, None],
+                           torch.arange(K, device=h.device), idx]
+        return log_p.sum(dim=-1)
+
+    def forward_log_probs(self, h: torch.Tensor) -> torch.Tensor:
+        """Compute log P(i|h) for all valid Zeckendorf tokens.
+
+        Vectorized via prev_bit indexing: O(K · V') gather ops.
+
+        Args:
+            h: (B, D) hidden state
+
         Returns:
             log_probs: (B, V') log-probabilities
         """
         B, D = h.shape
-        device = h.device
         K = self.K
-        
-        # Centroids to device
-        c = self.centroids.to(device, torch.float32)  # (K, 2, 2, D)
-        
-        # Compute h·c logits for all (k, state, digit)
-        # h: (B, 1, 1, 1, D) @ c: (1, K, 2, 2, D) -> (B, K, 2, 2)
+
+        c = self.centroids.float()
         h_exp = h.view(B, 1, 1, 1, D)
         c_exp = c.view(1, K, 2, 2, D)
-        logit = (h_exp * c_exp).sum(dim=-1)  # (B, K, 2, 2) — h·c
-        
-        # Normalize within each (k, state): P(digit|k,state)
-        log_probs_k_s = F.log_softmax(logit, dim=-1)  # (B, K, 2, 2)
-        
-        # For each token, sum log-probabilities along its path
-        codes = self.codes.to(device)  # (V', K)
-        B, K_codes = B, codes.shape[0]
-        
-        # We need: for token i at level k, what's the prob of codes[i,k]?
-        # We have: log_probs_k_s[b, k, state, digit]
-        # But state depends on PREVIOUS code bit, which is codes[i, k-1]
-        # And codes[i, k-1] depends on codes[i, k-2], etc. (chain)
-        # This makes direct vectorization impossible.
-        
-        # For synthetic test: fall back to per-token loop
-        # (can be optimized with dynamic programming later)
-        log_probs = torch.full((B, K_codes), -float('inf'), device=device)
-        
-        for b in range(B):
-            for i in range(K_codes):
-                log_prob = 0.0
-                state = 0
-                for k in range(K):
-                    cur_bit = codes[i, k].item()
-                    p_k = log_probs_k_s[b, k, state, cur_bit]
-                    log_prob += p_k
-                    state = cur_bit  # next state = current bit
-                log_probs[b, i] = log_prob
-        
+        logit = (h_exp * c_exp).sum(dim=-1)
+        log_probs_k_s = F.log_softmax(logit, dim=-1)
+        log_p_flat = log_probs_k_s.reshape(B, K, 4)
+
+        Vp, _ = self.codes.shape
+        codes = self.codes
+
+        prev_bits = torch.zeros_like(codes)
+        if K > 1:
+            prev_bits[:, 1:] = codes[:, :-1]
+        combined_idx = prev_bits * 2 + codes
+
+        log_probs = torch.zeros(B, Vp, device=h.device)
+        for k in range(K):
+            log_probs += log_p_flat[:, k, combined_idx[:, k]]
+
         return log_probs
     
     def predict(self, h: torch.Tensor, greedy: bool = True,
                 temperature: float = 1.0) -> torch.Tensor:
         """Generate token by traversing Zeckendorf tree.
-        
+
         Args:
             h: (B, D) hidden state
             greedy: if True, pick max at each node; else sample with temp
-        
+
         Returns:
             tokens: (B,) token IDs
         """
         B, D = h.shape
         device = h.device
         K = self.K
-        c = self.centroids.to(device, torch.float32)
-        
-        # Precompute h·c / temp
+        c = self.centroids.float()
+
         h_exp = h.view(B, 1, 1, 1, D)
         c_exp = c.view(1, K, 2, 2, D)
-        logit = (h_exp * c_exp).sum(dim=-1) / temperature  # (B, K, 2, 2)
-        # Softmax over digits
-        probs = F.softmax(logit, dim=-1)  # (B, K, 2, 2)
-        
+        logit = (h_exp * c_exp).sum(dim=-1) / temperature
+        probs = F.softmax(logit, dim=-1)
+
         tokens = torch.zeros(B, dtype=torch.long, device=device)
-        fibs = self.fibs.to(device)
-        
+        fibs = self.fibs
+
         for b in range(B):
             state = 0
             token_id = 0
-            
             for k in range(K):
-                # Prob of digit=1 at this (k, state)
                 p1 = probs[b, k, state, 1]
-                
                 if state == 1:
-                    # Forced 0 (Zeckendorf constraint)
                     bit = 0
                 elif greedy:
                     bit = 1 if p1 > 0.5 else 0
                 else:
-                    bit = 1 if torch.rand(1).item() < p1.item() else 0
-                
+                    bit = 1 if torch.rand(1, device=device).item() < p1.item() else 0
                 if bit:
                     token_id += fibs[k].item()
-                
                 state = bit
-            
             tokens[b] = min(token_id, self.vocab - 1)
-        
+
         return tokens
     
     def compare_with_lm_head(self, h: torch.Tensor, W_embed: torch.Tensor,
                               top_k: int = 10) -> dict:
         """Compare Zeckendorf readout with standard lm_head (h @ W^T).
-        
+
         Args:
             h: (B, D) hidden state
             W_embed: (V, D) embedding matrix
-        
+
         Returns:
             dict with overlap, KL, etc.
         """
         B, D = h.shape
-        device = h.device
         V = W_embed.shape[0]
-        
-        # lm_head
+
         h_f = h.float()
-        W_f = W_embed.to(device, torch.float32).float()
-        logits_lm = h_f @ W_f.T  # (B, V)
+        W_f = W_embed.float()
+        logits_lm = h_f @ W_f.T
         probs_lm = F.softmax(logits_lm / 1.0, dim=-1)
         
         # Zeckendorf (only valid tokens have codes)
